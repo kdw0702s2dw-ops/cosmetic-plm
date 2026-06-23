@@ -499,16 +499,16 @@ export default function Home() {
     setMaterials(rawData || []);
     setIngredients(ingData || []);
     setGlobalIngredients(globalIngData || []);
-    setCompositions((compData as Composition[]) || []);
+    setCompositions((compData as unknown as Composition[]) || []);
     setFormulas(formulaData || []);
     setProjects(projectData || []);
-    setProjectFormulas((projectFormulaData as ProjectFormula[]) || []);
-    setStabilityTests((stabilityData as StabilityTest[]) || []);
-    setApprovalRequests((approvalData as ApprovalRequest[]) || []);
-    setProjectStages((stageData as ProjectStage[]) || []);
-    setFormulaItems((formulaItemData as FormulaItem[]) || []);
-    setProcessSteps((processStepData as ProcessStep[]) || []);
-    setMaterialDocuments((materialDocumentData as MaterialDocument[]) || []);
+    setProjectFormulas((projectFormulaData as unknown as ProjectFormula[]) || []);
+    setStabilityTests((stabilityData as unknown as StabilityTest[]) || []);
+    setApprovalRequests((approvalData as unknown as ApprovalRequest[]) || []);
+    setProjectStages((stageData as unknown as ProjectStage[]) || []);
+    setFormulaItems((formulaItemData as unknown as FormulaItem[]) || []);
+    setProcessSteps((processStepData as unknown as ProcessStep[]) || []);
+    setMaterialDocuments((materialDocumentData as unknown as MaterialDocument[]) || []);
   }
 
   function getFilteredGlobalIngredients() {
