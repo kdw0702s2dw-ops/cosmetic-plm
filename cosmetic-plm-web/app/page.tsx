@@ -199,6 +199,55 @@ type FullIlItem = {
 
 export default function Home() {
   const [menu, setMenu] = useState("dashboard");
+  const inputStyle = {
+    padding: "10px",
+    border: "1px solid #d1d5db",
+    borderRadius: "6px",
+    width: "100%",
+    boxSizing: "border-box" as const,
+  };
+
+  const buttonStyle = {
+    padding: "10px 14px",
+    border: "0",
+    borderRadius: "6px",
+    background: "#2563eb",
+    color: "white",
+    fontWeight: "bold" as const,
+    cursor: "pointer",
+  };
+
+  const tableStyle = {
+    width: "100%",
+    borderCollapse: "collapse" as const,
+    marginTop: "10px",
+    marginBottom: "24px",
+    fontSize: "14px",
+  };
+
+  const thStyle = {
+    border: "1px solid #d1d5db",
+    padding: "10px",
+    background: "#f3f4f6",
+    textAlign: "left" as const,
+    whiteSpace: "nowrap" as const,
+  };
+
+  const tdStyle = {
+    border: "1px solid #d1d5db",
+    padding: "10px",
+    verticalAlign: "top" as const,
+  };
+
+  const cardStyle = {
+    border: "1px solid #e5e7eb",
+    borderRadius: "10px",
+    padding: "18px",
+    background: "white",
+    marginBottom: "20px",
+  };
+
+
 
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -255,6 +304,7 @@ export default function Home() {
   const [globalRegulationNote, setGlobalRegulationNote] = useState("");
   const [globalEwgGrade, setGlobalEwgGrade] = useState("");
   const [globalAllergenNote, setGlobalAllergenNote] = useState("");
+  const [globalUploadStatus, setGlobalUploadStatus] = useState("");
 
   const [rawMaterialId, setRawMaterialId] = useState("");
   const [ingredientId, setIngredientId] = useState("");
@@ -633,6 +683,8 @@ export default function Home() {
   }
 
   async function importGlobalCsv(file: File) {
+    setGlobalUploadStatus("CSV 파일을 읽는 중입니다...");
+
     const text = await file.text();
     const lines = text
       .replace(/^\ufeff/, "")
@@ -641,6 +693,7 @@ export default function Home() {
 
     if (lines.length < 2) {
       alert("CSV에 데이터가 없습니다.");
+      setGlobalUploadStatus("");
       return;
     }
 
@@ -677,17 +730,38 @@ export default function Home() {
 
     if (records.length === 0) {
       alert("업로드할 INCI 데이터가 없습니다.");
+      setGlobalUploadStatus("");
       return;
     }
 
-    const { error } = await supabase.from("ingredient_master_global").insert(records);
+    const chunkSize = 500;
+    let uploadedCount = 0;
 
-    if (error) {
-      alert("CSV 업로드 오류: " + error.message);
-      return;
+    for (let start = 0; start < records.length; start += chunkSize) {
+      const chunk = records.slice(start, start + chunkSize);
+
+      setGlobalUploadStatus(
+        `업로드 중: ${Math.min(start + chunk.length, records.length)} / ${records.length}`
+      );
+
+      const { error } = await supabase
+        .from("ingredient_master_global")
+        .upsert(chunk, {
+          onConflict: "inci_name",
+          ignoreDuplicates: false,
+        });
+
+      if (error) {
+        alert("CSV 업로드 오류: " + error.message);
+        setGlobalUploadStatus("업로드 실패");
+        return;
+      }
+
+      uploadedCount += chunk.length;
     }
 
-    alert(`${records.length}개 Global INCI 데이터 업로드 완료`);
+    setGlobalUploadStatus(`업로드 완료: ${uploadedCount}개 처리`);
+    alert(`${uploadedCount}개 Global INCI 데이터 업로드/업데이트 완료`);
     loadAll();
   }
 
@@ -1047,6 +1121,200 @@ export default function Home() {
     }
 
     return "-";
+  }
+
+  async function updateRawMaterial(item: RawMaterial) {
+    const rawCode = window.prompt("원료코드", item.raw_code || "");
+    if (rawCode === null) return;
+
+    const rawName = window.prompt("원료명", item.raw_name || "");
+    if (rawName === null) return;
+
+    const supplierValue = window.prompt("공급사", item.supplier || "");
+    if (supplierValue === null) return;
+
+    const unitPriceValue = window.prompt("구매단가(원/kg)", String(item.unit_price || 0));
+    if (unitPriceValue === null) return;
+
+    const currencyValue = window.prompt("통화", item.currency || "KRW");
+    if (currencyValue === null) return;
+
+    const moqValue = window.prompt("MOQ(kg)", String(item.moq || 0));
+    if (moqValue === null) return;
+
+    const { error } = await supabase
+      .from("raw_materials")
+      .update({
+        raw_code: rawCode,
+        raw_name: rawName,
+        supplier: supplierValue,
+        unit_price: Number(unitPriceValue || 0),
+        currency: currencyValue,
+        moq: Number(moqValue || 0),
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("원료 수정 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  async function deleteRawMaterial(item: RawMaterial) {
+    const ok = window.confirm(`${item.raw_code} / ${item.raw_name} 원료를 삭제할까요? 연결된 조성/처방 데이터에 영향이 있을 수 있습니다.`);
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("raw_materials").delete().eq("id", item.id);
+
+    if (error) {
+      alert("원료 삭제 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  async function updateGlobalIngredient(item: GlobalIngredient) {
+    const inciName = window.prompt("INCI", item.inci_name || "");
+    if (inciName === null) return;
+
+    const koreanNameValue = window.prompt("국문명", item.korean_name || "");
+    if (koreanNameValue === null) return;
+
+    const chineseNameValue = window.prompt("중문명", item.chinese_name || "");
+    if (chineseNameValue === null) return;
+
+    const japaneseNameValue = window.prompt("일문명", item.japanese_name || "");
+    if (japaneseNameValue === null) return;
+
+    const casNoValue = window.prompt("CAS No.", item.cas_no || "");
+    if (casNoValue === null) return;
+
+    const ecNoValue = window.prompt("EC No.", item.ec_no || "");
+    if (ecNoValue === null) return;
+
+    const functionKoValue = window.prompt("기능(국문)", item.function_ko || "");
+    if (functionKoValue === null) return;
+
+    const functionEnValue = window.prompt("Function(English)", item.function_en || "");
+    if (functionEnValue === null) return;
+
+    const iecicValue = window.prompt("IECIC 여부", item.iecic_status || "");
+    if (iecicValue === null) return;
+
+    const cosmosValue = window.prompt("COSMOS 여부", item.cosmos_status || "");
+    if (cosmosValue === null) return;
+
+    const veganValue = window.prompt("VEGAN 여부", item.vegan_status || "");
+    if (veganValue === null) return;
+
+    const maxUseValue = window.prompt("배합한도", item.max_use_level || "");
+    if (maxUseValue === null) return;
+
+    const regulationValue = window.prompt("규제사항", item.regulation_note || "");
+    if (regulationValue === null) return;
+
+    const ewgValue = window.prompt("EWG 등급", item.ewg_grade || "");
+    if (ewgValue === null) return;
+
+    const allergenValue = window.prompt("알러젠 정보", item.allergen_note || "");
+    if (allergenValue === null) return;
+
+    const { error } = await supabase
+      .from("ingredient_master_global")
+      .update({
+        inci_name: inciName,
+        korean_name: koreanNameValue,
+        chinese_name: chineseNameValue,
+        japanese_name: japaneseNameValue,
+        cas_no: casNoValue,
+        ec_no: ecNoValue,
+        function_ko: functionKoValue,
+        function_en: functionEnValue,
+        iecic_status: iecicValue,
+        cosmos_status: cosmosValue,
+        vegan_status: veganValue,
+        max_use_level: maxUseValue,
+        regulation_note: regulationValue,
+        ewg_grade: ewgValue,
+        allergen_note: allergenValue,
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("성분 수정 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  async function deleteGlobalIngredient(item: GlobalIngredient) {
+    const ok = window.confirm(`${item.inci_name} / ${item.korean_name} 성분을 삭제할까요?`);
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("ingredient_master_global").delete().eq("id", item.id);
+
+    if (error) {
+      alert("성분 삭제 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  async function updateFormulaBasic(item: Formula) {
+    const formulaCodeValue = window.prompt("처방코드", item.formula_code || "");
+    if (formulaCodeValue === null) return;
+
+    const formulaNameValue = window.prompt("처방명", item.formula_name || "");
+    if (formulaNameValue === null) return;
+
+    const versionValue = window.prompt("버전", item.version || "1.0");
+    if (versionValue === null) return;
+
+    const targetCostValue = window.prompt("목표원가(원/kg)", String(item.target_cost || 0));
+    if (targetCostValue === null) return;
+
+    const sellingPriceValue = window.prompt("공급가(원/kg)", String(item.selling_price || 0));
+    if (sellingPriceValue === null) return;
+
+    const { error } = await supabase
+      .from("formulas")
+      .update({
+        formula_code: formulaCodeValue,
+        formula_name: formulaNameValue,
+        version: versionValue,
+        target_cost: Number(targetCostValue || 0),
+        selling_price: Number(sellingPriceValue || 0),
+      })
+      .eq("id", item.id);
+
+    if (error) {
+      alert("처방 수정 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
+  }
+
+  async function deleteFormulaBasic(item: Formula) {
+    const ok = window.confirm(`${item.formula_code} / ${item.formula_name} 처방을 삭제할까요? 연결된 처방 원료도 삭제될 수 있습니다.`);
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("formulas").delete().eq("id", item.id);
+
+    if (error) {
+      alert("처방 삭제 오류: " + error.message);
+      return;
+    }
+
+    loadAll();
   }
 
   async function addMaterial() {
@@ -1955,11 +2223,8 @@ export default function Home() {
     ["dashboard", "대시보드"],
     ["project", "프로젝트관리"],
     ["raw", "원료관리"],
-    ["ingredient", "성분관리"],
-    ["globalIngredient", "Global INCI"],
+    ["globalIngredient", "성분관리"],
     ["composition", "원료조성표"],
-    ["process", "공정관리"],
-    ["docs", "COA/MSDS"],
     ["formula", "처방관리"],
     ["validation", "처방검증"],
     ["stability", "안정도관리"],
@@ -1975,6 +2240,43 @@ export default function Home() {
 
   return (
     <main style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
+        <style jsx global>{`
+          table {
+            border-collapse: collapse;
+          }
+          th {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            background: #f3f4f6;
+            text-align: left;
+            white-space: nowrap;
+          }
+          td {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            vertical-align: top;
+          }
+          input, select, textarea {
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-sizing: border-box;
+          }
+          button {
+            padding: 8px 12px;
+            border: 0;
+            border-radius: 6px;
+            background: #2563eb;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 2px;
+          }
+          button:hover {
+            opacity: 0.9;
+          }
+        `}</style>
+
       <aside style={{ width: "230px", background: "#111827", color: "white", padding: "24px" }}>
         <h2>🧪 Cosmetic PLM</h2>
 
@@ -2006,7 +2308,7 @@ export default function Home() {
             <p>프로젝트, 승인, 안정도, 마스터 데이터 현황을 한눈에 확인합니다.</p>
 
             <h2>프로젝트 현황</h2>
-            <table border={1} cellPadding={10}>
+            <table style={tableStyle}>
               <tbody>
                 <tr>
                   <th>전체 프로젝트</th>
@@ -2024,7 +2326,7 @@ export default function Home() {
             </table>
 
             <h2>승인 현황</h2>
-            <table border={1} cellPadding={10}>
+            <table style={tableStyle}>
               <tbody>
                 <tr>
                   <th>승인대기</th>
@@ -2042,7 +2344,7 @@ export default function Home() {
             </table>
 
             <h2>안정도 현황</h2>
-            <table border={1} cellPadding={10}>
+            <table style={tableStyle}>
               <tbody>
                 <tr>
                   <th>진행중</th>
@@ -2060,7 +2362,7 @@ export default function Home() {
             </table>
 
             <h2>마스터 데이터 현황</h2>
-            <table border={1} cellPadding={10}>
+            <table style={tableStyle}>
               <tbody>
                 <tr>
                   <th>원료 수</th>
@@ -2069,7 +2371,7 @@ export default function Home() {
                   <td>{getDashboardKpis().totalIngredients}</td>
                 </tr>
                 <tr>
-                  <th>Global INCI 수</th>
+                  <th>통합 성분 수</th>
                   <td>{getDashboardKpis().totalGlobalIngredients}</td>
                   <th>처방 수</th>
                   <td>{getDashboardKpis().totalFormulas}</td>
@@ -2078,7 +2380,7 @@ export default function Home() {
             </table>
 
             <h2>프로젝트별 진행률</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>프로젝트 코드</th>
@@ -2243,7 +2545,7 @@ export default function Home() {
             </div>
 
             <h2>프로젝트 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>프로젝트 코드</th>
@@ -2286,7 +2588,7 @@ export default function Home() {
               </tbody>
             </table>
             <h2>프로젝트별 연결 처방</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>프로젝트 코드</th>
@@ -2334,7 +2636,7 @@ export default function Home() {
             </div>
 
             <h2>원료 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>원료코드</th>
@@ -2343,6 +2645,7 @@ export default function Home() {
                   <th>단가(원/kg)</th>
                   <th>통화</th>
                   <th>MOQ(kg)</th>
+                  <th>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -2354,112 +2657,10 @@ export default function Home() {
                     <td>{Number(m.unit_price || 0).toLocaleString()}</td>
                     <td>{m.currency || "KRW"}</td>
                     <td>{Number(m.moq || 0).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {menu === "ingredient" && (
-          <>
-            <h1>성분관리</h1>
-
-            <h2>Global INCI Master 자동검색</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "700px", marginBottom: "20px" }}>
-              <input
-                placeholder="INCI / 국문명 / CAS No. 검색 예: Glycerin"
-                value={globalSearch || ""}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-              />
-
-              <table border={1} cellPadding={8}>
-                <thead>
-                  <tr>
-                    <th>INCI</th>
-                    <th>국문명</th>
-                    <th>CAS No.</th>
-                    <th>기능</th>
-                    <th>입력창 적용</th>
-                    <th>자동등록</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getFilteredGlobalIngredients().slice(0, 10).map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.inci_name}</td>
-                      <td>{item.korean_name}</td>
-                      <td>{item.cas_no}</td>
-                      <td>{item.function_ko}</td>
-                      <td>
-                        <button onClick={() => fillIngredientFromGlobal(item)}>입력창 적용</button>
-                      </td>
-                      <td>
-                        <button onClick={() => registerGlobalToIngredient(item)}>성분관리 자동등록</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <h2>성분 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "400px" }}>
-              <input placeholder="INCI 예: Glycerin" value={inciName || ""} onChange={(e) => setInciName(e.target.value)} />
-              <input placeholder="국문명 예: 글리세린" value={koreanName || ""} onChange={(e) => setKoreanName(e.target.value)} />
-              <input placeholder="중문명 예: 甘油" value={chineseName || ""} onChange={(e) => setChineseName(e.target.value)} />
-              <input placeholder="일문명 예: グリセリン" value={japaneseName || ""} onChange={(e) => setJapaneseName(e.target.value)} />
-              <input placeholder="CAS No. 예: 56-81-5" value={casNo || ""} onChange={(e) => setCasNo(e.target.value)} />
-              <input placeholder="EC No. 예: 200-289-5" value={ecNo || ""} onChange={(e) => setEcNo(e.target.value)} />
-              <input placeholder="기능 예: 보습제" value={functionKo || ""} onChange={(e) => setFunctionKo(e.target.value)} />
-              <input placeholder="IECIC 여부 예: Listed / Not Listed" value={iecicStatus || ""} onChange={(e) => setIecicStatus(e.target.value)} />
-              <input placeholder="COSMOS 여부 예: 가능 / 불가" value={cosmosStatus || ""} onChange={(e) => setCosmosStatus(e.target.value)} />
-              <input placeholder="VEGAN 여부 예: Vegan / Non-vegan" value={veganStatus || ""} onChange={(e) => setVeganStatus(e.target.value)} />
-              <input placeholder="배합한도 예: 1% 이하" value={maxUseLevel || ""} onChange={(e) => setMaxUseLevel(e.target.value)} />
-              <input placeholder="규제사항 예: 사용제한 원료 아님" value={regulationNote || ""} onChange={(e) => setRegulationNote(e.target.value)} />
-              <input placeholder="EWG 등급 예: 1" value={ewgGrade || ""} onChange={(e) => setEwgGrade(e.target.value)} />
-              <input placeholder="알러젠 정보 예: 해당 없음" value={allergenNote || ""} onChange={(e) => setAllergenNote(e.target.value)} />
-              <button onClick={addIngredient}>성분 저장</button>
-            </div>
-
-            <h2>성분 목록</h2>
-            <table border={1} cellPadding={8}>
-              <thead>
-                <tr>
-                  <th>INCI</th>
-                  <th>국문명</th>
-                  <th>중문명</th>
-                  <th>일문명</th>
-                  <th>CAS No.</th>
-                  <th>EC No.</th>
-                  <th>기능</th>
-                  <th>IECIC</th>
-                  <th>COSMOS</th>
-                  <th>VEGAN</th>
-                  <th>배합한도</th>
-                  <th>규제사항</th>
-                  <th>성분관리 등록</th>
-                  <th>EWG</th>
-                  <th>알러젠</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ingredients.map((i) => (
-                  <tr key={i.id}>
-                    <td>{i.inci_name}</td>
-                    <td>{i.korean_name}</td>
-                    <td>{i.chinese_name}</td>
-                    <td>{i.japanese_name}</td>
-                    <td>{i.cas_no}</td>
-                    <td>{i.ec_no}</td>
-                    <td>{i.function_ko}</td>
-                    <td>{i.iecic_status}</td>
-                    <td>{i.cosmos_status}</td>
-                    <td>{i.vegan_status}</td>
-                    <td>{i.max_use_level}</td>
-                    <td>{i.regulation_note}</td>
-                    <td>{i.ewg_grade}</td>
-                    <td>{i.allergen_note}</td>
+                    <td>
+                      <button onClick={() => updateRawMaterial(m)}>수정</button>
+                      <button onClick={() => deleteRawMaterial(m)} style={{ background: "#dc2626" }}>삭제</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -2469,8 +2670,8 @@ export default function Home() {
 
         {menu === "globalIngredient" && (
           <>
-            <h1>Global INCI Master</h1>
-            <p>식약처/IECIC/INCI 통합 성분 마스터로 사용할 기준 데이터를 관리합니다.</p>
+            <h1>성분관리 / 통합 성분 Master</h1>
+            <p>성분 정보를 하나의 통합 마스터로 관리합니다. INCI, 국문명, 중문명, 일문명, CAS, EC, 규제 정보를 이 화면에서 등록/수정/삭제합니다.</p>
 
             <h2>CSV 대량 업로드</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "600px", marginBottom: "24px" }}>
@@ -2491,10 +2692,15 @@ export default function Home() {
 
               <p style={{ color: "#555" }}>
                 CSV 첫 줄은 양식 그대로 사용하세요. INCI명(inci_name)은 필수입니다.
+                같은 INCI명은 새로 추가하지 않고 기존 데이터를 업데이트합니다.
+              </p>
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>
+                {globalUploadStatus}
               </p>
             </div>
 
-            <h2>Global 성분 등록</h2>
+            <h2>통합 성분 등록</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "600px" }}>
               <input placeholder="INCI 예: Glycerin" value={globalInciName || ""} onChange={(e) => setGlobalInciName(e.target.value)} />
               <input placeholder="국문명 예: 글리세린" value={globalKoreanName || ""} onChange={(e) => setGlobalKoreanName(e.target.value)} />
@@ -2512,14 +2718,14 @@ export default function Home() {
               <input placeholder="EWG 등급 예: 1" value={globalEwgGrade || ""} onChange={(e) => setGlobalEwgGrade(e.target.value)} />
               <input placeholder="알러젠 정보" value={globalAllergenNote || ""} onChange={(e) => setGlobalAllergenNote(e.target.value)} />
 
-              <button onClick={addGlobalIngredient}>Global 성분 저장</button>
+              <button onClick={addGlobalIngredient}>통합 성분 저장</button>
             </div>
 
-            <h2>Global 성분 목록</h2>
+            <h2>통합 성분 목록</h2>
             <p>
               Global 성분 수: {globalIngredients.length}개 / 성분관리 등록 수: {ingredients.length}개
             </p>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>INCI</th>
@@ -2536,6 +2742,7 @@ export default function Home() {
                   <th>배합한도</th>
                   <th>규제사항</th>
                   <th>성분관리 등록</th>
+                  <th>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -2556,6 +2763,10 @@ export default function Home() {
                     <td>{item.regulation_note}</td>
                     <td>
                       <button onClick={() => registerGlobalToIngredient(item)}>등록</button>
+                    </td>
+                    <td>
+                      <button onClick={() => updateGlobalIngredient(item)}>수정</button>
+                      <button onClick={() => deleteGlobalIngredient(item)} style={{ background: "#dc2626" }}>삭제</button>
                     </td>
                   </tr>
                 ))}
@@ -2630,7 +2841,7 @@ export default function Home() {
             </div>
 
             <h2>원료별 구성비율 합계</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>원료코드</th>
@@ -2659,7 +2870,7 @@ export default function Home() {
             </table>
 
             <h2>원료조성표 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>원료코드</th>
@@ -2683,210 +2894,6 @@ export default function Home() {
                     <td>{c.percentage}</td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {menu === "process" && (
-          <>
-            <h1>공정관리</h1>
-            <p>처방별 제조 공정, 온도, RPM, 시간, 작업지시를 관리합니다.</p>
-
-            <h2>공정 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "600px" }}>
-              <select value={processFormulaId || ""} onChange={(e) => setProcessFormulaId(e.target.value)}>
-                <option value="">처방 선택</option>
-                {formulas.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.formula_code} - {f.formula_name} v{f.version}
-                  </option>
-                ))}
-              </select>
-
-              <input
-                placeholder="Phase 예: Phase A"
-                value={processPhase || ""}
-                onChange={(e) => setProcessPhase(e.target.value)}
-              />
-
-              <input
-                placeholder="Step No. 예: 1"
-                value={processStepNo || ""}
-                onChange={(e) => setProcessStepNo(e.target.value)}
-              />
-
-              <input
-                placeholder="공정명 예: 정제수 가온"
-                value={processName || ""}
-                onChange={(e) => setProcessName(e.target.value)}
-              />
-
-              <input
-                placeholder="온도 예: 70℃"
-                value={processTemperature || ""}
-                onChange={(e) => setProcessTemperature(e.target.value)}
-              />
-
-              <input
-                placeholder="RPM 예: 300"
-                value={processRpm || ""}
-                onChange={(e) => setProcessRpm(e.target.value)}
-              />
-
-              <input
-                placeholder="시간 예: 30분"
-                value={processTimeMin || ""}
-                onChange={(e) => setProcessTimeMin(e.target.value)}
-              />
-
-              <input
-                placeholder="작업지시 예: 완전 용해될 때까지 교반"
-                value={processInstruction || ""}
-                onChange={(e) => setProcessInstruction(e.target.value)}
-              />
-
-              <button onClick={addProcessStep}>공정 저장</button>
-            </div>
-
-            <h2>공정 목록</h2>
-            <table border={1} cellPadding={8}>
-              <thead>
-                <tr>
-                  <th>처방코드</th>
-                  <th>처방명</th>
-                  <th>Phase</th>
-                  <th>Step</th>
-                  <th>공정명</th>
-                  <th>온도</th>
-                  <th>RPM</th>
-                  <th>시간</th>
-                  <th>작업지시</th>
-                </tr>
-              </thead>
-              <tbody>
-                {processSteps.map((step) => (
-                  <tr key={step.id}>
-                    <td>{step.formulas?.formula_code}</td>
-                    <td>{step.formulas?.formula_name}</td>
-                    <td>{step.phase}</td>
-                    <td>{step.step_no}</td>
-                    <td>{step.process_name}</td>
-                    <td>{step.temperature}</td>
-                    <td>{step.rpm}</td>
-                    <td>{step.time_min}</td>
-                    <td>{step.instruction}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {menu === "docs" && (
-          <>
-            <h1>COA / MSDS 관리</h1>
-            <p>원료별 COA, MSDS, Specification, 시험성적서 링크와 유효기간을 관리합니다.</p>
-
-            <h2>문서 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "600px" }}>
-              <select value={docRawMaterialId || ""} onChange={(e) => setDocRawMaterialId(e.target.value)}>
-                <option value="">원료 선택</option>
-                {materials.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.raw_code} - {m.raw_name}
-                  </option>
-                ))}
-              </select>
-
-              <select value={docType || ""} onChange={(e) => setDocType(e.target.value)}>
-                <option value="COA">COA</option>
-                <option value="MSDS">MSDS</option>
-                <option value="Specification">Specification</option>
-                <option value="Test Report">Test Report</option>
-                <option value="Etc">Etc</option>
-              </select>
-
-              <input
-                placeholder="문서명 예: 글리세린 COA 2026"
-                value={docTitle || ""}
-                onChange={(e) => setDocTitle(e.target.value)}
-              />
-
-              <input
-                placeholder="문서 링크 예: Google Drive URL"
-                value={docUrl || ""}
-                onChange={(e) => setDocUrl(e.target.value)}
-              />
-
-              <label>발행일</label>
-              <input
-                type="date"
-                value={docIssueDate || ""}
-                onChange={(e) => setDocIssueDate(e.target.value)}
-              />
-
-              <label>만료일</label>
-              <input
-                type="date"
-                value={docExpiryDate || ""}
-                onChange={(e) => setDocExpiryDate(e.target.value)}
-              />
-
-              <input
-                placeholder="비고 예: 공급사 제출본"
-                value={docRemark || ""}
-                onChange={(e) => setDocRemark(e.target.value)}
-              />
-
-              <button onClick={addMaterialDocument}>문서 저장</button>
-            </div>
-
-            <h2>문서 목록</h2>
-            <table border={1} cellPadding={8}>
-              <thead>
-                <tr>
-                  <th>원료코드</th>
-                  <th>원료명</th>
-                  <th>문서구분</th>
-                  <th>문서명</th>
-                  <th>링크</th>
-                  <th>발행일</th>
-                  <th>만료일</th>
-                  <th>상태</th>
-                  <th>비고</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materialDocuments.map((doc) => {
-                  const today = new Date();
-                  const expiry = doc.expiry_date ? new Date(doc.expiry_date) : null;
-                  const isExpired = expiry ? expiry < today : false;
-
-                  return (
-                    <tr key={doc.id}>
-                      <td>{doc.raw_materials?.raw_code}</td>
-                      <td>{doc.raw_materials?.raw_name}</td>
-                      <td>{doc.document_type}</td>
-                      <td>{doc.document_title}</td>
-                      <td>
-                        {doc.document_url ? (
-                          <a href={doc.document_url} target="_blank">
-                            열기
-                          </a>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td>{doc.issue_date || "-"}</td>
-                      <td>{doc.expiry_date || "-"}</td>
-                      <td style={{ color: isExpired ? "red" : "green", fontWeight: "bold" }}>
-                        {expiry ? (isExpired ? "만료" : "유효") : "미설정"}
-                      </td>
-                      <td>{doc.remark}</td>
-                    </tr>
-                  );
-                })}
               </tbody>
             </table>
           </>
@@ -2931,7 +2938,7 @@ export default function Home() {
             </div>
 
             <h2>처방 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>처방코드</th>
@@ -2947,6 +2954,7 @@ export default function Home() {
                   <th>마진율(%)</th>
                   <th>상태</th>
                   <th>복사</th>
+                  <th>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -2975,6 +2983,10 @@ export default function Home() {
                       <td>
                         <button onClick={() => cloneFormula(f)}>복사</button>
                       </td>
+                      <td>
+                        <button onClick={() => updateFormulaBasic(f)}>수정</button>
+                        <button onClick={() => deleteFormulaBasic(f)} style={{ background: "#dc2626" }}>삭제</button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -2982,7 +2994,7 @@ export default function Home() {
             </table>
 
             <h2>처방 원료 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>처방코드</th>
@@ -3036,7 +3048,7 @@ export default function Home() {
             {validationFormulaId && (
               <>
                 <h2>검증 요약</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <tbody>
                     <tr>
                       <th>처방코드</th>
@@ -3068,7 +3080,7 @@ export default function Home() {
                 </table>
 
                 <h2>원료조성 미등록 원료</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th>원료코드</th>
@@ -3088,7 +3100,7 @@ export default function Home() {
                 </table>
 
                 <h2>성분 규제/인증 점검</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th>구분</th>
@@ -3122,7 +3134,7 @@ export default function Home() {
                 </table>
 
                 <h2>Breakdown 기준 성분 목록</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th>INCI</th>
@@ -3230,7 +3242,7 @@ export default function Home() {
             </div>
 
             <h2>안정도 시험 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>시험번호</th>
@@ -3339,7 +3351,7 @@ export default function Home() {
             </div>
 
             <h2>승인 요청 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>요청구분</th>
@@ -3443,7 +3455,7 @@ export default function Home() {
             </div>
 
             <h2>프로젝트 진행률</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>프로젝트 코드</th>
@@ -3467,7 +3479,7 @@ export default function Home() {
             </table>
 
             <h2>개발일정 목록</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>프로젝트</th>
@@ -3535,7 +3547,7 @@ export default function Home() {
             {costFormulaId && (
               <>
                 <h2>원가 요약</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <tbody>
                     <tr>
                       <th>처방코드</th>
@@ -3569,7 +3581,7 @@ export default function Home() {
                 </table>
 
                 <h2>원료별 원가 상세</h2>
-                <table border={1} cellPadding={8}>
+                <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th>Phase</th>
@@ -3639,7 +3651,7 @@ export default function Home() {
               >
                 <h1 style={{ textAlign: "center" }}>BATCH MANUFACTURING SHEET</h1>
 
-                <table border={1} cellPadding={8} style={{ width: "100%", marginBottom: "24px" }}>
+                <table style={tableStyle}>
                   <tbody>
                     <tr>
                       <th>처방코드</th>
@@ -3662,7 +3674,7 @@ export default function Home() {
                   <div key={phase} style={{ marginBottom: "24px" }}>
                     <h2>{phase}</h2>
 
-                    <table border={1} cellPadding={8} style={{ width: "100%" }}>
+                    <table style={tableStyle}>
                       <thead>
                         <tr>
                           <th>원료코드</th>
@@ -3697,7 +3709,7 @@ export default function Home() {
                   <div key={phase} style={{ marginBottom: "24px" }}>
                     <h3>{phase}</h3>
 
-                    <table border={1} cellPadding={8} style={{ width: "100%" }}>
+                    <table style={tableStyle}>
                       <thead>
                         <tr>
                           <th>Step</th>
@@ -3770,7 +3782,7 @@ export default function Home() {
             </div>
 
             <h2>Breakdown IL 결과</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>INCI</th>
@@ -3817,7 +3829,7 @@ export default function Home() {
             </div>
 
             <h2>Full IL 결과</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>처방코드</th>
@@ -3886,7 +3898,7 @@ export default function Home() {
               >
                 <h1 style={{ textAlign: "center" }}>FORMULA SHEET</h1>
 
-                <table border={1} cellPadding={8} style={{ width: "100%", marginBottom: "24px" }}>
+                <table style={tableStyle}>
                   <tbody>
                     <tr>
                       <th>처방코드</th>
@@ -3909,7 +3921,7 @@ export default function Home() {
                   <div key={phase} style={{ marginBottom: "24px" }}>
                     <h2>{phase}</h2>
 
-                    <table border={1} cellPadding={8} style={{ width: "100%" }}>
+                    <table style={tableStyle}>
                       <thead>
                         <tr>
                           <th>원료코드</th>
@@ -3973,7 +3985,7 @@ export default function Home() {
             </div>
 
             <h2>전성분 정렬 기준</h2>
-            <table border={1} cellPadding={8}>
+            <table style={tableStyle}>
               <thead>
                 <tr>
                   <th>INCI</th>
