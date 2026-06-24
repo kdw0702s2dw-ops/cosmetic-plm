@@ -57,10 +57,20 @@ type GlobalIngredient = {
   iecic_status: string;
   cosmos_status: string;
   vegan_status: string;
+  halal_status?: string;
+  rspo_status?: string;
+  eu_status?: string;
+  china_status?: string;
+  japan_status?: string;
+  asean_status?: string;
   max_use_level: string;
+  max_use_percent?: number;
   regulation_note: string;
   ewg_grade: string;
   allergen_note: string;
+  reference_source?: string;
+  update_cycle?: string;
+  last_verified_at?: string;
   deleted_at?: string;
   deleted_by?: string;
 };
@@ -924,11 +934,32 @@ export default function Home() {
     }
 
     return globalIngredients.filter((item) => {
-      return (
-        item.inci_name?.toLowerCase().includes(keyword) ||
-        item.korean_name?.toLowerCase().includes(keyword) ||
-        item.cas_no?.toLowerCase().includes(keyword)
-      );
+      const searchableText = [
+        item.inci_name,
+        item.korean_name,
+        item.chinese_name,
+        item.japanese_name,
+        item.cas_no,
+        item.ec_no,
+        item.function_ko,
+        item.function_en,
+        item.iecic_status,
+        item.cosmos_status,
+        item.vegan_status,
+        item.halal_status,
+        item.rspo_status,
+        item.eu_status,
+        item.china_status,
+        item.japan_status,
+        item.asean_status,
+        item.ewg_grade,
+        item.allergen_note,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(keyword);
     });
   }
 
@@ -983,8 +1014,8 @@ export default function Home() {
     return result;
   }
 
-  function downloadGlobalCsvTemplate() {
-    const headers = [
+  function getGlobalIngredientCsvHeaders() {
+    return [
       "inci_name",
       "korean_name",
       "chinese_name",
@@ -996,11 +1027,25 @@ export default function Home() {
       "iecic_status",
       "cosmos_status",
       "vegan_status",
+      "halal_status",
+      "rspo_status",
+      "eu_status",
+      "china_status",
+      "japan_status",
+      "asean_status",
       "max_use_level",
+      "max_use_percent",
       "regulation_note",
       "ewg_grade",
       "allergen_note",
+      "reference_source",
+      "update_cycle",
+      "last_verified_at",
     ];
+  }
+
+  function downloadGlobalCsvTemplate() {
+    const headers = getGlobalIngredientCsvHeaders();
 
     const sample = [
       "Glycerin",
@@ -1012,32 +1057,64 @@ export default function Home() {
       "보습제",
       "Humectant",
       "Listed",
-      "가능",
+      "Approved",
       "Vegan",
+      "Allowed",
+      "RSPO MB",
+      "Allowed",
+      "Listed",
+      "Allowed",
+      "Allowed",
       "제한 없음",
+      "",
       "사용제한 원료 아님",
       "1",
       "해당 없음",
+      "Internal Master",
+      "Quarterly",
+      "",
     ];
 
-    const csv =
-      "\ufeff" +
-      headers.join(",") +
-      "\n" +
-      sample.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",");
+    downloadCsv("global_ingredient_master_template_v20.csv", headers, [sample]);
+  }
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+  function exportGlobalIngredientMasterCsv() {
+    const headers = getGlobalIngredientCsvHeaders();
 
-    link.href = url;
-    link.download = "global_inci_template.csv";
-    link.click();
+    const rows = globalIngredients.map((item) => [
+      item.inci_name || "",
+      item.korean_name || "",
+      item.chinese_name || "",
+      item.japanese_name || "",
+      item.cas_no || "",
+      item.ec_no || "",
+      item.function_ko || "",
+      item.function_en || "",
+      item.iecic_status || "",
+      item.cosmos_status || "",
+      item.vegan_status || "",
+      item.halal_status || "",
+      item.rspo_status || "",
+      item.eu_status || "",
+      item.china_status || "",
+      item.japan_status || "",
+      item.asean_status || "",
+      item.max_use_level || "",
+      item.max_use_percent ?? "",
+      item.regulation_note || "",
+      item.ewg_grade || "",
+      item.allergen_note || "",
+      item.reference_source || "",
+      item.update_cycle || "",
+      item.last_verified_at || "",
+    ]);
 
-    URL.revokeObjectURL(url);
+    downloadCsv("global_ingredient_master_export_v20.csv", headers, rows);
   }
 
   async function importGlobalCsv(file: File) {
+    if (!assertCanEdit()) return;
+
     setGlobalUploadStatus("CSV 파일을 읽는 중입니다...");
 
     const text = await file.text();
@@ -1075,10 +1152,20 @@ export default function Home() {
           iecic_status: record.iecic_status || "",
           cosmos_status: record.cosmos_status || "",
           vegan_status: record.vegan_status || "",
+          halal_status: record.halal_status || "",
+          rspo_status: record.rspo_status || "",
+          eu_status: record.eu_status || "",
+          china_status: record.china_status || "",
+          japan_status: record.japan_status || "",
+          asean_status: record.asean_status || "",
           max_use_level: record.max_use_level || "",
+          max_use_percent: record.max_use_percent ? Number(record.max_use_percent) : null,
           regulation_note: record.regulation_note || "",
           ewg_grade: record.ewg_grade || "",
           allergen_note: record.allergen_note || "",
+          reference_source: record.reference_source || "",
+          update_cycle: record.update_cycle || "",
+          last_verified_at: record.last_verified_at || null,
         };
       })
       .filter((record) => record.inci_name);
@@ -1089,7 +1176,22 @@ export default function Home() {
       return;
     }
 
-    const chunkSize = 500;
+    const duplicateInciNames = records
+      .map((record) => record.inci_name.trim().toLowerCase())
+      .filter((name, index, arr) => name && arr.indexOf(name) !== index);
+
+    if (duplicateInciNames.length > 0) {
+      const ok = window.confirm(
+        `CSV 안에 중복 INCI가 있습니다. 마지막 데이터 기준으로 업데이트됩니다. 계속할까요?\n${Array.from(new Set(duplicateInciNames)).slice(0, 10).join(", ")}`
+      );
+
+      if (!ok) {
+        setGlobalUploadStatus("업로드 취소");
+        return;
+      }
+    }
+
+    const chunkSize = 300;
     let uploadedCount = 0;
 
     for (let start = 0; start < records.length; start += chunkSize) {
@@ -1115,8 +1217,13 @@ export default function Home() {
       uploadedCount += chunk.length;
     }
 
+    await logAudit("Global Ingredient Master", "CSV", "IMPORT", null, {
+      file_name: file.name,
+      uploaded_count: uploadedCount,
+    });
+
     setGlobalUploadStatus(`업로드 완료: ${uploadedCount}개 처리`);
-    alert(`${uploadedCount}개 Global INCI 데이터 업로드/업데이트 완료`);
+    alert(`${uploadedCount}개 Global Ingredient Master 데이터 업로드/업데이트 완료`);
     loadAll();
   }
 
@@ -1181,7 +1288,14 @@ export default function Home() {
         iecic_status: globalIecicStatus,
         cosmos_status: globalCosmosStatus,
         vegan_status: globalVeganStatus,
+        halal_status: "",
+        rspo_status: "",
+        eu_status: "",
+        china_status: "",
+        japan_status: "",
+        asean_status: "",
         max_use_level: globalMaxUseLevel,
+        max_use_percent: globalMaxUseLevel ? Number(String(globalMaxUseLevel).replace("%", "")) || null : null,
         regulation_note: globalRegulationNote,
         ewg_grade: globalEwgGrade,
         allergen_note: globalAllergenNote,
@@ -4686,6 +4800,7 @@ export default function Home() {
             <h2>CSV 대량 업로드</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "600px", marginBottom: "24px" }}>
               <button onClick={downloadGlobalCsvTemplate}>CSV 양식 다운로드</button>
+              <button onClick={exportGlobalIngredientMasterCsv} style={{ background: "#059669" }}>Global Master CSV 내보내기</button>
 
               <input
                 type="file"
@@ -4701,8 +4816,7 @@ export default function Home() {
               />
 
               <p style={{ color: "#555" }}>
-                CSV 첫 줄은 양식 그대로 사용하세요. INCI명(inci_name)은 필수입니다.
-                같은 INCI명은 새로 추가하지 않고 기존 데이터를 업데이트합니다.
+                CSV 첫 줄은 양식 그대로 사용하세요. INCI명(inci_name)은 필수입니다. 같은 INCI명은 새로 추가하지 않고 기존 데이터를 업데이트합니다. v20 컬럼(HALAL/RSPO/EU/China/Japan/ASEAN/Source/Verified Date)까지 일괄 관리됩니다.
               </p>
 
               <p style={{ fontWeight: "bold", color: "#2563eb" }}>
@@ -4749,7 +4863,18 @@ export default function Home() {
                   <th>IECIC</th>
                   <th>COSMOS</th>
                   <th>VEGAN</th>
+                  <th>HALAL</th>
+                  <th>RSPO</th>
+                  <th>EU</th>
+                  <th>China</th>
+                  <th>Japan</th>
+                  <th>ASEAN</th>
                   <th>배합한도</th>
+                  <th>Max %</th>
+                  <th>EWG</th>
+                  <th>알러젠</th>
+                  <th>Source</th>
+                  <th>Verified</th>
                   <th>규제사항</th>
                   <th>성분관리 등록</th>
                   <th>관리</th>
@@ -4769,7 +4894,18 @@ export default function Home() {
                     <td>{item.iecic_status}</td>
                     <td>{item.cosmos_status}</td>
                     <td>{item.vegan_status}</td>
+                    <td>{item.halal_status}</td>
+                    <td>{item.rspo_status}</td>
+                    <td>{item.eu_status}</td>
+                    <td>{item.china_status}</td>
+                    <td>{item.japan_status}</td>
+                    <td>{item.asean_status}</td>
                     <td>{item.max_use_level}</td>
+                    <td>{item.max_use_percent ?? ""}</td>
+                    <td>{item.ewg_grade}</td>
+                    <td>{item.allergen_note}</td>
+                    <td>{item.reference_source}</td>
+                    <td>{item.last_verified_at ? new Date(item.last_verified_at).toLocaleDateString() : ""}</td>
                     <td>{item.regulation_note}</td>
                     <td>
                       <button onClick={() => registerGlobalToIngredient(item)}>등록</button>
