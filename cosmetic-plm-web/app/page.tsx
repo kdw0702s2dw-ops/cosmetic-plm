@@ -3920,6 +3920,12 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!authLoading && authUser && !canAccessMenu(menu)) {
+      setMenu(getDefaultMenuForRole());
+    }
+  }, [authLoading, authUser, userProfile, menu]);
+
+  useEffect(() => {
     async function initAuth() {
       const { data } = await supabase.auth.getSession();
       const user = data.session?.user || null;
@@ -3951,6 +3957,77 @@ export default function Home() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  function canAccessMenu(menuKey: string) {
+    if (isAdmin()) return true;
+
+    const role = getUserRole();
+
+    const permissions: Record<string, string[]> = {
+      dashboard: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      project: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      ingredient: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      global: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      formula: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      validation: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      regulation: ["manager", "qa", "ra", "viewer"],
+      globalRegulation: ["manager", "ra", "viewer"],
+      stability: ["manager", "qa", "senior", "researcher", "viewer"],
+      approval: ["manager", "qa", "senior"],
+      lock: ["manager", "qa", "senior"],
+      stage: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      cost: ["manager", "senior", "viewer"],
+      bom: ["manager", "senior", "viewer"],
+      batch: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      breakdown: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      fullil: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      label: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      sheet: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      package: ["manager", "qa", "ra", "senior", "researcher"],
+      audit: ["manager", "qa"],
+      users: [],
+      trash: ["manager"],
+    };
+
+    return permissions[menuKey]?.includes(role) || false;
+  }
+
+  function getDefaultMenuForRole() {
+    if (canAccessMenu(menu)) return menu;
+
+    if (canAccessMenu("dashboard")) return "dashboard";
+    if (canAccessMenu("formula")) return "formula";
+    if (canAccessMenu("project")) return "project";
+
+    return "dashboard";
+  }
+
+  function handleMenuClick(menuKey: string) {
+    if (!canAccessMenu(menuKey)) {
+      alert("해당 메뉴 접근 권한이 없습니다.");
+      return;
+    }
+
+    setMenu(menuKey);
+  }
+
+  function getFilteredMenuItems(items: string[][]) {
+    return items.filter(([key]) => canAccessMenu(key));
+  }
+
+  function getPermissionLabel() {
+    const role = getUserRole();
+
+    if (role === "admin") return "전체 권한";
+    if (role === "manager") return "관리/삭제/승인 가능";
+    if (role === "qa") return "품질/승인/안정도 중심";
+    if (role === "ra") return "규제검증 중심";
+    if (role === "senior") return "선임 연구원";
+    if (role === "researcher") return "연구원";
+    return "조회 전용";
+  }
 
   const menuItems = [
     ["dashboard", "대시보드"],
@@ -4064,6 +4141,20 @@ export default function Home() {
     );
   }
 
+  if (!canAccessMenu(menu)) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px", background: "white" }}>
+          <h1>접근 권한 없음</h1>
+          <p>현재 권한으로는 이 메뉴를 사용할 수 없습니다.</p>
+          <p>현재 권한: {getUserRoleLabel()} / {getPermissionLabel()}</p>
+          <button onClick={() => setMenu(getDefaultMenuForRole())}>대시보드로 이동</button>
+          <button onClick={signOut} style={{ background: "#dc2626", marginLeft: "8px" }}>로그아웃</button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
         <style jsx global>{`
@@ -4132,10 +4223,10 @@ export default function Home() {
       <aside style={{ width: "230px", background: "#111827", color: "white", padding: "24px" }}>
         <h2>🧪 Cosmetic PLM</h2>
 
-        {menuItems.map(([key, label]) => (
+        {getFilteredMenuItems(menuItems).map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setMenu(key)}
+            onClick={() => handleMenuClick(key)}
             style={{
               display: "block",
               width: "100%",
@@ -6993,7 +7084,7 @@ export default function Home() {
                   <td>{getUserRole()}</td>
                   <th>권한 설명</th>
                   <td>
-                    admin: 전체 권한 / manager: 삭제·승인 가능 / senior: 승인 가능 / researcher: 등록·수정 가능 / viewer: 조회 전용
+                    Admin: 전체 권한 / Manager: 관리·삭제·승인 / QA: 품질·안정도·승인 / RA: 규제검증 / Senior: 선임 연구원 / Researcher: 연구원 / Viewer: 조회 전용
                   </td>
                 </tr>
               </tbody>
