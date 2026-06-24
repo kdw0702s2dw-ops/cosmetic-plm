@@ -486,6 +486,7 @@ export default function Home() {
   const [regProhibitedInput, setRegProhibitedInput] = useState(false);
   const [regWarningInput, setRegWarningInput] = useState("");
   const [regReferenceInput, setRegReferenceInput] = useState("");
+  const [regSeedStatus, setRegSeedStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -4000,6 +4001,171 @@ export default function Home() {
     );
   }
 
+  function getCountryRegulationCsvHeaders() {
+    return [
+      "country_code",
+      "country_name",
+      "inci_name",
+      "cas_no",
+      "regulation_type",
+      "max_percentage",
+      "is_prohibited",
+      "warning_message",
+      "reference_note",
+    ];
+  }
+
+  function downloadRegulationSeedCsv() {
+    const headers = getCountryRegulationCsvHeaders();
+
+    const rows = [
+      ["EU", "European Union", "Phenoxyethanol", "122-99-6", "Restricted", "1", "false", "EU 보존제 최대 사용한도 확인 필요", "EU Cosmetics Regulation Annex V"],
+      ["CN", "China", "Phenoxyethanol", "122-99-6", "Restricted", "1", "false", "중국 보존제 최대 사용한도 확인 필요", "China Safety and Technical Standards for Cosmetics"],
+      ["JP", "Japan", "Phenoxyethanol", "122-99-6", "Restricted", "1", "false", "일본 기준 보존제 한도 확인 필요", "Japan Standards for Cosmetics"],
+      ["ASEAN", "ASEAN", "Phenoxyethanol", "122-99-6", "Restricted", "1", "false", "ASEAN 보존제 한도 확인 필요", "ASEAN Cosmetic Directive"],
+      ["US", "United States", "Phenoxyethanol", "122-99-6", "Warning", "1", "false", "미국 판매 시 안전성 및 라벨 검토 필요", "US cosmetic safety review"],
+
+      ["EU", "European Union", "Salicylic Acid", "69-72-7", "Restricted", "2", "false", "BHA/살리실릭애씨드 국가별 사용 목적 및 한도 확인 필요", "EU Cosmetics Regulation Annex III"],
+      ["CN", "China", "Salicylic Acid", "69-72-7", "Restricted", "2", "false", "중국 살리실릭애씨드 사용 한도 확인 필요", "China Safety and Technical Standards for Cosmetics"],
+      ["JP", "Japan", "Salicylic Acid", "69-72-7", "Restricted", "0.2", "false", "일본 기준 및 제품 유형별 한도 확인 필요", "Japan Standards for Cosmetics"],
+      ["ASEAN", "ASEAN", "Salicylic Acid", "69-72-7", "Restricted", "2", "false", "ASEAN 살리실릭애씨드 한도 확인 필요", "ASEAN Cosmetic Directive"],
+      ["US", "United States", "Salicylic Acid", "69-72-7", "Warning", "2", "false", "OTC/화장품 구분 및 클레임 검토 필요", "US FDA OTC/cosmetic review"],
+
+      ["EU", "European Union", "Retinol", "68-26-8", "Restricted", "0.3", "false", "비타민A 계열 국가별 최신 제한 기준 확인 필요", "EU Vitamin A restrictions review"],
+      ["CN", "China", "Retinol", "68-26-8", "Warning", "0.3", "false", "중국 비타민A 계열 안전성 검토 필요", "China cosmetic safety assessment"],
+      ["JP", "Japan", "Retinol", "68-26-8", "Warning", "0.3", "false", "일본 판매 전 비타민A 계열 기준 확인 필요", "Japan cosmetic ingredient review"],
+      ["ASEAN", "ASEAN", "Retinol", "68-26-8", "Warning", "0.3", "false", "ASEAN 비타민A 계열 사용 주의", "ASEAN Cosmetic Directive review"],
+      ["US", "United States", "Retinol", "68-26-8", "Warning", "0.3", "false", "미국 안전성 및 임산부 주의문구 검토 필요", "US cosmetic safety review"],
+
+      ["EU", "European Union", "Hydroquinone", "123-31-9", "Prohibited", "0", "true", "일반 화장품 사용 금지 또는 전문용도 제한 가능성 확인 필요", "EU Cosmetics Regulation Annex II/III"],
+      ["CN", "China", "Hydroquinone", "123-31-9", "Prohibited", "0", "true", "중국 화장품 사용 금지 성분 여부 확인 필요", "China prohibited/restricted ingredient list"],
+      ["JP", "Japan", "Hydroquinone", "123-31-9", "Restricted", "0", "false", "일본 의약부외품/화장품 구분 확인 필요", "Japan ingredient regulation review"],
+      ["ASEAN", "ASEAN", "Hydroquinone", "123-31-9", "Prohibited", "0", "true", "ASEAN 사용 금지 여부 확인 필요", "ASEAN Cosmetic Directive Annex"],
+      ["US", "United States", "Hydroquinone", "123-31-9", "Warning", "0", "false", "미국 OTC/규제 상태 확인 필요", "US FDA review"],
+
+      ["EU", "European Union", "Triclosan", "3380-34-5", "Restricted", "0.3", "false", "제품 유형별 한도 및 사용 가능 여부 확인 필요", "EU Cosmetics Regulation Annex V"],
+      ["CN", "China", "Triclosan", "3380-34-5", "Restricted", "0.3", "false", "중국 사용 한도 확인 필요", "China cosmetic preservative list"],
+      ["JP", "Japan", "Triclosan", "3380-34-5", "Restricted", "0.1", "false", "일본 기준 확인 필요", "Japan Standards for Cosmetics"],
+      ["ASEAN", "ASEAN", "Triclosan", "3380-34-5", "Restricted", "0.3", "false", "ASEAN 사용 한도 확인 필요", "ASEAN Cosmetic Directive"],
+      ["US", "United States", "Triclosan", "3380-34-5", "Warning", "0.3", "false", "미국 적용 제품군별 규제 확인 필요", "US FDA review"],
+
+      ["EU", "European Union", "BHT", "128-37-0", "Warning", "0.8", "false", "최신 사용 제한 및 제품 유형별 기준 확인 필요", "EU ingredient safety review"],
+      ["CN", "China", "BHT", "128-37-0", "Warning", "0.8", "false", "중국 안전성 검토 필요", "China cosmetic safety assessment"],
+      ["JP", "Japan", "BHT", "128-37-0", "Warning", "0.8", "false", "일본 기준 확인 필요", "Japan ingredient review"],
+      ["ASEAN", "ASEAN", "BHT", "128-37-0", "Warning", "0.8", "false", "ASEAN 기준 확인 필요", "ASEAN review"],
+      ["US", "United States", "BHT", "128-37-0", "Warning", "0.8", "false", "미국 안전성 검토 필요", "US CIR/FDA review"],
+
+      ["EU", "European Union", "Methylparaben", "99-76-3", "Restricted", "0.4", "false", "단일/혼합 파라벤 한도 확인 필요", "EU Cosmetics Regulation Annex V"],
+      ["CN", "China", "Methylparaben", "99-76-3", "Restricted", "0.4", "false", "중국 파라벤 보존제 한도 확인 필요", "China preservative list"],
+      ["JP", "Japan", "Methylparaben", "99-76-3", "Restricted", "1", "false", "일본 보존제 한도 확인 필요", "Japan Standards for Cosmetics"],
+      ["ASEAN", "ASEAN", "Methylparaben", "99-76-3", "Restricted", "0.4", "false", "ASEAN 파라벤 한도 확인 필요", "ASEAN Cosmetic Directive"],
+      ["US", "United States", "Methylparaben", "99-76-3", "Warning", "0.4", "false", "미국 안전성 검토 필요", "US cosmetic safety review"],
+
+      ["EU", "European Union", "Formaldehyde", "50-00-0", "Prohibited", "0", "true", "포름알데하이드 및 방출원료 규제 확인 필요", "EU Cosmetics Regulation"],
+      ["CN", "China", "Formaldehyde", "50-00-0", "Prohibited", "0", "true", "중국 금지/제한 기준 확인 필요", "China cosmetic standards"],
+      ["JP", "Japan", "Formaldehyde", "50-00-0", "Prohibited", "0", "true", "일본 기준 확인 필요", "Japan Standards for Cosmetics"],
+      ["ASEAN", "ASEAN", "Formaldehyde", "50-00-0", "Prohibited", "0", "true", "ASEAN 금지/제한 기준 확인 필요", "ASEAN Cosmetic Directive"],
+      ["US", "United States", "Formaldehyde", "50-00-0", "Warning", "0", "false", "미국 제품 유형별 안전성 검토 필요", "US FDA review"],
+    ];
+
+    downloadCsv("global_regulation_seed_db_v22_1.csv", headers, rows);
+  }
+
+  async function importRegulationSeedCsv(file: File) {
+    if (!assertCanEdit()) return;
+
+    setRegSeedStatus("규제 Seed CSV 읽는 중...");
+
+    const text = await file.text();
+    const lines = text
+      .replace(/^\ufeff/, "")
+      .split(/\r?\n/)
+      .filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      alert("CSV에 데이터가 없습니다.");
+      setRegSeedStatus("");
+      return;
+    }
+
+    const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+    const rows = lines.slice(1).map((line) => parseCsvLine(line));
+
+    const records = rows
+      .map((row) => {
+        const record: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          record[header] = row[index] || "";
+        });
+
+        return {
+          country_code: (record.country_code || "").toUpperCase(),
+          country_name: record.country_name || "",
+          inci_name: record.inci_name || "",
+          cas_no: record.cas_no || "",
+          regulation_type: record.regulation_type || "Warning",
+          max_percentage: Number(record.max_percentage || 0),
+          is_prohibited: String(record.is_prohibited || "false").toLowerCase() === "true",
+          warning_message: record.warning_message || "",
+          reference_note: record.reference_note || "",
+        };
+      })
+      .filter((record) => record.country_code && (record.inci_name || record.cas_no));
+
+    if (records.length === 0) {
+      alert("업로드할 규제 데이터가 없습니다.");
+      setRegSeedStatus("");
+      return;
+    }
+
+    const chunkSize = 300;
+    let uploadedCount = 0;
+
+    for (let start = 0; start < records.length; start += chunkSize) {
+      const chunk = records.slice(start, start + chunkSize);
+
+      setRegSeedStatus(`규제 Seed Import 중: ${Math.min(start + chunk.length, records.length)} / ${records.length}`);
+
+      const { error } = await supabase
+        .from("country_regulations")
+        .upsert(chunk, {
+          onConflict: "country_code,inci_name,cas_no",
+          ignoreDuplicates: false,
+        });
+
+      if (error) {
+        alert("규제 Seed Import 오류: " + error.message);
+        setRegSeedStatus("Import 실패");
+        return;
+      }
+
+      uploadedCount += chunk.length;
+    }
+
+    await logAudit("Global Regulation Seed DB", "Seed Import", "IMPORT", null, {
+      uploaded_count: uploadedCount,
+    });
+
+    setRegSeedStatus(`규제 Seed Import 완료: ${uploadedCount}개 처리`);
+    loadAll();
+  }
+
+  function exportCountryRegulationsCsv() {
+    const rows = countryRegulations.map((item) => [
+      item.country_code,
+      item.country_name,
+      item.inci_name,
+      item.cas_no,
+      item.regulation_type,
+      item.max_percentage ?? "",
+      item.is_prohibited ? "true" : "false",
+      item.warning_message,
+      item.reference_note,
+    ]);
+
+    downloadCsv("country_regulations_export.csv", getCountryRegulationCsvHeaders(), rows);
+  }
+
   async function saveCountryRegulation() {
     if (!assertCanEdit()) return;
 
@@ -6791,6 +6957,38 @@ export default function Home() {
             <p>
               국가별 성분 규제 DB를 기준으로 처방의 Breakdown 최종함량을 검증합니다. KR/EU/CN/US/JP/ASEAN 등 국가별 판매 가능성을 확인할 수 있습니다.
             </p>
+
+            <h2>Global Regulation Seed DB</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <p style={{ color: "#6b7280" }}>
+                EU, 중국, 일본, 미국, ASEAN 기준의 주요 제한/금지/주의 성분 초기 규제 마스터를 CSV로 업로드합니다.
+              </p>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={downloadRegulationSeedCsv} style={{ background: "#7c3aed" }}>
+                  규제 Seed CSV 다운로드
+                </button>
+                <button onClick={exportCountryRegulationsCsv} style={{ background: "#059669" }}>
+                  현재 규제 DB 내보내기
+                </button>
+              </div>
+
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+
+                  if (file) {
+                    importRegulationSeedCsv(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>{regSeedStatus}</p>
+              <p>현재 규제 DB: {countryRegulations.length}개</p>
+            </div>
 
             <h2>국가별 규제 기준 등록</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "720px", marginBottom: "24px" }}>
