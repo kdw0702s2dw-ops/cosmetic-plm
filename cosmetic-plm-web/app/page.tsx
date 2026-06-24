@@ -201,6 +201,11 @@ type AuditLog = {
   action_type: string;
   before_data: any;
   after_data: any;
+  field_name?: string;
+  before_value?: string;
+  after_value?: string;
+  change_summary?: string;
+  diff_data?: any;
   user_name: string;
   created_at: string;
 };
@@ -4842,6 +4847,133 @@ export default function Home() {
     return finalCost / (1 - marginRateValue / 100);
   }
 
+  function isPlainObject(value: any) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function flattenAuditObject(data: any, prefix = ""): Record<string, any> {
+    const result: Record<string, any> = {};
+
+    if (!isPlainObject(data)) {
+      return result;
+    }
+
+    Object.keys(data).forEach((key) => {
+      const value = data[key];
+      const fieldKey = prefix ? `${prefix}.${key}` : key;
+
+      if (Array.isArray(value)) {
+        result[fieldKey] = `[Array ${value.length}]`;
+        return;
+      }
+
+      if (isPlainObject(value)) {
+        const nested = flattenAuditObject(value, fieldKey);
+        Object.assign(result, nested);
+        return;
+      }
+
+      result[fieldKey] = value;
+    });
+
+    return result;
+  }
+
+  function stringifyAuditValue(value: any) {
+    if (value === null || value === undefined || value === "") return "-";
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  }
+
+  function getSmartAuditDiff(beforeData: any, afterData: any) {
+    if (!beforeData && afterData) {
+      const afterFlat = flattenAuditObject(afterData);
+      const keys = Object.keys(afterFlat).filter((key) => !["id", "created_at", "updated_at"].includes(key));
+
+      return keys.slice(0, 20).map((key) => ({
+        field: key,
+        before: "-",
+        after: stringifyAuditValue(afterFlat[key]),
+      }));
+    }
+
+    if (beforeData && !afterData) {
+      const beforeFlat = flattenAuditObject(beforeData);
+      const keys = Object.keys(beforeFlat).filter((key) => !["id", "created_at", "updated_at"].includes(key));
+
+      return keys.slice(0, 20).map((key) => ({
+        field: key,
+        before: stringifyAuditValue(beforeFlat[key]),
+        after: "-",
+      }));
+    }
+
+    const beforeFlat = flattenAuditObject(beforeData);
+    const afterFlat = flattenAuditObject(afterData);
+    const keys = Array.from(new Set([...Object.keys(beforeFlat), ...Object.keys(afterFlat)]));
+    const ignoredFields = new Set([
+      "id",
+      "created_at",
+      "updated_at",
+      "raw_materials",
+      "ingredients",
+      "formulas",
+      "projects",
+      "raw_materials.id",
+      "ingredients.id",
+      "formulas.id",
+      "projects.id",
+    ]);
+
+    return keys
+      .filter((key) => !ignoredFields.has(key))
+      .filter((key) => stringifyAuditValue(beforeFlat[key]) !== stringifyAuditValue(afterFlat[key]))
+      .map((key) => ({
+        field: key,
+        before: stringifyAuditValue(beforeFlat[key]),
+        after: stringifyAuditValue(afterFlat[key]),
+      }))
+      .slice(0, 30);
+  }
+
+  function getAuditSummary(actionType: string, diffs: { field: string; before: string; after: string }[]) {
+    if (diffs.length === 0) {
+      return actionType;
+    }
+
+    if (diffs.length === 1) {
+      const diff = diffs[0];
+      return `${diff.field}: ${diff.before} → ${diff.after}`;
+    }
+
+    const preview = diffs
+      .slice(0, 3)
+      .map((diff) => `${diff.field}: ${diff.before} → ${diff.after}`)
+      .join(" / ");
+
+    return `${preview}${diffs.length > 3 ? ` 외 ${diffs.length - 3}건` : ""}`;
+  }
+
+  function getPrimaryAuditField(diffs: { field: string; before: string; after: string }[]) {
+    return diffs[0]?.field || "";
+  }
+
+  function getPrimaryBeforeValue(diffs: { field: string; before: string; after: string }[]) {
+    return diffs[0]?.before || "";
+  }
+
+  function getPrimaryAfterValue(diffs: { field: string; before: string; after: string }[]) {
+    return diffs[0]?.after || "";
+  }
+
+  function getAuditDiffRows(log: AuditLog) {
+    if (Array.isArray(log.diff_data)) {
+      return log.diff_data;
+    }
+
+    return getSmartAuditDiff(log.before_data, log.after_data);
+  }
+
   async function logAudit(
     moduleName: string,
     recordId: string,
@@ -4849,6 +4981,9 @@ export default function Home() {
     beforeData: any,
     afterData: any
   ) {
+    const diffs = getSmartAuditDiff(beforeData, afterData);
+    const changeSummary = getAuditSummary(actionType, diffs);
+
     await supabase.from("audit_logs").insert([
       {
         module_name: moduleName,
@@ -4856,7 +4991,12 @@ export default function Home() {
         action_type: actionType,
         before_data: beforeData || null,
         after_data: afterData || null,
-        user_name: auditUserName || "PLM User",
+        field_name: getPrimaryAuditField(diffs),
+        before_value: getPrimaryBeforeValue(diffs),
+        after_value: getPrimaryAfterValue(diffs),
+        change_summary: changeSummary,
+        diff_data: diffs,
+        user_name: auditUserName || userProfile?.display_name || authUser?.email || "PLM User",
       },
     ]);
   }
@@ -8541,10 +8681,10 @@ export default function Home() {
 
         {menu === "audit" && (
           <>
-            <h1>Audit Log</h1>
-            <p>원료, 성분, 처방, BOM 원가의 등록/수정/삭제 이력을 확인합니다.</p>
+            <h1>Audit Log 2.0 Smart Diff</h1>
+            <p>전체 JSON을 그대로 펼치지 않고 변경된 필드만 요약해서 표시합니다. 기존 로그는 자동으로 Smart Diff 형태로 변환 표시됩니다.</p>
 
-            <div style={{ display: "grid", gap: "10px", maxWidth: "400px", marginBottom: "20px" }}>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "520px", marginBottom: "20px" }}>
               <input
                 placeholder="작업자명 예: 홍길동"
                 value={auditUserName || ""}
@@ -8560,30 +8700,56 @@ export default function Home() {
                   <th>작업</th>
                   <th>Record ID</th>
                   <th>작업자</th>
+                  <th>변경요약</th>
+                  <th>변경 필드</th>
                   <th>변경 전</th>
                   <th>변경 후</th>
+                  <th>상세 Diff</th>
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.map((log) => (
-                  <tr key={log.id}>
-                    <td>{log.created_at ? new Date(log.created_at).toLocaleString() : "-"}</td>
-                    <td>{log.module_name}</td>
-                    <td style={{ fontWeight: "bold" }}>{log.action_type}</td>
-                    <td>{log.record_id}</td>
-                    <td>{log.user_name}</td>
-                    <td>
-                      <pre style={{ whiteSpace: "pre-wrap", maxWidth: "320px" }}>
-                        {JSON.stringify(log.before_data || {}, null, 2)}
-                      </pre>
-                    </td>
-                    <td>
-                      <pre style={{ whiteSpace: "pre-wrap", maxWidth: "320px" }}>
-                        {JSON.stringify(log.after_data || {}, null, 2)}
-                      </pre>
-                    </td>
-                  </tr>
-                ))}
+                {auditLogs.map((log) => {
+                  const diffRows = getAuditDiffRows(log);
+                  const summary = log.change_summary || getAuditSummary(log.action_type, diffRows);
+
+                  return (
+                    <tr key={log.id}>
+                      <td>{log.created_at ? new Date(log.created_at).toLocaleString() : "-"}</td>
+                      <td>{log.module_name}</td>
+                      <td style={{ fontWeight: "bold" }}>{log.action_type}</td>
+                      <td>{log.record_id}</td>
+                      <td>{log.user_name}</td>
+                      <td style={{ fontWeight: "bold", color: "#2563eb" }}>{summary}</td>
+                      <td>{log.field_name || diffRows[0]?.field || "-"}</td>
+                      <td>{log.before_value || diffRows[0]?.before || "-"}</td>
+                      <td>{log.after_value || diffRows[0]?.after || "-"}</td>
+                      <td>
+                        {diffRows.length > 0 ? (
+                          <table style={{ ...tableStyle, margin: 0, fontSize: "12px" }}>
+                            <thead>
+                              <tr>
+                                <th>항목</th>
+                                <th>Before</th>
+                                <th>After</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {diffRows.map((diff: any, index: number) => (
+                                <tr key={`${log.id}-${diff.field}-${index}`}>
+                                  <td>{diff.field}</td>
+                                  <td style={{ color: "#6b7280" }}>{diff.before}</td>
+                                  <td style={{ color: "#111827", fontWeight: "bold" }}>{diff.after}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <span>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </>
