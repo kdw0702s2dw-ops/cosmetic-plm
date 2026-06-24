@@ -529,7 +529,7 @@ export default function Home() {
     }
 
     const { data } = await supabase
-      .from("app_profiles")
+      .from("user_profiles")
       .select("*")
       .eq("id", user.id)
       .maybeSingle();
@@ -544,10 +544,10 @@ export default function Home() {
       id: user.id,
       email: user.email || "",
       display_name: user.email || "PLM User",
-      role: "researcher",
+      role: "Researcher",
     };
 
-    await supabase.from("app_profiles").insert([profilePayload]);
+    await supabase.from("user_profiles").insert([profilePayload]);
     setUserProfile(profilePayload);
     setAuditUserName(profilePayload.display_name);
   }
@@ -590,10 +590,10 @@ export default function Home() {
         id: data.user.id,
         email: authEmail,
         display_name: authDisplayName || authEmail,
-        role: "researcher",
+        role: "Researcher",
       };
 
-      await supabase.from("app_profiles").upsert([profilePayload]);
+      await supabase.from("user_profiles").upsert([profilePayload]);
       alert("회원가입이 완료되었습니다. 이메일 확인 설정이 켜져 있으면 메일 인증 후 로그인하세요.");
     }
   }
@@ -605,7 +605,21 @@ export default function Home() {
   }
 
   function getUserRole() {
-    return userProfile?.role || "viewer";
+    return String(userProfile?.role || "viewer").toLowerCase();
+  }
+
+  function getUserRoleLabel() {
+    const role = getUserRole();
+
+    if (role === "admin") return "Admin";
+    if (role === "manager") return "Manager";
+    if (role === "qa") return "QA";
+    if (role === "ra") return "RA";
+    if (role === "senior") return "Senior";
+    if (role === "researcher") return "Researcher";
+    if (role === "viewer") return "Viewer";
+
+    return role;
   }
 
   function isAdmin() {
@@ -613,7 +627,7 @@ export default function Home() {
   }
 
   function canEdit() {
-    return ["admin", "manager", "senior", "researcher"].includes(getUserRole());
+    return ["admin", "manager", "senior", "researcher", "qa", "ra"].includes(getUserRole());
   }
 
   function canDelete() {
@@ -621,7 +635,7 @@ export default function Home() {
   }
 
   function canApprove() {
-    return ["admin", "manager", "senior"].includes(getUserRole());
+    return ["admin", "manager", "senior", "qa", "ra"].includes(getUserRole());
   }
 
   function assertCanEdit() {
@@ -913,6 +927,18 @@ export default function Home() {
     return (
       <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
         <div>로그인 상태 확인 중...</div>
+      </main>
+    );
+  }
+
+  if (authUser && userProfile?.is_active === false) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px", background: "white" }}>
+          <h1>계정 비활성화</h1>
+          <p>관리자가 계정을 비활성화했습니다. 관리자에게 문의하세요.</p>
+          <button onClick={signOut} style={{ background: "#dc2626" }}>로그아웃</button>
+        </section>
       </main>
     );
   }
@@ -6951,7 +6977,7 @@ export default function Home() {
         {menu === "users" && (
           <>
             <h1>사용자관리</h1>
-            <p>현재 로그인 사용자와 권한을 확인합니다. 권한 변경은 초기 버전에서는 Supabase Table Editor의 app_profiles에서 관리합니다.</p>
+            <p>현재 로그인 사용자와 권한을 확인합니다. 권한 변경은 초기 버전에서는 Supabase Table Editor의 user_profiles에서 관리합니다.</p>
 
             <table style={tableStyle}>
               <tbody>
