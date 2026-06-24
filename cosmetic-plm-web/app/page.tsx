@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import UserManagementModule from "./modules/UserManagementModule";
 
 type RawMaterial = {
   id: string;
@@ -925,92 +924,7 @@ export default function Home() {
     }
 
     return globalIngredients.filter((item) => {
-      if (authLoading) {
-    return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
-        <div>로그인 상태 확인 중...</div>
-      </main>
-    );
-  }
-
-  if (authUser && userProfile?.is_active === false) {
-    return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
-        <section style={{ border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px", background: "white" }}>
-          <h1>계정 비활성화</h1>
-          <p>관리자가 계정을 비활성화했습니다. 관리자에게 문의하세요.</p>
-          <button onClick={signOut} style={{ background: "#dc2626" }}>로그아웃</button>
-        </section>
-      </main>
-    );
-  }
-
-  if (!authUser) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          fontFamily: "Arial",
-          background: "#f9fafb",
-        }}
-      >
-        <section
-          style={{
-            width: "100%",
-            maxWidth: "420px",
-            border: "1px solid #e5e7eb",
-            borderRadius: "12px",
-            padding: "28px",
-            background: "white",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-          }}
-        >
-          <h1>Cosmetic PLM</h1>
-          <p style={{ color: "#6b7280" }}>로그인 후 PLM을 사용할 수 있습니다.</p>
-
-          <div style={{ display: "grid", gap: "10px" }}>
-            {authMode === "signup" && (
-              <input
-                placeholder="이름 예: 홍길동"
-                value={authDisplayName || ""}
-                onChange={(e) => setAuthDisplayName(e.target.value)}
-              />
-            )}
-
-            <input
-              placeholder="이메일"
-              value={authEmail || ""}
-              onChange={(e) => setAuthEmail(e.target.value)}
-            />
-
-            <input
-              type="password"
-              placeholder="비밀번호"
-              value={authPassword || ""}
-              onChange={(e) => setAuthPassword(e.target.value)}
-            />
-
-            {authMode === "signin" ? (
-              <button onClick={signIn}>로그인</button>
-            ) : (
-              <button onClick={signUp}>회원가입</button>
-            )}
-
-            <button
-              onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}
-              style={{ background: "#6b7280" }}
-            >
-              {authMode === "signin" ? "회원가입으로 전환" : "로그인으로 전환"}
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
-  return (
+      return (
         item.inci_name?.toLowerCase().includes(keyword) ||
         item.korean_name?.toLowerCase().includes(keyword) ||
         item.cas_no?.toLowerCase().includes(keyword)
@@ -4064,6 +3978,91 @@ export default function Home() {
     ["users", "사용자관리"],
     ["trash", "휴지통"],
   ];
+
+  if (authLoading) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
+        <div>로그인 상태 확인 중...</div>
+      </main>
+    );
+  }
+
+  if (authUser && userProfile?.is_active === false) {
+    return (
+      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", fontFamily: "Arial" }}>
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px", background: "white" }}>
+          <h1>계정 비활성화</h1>
+          <p>관리자가 계정을 비활성화했습니다. 관리자에게 문의하세요.</p>
+          <button onClick={signOut} style={{ background: "#dc2626" }}>로그아웃</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          fontFamily: "Arial",
+          background: "#f9fafb",
+        }}
+      >
+        <section
+          style={{
+            width: "100%",
+            maxWidth: "420px",
+            border: "1px solid #e5e7eb",
+            borderRadius: "12px",
+            padding: "28px",
+            background: "white",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          }}
+        >
+          <h1>Cosmetic PLM</h1>
+          <p style={{ color: "#6b7280" }}>로그인 후 PLM을 사용할 수 있습니다.</p>
+
+          <div style={{ display: "grid", gap: "10px" }}>
+            {authMode === "signup" && (
+              <input
+                placeholder="이름 예: 홍길동"
+                value={authDisplayName || ""}
+                onChange={(e) => setAuthDisplayName(e.target.value)}
+              />
+            )}
+
+            <input
+              placeholder="이메일"
+              value={authEmail || ""}
+              onChange={(e) => setAuthEmail(e.target.value)}
+            />
+
+            <input
+              type="password"
+              placeholder="비밀번호"
+              value={authPassword || ""}
+              onChange={(e) => setAuthPassword(e.target.value)}
+            />
+
+            {authMode === "signin" ? (
+              <button onClick={signIn}>로그인</button>
+            ) : (
+              <button onClick={signUp}>회원가입</button>
+            )}
+
+            <button
+              onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}
+              style={{ background: "#6b7280" }}
+            >
+              {authMode === "signin" ? "회원가입으로 전환" : "로그인으로 전환"}
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
