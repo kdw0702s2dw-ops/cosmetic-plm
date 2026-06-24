@@ -354,6 +354,7 @@ export default function Home() {
   const [docExpiryDate, setDocExpiryDate] = useState("");
   const [docRemark, setDocRemark] = useState("");
   const [sheetFormulaId, setSheetFormulaId] = useState("");
+  const [labelFormulaId, setLabelFormulaId] = useState("");
   const [validationFormulaId, setValidationFormulaId] = useState("");
 
   const [projectCode, setProjectCode] = useState("");
@@ -1128,32 +1129,36 @@ export default function Home() {
   }
 
   async function updateRawMaterial(item: RawMaterial) {
-    const rawCode = window.prompt("원료코드", item.raw_code || "");
-    if (rawCode === null) return;
+    const input = window.prompt(
+      "원료 정보를 수정하세요. 순서: 원료코드 | 원료명 | 공급사 | 구매단가 | 통화 | MOQ",
+      [
+        item.raw_code || "",
+        item.raw_name || "",
+        item.supplier || "",
+        String(item.unit_price || 0),
+        item.currency || "KRW",
+        String(item.moq || 0),
+      ].join(" | ")
+    );
 
-    const rawName = window.prompt("원료명", item.raw_name || "");
-    if (rawName === null) return;
+    if (input === null) return;
 
-    const supplierValue = window.prompt("공급사", item.supplier || "");
-    if (supplierValue === null) return;
+    const [rawCodeValue, rawNameValue, supplierValue, unitPriceValue, currencyValue, moqValue] =
+      input.split("|").map((value) => value.trim());
 
-    const unitPriceValue = window.prompt("구매단가(원/kg)", String(item.unit_price || 0));
-    if (unitPriceValue === null) return;
-
-    const currencyValue = window.prompt("통화", item.currency || "KRW");
-    if (currencyValue === null) return;
-
-    const moqValue = window.prompt("MOQ(kg)", String(item.moq || 0));
-    if (moqValue === null) return;
+    if (!rawCodeValue || !rawNameValue) {
+      alert("원료코드와 원료명은 필수입니다.");
+      return;
+    }
 
     const { error } = await supabase
       .from("raw_materials")
       .update({
-        raw_code: rawCode,
-        raw_name: rawName,
-        supplier: supplierValue,
+        raw_code: rawCodeValue,
+        raw_name: rawNameValue,
+        supplier: supplierValue || "",
         unit_price: Number(unitPriceValue || 0),
-        currency: currencyValue,
+        currency: currencyValue || "KRW",
         moq: Number(moqValue || 0),
       })
       .eq("id", item.id);
@@ -1182,69 +1187,70 @@ export default function Home() {
   }
 
   async function updateGlobalIngredient(item: GlobalIngredient) {
-    const inciName = window.prompt("INCI", item.inci_name || "");
-    if (inciName === null) return;
+    const input = window.prompt(
+      "성분 정보를 수정하세요. 순서: INCI | 국문명 | 중문명 | 일문명 | CAS | EC | 기능국문 | 기능영문 | IECIC | COSMOS | VEGAN | 배합한도 | 규제사항 | EWG | 알러젠",
+      [
+        item.inci_name || "",
+        item.korean_name || "",
+        item.chinese_name || "",
+        item.japanese_name || "",
+        item.cas_no || "",
+        item.ec_no || "",
+        item.function_ko || "",
+        item.function_en || "",
+        item.iecic_status || "",
+        item.cosmos_status || "",
+        item.vegan_status || "",
+        item.max_use_level || "",
+        item.regulation_note || "",
+        item.ewg_grade || "",
+        item.allergen_note || "",
+      ].join(" | ")
+    );
 
-    const koreanNameValue = window.prompt("국문명", item.korean_name || "");
-    if (koreanNameValue === null) return;
+    if (input === null) return;
 
-    const chineseNameValue = window.prompt("중문명", item.chinese_name || "");
-    if (chineseNameValue === null) return;
+    const [
+      inciName,
+      koreanNameValue,
+      chineseNameValue,
+      japaneseNameValue,
+      casNoValue,
+      ecNoValue,
+      functionKoValue,
+      functionEnValue,
+      iecicValue,
+      cosmosValue,
+      veganValue,
+      maxUseValue,
+      regulationValue,
+      ewgValue,
+      allergenValue,
+    ] = input.split("|").map((value) => value.trim());
 
-    const japaneseNameValue = window.prompt("일문명", item.japanese_name || "");
-    if (japaneseNameValue === null) return;
-
-    const casNoValue = window.prompt("CAS No.", item.cas_no || "");
-    if (casNoValue === null) return;
-
-    const ecNoValue = window.prompt("EC No.", item.ec_no || "");
-    if (ecNoValue === null) return;
-
-    const functionKoValue = window.prompt("기능(국문)", item.function_ko || "");
-    if (functionKoValue === null) return;
-
-    const functionEnValue = window.prompt("Function(English)", item.function_en || "");
-    if (functionEnValue === null) return;
-
-    const iecicValue = window.prompt("IECIC 여부", item.iecic_status || "");
-    if (iecicValue === null) return;
-
-    const cosmosValue = window.prompt("COSMOS 여부", item.cosmos_status || "");
-    if (cosmosValue === null) return;
-
-    const veganValue = window.prompt("VEGAN 여부", item.vegan_status || "");
-    if (veganValue === null) return;
-
-    const maxUseValue = window.prompt("배합한도", item.max_use_level || "");
-    if (maxUseValue === null) return;
-
-    const regulationValue = window.prompt("규제사항", item.regulation_note || "");
-    if (regulationValue === null) return;
-
-    const ewgValue = window.prompt("EWG 등급", item.ewg_grade || "");
-    if (ewgValue === null) return;
-
-    const allergenValue = window.prompt("알러젠 정보", item.allergen_note || "");
-    if (allergenValue === null) return;
+    if (!inciName) {
+      alert("INCI는 필수입니다.");
+      return;
+    }
 
     const { error } = await supabase
       .from("ingredient_master_global")
       .update({
         inci_name: inciName,
-        korean_name: koreanNameValue,
-        chinese_name: chineseNameValue,
-        japanese_name: japaneseNameValue,
-        cas_no: casNoValue,
-        ec_no: ecNoValue,
-        function_ko: functionKoValue,
-        function_en: functionEnValue,
-        iecic_status: iecicValue,
-        cosmos_status: cosmosValue,
-        vegan_status: veganValue,
-        max_use_level: maxUseValue,
-        regulation_note: regulationValue,
-        ewg_grade: ewgValue,
-        allergen_note: allergenValue,
+        korean_name: koreanNameValue || "",
+        chinese_name: chineseNameValue || "",
+        japanese_name: japaneseNameValue || "",
+        cas_no: casNoValue || "",
+        ec_no: ecNoValue || "",
+        function_ko: functionKoValue || "",
+        function_en: functionEnValue || "",
+        iecic_status: iecicValue || "",
+        cosmos_status: cosmosValue || "",
+        vegan_status: veganValue || "",
+        max_use_level: maxUseValue || "",
+        regulation_note: regulationValue || "",
+        ewg_grade: ewgValue || "",
+        allergen_note: allergenValue || "",
       })
       .eq("id", item.id);
 
@@ -1307,15 +1313,39 @@ export default function Home() {
   }
 
   async function deleteFormulaBasic(item: Formula) {
-    const ok = window.confirm(`${item.formula_code} / ${item.formula_name} 처방을 삭제할까요? 연결된 처방 원료도 삭제될 수 있습니다.`);
+    const ok = window.confirm(`${item.formula_code} / ${item.formula_name} 처방을 삭제할까요? 연결된 처방 원료, 프로젝트 연결, 승인/안정도 연결 데이터도 함께 정리됩니다.`);
 
     if (!ok) return;
+
+    const childTables = [
+      "formula_items",
+      "project_formulas",
+      "approval_requests",
+      "stability_tests",
+      "process_steps",
+    ];
+
+    for (const tableName of childTables) {
+      const { error: childError } = await supabase
+        .from(tableName)
+        .delete()
+        .eq("formula_id", item.id);
+
+      if (childError) {
+        alert(`${tableName} 연결 데이터 삭제 오류: ` + childError.message);
+        return;
+      }
+    }
 
     const { error } = await supabase.from("formulas").delete().eq("id", item.id);
 
     if (error) {
       alert("처방 삭제 오류: " + error.message);
       return;
+    }
+
+    if (selectedFormulaId === item.id) {
+      setSelectedFormulaId("");
     }
 
     loadAll();
@@ -1895,18 +1925,93 @@ export default function Home() {
     );
   }
 
-  function downloadIngredientList() {
-    const label = makeKoreanIngredientList();
+  function getSortedIngredientItemsByFormula(targetFormulaId: string) {
+    return calculateBreakdown(targetFormulaId).sort((a, b) => {
+      const aAboveOne = Number(a.final_percentage || 0) >= 1;
+      const bAboveOne = Number(b.final_percentage || 0) >= 1;
 
-    if (!label) {
-      alert("먼저 Breakdown IL 또는 Full IL을 생성하세요.");
+      if (aAboveOne && !bAboveOne) {
+        return -1;
+      }
+
+      if (!aAboveOne && bAboveOne) {
+        return 1;
+      }
+
+      return Number(b.final_percentage || 0) - Number(a.final_percentage || 0);
+    });
+  }
+
+  function makeKoreanIngredientListByFormula(targetFormulaId: string) {
+    if (!targetFormulaId) {
+      return "";
+    }
+
+    return getSortedIngredientItemsByFormula(targetFormulaId)
+      .map((item) => item.korean_name || item.inci_name)
+      .join(", ");
+  }
+
+  function makeEnglishIngredientListByFormula(targetFormulaId: string) {
+    if (!targetFormulaId) {
+      return "";
+    }
+
+    return getSortedIngredientItemsByFormula(targetFormulaId)
+      .map((item) => item.inci_name)
+      .join(", ");
+  }
+
+  function downloadFormulaSheetCsv() {
+    if (!sheetFormulaId) {
+      alert("처방을 선택하세요.");
       return;
     }
 
+    const formula = getFormulaById(sheetFormulaId);
+    const rows = getFormulaSheetRows(sheetFormulaId).map((item) => [
+      formula?.formula_code || "",
+      formula?.formula_name || "",
+      formula?.version || "",
+      item.phase || "미지정",
+      item.raw_materials?.raw_code || "",
+      item.raw_materials?.raw_name || "",
+      Number(item.percentage || 0).toFixed(4),
+      item.remark || "",
+    ]);
+
+    rows.push([
+      formula?.formula_code || "",
+      formula?.formula_name || "",
+      formula?.version || "",
+      "TOTAL",
+      "",
+      "",
+      getFormulaSheetTotal(sheetFormulaId).toFixed(4),
+      Math.abs(getFormulaSheetTotal(sheetFormulaId) - 100) < 0.0001 ? "TOTAL 100% 완료" : "TOTAL 100% 아님",
+    ]);
+
     downloadCsv(
-      "Ingredient_List.csv",
-      ["전성분"],
-      [[label]]
+      `${formula?.formula_code || "Formula"}_Formula_Sheet.csv`,
+      ["처방코드", "처방명", "Version", "Phase", "원료코드", "원료명", "투입량(%)", "비고"],
+      rows
+    );
+  }
+
+  function downloadIngredientList() {
+    const label = labelFormulaId ? makeKoreanIngredientListByFormula(labelFormulaId) : makeKoreanIngredientList();
+
+    if (!label) {
+      alert("처방을 선택하거나 먼저 Breakdown IL 또는 Full IL을 생성하세요.");
+      return;
+    }
+
+    const formula = labelFormulaId ? getFormulaById(labelFormulaId) : null;
+
+    downloadCsv(
+      `${formula?.formula_code || "Ingredient"}_List.csv`,
+      ["국문 전성분", "영문 Ingredient List"],
+      [[label, labelFormulaId ? makeEnglishIngredientListByFormula(labelFormulaId) : makeEnglishIngredientList()]]
     );
   }
 
@@ -3090,7 +3195,16 @@ export default function Home() {
                             ))}
                           </select>
 
+                          <select value={formulaItemPhase || "Phase A"} onChange={(e) => setFormulaItemPhase(e.target.value)}>
+                            <option value="Phase A">Phase A</option>
+                            <option value="Phase B">Phase B</option>
+                            <option value="Phase C">Phase C</option>
+                            <option value="Phase D">Phase D</option>
+                            <option value="미지정">미지정</option>
+                          </select>
+
                           <input placeholder="투입량(%) 예: 5" value={formulaItemPercentage || ""} onChange={(e) => setFormulaItemPercentage(e.target.value)} />
+                          <input placeholder="비고 예: 70℃ 투입" value={formulaItemRemark || ""} onChange={(e) => setFormulaItemRemark(e.target.value)} />
                           <button onClick={addFormulaItem}>처방 원료 저장</button>
                         </div>
 
@@ -4045,7 +4159,12 @@ export default function Home() {
                 ))}
               </select>
 
-              <button onClick={printFormulaSheet}>인쇄 / PDF 저장</button>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={printFormulaSheet}>인쇄 / PDF 저장</button>
+                <button onClick={downloadFormulaSheetCsv} style={{ background: "#059669" }}>
+                  Formula Sheet CSV 다운로드
+                </button>
+              </div>
             </div>
 
             {sheetFormulaId && (
@@ -4131,22 +4250,40 @@ export default function Home() {
         {menu === "label" && (
           <>
             <h1>전성분</h1>
-            <p>Breakdown IL 또는 Full IL 생성 후 1% Rule을 반영한 함량순 전성분 문구가 자동 생성됩니다.</p>
-            <button onClick={downloadIngredientList} style={{ marginBottom: "12px" }}>
-              전성분 다운로드
-            </button>
+            <p>처방을 선택하면 식약처 표시 기준에 맞춰 1% Rule을 반영한 전성분 문구가 자동 생성됩니다.</p>
+
+            <div style={{ display: "grid", gap: "10px", maxWidth: "600px", marginBottom: "20px" }}>
+              <select value={labelFormulaId || ""} onChange={(e) => setLabelFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} - {formula.formula_name} v{formula.version}
+                  </option>
+                ))}
+              </select>
+
+              <button onClick={downloadIngredientList}>전성분 CSV 다운로드</button>
+            </div>
 
             <h2>국문 전성분</h2>
-            <div style={{ border: "1px solid #ddd", padding: "20px", maxWidth: "900px", lineHeight: "1.8" }}>
-              {makeKoreanIngredientList() || "아직 생성된 전성분이 없습니다."}
+            <div style={{ border: "1px solid #ddd", padding: "20px", maxWidth: "900px", lineHeight: "1.8", background: "white" }}>
+              {labelFormulaId
+                ? makeKoreanIngredientListByFormula(labelFormulaId) || "해당 처방의 전성분 데이터가 없습니다."
+                : makeKoreanIngredientList() || "처방을 선택하거나 Breakdown IL을 생성하세요."}
             </div>
 
             <h2>영문 Ingredient List</h2>
-            <div style={{ border: "1px solid #ddd", padding: "20px", maxWidth: "900px", lineHeight: "1.8" }}>
-              {makeEnglishIngredientList() || "아직 생성된 Ingredient List가 없습니다."}
+            <div style={{ border: "1px solid #ddd", padding: "20px", maxWidth: "900px", lineHeight: "1.8", background: "white" }}>
+              {labelFormulaId
+                ? makeEnglishIngredientListByFormula(labelFormulaId) || "해당 처방의 Ingredient List 데이터가 없습니다."
+                : makeEnglishIngredientList() || "처방을 선택하거나 Breakdown IL을 생성하세요."}
             </div>
 
             <h2>전성분 정렬 기준</h2>
+            <p style={{ color: "#6b7280" }}>
+              1% 이상 성분은 최종함량 기준 내림차순으로 정렬하고, 1% 미만 성분은 후순위 영역으로 구분합니다.
+            </p>
+
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -4157,7 +4294,7 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {getSortedIngredientItems().map((item) => (
+                {(labelFormulaId ? getSortedIngredientItemsByFormula(labelFormulaId) : getSortedIngredientItems()).map((item) => (
                   <tr key={item.inci_name}>
                     <td>{item.inci_name}</td>
                     <td>{item.korean_name}</td>
@@ -4169,6 +4306,7 @@ export default function Home() {
             </table>
           </>
         )}
+
       </section>
     </main>
   );
