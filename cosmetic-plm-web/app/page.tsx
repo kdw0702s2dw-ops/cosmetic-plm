@@ -327,6 +327,10 @@ export default function Home() {
   const [formulaItemPhase, setFormulaItemPhase] = useState("Phase A");
   const [formulaItemRemark, setFormulaItemRemark] = useState("");
 
+  const [formulaSearch, setFormulaSearch] = useState("");
+  const [selectedFormulaId, setSelectedFormulaId] = useState("");
+  const [formulaTab, setFormulaTab] = useState("basic");
+
   const [breakdownFormulaId, setBreakdownFormulaId] = useState("");
   const [fullIlFormulaId, setFullIlFormulaId] = useState("");
   const [costFormulaId, setCostFormulaId] = useState("");
@@ -1564,6 +1568,38 @@ export default function Home() {
     loadAll();
   }
 
+  function getFilteredFormulas() {
+    const keyword = formulaSearch.trim().toLowerCase();
+
+    if (!keyword) {
+      return formulas;
+    }
+
+    return formulas.filter((formula) => {
+      return (
+        formula.formula_code?.toLowerCase().includes(keyword) ||
+        formula.formula_name?.toLowerCase().includes(keyword) ||
+        formula.version?.toLowerCase().includes(keyword)
+      );
+    });
+  }
+
+  function getSelectedFormula() {
+    return formulas.find((formula) => formula.id === selectedFormulaId) || null;
+  }
+
+  function getSortedBreakdownByFormula(targetFormulaId: string) {
+    return calculateBreakdown(targetFormulaId).sort((a, b) => {
+      const aAboveOne = Number(a.final_percentage || 0) >= 1;
+      const bAboveOne = Number(b.final_percentage || 0) >= 1;
+
+      if (aAboveOne && !bAboveOne) return -1;
+      if (!aAboveOne && bAboveOne) return 1;
+
+      return Number(b.final_percentage || 0) - Number(a.final_percentage || 0);
+    });
+  }
+
   async function addFormula() {
     if (!formulaCode || !formulaName) {
       alert("처방코드와 처방명을 입력하세요.");
@@ -2307,77 +2343,46 @@ export default function Home() {
             <h1>Cosmetic PLM Dashboard</h1>
             <p>프로젝트, 승인, 안정도, 마스터 데이터 현황을 한눈에 확인합니다.</p>
 
-            <h2>프로젝트 현황</h2>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <th>전체 프로젝트</th>
-                  <td>{getDashboardKpis().totalProjects}</td>
-                  <th>진행중</th>
-                  <td>{getDashboardKpis().activeProjects}</td>
-                </tr>
-                <tr>
-                  <th>출시/완료</th>
-                  <td>{getDashboardKpis().completedProjects}</td>
-                  <th>보류</th>
-                  <td>{getDashboardKpis().holdProjects}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h2>승인 현황</h2>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <th>승인대기</th>
-                  <td>{getDashboardKpis().reviewCount}</td>
-                  <th>승인완료</th>
-                  <td>{getDashboardKpis().approvedCount}</td>
-                </tr>
-                <tr>
-                  <th>배포완료</th>
-                  <td>{getDashboardKpis().releasedCount}</td>
-                  <th>반려</th>
-                  <td>{getDashboardKpis().rejectedCount}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h2>안정도 현황</h2>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <th>진행중</th>
-                  <td>{getDashboardKpis().stabilityRunning}</td>
-                  <th>PASS</th>
-                  <td>{getDashboardKpis().stabilityPass}</td>
-                </tr>
-                <tr>
-                  <th>FAIL</th>
-                  <td>{getDashboardKpis().stabilityFail}</td>
-                  <th>전체 안정도 시험</th>
-                  <td>{stabilityTests.length}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h2>마스터 데이터 현황</h2>
-            <table style={tableStyle}>
-              <tbody>
-                <tr>
-                  <th>원료 수</th>
-                  <td>{getDashboardKpis().totalMaterials}</td>
-                  <th>성분 수</th>
-                  <td>{getDashboardKpis().totalIngredients}</td>
-                </tr>
-                <tr>
-                  <th>통합 성분 수</th>
-                  <td>{getDashboardKpis().totalGlobalIngredients}</td>
-                  <th>처방 수</th>
-                  <td>{getDashboardKpis().totalFormulas}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "16px",
+                marginTop: "20px",
+                marginBottom: "28px",
+              }}
+            >
+              {[
+                ["전체 프로젝트", getDashboardKpis().totalProjects],
+                ["진행중 프로젝트", getDashboardKpis().activeProjects],
+                ["출시/완료", getDashboardKpis().completedProjects],
+                ["승인대기", getDashboardKpis().reviewCount],
+                ["승인완료", getDashboardKpis().approvedCount],
+                ["안정도 진행", getDashboardKpis().stabilityRunning],
+                ["안정도 PASS", getDashboardKpis().stabilityPass],
+                ["원료 수", getDashboardKpis().totalMaterials],
+                ["통합 성분 수", getDashboardKpis().totalGlobalIngredients],
+                ["처방 수", getDashboardKpis().totalFormulas],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "12px",
+                    padding: "18px",
+                    background: "white",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                  }}
+                >
+                  <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: "30px", fontWeight: "bold", color: "#111827" }}>
+                    {value}
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <h2>프로젝트별 진행률</h2>
             <table style={tableStyle}>
@@ -2397,7 +2402,28 @@ export default function Home() {
                     <td>{project.project_code}</td>
                     <td>{project.customer_name}</td>
                     <td>{project.project_name}</td>
-                    <td style={{ fontWeight: "bold" }}>{getProjectProgress(project.id)}%</td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div
+                          style={{
+                            width: "120px",
+                            height: "10px",
+                            background: "#e5e7eb",
+                            borderRadius: "999px",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${getProjectProgress(project.id)}%`,
+                              height: "100%",
+                              background: "#2563eb",
+                            }}
+                          />
+                        </div>
+                        <strong>{getProjectProgress(project.id)}%</strong>
+                      </div>
+                    </td>
                     <td>{getCurrentProjectStage(project.id)}</td>
                     <td>{project.status}</td>
                   </tr>
@@ -2902,130 +2928,266 @@ export default function Home() {
         {menu === "formula" && (
           <>
             <h1>처방관리</h1>
+            <p style={{ color: "#6b7280" }}>
+              처방을 검색하고 선택하면 기본정보, 원료목록, 원가/검증, 전성분을 탭으로 확인할 수 있습니다.
+            </p>
 
-            <h2>처방 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "400px" }}>
-              <input placeholder="처방코드 예: FC-001" value={formulaCode || ""} onChange={(e) => setFormulaCode(e.target.value)} />
-              <input placeholder="처방명 예: 립패치" value={formulaName || ""} onChange={(e) => setFormulaName(e.target.value)} />
-              <input placeholder="버전 예: 1.0" value={formulaVersion || ""} onChange={(e) => setFormulaVersion(e.target.value)} />
-              <input placeholder="목표원가(원/kg) 예: 500" value={formulaTargetCost || ""} onChange={(e) => setFormulaTargetCost(e.target.value)} />
-              <input placeholder="공급가(원/kg) 예: 3000" value={formulaSellingPrice || ""} onChange={(e) => setFormulaSellingPrice(e.target.value)} />
-              <button onClick={addFormula}>처방 저장</button>
+            <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" }}>
+              <div style={cardStyle}>
+                <h2>처방 등록</h2>
+                <div style={{ display: "grid", gap: "10px" }}>
+                  <input placeholder="처방코드 예: FC-001" value={formulaCode || ""} onChange={(e) => setFormulaCode(e.target.value)} />
+                  <input placeholder="처방명 예: 립패치" value={formulaName || ""} onChange={(e) => setFormulaName(e.target.value)} />
+                  <input placeholder="버전 예: 1.0" value={formulaVersion || ""} onChange={(e) => setFormulaVersion(e.target.value)} />
+                  <input placeholder="목표원가(원/kg) 예: 500" value={formulaTargetCost || ""} onChange={(e) => setFormulaTargetCost(e.target.value)} />
+                  <input placeholder="공급가(원/kg) 예: 3000" value={formulaSellingPrice || ""} onChange={(e) => setFormulaSellingPrice(e.target.value)} />
+                  <button onClick={addFormula}>처방 저장</button>
+                </div>
+
+                <h2 style={{ marginTop: "24px" }}>처방 검색</h2>
+                <input
+                  placeholder="처방코드 / 처방명 / 버전 검색"
+                  value={formulaSearch || ""}
+                  onChange={(e) => setFormulaSearch(e.target.value)}
+                />
+
+                <div style={{ marginTop: "12px", display: "grid", gap: "8px", maxHeight: "520px", overflowY: "auto" }}>
+                  {getFilteredFormulas().map((formula) => {
+                    const total = getFormulaTotal(formula.id);
+                    const isSelected = selectedFormulaId === formula.id;
+
+                    return (
+                      <button
+                        key={formula.id}
+                        onClick={() => {
+                          setSelectedFormulaId(formula.id);
+                          setFormulaId(formula.id);
+                        }}
+                        style={{
+                          textAlign: "left",
+                          background: isSelected ? "#2563eb" : "white",
+                          color: isSelected ? "white" : "#111827",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "8px",
+                          padding: "12px",
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold" }}>
+                          {formula.formula_code} - {formula.formula_name}
+                        </div>
+                        <div style={{ fontSize: "13px", opacity: 0.85 }}>
+                          v{formula.version} / TOTAL {total.toFixed(2)}%
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={cardStyle}>
+                {!getSelectedFormula() && (
+                  <p style={{ color: "#6b7280" }}>왼쪽에서 처방을 선택하세요.</p>
+                )}
+
+                {getSelectedFormula() && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center" }}>
+                      <div>
+                        <h2 style={{ marginBottom: "4px" }}>
+                          {getSelectedFormula()?.formula_code} - {getSelectedFormula()?.formula_name}
+                        </h2>
+                        <p style={{ color: "#6b7280", marginTop: 0 }}>
+                          Version {getSelectedFormula()?.version} / Revision {getSelectedFormula()?.revision_no || 1}
+                        </p>
+                      </div>
+
+                      <div>
+                        <button onClick={() => getSelectedFormula() && updateFormulaBasic(getSelectedFormula()!)}>수정</button>
+                        <button
+                          onClick={() => getSelectedFormula() && cloneFormula(getSelectedFormula()!)}
+                          style={{ background: "#059669" }}
+                        >
+                          복사
+                        </button>
+                        <button
+                          onClick={() => getSelectedFormula() && deleteFormulaBasic(getSelectedFormula()!)}
+                          style={{ background: "#dc2626" }}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "18px", flexWrap: "wrap" }}>
+                      {[
+                        ["basic", "기본정보"],
+                        ["items", "원료목록"],
+                        ["cost", "원가/검증"],
+                        ["il", "전성분"],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => setFormulaTab(key)}
+                          style={{
+                            background: formulaTab === key ? "#2563eb" : "#6b7280",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {formulaTab === "basic" && (
+                      <table style={tableStyle}>
+                        <tbody>
+                          <tr>
+                            <th>처방코드</th>
+                            <td>{getSelectedFormula()?.formula_code}</td>
+                            <th>처방명</th>
+                            <td>{getSelectedFormula()?.formula_name}</td>
+                          </tr>
+                          <tr>
+                            <th>버전</th>
+                            <td>{getSelectedFormula()?.version}</td>
+                            <th>Revision No.</th>
+                            <td>{getSelectedFormula()?.revision_no || 1}</td>
+                          </tr>
+                          <tr>
+                            <th>TOTAL</th>
+                            <td>{getFormulaTotal(selectedFormulaId).toFixed(4)}%</td>
+                            <th>상태</th>
+                            <td style={{ color: Math.abs(getFormulaTotal(selectedFormulaId) - 100) < 0.0001 ? "green" : "red", fontWeight: "bold" }}>
+                              {Math.abs(getFormulaTotal(selectedFormulaId) - 100) < 0.0001 ? "TOTAL 100% 완료" : "TOTAL 100% 아님"}
+                            </td>
+                          </tr>
+                          <tr>
+                            <th>Revision Note</th>
+                            <td colSpan={3}>{getSelectedFormula()?.revision_note || "-"}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
+
+                    {formulaTab === "items" && (
+                      <>
+                        <h3>처방 원료 등록</h3>
+                        <div style={{ display: "grid", gap: "10px", marginBottom: "20px", maxWidth: "600px" }}>
+                          <select value={formulaId || selectedFormulaId || ""} onChange={(e) => setFormulaId(e.target.value)}>
+                            <option value="">처방 선택</option>
+                            {formulas.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.formula_code} - {f.formula_name} v{f.version}
+                              </option>
+                            ))}
+                          </select>
+
+                          <select value={formulaRawMaterialId || ""} onChange={(e) => setFormulaRawMaterialId(e.target.value)}>
+                            <option value="">원료 선택</option>
+                            {materials.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.raw_code} - {m.raw_name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <input placeholder="투입량(%) 예: 5" value={formulaItemPercentage || ""} onChange={(e) => setFormulaItemPercentage(e.target.value)} />
+                          <button onClick={addFormulaItem}>처방 원료 저장</button>
+                        </div>
+
+                        <table style={tableStyle}>
+                          <thead>
+                            <tr>
+                              <th>Phase</th>
+                              <th>원료코드</th>
+                              <th>원료명</th>
+                              <th>투입량(%)</th>
+                              <th>단가(원/kg)</th>
+                              <th>원가(원/kg)</th>
+                              <th>비고</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getFormulaItemsByFormula(selectedFormulaId).map((item) => (
+                              <tr key={item.id}>
+                                <td>{item.phase}</td>
+                                <td>{item.raw_materials?.raw_code}</td>
+                                <td>{item.raw_materials?.raw_name}</td>
+                                <td>{Number(item.percentage || 0).toFixed(4)}</td>
+                                <td>{Number(item.raw_materials?.unit_price || 0).toLocaleString()}</td>
+                                <td>{((Number(item.raw_materials?.unit_price || 0) * Number(item.percentage || 0)) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                <td>{item.remark}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+
+                    {formulaTab === "cost" && (
+                      <table style={tableStyle}>
+                        <tbody>
+                          <tr>
+                            <th>예상원가(원/kg)</th>
+                            <td>{getFormulaCost(selectedFormulaId).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                            <th>목표원가(원/kg)</th>
+                            <td>{Number(getSelectedFormula()?.target_cost || 0).toLocaleString()}</td>
+                          </tr>
+                          <tr>
+                            <th>차이(원/kg)</th>
+                            <td style={{ color: getCostGap(selectedFormulaId) >= 0 ? "green" : "red", fontWeight: "bold" }}>
+                              {getCostGap(selectedFormulaId).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </td>
+                            <th>공급가(원/kg)</th>
+                            <td>{Number(getSelectedFormula()?.selling_price || 0).toLocaleString()}</td>
+                          </tr>
+                          <tr>
+                            <th>마진율</th>
+                            <td>{getMarginRate(selectedFormulaId).toFixed(2)}%</td>
+                            <th>전성분 생성</th>
+                            <td>{calculateBreakdown(selectedFormulaId).length > 0 ? "가능" : "검토 필요"}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
+
+                    {formulaTab === "il" && (
+                      <>
+                        <h3>Breakdown IL</h3>
+                        <table style={tableStyle}>
+                          <thead>
+                            <tr>
+                              <th>INCI</th>
+                              <th>국문명</th>
+                              <th>CAS No.</th>
+                              <th>최종함량(%)</th>
+                              <th>기능</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getSortedBreakdownByFormula(selectedFormulaId).map((item) => (
+                              <tr key={item.inci_name}>
+                                <td>{item.inci_name}</td>
+                                <td>{item.korean_name}</td>
+                                <td>{item.cas_no}</td>
+                                <td>{item.final_percentage.toFixed(6)}</td>
+                                <td>{item.function_ko}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+
+                        <h3>전성분 문구</h3>
+                        <div style={{ border: "1px solid #d1d5db", borderRadius: "8px", padding: "16px", background: "#fff" }}>
+                          {getSortedBreakdownByFormula(selectedFormulaId)
+                            .map((item) => item.korean_name || item.inci_name)
+                            .join(", ") || "전성분 생성 데이터가 없습니다."}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-
-            <h2>처방 원료 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "500px" }}>
-              <select value={formulaId || ""} onChange={(e) => setFormulaId(e.target.value)}>
-                <option value="">처방 선택</option>
-                {formulas.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.formula_code} - {f.formula_name} v{f.version}
-                  </option>
-                ))}
-              </select>
-
-              <select value={formulaRawMaterialId || ""} onChange={(e) => setFormulaRawMaterialId(e.target.value)}>
-                <option value="">원료 선택</option>
-                {materials.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.raw_code} - {m.raw_name}
-                  </option>
-                ))}
-              </select>
-
-              <input placeholder="투입량(%) 예: 5" value={formulaItemPercentage || ""} onChange={(e) => setFormulaItemPercentage(e.target.value)} />
-              <button onClick={addFormulaItem}>처방 원료 저장</button>
-            </div>
-
-            <h2>처방 목록</h2>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th>처방코드</th>
-                  <th>처방명</th>
-                  <th>버전</th>
-                  <th>Revision No.</th>
-                  <th>Revision Note</th>
-                  <th>TOTAL(%)</th>
-                  <th>예상원가(원/kg)</th>
-                  <th>목표원가(원/kg)</th>
-                  <th>차이(원/kg)</th>
-                  <th>공급가(원/kg)</th>
-                  <th>마진율(%)</th>
-                  <th>상태</th>
-                  <th>복사</th>
-                  <th>관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {formulas.map((f) => {
-                  const total = getFormulaTotal(f.id);
-                  const isComplete = Math.abs(total - 100) < 0.0001;
-
-                  return (
-                    <tr key={f.id}>
-                      <td>{f.formula_code}</td>
-                      <td>{f.formula_name}</td>
-                      <td>{f.version}</td>
-                      <td>{f.revision_no || 1}</td>
-                      <td>{f.revision_note || "-"}</td>
-                      <td>{total.toFixed(2)}</td>
-                      <td>{getFormulaCost(f.id).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                      <td>{Number(f.target_cost || 0).toLocaleString()}</td>
-                      <td style={{ color: getCostGap(f.id) >= 0 ? "green" : "red", fontWeight: "bold" }}>
-                        {getCostGap(f.id).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </td>
-                      <td>{Number(f.selling_price || 0).toLocaleString()}</td>
-                      <td>{getMarginRate(f.id).toFixed(2)}</td>
-                      <td style={{ color: isComplete ? "green" : "red", fontWeight: "bold" }}>
-                        {isComplete ? "TOTAL 100% 완료" : "TOTAL 100% 아님"}
-                      </td>
-                      <td>
-                        <button onClick={() => cloneFormula(f)}>복사</button>
-                      </td>
-                      <td>
-                        <button onClick={() => updateFormulaBasic(f)}>수정</button>
-                        <button onClick={() => deleteFormulaBasic(f)} style={{ background: "#dc2626" }}>삭제</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <h2>처방 원료 목록</h2>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th>처방코드</th>
-                  <th>처방명</th>
-                  <th>Phase</th>
-                  <th>원료코드</th>
-                  <th>원료명</th>
-                  <th>투입량(%)</th>
-                  <th>단가(원/kg)</th>
-                  <th>통화</th>
-                  <th>MOQ(kg)</th>
-                  <th>원가(원/kg)</th>
-                  <th>비고</th>
-                </tr>
-              </thead>
-              <tbody>
-                {formulaItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.formulas?.formula_code}</td>
-                    <td>{item.formulas?.formula_name}</td>
-                    <td>{item.phase}</td>
-                    <td>{item.raw_materials?.raw_code}</td>
-                    <td>{item.raw_materials?.raw_name}</td>
-                    <td>{item.percentage}</td>
-                    <td>{Number(item.raw_materials?.unit_price || 0).toLocaleString()}</td>
-                    <td>{((Number(item.raw_materials?.unit_price || 0) * Number(item.percentage || 0)) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
-                    <td>{item.remark}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </>
         )}
 
