@@ -431,6 +431,8 @@ export default function Home() {
   const [formulaSearch, setFormulaSearch] = useState("");
   const [selectedFormulaId, setSelectedFormulaId] = useState("");
   const [formulaTab, setFormulaTab] = useState("basic");
+  const [compareFormulaIdA, setCompareFormulaIdA] = useState("");
+  const [compareFormulaIdB, setCompareFormulaIdB] = useState("");
 
   const [breakdownFormulaId, setBreakdownFormulaId] = useState("");
   const [fullIlFormulaId, setFullIlFormulaId] = useState("");
@@ -2916,6 +2918,125 @@ export default function Home() {
 
     alert(`복사 완료: ${sourceFormula.formula_code} v${nextVersion}`);
     loadAll();
+  }
+
+  function getFormulaFamily(targetFormula: Formula | null) {
+    if (!targetFormula) return [];
+
+    const rootCode = targetFormula.formula_code;
+
+    return formulas
+      .filter((formula) => formula.formula_code === rootCode)
+      .sort((a, b) => Number(a.revision_no || 1) - Number(b.revision_no || 1));
+  }
+
+  function getNextMajorVersion(version: string) {
+    const major = Number(String(version || "1.0").split(".")[0] || 1);
+    return `${major + 1}.0`;
+  }
+
+  async function cloneFormulaWithMode(sourceFormula: Formula, mode: "minor" | "major") {
+    if (!assertCanEdit()) return;
+
+    const note = window.prompt(
+      mode === "major"
+        ? "Major Version 생성 사유를 입력하세요. 예: 고객 승인 버전, 컨셉 변경"
+        : "Minor Revision 생성 사유를 입력하세요. 예: 점도 조정, 향료 변경",
+      mode === "major" ? "Major version upgrade" : `Revision from v${sourceFormula.version}`
+    );
+
+    if (note === null) return;
+
+    const nextVersion =
+      mode === "major"
+        ? getNextMajorVersion(sourceFormula.version || "1.0")
+        : getNextVersion(sourceFormula.version || "1.0");
+
+    const { data: newFormula, error: formulaError } = await supabase
+      .from("formulas")
+      .insert([
+        {
+          formula_code: sourceFormula.formula_code,
+          formula_name: sourceFormula.formula_name,
+          version: nextVersion,
+          parent_formula_id: sourceFormula.id,
+          revision_no: Number(sourceFormula.revision_no || 1) + 1,
+          revision_note: note || `Copied from v${sourceFormula.version}`,
+          target_cost: Number(sourceFormula.target_cost || 0),
+          selling_price: Number(sourceFormula.selling_price || 0),
+        },
+      ])
+      .select()
+      .single();
+
+    if (formulaError) {
+      alert("처방 버전 생성 오류: " + formulaError.message);
+      return;
+    }
+
+    const sourceItems = formulaItems.filter((item) => item.formulas?.id === sourceFormula.id);
+
+    if (sourceItems.length > 0) {
+      const newItems = sourceItems.map((item) => ({
+        formula_id: newFormula.id,
+        raw_material_id: item.raw_materials?.id,
+        percentage: Number(item.percentage || 0),
+        phase: item.phase || "",
+        remark: item.remark || "",
+      }));
+
+      const { error: itemError } = await supabase.from("formula_items").insert(newItems);
+
+      if (itemError) {
+        alert("처방 원료 복사 오류: " + itemError.message);
+        return;
+      }
+    }
+
+    await logAudit("처방버전관리", newFormula.id, mode === "major" ? "Major Version 생성" : "Minor Revision 생성", sourceFormula, {
+      formula_code: sourceFormula.formula_code,
+      from_version: sourceFormula.version,
+      to_version: nextVersion,
+      revision_note: note,
+    });
+
+    setSelectedFormulaId(newFormula.id);
+    setFormulaId(newFormula.id);
+    setFormulaTab("version");
+    alert(`버전 생성 완료: ${sourceFormula.formula_code} v${nextVersion}`);
+    loadAll();
+  }
+
+  function getFormulaCompareRows(formulaAId: string, formulaBId: string) {
+    const itemsA = formulaItems.filter((item) => item.formulas?.id === formulaAId);
+    const itemsB = formulaItems.filter((item) => item.formulas?.id === formulaBId);
+
+    const keys = Array.from(
+      new Set([
+        ...itemsA.map((item) => item.raw_materials?.id || item.raw_materials?.raw_name || ""),
+        ...itemsB.map((item) => item.raw_materials?.id || item.raw_materials?.raw_name || ""),
+      ])
+    ).filter(Boolean);
+
+    return keys.map((key) => {
+      const itemA = itemsA.find((item) => (item.raw_materials?.id || item.raw_materials?.raw_name) === key);
+      const itemB = itemsB.find((item) => (item.raw_materials?.id || item.raw_materials?.raw_name) === key);
+
+      const percentA = Number(itemA?.percentage || 0);
+      const percentB = Number(itemB?.percentage || 0);
+      const diff = percentB - percentA;
+
+      return {
+        raw_code: itemA?.raw_materials?.raw_code || itemB?.raw_materials?.raw_code || "",
+        raw_name: itemA?.raw_materials?.raw_name || itemB?.raw_materials?.raw_name || "",
+        phase_a: itemA?.phase || "",
+        phase_b: itemB?.phase || "",
+        percent_a: percentA,
+        percent_b: percentB,
+        diff,
+        status: !itemA ? "추가" : !itemB ? "삭제" : Math.abs(diff) > 0.000001 || itemA.phase !== itemB.phase ? "변경" : "동일",
+      };
+    });
   }
 
   function getFormulaById(targetFormulaId: string) {
@@ -5516,7 +5637,7 @@ export default function Home() {
                           {formula.formula_code} - {formula.formula_name}
                         </div>
                         <div style={{ fontSize: "13px", opacity: 0.85 }}>
-                          v{formula.version} / TOTAL {total.toFixed(2)}%
+                          v{formula.version} / Rev.{formula.revision_no || 1} / TOTAL {total.toFixed(2)}% / {formula.is_locked ? "LOCKED" : "EDITABLE"}
                         </div>
                       </button>
                     );
@@ -5544,10 +5665,16 @@ export default function Home() {
                       <div>
                         <button onClick={() => getSelectedFormula() && updateFormulaBasic(getSelectedFormula()!)}>수정</button>
                         <button
-                          onClick={() => getSelectedFormula() && cloneFormula(getSelectedFormula()!)}
+                          onClick={() => getSelectedFormula() && cloneFormulaWithMode(getSelectedFormula()!, "minor")}
                           style={{ background: "#059669" }}
                         >
-                          복사
+                          Minor 생성
+                        </button>
+                        <button
+                          onClick={() => getSelectedFormula() && cloneFormulaWithMode(getSelectedFormula()!, "major")}
+                          style={{ background: "#0ea5e9" }}
+                        >
+                          Major 생성
                         </button>
                         {getSelectedFormula()?.is_locked ? (
                           <button
@@ -5580,6 +5707,7 @@ export default function Home() {
                         ["items", "원료목록"],
                         ["cost", "원가/검증"],
                         ["il", "전성분"],
+                        ["version", "버전관리"],
                       ].map(([key, label]) => (
                         <button
                           key={key}
@@ -5636,6 +5764,126 @@ export default function Home() {
                           </tr>
                         </tbody>
                       </table>
+                    )}
+
+                    {formulaTab === "version" && (
+                      <>
+                        <h2>Formula Version Control</h2>
+                        <p style={{ color: "#6b7280" }}>
+                          동일 처방코드 기준으로 Version Tree, Revision Note, 처방 비교를 관리합니다.
+                        </p>
+
+                        <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+                          <button onClick={() => getSelectedFormula() && cloneFormulaWithMode(getSelectedFormula()!, "minor")}>
+                            Minor Revision 생성
+                          </button>
+                          <button onClick={() => getSelectedFormula() && cloneFormulaWithMode(getSelectedFormula()!, "major")} style={{ background: "#0ea5e9" }}>
+                            Major Version 생성
+                          </button>
+                        </div>
+
+                        <h3>Version Tree</h3>
+                        <table style={tableStyle}>
+                          <thead>
+                            <tr>
+                              <th>선택</th>
+                              <th>처방코드</th>
+                              <th>처방명</th>
+                              <th>Version</th>
+                              <th>Revision No.</th>
+                              <th>Parent</th>
+                              <th>LOCK</th>
+                              <th>Revision Note</th>
+                              <th>TOTAL</th>
+                              <th>원가</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {getFormulaFamily(getSelectedFormula()).map((formula) => (
+                              <tr key={formula.id}>
+                                <td>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFormulaId(formula.id);
+                                      setFormulaId(formula.id);
+                                    }}
+                                    style={{ background: selectedFormulaId === formula.id ? "#2563eb" : "#6b7280" }}
+                                  >
+                                    선택
+                                  </button>
+                                </td>
+                                <td>{formula.formula_code}</td>
+                                <td>{formula.formula_name}</td>
+                                <td style={{ fontWeight: "bold" }}>v{formula.version}</td>
+                                <td>{formula.revision_no || 1}</td>
+                                <td>{formula.parent_formula_id ? "있음" : "Root"}</td>
+                                <td style={{ color: formula.is_locked ? "red" : "green", fontWeight: "bold" }}>
+                                  {formula.is_locked ? "LOCKED" : "EDITABLE"}
+                                </td>
+                                <td>{formula.revision_note || "-"}</td>
+                                <td>{getFormulaTotal(formula.id).toFixed(4)}%</td>
+                                <td>{getFormulaCost(formula.id).toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+
+                        <h3>Version Compare</h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", maxWidth: "760px", marginBottom: "16px" }}>
+                          <select value={compareFormulaIdA || ""} onChange={(e) => setCompareFormulaIdA(e.target.value)}>
+                            <option value="">비교 기준 Version A</option>
+                            {getFormulaFamily(getSelectedFormula()).map((formula) => (
+                              <option key={formula.id} value={formula.id}>
+                                v{formula.version} / Rev.{formula.revision_no || 1} / {formula.revision_note || "-"}
+                              </option>
+                            ))}
+                          </select>
+
+                          <select value={compareFormulaIdB || ""} onChange={(e) => setCompareFormulaIdB(e.target.value)}>
+                            <option value="">비교 대상 Version B</option>
+                            {getFormulaFamily(getSelectedFormula()).map((formula) => (
+                              <option key={formula.id} value={formula.id}>
+                                v{formula.version} / Rev.{formula.revision_no || 1} / {formula.revision_note || "-"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {compareFormulaIdA && compareFormulaIdB && (
+                          <table style={tableStyle}>
+                            <thead>
+                              <tr>
+                                <th>상태</th>
+                                <th>원료코드</th>
+                                <th>원료명</th>
+                                <th>Phase A</th>
+                                <th>Phase B</th>
+                                <th>A 투입량(%)</th>
+                                <th>B 투입량(%)</th>
+                                <th>차이</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {getFormulaCompareRows(compareFormulaIdA, compareFormulaIdB).map((row, index) => (
+                                <tr key={`${row.raw_code}-${index}`}>
+                                  <td style={{ fontWeight: "bold", color: row.status === "동일" ? "green" : row.status === "삭제" ? "red" : "#d97706" }}>
+                                    {row.status}
+                                  </td>
+                                  <td>{row.raw_code}</td>
+                                  <td>{row.raw_name}</td>
+                                  <td>{row.phase_a}</td>
+                                  <td>{row.phase_b}</td>
+                                  <td>{row.percent_a.toFixed(6)}</td>
+                                  <td>{row.percent_b.toFixed(6)}</td>
+                                  <td style={{ color: Math.abs(row.diff) > 0.000001 ? "#d97706" : "green", fontWeight: "bold" }}>
+                                    {row.diff.toFixed(6)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </>
                     )}
 
                     {formulaTab === "items" && (
