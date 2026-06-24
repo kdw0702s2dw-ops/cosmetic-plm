@@ -1224,36 +1224,78 @@ export default function Home() {
     loadAll();
   }
 
-  async function addProject() {
-    if (!projectCode || !projectName) {
-      alert("프로젝트 코드와 프로젝트명을 입력하세요.");
+  function getProjectStatusOptions() {
+    return ["개발중", "샘플발송", "고객검토", "안정도진행", "양산승인", "출시", "보류"];
+  }
+
+  function generateProjectCode() {
+    const year = new Date().getFullYear().toString();
+
+    const sameYearNumbers = projects
+      .map((project) => project.project_code || "")
+      .filter((code) => code.startsWith(`${year}-`))
+      .map((code) => Number(code.split("-")[1] || 0))
+      .filter((num) => !Number.isNaN(num));
+
+    const nextNumber = sameYearNumbers.length > 0 ? Math.max(...sameYearNumbers) + 1 : 1;
+
+    return `${year}-${String(nextNumber).padStart(3, "0")}`;
+  }
+
+  async function updateProjectStatus(project: Project, nextStatus: string) {
+    if (!assertCanEdit()) return;
+
+    const beforeData = { ...project };
+    const afterData = { ...project, status: nextStatus };
+
+    const { error } = await supabase
+      .from("projects")
+      .update({ status: nextStatus })
+      .eq("id", project.id);
+
+    if (error) {
+      alert("프로젝트 상태 변경 오류: " + error.message);
       return;
     }
 
-    const { error } = await supabase.from("projects").insert([
-      {
-        project_code: projectCode,
-        customer_name: customerName,
-        project_name: projectName,
-        researcher,
-        status: projectStatus,
-        target_launch_date: targetLaunchDate || null,
-        description: projectDescription,
-        product_type: productType,
-        dosage_form: dosageForm,
-        target_user: targetUser,
-        concept_keywords: conceptKeywords,
-        target_price: Number(targetPrice || 0),
-        forbidden_ingredients: forbiddenIngredients,
-        required_ingredients: requiredIngredients,
-        customer_brief: customerBrief,
-      },
-    ]);
+    await logAudit("프로젝트관리", project.id, "상태변경", beforeData, afterData);
+    loadAll();
+  }
+
+  async function addProject() {
+    if (!projectName) {
+      alert("프로젝트명을 입력하세요.");
+      return;
+    }
+
+    const autoProjectCode = generateProjectCode();
+
+    const payload = {
+      project_code: autoProjectCode,
+      customer_name: customerName,
+      project_name: projectName,
+      researcher,
+      status: projectStatus || "개발중",
+      target_launch_date: null,
+      description: projectDescription,
+      product_type: "",
+      dosage_form: dosageForm,
+      target_user: "",
+      concept_keywords: conceptKeywords,
+      target_price: Number(targetPrice || 0),
+      forbidden_ingredients: forbiddenIngredients,
+      required_ingredients: requiredIngredients,
+      customer_brief: customerBrief,
+    };
+
+    const { error } = await supabase.from("projects").insert([payload]);
 
     if (error) {
       alert("프로젝트 저장 오류: " + error.message);
       return;
     }
+
+    await logAudit("프로젝트관리", autoProjectCode, "등록", null, payload);
 
     setProjectCode("");
     setCustomerName("");
@@ -3755,7 +3797,7 @@ export default function Home() {
 
     const activeProjects = projects.filter((project) => project.status === "개발중").length;
     const completedProjects = projects.filter(
-      (project) => project.status === "출시" || project.status === "종료" || project.status === "양산 승인"
+      (project) => project.status === "출시"
     ).length;
     const holdProjects = projects.filter((project) => project.status === "보류").length;
 
@@ -4264,7 +4306,7 @@ export default function Home() {
               <DashboardKpiCard title="전체 프로젝트" value={getAdvancedDashboardKpis().totalProjects} subtitle={`진행중 ${getAdvancedDashboardKpis().activeProjects} / 출시완료 ${getAdvancedDashboardKpis().completedProjects}`} accent="#2563eb" />
               <DashboardKpiCard title="전체 처방" value={formulas.length} subtitle={`LOCK ${getAdvancedDashboardKpis().lockedFormulas} / 수정가능 ${getAdvancedDashboardKpis().editableFormulas}`} accent="#7c3aed" />
               <DashboardKpiCard title="승인대기" value={getAdvancedDashboardKpis().approvalPending} subtitle={`승인/배포 ${getAdvancedDashboardKpis().approvalDone}`} accent="#d97706" />
-              <DashboardKpiCard title="안정도 진행" value={getAdvancedDashboardKpis().stabilityRunning} subtitle={`PASS ${getAdvancedDashboardKpis().stabilityPass} / FAIL ${getAdvancedDashboardKpis().stabilityFail}`} accent="#059669" />
+              <DashboardKpiCard title="안정도진행" value={getAdvancedDashboardKpis().stabilityRunning} subtitle={`PASS ${getAdvancedDashboardKpis().stabilityPass} / FAIL ${getAdvancedDashboardKpis().stabilityFail}`} accent="#059669" />
               <DashboardKpiCard title="규제 위험" value={getAdvancedDashboardKpis().regulationDanger} subtitle={`주의 ${getAdvancedDashboardKpis().regulationCaution}`} accent={getAdvancedDashboardKpis().regulationDanger > 0 ? "#dc2626" : "#059669"} />
               <DashboardKpiCard title="목표원가 달성률" value={`${getAdvancedDashboardKpis().targetCostRate.toFixed(1)}%`} subtitle={`평균 원료원가 ${getAdvancedDashboardKpis().averageFormulaCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg`} accent="#0ea5e9" />
               <DashboardKpiCard title="평균 제조원가" value={`${getAdvancedDashboardKpis().averageBomCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} subtitle="BOM 반영 원가(원/kg)" accent="#10b981" />
@@ -4392,14 +4434,14 @@ export default function Home() {
         {menu === "project" && (
           <>
             <h1>프로젝트관리</h1>
-            <p>고객사별 제품개발 프로젝트, 담당 연구원, 진행 상태, 목표 출시일을 관리합니다.</p>
+            <p>고객사별 제품개발 프로젝트, 담당 연구원, 진행 상태를 관리합니다.</p>
 
             <h2>프로젝트 등록</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "600px" }}>
               <input
-                placeholder="프로젝트 코드 예: PJT-2026-001"
-                value={projectCode || ""}
-                onChange={(e) => setProjectCode(e.target.value)}
+                placeholder={`프로젝트 코드 자동 생성 예: ${generateProjectCode()}`}
+                value={projectCode || generateProjectCode()}
+                readOnly
               />
 
               <input
@@ -4415,21 +4457,9 @@ export default function Home() {
               />
 
               <input
-                placeholder="제품유형 예: 스킨케어 / 메이크업 / 헤어"
-                value={productType || ""}
-                onChange={(e) => setProductType(e.target.value)}
-              />
-
-              <input
                 placeholder="제형 예: 크림 / 세럼 / 패치 / 토너"
                 value={dosageForm || ""}
                 onChange={(e) => setDosageForm(e.target.value)}
-              />
-
-              <input
-                placeholder="타겟 예: 민감성 피부 / 2030 여성"
-                value={targetUser || ""}
-                onChange={(e) => setTargetUser(e.target.value)}
               />
 
               <input
@@ -4463,20 +4493,12 @@ export default function Home() {
               />
 
               <select value={projectStatus || "개발중"} onChange={(e) => setProjectStatus(e.target.value)}>
-                <option value="개발중">개발중</option>
-                <option value="안정도 진행">안정도 진행</option>
-                <option value="샘플 발송">샘플 발송</option>
-                <option value="고객 검토">고객 검토</option>
-                <option value="양산 승인">양산 승인</option>
-                <option value="종료">종료</option>
+                {getProjectStatusOptions().map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
               </select>
-
-              <label>목표 출시일</label>
-              <input
-                type="date"
-                value={targetLaunchDate || ""}
-                onChange={(e) => setTargetLaunchDate(e.target.value)}
-              />
 
               <textarea
                 placeholder="고객사 Brief / 개발 요청사항"
@@ -4533,16 +4555,13 @@ export default function Home() {
                   <th>프로젝트 코드</th>
                   <th>고객사</th>
                   <th>프로젝트명</th>
-                  <th>제품유형</th>
                   <th>제형</th>
-                  <th>타겟</th>
                   <th>컨셉</th>
                   <th>희망원가</th>
                   <th>금지원료</th>
                   <th>필수원료</th>
                   <th>담당 연구원</th>
                   <th>상태</th>
-                  <th>목표 출시일</th>
                   <th>고객 Brief</th>
                   <th>비고</th>
                 </tr>
@@ -4553,16 +4572,25 @@ export default function Home() {
                     <td>{project.project_code}</td>
                     <td>{project.customer_name}</td>
                     <td>{project.project_name}</td>
-                    <td>{project.product_type}</td>
                     <td>{project.dosage_form}</td>
-                    <td>{project.target_user}</td>
                     <td>{project.concept_keywords}</td>
                     <td>{Number(project.target_price || 0).toLocaleString()}</td>
                     <td>{project.forbidden_ingredients}</td>
                     <td>{project.required_ingredients}</td>
                     <td>{project.researcher}</td>
-                    <td style={{ fontWeight: "bold" }}>{project.status}</td>
-                    <td>{project.target_launch_date || "-"}</td>
+                    <td>
+                      <select
+                        value={project.status || "개발중"}
+                        onChange={(e) => updateProjectStatus(project, e.target.value)}
+                        style={{ fontWeight: "bold" }}
+                      >
+                        {getProjectStatusOptions().map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td>{project.customer_brief}</td>
                     <td>{project.description}</td>
                   </tr>
