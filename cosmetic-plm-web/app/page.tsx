@@ -364,6 +364,9 @@ export default function Home() {
   const [rawUnitPrice, setRawUnitPrice] = useState("");
   const [rawCurrency, setRawCurrency] = useState("KRW");
   const [rawMoq, setRawMoq] = useState("");
+  const [rawGlobalSearch, setRawGlobalSearch] = useState("");
+  const [rawGlobalIngredientId, setRawGlobalIngredientId] = useState("");
+  const [rawAutoComposition, setRawAutoComposition] = useState(true);
 
   const [inciName, setInciName] = useState("");
   const [koreanName, setKoreanName] = useState("");
@@ -1938,6 +1941,60 @@ export default function Home() {
     if (okMove) loadAll();
   }
 
+  function getFilteredRawGlobalIngredients() {
+    const keyword = rawGlobalSearch.trim().toLowerCase();
+
+    if (!keyword) {
+      return globalIngredients;
+    }
+
+    return globalIngredients.filter((item) => {
+      const searchableText = [
+        item.inci_name,
+        item.korean_name,
+        item.chinese_name,
+        item.japanese_name,
+        item.cas_no,
+        item.ec_no,
+        item.function_ko,
+        item.function_en,
+        item.iecic_status,
+        item.cosmos_status,
+        item.vegan_status,
+        item.halal_status,
+        item.rspo_status,
+        item.eu_status,
+        item.china_status,
+        item.japan_status,
+        item.asean_status,
+        item.ewg_grade,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(keyword);
+    });
+  }
+
+  function getSelectedRawGlobalIngredient() {
+    return globalIngredients.find((item) => item.id === rawGlobalIngredientId) || null;
+  }
+
+  function fillRawMaterialFromGlobal(item: GlobalIngredient) {
+    setRawGlobalIngredientId(item.id);
+    setRawGlobalSearch(`${item.inci_name || ""} ${item.korean_name || ""} ${item.cas_no || ""}`.trim());
+
+    if (!rawName) {
+      setRawName(item.korean_name || item.inci_name || "");
+    }
+
+    if (!rawCode) {
+      const nextNumber = materials.length + 1;
+      setRawCode(`RM${String(nextNumber).padStart(4, "0")}`);
+    }
+  }
+
   async function addMaterial() {
     if (!assertCanEdit()) return;
     if (!rawCode || !rawName) {
@@ -1945,20 +2002,46 @@ export default function Home() {
       return;
     }
 
-    const { error } = await supabase.from("raw_materials").insert([
-      {
-        raw_code: rawCode,
-        raw_name: rawName,
-        supplier,
-        unit_price: Number(rawUnitPrice || 0),
-        currency: rawCurrency,
-        moq: Number(rawMoq || 0),
-      },
-    ]);
+    const selectedGlobal = getSelectedRawGlobalIngredient();
+
+    const { data, error } = await supabase
+      .from("raw_materials")
+      .insert([
+        {
+          raw_code: rawCode,
+          raw_name: rawName,
+          supplier,
+          unit_price: Number(rawUnitPrice || 0),
+          currency: rawCurrency,
+          moq: Number(rawMoq || 0),
+        },
+      ])
+      .select()
+      .single();
 
     if (error) {
       alert("원료 저장 오류: " + error.message);
       return;
+    }
+
+    if (selectedGlobal && rawAutoComposition && data?.id) {
+      try {
+        const targetIngredientId = await findOrCreateIngredientFromGlobal(selectedGlobal);
+
+        const { error: compositionError } = await supabase.from("raw_compositions").insert([
+          {
+            raw_material_id: data.id,
+            ingredient_id: targetIngredientId,
+            percentage: 100,
+          },
+        ]);
+
+        if (compositionError) {
+          alert("원료는 저장되었지만 원료조성 자동 연결 오류: " + compositionError.message);
+        }
+      } catch (error) {
+        alert("원료는 저장되었지만 Global Ingredient 자동 연결 오류: " + (error as Error).message);
+      }
     }
 
     setRawCode("");
@@ -1967,6 +2050,10 @@ export default function Home() {
     setRawUnitPrice("");
     setRawCurrency("KRW");
     setRawMoq("");
+    setRawGlobalSearch("");
+    setRawGlobalIngredientId("");
+    setRawAutoComposition(true);
+
     await logAudit("원료관리", rawCode, "등록", null, {
       raw_code: rawCode,
       raw_name: rawName,
@@ -1974,6 +2061,14 @@ export default function Home() {
       unit_price: Number(rawUnitPrice || 0),
       currency: rawCurrency,
       moq: Number(rawMoq || 0),
+      auto_global_ingredient: selectedGlobal
+        ? {
+            inci_name: selectedGlobal.inci_name,
+            korean_name: selectedGlobal.korean_name,
+            cas_no: selectedGlobal.cas_no,
+            auto_composition_100: rawAutoComposition,
+          }
+        : null,
     });
     loadAll();
   }
@@ -4749,7 +4844,77 @@ export default function Home() {
         {menu === "raw" && (
           <>
             <h1>원료관리</h1>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "400px" }}>
+
+            <h2>Global Ingredient 자동 연결 원료 등록</h2>
+            <p style={{ color: "#6b7280" }}>
+              Global Ingredient Master에서 성분을 선택하면 원료명과 원료조성표 100% 단일성분 연결을 자동 생성할 수 있습니다.
+            </p>
+
+            <div style={{ display: "grid", gap: "10px", maxWidth: "700px", marginBottom: "24px" }}>
+              <input
+                placeholder="Global 성분 검색 예: Niacinamide / 나이아신아마이드 / 98-92-0"
+                value={rawGlobalSearch || ""}
+                onChange={(e) => setRawGlobalSearch(e.target.value)}
+              />
+
+              <select
+                value={rawGlobalIngredientId || ""}
+                onChange={(e) => {
+                  const selected = globalIngredients.find((item) => item.id === e.target.value);
+                  if (selected) {
+                    fillRawMaterialFromGlobal(selected);
+                  } else {
+                    setRawGlobalIngredientId("");
+                  }
+                }}
+              >
+                <option value="">Global Ingredient 선택</option>
+                {getFilteredRawGlobalIngredients().slice(0, 50).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.inci_name} / {item.korean_name} / {item.cas_no} / {item.function_ko}
+                  </option>
+                ))}
+              </select>
+
+              {getSelectedRawGlobalIngredient() && (
+                <table style={tableStyle}>
+                  <tbody>
+                    <tr>
+                      <th>INCI</th>
+                      <td>{getSelectedRawGlobalIngredient()?.inci_name}</td>
+                      <th>국문명</th>
+                      <td>{getSelectedRawGlobalIngredient()?.korean_name}</td>
+                    </tr>
+                    <tr>
+                      <th>CAS</th>
+                      <td>{getSelectedRawGlobalIngredient()?.cas_no}</td>
+                      <th>EC</th>
+                      <td>{getSelectedRawGlobalIngredient()?.ec_no}</td>
+                    </tr>
+                    <tr>
+                      <th>기능</th>
+                      <td>{getSelectedRawGlobalIngredient()?.function_ko}</td>
+                      <th>IECIC/COSMOS/VEGAN</th>
+                      <td>
+                        {getSelectedRawGlobalIngredient()?.iecic_status} / {getSelectedRawGlobalIngredient()?.cosmos_status} / {getSelectedRawGlobalIngredient()?.vegan_status}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+
+              <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="checkbox"
+                  checked={rawAutoComposition}
+                  onChange={(e) => setRawAutoComposition(e.target.checked)}
+                />
+                선택한 Global Ingredient를 원료조성표에 100% 자동 연결
+              </label>
+            </div>
+
+            <h2>원료 등록</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "500px", marginBottom: "24px" }}>
               <input placeholder="원료코드 예: RM0001" value={rawCode || ""} onChange={(e) => setRawCode(e.target.value)} />
               <input placeholder="원료명 예: 글리세린" value={rawName || ""} onChange={(e) => setRawName(e.target.value)} />
               <input placeholder="공급사 예: OO상사" value={supplier || ""} onChange={(e) => setSupplier(e.target.value)} />
@@ -4769,6 +4934,8 @@ export default function Home() {
                   <th>단가(원/kg)</th>
                   <th>통화</th>
                   <th>MOQ(kg)</th>
+                  <th>조성합계</th>
+                  <th>조성상태</th>
                   <th>관리</th>
                 </tr>
               </thead>
@@ -4781,6 +4948,10 @@ export default function Home() {
                     <td>{Number(m.unit_price || 0).toLocaleString()}</td>
                     <td>{m.currency || "KRW"}</td>
                     <td>{Number(m.moq || 0).toLocaleString()}</td>
+                    <td>{getCompositionTotalByRaw(m.id).toFixed(2)}%</td>
+                    <td style={{ color: Math.abs(getCompositionTotalByRaw(m.id) - 100) < 0.0001 ? "green" : "red", fontWeight: "bold" }}>
+                      {Math.abs(getCompositionTotalByRaw(m.id) - 100) < 0.0001 ? "완료" : "검토"}
+                    </td>
                     <td>
                       <button onClick={() => updateRawMaterial(m)}>수정</button>
                       <button onClick={() => deleteRawMaterial(m)} style={{ background: "#dc2626" }}>삭제</button>
