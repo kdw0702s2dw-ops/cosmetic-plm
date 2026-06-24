@@ -186,6 +186,7 @@ type UserProfile = {
   email: string;
   display_name: string;
   role: string;
+  is_active?: boolean;
 };
 
 type CountryRegulation = {
