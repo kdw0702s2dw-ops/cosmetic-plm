@@ -403,6 +403,8 @@ export default function Home() {
   const [allergenNote, setAllergenNote] = useState("");
 
   const [globalSearch, setGlobalSearch] = useState("");
+  const [globalIngredientPage, setGlobalIngredientPage] = useState(1);
+  const [globalIngredientPageSize, setGlobalIngredientPageSize] = useState(50);
   const [selectedGlobalIngredientId, setSelectedGlobalIngredientId] = useState("");
   const [globalInciName, setGlobalInciName] = useState("");
   const [globalKoreanName, setGlobalKoreanName] = useState("");
@@ -1006,6 +1008,21 @@ export default function Home() {
 
       return searchableText.includes(keyword);
     });
+  }
+
+  function getPaginatedGlobalIngredients() {
+    const filtered = getFilteredGlobalIngredients();
+    const start = (globalIngredientPage - 1) * globalIngredientPageSize;
+
+    return filtered.slice(start, start + globalIngredientPageSize);
+  }
+
+  function getGlobalIngredientTotalPages() {
+    return Math.max(1, Math.ceil(getFilteredGlobalIngredients().length / globalIngredientPageSize));
+  }
+
+  function resetGlobalIngredientPage() {
+    setGlobalIngredientPage(1);
   }
 
   function fillIngredientFromGlobal(item: GlobalIngredient) {
@@ -5181,32 +5198,57 @@ export default function Home() {
     return "조회 전용";
   }
 
-  const menuItems = [
-    ["dashboard", "대시보드"],
-    ["project", "프로젝트관리"],
-    ["raw", "원료관리"],
-    ["documents", "원료문서센터"],
-    ["globalIngredient", "성분관리"],
-    ["composition", "원료조성표"],
-    ["formula", "처방관리"],
-    ["validation", "처방검증"],
-    ["regulation", "규제검증"],
-    ["globalRegulation", "국가별규제"],
-    ["stability", "안정도관리"],
-    ["approval", "승인관리"],
-    ["lock", "처방잠금"],
-    ["stage", "개발일정"],
-    ["cost", "원가관리"],
-    ["bom", "BOM원가"],
-    ["batch", "배치계산"],
-    ["breakdown", "Breakdown IL"],
-    ["fullil", "Full IL"],
-    ["label", "전성분"],
-    ["sheet", "Formula Sheet"],
-    ["package", "문서패키지"],
-    ["audit", "Audit Log"],
-    ["users", "사용자관리"],
-    ["trash", "휴지통"],
+  const menuGroups = [
+    {
+      title: "공통",
+      items: [
+        ["dashboard", "대시보드"],
+      ],
+    },
+    {
+      title: "연구팀 R&D",
+      items: [
+        ["project", "프로젝트관리"],
+        ["raw", "원료관리"],
+        ["documents", "원료문서센터"],
+        ["globalIngredient", "성분관리"],
+        ["composition", "원료조성표"],
+        ["formula", "처방관리"],
+        ["validation", "처방검증"],
+        ["stage", "개발일정"],
+        ["cost", "원가관리"],
+        ["bom", "BOM원가"],
+        ["batch", "배치계산"],
+      ],
+    },
+    {
+      title: "QA팀",
+      items: [
+        ["stability", "안정도관리"],
+        ["approval", "승인관리"],
+        ["lock", "처방잠금"],
+        ["audit", "Audit Log"],
+        ["trash", "휴지통"],
+      ],
+    },
+    {
+      title: "RA팀",
+      items: [
+        ["regulation", "규제검증"],
+        ["globalRegulation", "국가별규제"],
+        ["breakdown", "Breakdown IL"],
+        ["fullil", "Full IL"],
+        ["label", "전성분"],
+        ["sheet", "Formula Sheet"],
+        ["package", "문서패키지"],
+      ],
+    },
+    {
+      title: "관리자",
+      items: [
+        ["users", "사용자관리"],
+      ],
+    },
   ];
 
   if (authLoading) {
@@ -5373,28 +5415,58 @@ export default function Home() {
           }
         `}</style>
 
-      <aside style={{ width: "230px", background: "#111827", color: "white", padding: "24px" }}>
+      <aside style={{ width: "260px", background: "#111827", color: "white", padding: "22px", overflowY: "auto", maxHeight: "100vh" }}>
         <h2>🧪 Cosmetic PLM</h2>
+        <p style={{ color: "#9ca3af", fontSize: "12px", marginTop: "-8px" }}>
+          {getUserRoleLabel()} / {getPermissionLabel()}
+        </p>
 
-        {getFilteredMenuItems(menuItems).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => handleMenuClick(key)}
-            style={{
-              display: "block",
-              width: "100%",
-              margin: "8px 0",
-              padding: "10px",
-              background: menu === key ? "#2563eb" : "#374151",
-              color: "white",
-              border: "none",
-              textAlign: "left",
-              cursor: "pointer",
-            }}
-          >
-            {label}
-          </button>
-        ))}
+        {menuGroups.map((group) => {
+          const visibleItems = getFilteredMenuItems(group.items);
+
+          if (visibleItems.length === 0) {
+            return null;
+          }
+
+          return (
+            <div key={group.title} style={{ marginTop: "18px" }}>
+              <div
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  marginBottom: "6px",
+                  borderBottom: "1px solid #374151",
+                  paddingBottom: "4px",
+                }}
+              >
+                {group.title}
+              </div>
+
+              {visibleItems.map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => handleMenuClick(key)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    margin: "6px 0",
+                    padding: "9px 10px",
+                    background: menu === key ? "#2563eb" : "#374151",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          );
+        })}
       </aside>
 
       <section style={{ flex: 1, padding: "40px" }}>
@@ -6119,6 +6191,48 @@ export default function Home() {
             <p>
               Global 성분 수: {globalIngredients.length}개 / 성분관리 등록 수: {ingredients.length}개
             </p>
+            <p style={{ color: "#6b7280" }}>
+              성분 데이터가 많을 때 화면 지연을 줄이기 위해 목록은 페이지 단위로 표시됩니다.
+            </p>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "12px" }}>
+              <span>
+                표시: {getPaginatedGlobalIngredients().length}개 / 검색결과 {getFilteredGlobalIngredients().length}개 / 전체 {globalIngredients.length}개
+              </span>
+
+              <select
+                value={globalIngredientPageSize}
+                onChange={(e) => {
+                  setGlobalIngredientPageSize(Number(e.target.value));
+                  setGlobalIngredientPage(1);
+                }}
+              >
+                <option value={25}>25개씩</option>
+                <option value={50}>50개씩</option>
+                <option value={100}>100개씩</option>
+                <option value={200}>200개씩</option>
+              </select>
+
+              <button
+                onClick={() => setGlobalIngredientPage(Math.max(1, globalIngredientPage - 1))}
+                disabled={globalIngredientPage <= 1}
+                style={{ background: globalIngredientPage <= 1 ? "#9ca3af" : "#2563eb" }}
+              >
+                이전
+              </button>
+
+              <span>
+                Page {globalIngredientPage} / {getGlobalIngredientTotalPages()}
+              </span>
+
+              <button
+                onClick={() => setGlobalIngredientPage(Math.min(getGlobalIngredientTotalPages(), globalIngredientPage + 1))}
+                disabled={globalIngredientPage >= getGlobalIngredientTotalPages()}
+                style={{ background: globalIngredientPage >= getGlobalIngredientTotalPages() ? "#9ca3af" : "#2563eb" }}
+              >
+                다음
+              </button>
+            </div>
+
             <table style={tableStyle}>
               <thead>
                 <tr>
@@ -6151,7 +6265,7 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {globalIngredients.map((item) => (
+                {getPaginatedGlobalIngredients().map((item) => (
                   <tr key={item.id}>
                     <td>{item.inci_name}</td>
                     <td>{item.korean_name}</td>
