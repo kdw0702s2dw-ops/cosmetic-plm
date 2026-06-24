@@ -415,6 +415,10 @@ export default function Home() {
   const [globalEwgGrade, setGlobalEwgGrade] = useState("");
   const [globalAllergenNote, setGlobalAllergenNote] = useState("");
   const [globalUploadStatus, setGlobalUploadStatus] = useState("");
+  const [bulkWizardRows, setBulkWizardRows] = useState<Record<string, string>[]>([]);
+  const [bulkWizardHeaders, setBulkWizardHeaders] = useState<string[]>([]);
+  const [bulkWizardMappedCount, setBulkWizardMappedCount] = useState(0);
+  const [bulkWizardStatus, setBulkWizardStatus] = useState("");
 
   const [rawMaterialId, setRawMaterialId] = useState("");
   const [ingredientId, setIngredientId] = useState("");
@@ -1145,6 +1149,189 @@ export default function Home() {
     ]);
 
     downloadCsv("global_ingredient_master_export_v20.csv", headers, rows);
+  }
+
+  function normalizeColumnName(name: string) {
+    return String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[()\[\]{}]/g, "")
+      .replace(/[-/]/g, "_");
+  }
+
+  function getGlobalIngredientColumnAliases() {
+    return {
+      inci_name: ["inci", "inci_name", "inci명", "inci_name_en", "ingredient", "ingredient_name", "성분명", "영문명"],
+      korean_name: ["korean", "korean_name", "국문", "국문명", "kor_name", "name_ko"],
+      chinese_name: ["chinese", "chinese_name", "중문", "중문명", "name_cn"],
+      japanese_name: ["japanese", "japanese_name", "일문", "일문명", "name_jp"],
+      cas_no: ["cas", "cas_no", "cas_number", "cas번호", "cas_no."],
+      ec_no: ["ec", "ec_no", "ec_number", "einecs", "ec번호"],
+      function_ko: ["function_ko", "기능", "기능국문", "효능", "용도"],
+      function_en: ["function_en", "function", "function_english", "기능영문"],
+      iecic_status: ["iecic", "iecic_status", "중국iecic", "china_iecic"],
+      cosmos_status: ["cosmos", "cosmos_status"],
+      vegan_status: ["vegan", "vegan_status", "비건"],
+      halal_status: ["halal", "halal_status", "할랄"],
+      rspo_status: ["rspo", "rspo_status"],
+      eu_status: ["eu", "eu_status", "europe", "유럽"],
+      china_status: ["china", "china_status", "cn_status", "중국"],
+      japan_status: ["japan", "japan_status", "jp_status", "일본"],
+      asean_status: ["asean", "asean_status"],
+      max_use_level: ["max_use_level", "max_use", "배합한도", "사용한도", "limit"],
+      max_use_percent: ["max_use_percent", "max_percent", "max_percentage", "최대사용량", "최대함량"],
+      regulation_note: ["regulation_note", "regulation", "규제", "규제사항", "note"],
+      ewg_grade: ["ewg", "ewg_grade", "ewg등급"],
+      allergen_note: ["allergen", "allergen_note", "알러젠", "알레르겐"],
+      reference_source: ["reference", "reference_source", "source", "출처", "근거"],
+      update_cycle: ["update_cycle", "cycle", "업데이트주기"],
+      last_verified_at: ["last_verified_at", "verified", "verified_at", "검증일", "확인일"],
+    } as Record<string, string[]>;
+  }
+
+  function mapCsvRecordToGlobalIngredient(headers: string[], row: string[]) {
+    const aliases = getGlobalIngredientColumnAliases();
+    const normalizedHeaders = headers.map((header) => normalizeColumnName(header));
+
+    const getValue = (targetKey: string) => {
+      const candidates = aliases[targetKey] || [targetKey];
+      const normalizedCandidates = candidates.map((item) => normalizeColumnName(item));
+      const index = normalizedHeaders.findIndex((header) => normalizedCandidates.includes(header));
+
+      return index >= 0 ? row[index] || "" : "";
+    };
+
+    return {
+      inci_name: getValue("inci_name"),
+      korean_name: getValue("korean_name"),
+      chinese_name: getValue("chinese_name"),
+      japanese_name: getValue("japanese_name"),
+      cas_no: getValue("cas_no"),
+      ec_no: getValue("ec_no"),
+      function_ko: getValue("function_ko"),
+      function_en: getValue("function_en"),
+      iecic_status: getValue("iecic_status"),
+      cosmos_status: getValue("cosmos_status"),
+      vegan_status: getValue("vegan_status"),
+      halal_status: getValue("halal_status"),
+      rspo_status: getValue("rspo_status"),
+      eu_status: getValue("eu_status"),
+      china_status: getValue("china_status"),
+      japan_status: getValue("japan_status"),
+      asean_status: getValue("asean_status"),
+      max_use_level: getValue("max_use_level"),
+      max_use_percent: getValue("max_use_percent") ? Number(getValue("max_use_percent")) : null,
+      regulation_note: getValue("regulation_note"),
+      ewg_grade: getValue("ewg_grade"),
+      allergen_note: getValue("allergen_note"),
+      reference_source: getValue("reference_source"),
+      update_cycle: getValue("update_cycle"),
+      last_verified_at: getValue("last_verified_at") || null,
+    };
+  }
+
+  async function previewBulkIngredientCsv(file: File) {
+    setBulkWizardStatus("CSV 미리보기를 생성하는 중입니다...");
+
+    const text = await file.text();
+    const lines = text
+      .replace(/^\ufeff/, "")
+      .split(/\r?\n/)
+      .filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      alert("CSV에 데이터가 없습니다.");
+      setBulkWizardStatus("");
+      return;
+    }
+
+    const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+    const rows = lines.slice(1).map((line) => parseCsvLine(line));
+    const mappedRows = rows
+      .map((row) => mapCsvRecordToGlobalIngredient(headers, row))
+      .filter((record) => record.inci_name);
+
+    setBulkWizardHeaders(headers);
+    setBulkWizardRows(mappedRows as unknown as Record<string, string>[]);
+    setBulkWizardMappedCount(mappedRows.length);
+    setBulkWizardStatus(`미리보기 완료: ${mappedRows.length}개 INCI 인식`);
+  }
+
+  async function importBulkWizardRows() {
+    if (!assertCanEdit()) return;
+
+    if (bulkWizardRows.length === 0) {
+      alert("먼저 CSV 미리보기를 생성하세요.");
+      return;
+    }
+
+    const ok = window.confirm(`${bulkWizardRows.length}개 성분을 Global Ingredient Master에 업로드/업데이트할까요?`);
+
+    if (!ok) return;
+
+    const chunkSize = 300;
+    let uploadedCount = 0;
+
+    for (let start = 0; start < bulkWizardRows.length; start += chunkSize) {
+      const chunk = bulkWizardRows.slice(start, start + chunkSize);
+
+      setBulkWizardStatus(`Bulk Import 중: ${Math.min(start + chunk.length, bulkWizardRows.length)} / ${bulkWizardRows.length}`);
+
+      const { error } = await supabase
+        .from("ingredient_master_global")
+        .upsert(chunk, {
+          onConflict: "inci_name",
+          ignoreDuplicates: false,
+        });
+
+      if (error) {
+        alert("Bulk Import 오류: " + error.message);
+        setBulkWizardStatus("Bulk Import 실패");
+        return;
+      }
+
+      uploadedCount += chunk.length;
+    }
+
+    await logAudit("Global Ingredient Seed DB", "Bulk Import", "IMPORT", null, {
+      uploaded_count: uploadedCount,
+    });
+
+    setBulkWizardStatus(`Bulk Import 완료: ${uploadedCount}개 처리`);
+    setBulkWizardRows([]);
+    setBulkWizardHeaders([]);
+    setBulkWizardMappedCount(0);
+    loadAll();
+  }
+
+  function downloadSeedIngredientCsv() {
+    const headers = getGlobalIngredientCsvHeaders();
+
+    const seedRows = [
+      ["Glycerin", "글리세린", "甘油", "グリセリン", "56-81-5", "200-289-5", "보습제", "Humectant", "Listed", "Approved", "Vegan", "Allowed", "RSPO Available", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "일반 보습 원료", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Niacinamide", "나이아신아마이드", "烟酰胺", "ナイアシンアミド", "98-92-0", "202-713-4", "미백/피부컨디셔닝", "Skin Conditioning", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "국가별 기능성 기준 확인", "", "미백 기능성 원료로 사용 시 국가별 기준 확인", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Panthenol", "판테놀", "泛醇", "パンテノール", "81-13-0", "201-327-3", "보습/진정", "Humectant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "보습 및 피부 컨디셔닝", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Betaine", "베타인", "甜菜碱", "ベタイン", "107-43-7", "203-490-6", "보습제", "Humectant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "보습 보조", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["1,2-Hexanediol", "1,2-헥산다이올", "1,2-己二醇", "1,2-ヘキサンジオール", "6920-22-5", "", "보습/보존보조", "Humectant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "보존 보조 원료", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Allantoin", "알란토인", "尿囊素", "アラントイン", "97-59-6", "202-592-8", "진정", "Skin Protecting", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "국가별 한도 확인", "", "진정/보호", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Adenosine", "아데노신", "腺苷", "アデノシン", "58-61-7", "200-389-9", "주름개선", "Skin Conditioning", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "국가별 기능성 기준 확인", "", "주름개선 기능성 원료", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Tocopherol", "토코페롤", "生育酚", "トコフェロール", "59-02-9", "200-412-2", "항산화제", "Antioxidant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "산화방지", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Sodium Hyaluronate", "소듐하이알루로네이트", "透明质酸钠", "ヒアルロン酸Na", "9067-32-7", "", "보습제", "Humectant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "고보습 원료", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Ceramide NP", "세라마이드엔피", "神经酰胺NP", "セラミドNP", "100403-19-8", "", "피부장벽", "Skin Conditioning", "Listed", "Allowed", "Vegan Check", "Check", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "장벽 케어", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Butylene Glycol", "부틸렌글라이콜", "丁二醇", "BG", "107-88-0", "203-529-7", "보습제/용제", "Humectant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "보습 및 용제", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Caprylic/Capric Triglyceride", "카프릴릭/카프릭트라이글리세라이드", "辛酸/癸酸甘油三酯", "トリ(カプリル酸/カプリン酸)グリセリル", "73398-61-5", "277-452-2", "에몰리언트", "Emollient", "Listed", "Allowed", "Vegan", "Allowed", "RSPO Available", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "유분감/사용감 개선", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Squalane", "스쿠알란", "角鲨烷", "スクワラン", "111-01-3", "203-825-6", "에몰리언트", "Emollient", "Listed", "Allowed", "Source Check", "Check", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "식물성/동물성 출처 확인 필요", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Carbomer", "카보머", "卡波姆", "カルボマー", "9003-01-4", "", "점증제", "Viscosity Controlling", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "겔 점증", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Xanthan Gum", "잔탄검", "黄原胶", "キサンタンガム", "11138-66-2", "234-394-2", "점증제", "Viscosity Controlling", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "천연계 점증", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Phenoxyethanol", "페녹시에탄올", "苯氧乙醇", "フェノキシエタノール", "122-99-6", "204-589-7", "보존제", "Preservative", "Listed", "Allowed", "Vegan", "Allowed", "", "Restricted", "Listed", "Allowed", "Allowed", "국가별 한도 확인", "1", "보존제 한도 확인 필요", "2-4", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Ethylhexylglycerin", "에틸헥실글리세린", "乙基己基甘油", "エチルヘキシルグリセリン", "70445-33-9", "408-080-2", "보존보조", "Skin Conditioning", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "보존 보조", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Salicylic Acid", "살리실릭애씨드", "水杨酸", "サリチル酸", "69-72-7", "200-712-3", "각질케어", "Keratolytic", "Listed", "Allowed", "Vegan", "Allowed", "", "Restricted", "Listed", "Restricted", "Restricted", "국가별 사용한도 확인", "", "BHA 제한 원료", "3-4", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Retinol", "레티놀", "视黄醇", "レチノール", "68-26-8", "200-683-7", "피부컨디셔닝", "Skin Conditioning", "Listed", "Allowed", "Source Check", "Check", "", "Restricted", "Listed", "Restricted", "Restricted", "국가별 사용한도 확인", "", "비타민A 계열 제한 확인", "5", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+      ["Ascorbic Acid", "아스코빅애씨드", "抗坏血酸", "アスコルビン酸", "50-81-7", "200-066-2", "항산화", "Antioxidant", "Listed", "Allowed", "Vegan", "Allowed", "", "Allowed", "Listed", "Allowed", "Allowed", "제한 없음", "", "비타민C", "1", "해당 없음", "PLM Seed DB", "Quarterly", ""],
+    ];
+
+    downloadCsv("global_ingredient_seed_db_v22_sample.csv", headers, seedRows);
   }
 
   async function importGlobalCsv(file: File) {
@@ -5528,6 +5715,77 @@ export default function Home() {
               <p style={{ fontWeight: "bold", color: "#2563eb" }}>
                 {globalUploadStatus}
               </p>
+            </div>
+
+            <h2>Bulk Import Wizard</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <p style={{ color: "#6b7280" }}>
+                외부 CSV의 컬럼명이 서로 달라도 INCI, CAS, EWG, IECIC 등 주요 컬럼을 자동 인식해 Global Ingredient Master로 업로드합니다.
+              </p>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={downloadSeedIngredientCsv} style={{ background: "#7c3aed" }}>
+                  Seed DB 샘플 CSV 다운로드
+                </button>
+                <button onClick={importBulkWizardRows} style={{ background: "#059669" }}>
+                  미리보기 데이터 Bulk Import
+                </button>
+              </div>
+
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+
+                  if (file) {
+                    previewBulkIngredientCsv(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>{bulkWizardStatus}</p>
+
+              {bulkWizardRows.length > 0 && (
+                <>
+                  <h3>자동 매핑 미리보기</h3>
+                  <p>
+                    원본 컬럼 수: {bulkWizardHeaders.length}개 / 인식된 성분 수: {bulkWizardMappedCount}개
+                  </p>
+
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th>INCI</th>
+                        <th>국문명</th>
+                        <th>CAS</th>
+                        <th>EC</th>
+                        <th>기능</th>
+                        <th>IECIC</th>
+                        <th>EU</th>
+                        <th>China</th>
+                        <th>EWG</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkWizardRows.slice(0, 20).map((row, index) => (
+                        <tr key={`${row.inci_name}-${index}`}>
+                          <td>{row.inci_name}</td>
+                          <td>{row.korean_name}</td>
+                          <td>{row.cas_no}</td>
+                          <td>{row.ec_no}</td>
+                          <td>{row.function_ko}</td>
+                          <td>{row.iecic_status}</td>
+                          <td>{row.eu_status}</td>
+                          <td>{row.china_status}</td>
+                          <td>{row.ewg_grade}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </div>
 
             <h2>통합 성분 등록</h2>
