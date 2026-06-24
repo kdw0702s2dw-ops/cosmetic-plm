@@ -188,6 +188,20 @@ type UserProfile = {
   role: string;
 };
 
+type CountryRegulation = {
+  id: string;
+  country_code: string;
+  country_name: string;
+  inci_name: string;
+  cas_no: string;
+  regulation_type: string;
+  max_percentage: number;
+  is_prohibited: boolean;
+  warning_message: string;
+  reference_note: string;
+  updated_at: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -321,6 +335,7 @@ export default function Home() {
   const [projectStages, setProjectStages] = useState<ProjectStage[]>([]);
   const [bomCosts, setBomCosts] = useState<BomCost[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [countryRegulations, setCountryRegulations] = useState<CountryRegulation[]>([]);
   const [trashMaterials, setTrashMaterials] = useState<RawMaterial[]>([]);
   const [trashGlobalIngredients, setTrashGlobalIngredients] = useState<GlobalIngredient[]>([]);
   const [trashFormulas, setTrashFormulas] = useState<Formula[]>([]);
@@ -424,6 +439,17 @@ export default function Home() {
   const [labelFormulaId, setLabelFormulaId] = useState("");
   const [validationFormulaId, setValidationFormulaId] = useState("");
   const [regulationFormulaId, setRegulationFormulaId] = useState("");
+  const [globalRegFormulaId, setGlobalRegFormulaId] = useState("");
+  const [selectedCountryCodes, setSelectedCountryCodes] = useState<string[]>(["KR", "EU", "CN", "US", "JP", "ASEAN"]);
+  const [countryCodeInput, setCountryCodeInput] = useState("EU");
+  const [countryNameInput, setCountryNameInput] = useState("European Union");
+  const [regInciInput, setRegInciInput] = useState("");
+  const [regCasInput, setRegCasInput] = useState("");
+  const [regTypeInput, setRegTypeInput] = useState("Restricted");
+  const [regMaxInput, setRegMaxInput] = useState("");
+  const [regProhibitedInput, setRegProhibitedInput] = useState(false);
+  const [regWarningInput, setRegWarningInput] = useState("");
+  const [regReferenceInput, setRegReferenceInput] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -788,6 +814,11 @@ export default function Home() {
       .order("created_at", { ascending: false })
       .limit(200);
 
+    const { data: countryRegData } = await supabase
+      .from("country_regulations")
+      .select("*")
+      .order("country_code");
+
     const { data: formulaItemData } = await supabase
       .from("formula_items")
       .select(`
@@ -859,6 +890,7 @@ export default function Home() {
     setProjectStages((stageData as unknown as ProjectStage[]) || []);
     setBomCosts((bomData as unknown as BomCost[]) || []);
     setAuditLogs((auditData as unknown as AuditLog[]) || []);
+    setCountryRegulations((countryRegData as unknown as CountryRegulation[]) || []);
     setTrashMaterials((trashRawData as unknown as RawMaterial[]) || []);
     setTrashGlobalIngredients((trashGlobalIngData as unknown as GlobalIngredient[]) || []);
     setTrashFormulas((trashFormulaData as unknown as Formula[]) || []);
@@ -3055,6 +3087,217 @@ export default function Home() {
     };
   }
 
+  function getAvailableCountryCodes() {
+    const fromDb = countryRegulations.map((item) => item.country_code).filter(Boolean);
+    const baseCountries = ["KR", "EU", "CN", "US", "JP", "ASEAN"];
+
+    return Array.from(new Set([...baseCountries, ...fromDb]));
+  }
+
+  function matchCountryRegulation(item: BreakdownItem, regulation: CountryRegulation) {
+    const itemInci = String(item.inci_name || "").trim().toLowerCase();
+    const ruleInci = String(regulation.inci_name || "").trim().toLowerCase();
+
+    const itemCas = String(item.cas_no || "").trim();
+    const ruleCas = String(regulation.cas_no || "").trim();
+
+    const inciMatched = Boolean(itemInci && ruleInci && itemInci === ruleInci);
+    const casMatched = Boolean(itemCas && ruleCas && itemCas === ruleCas);
+
+    return inciMatched || casMatched;
+  }
+
+  function getCountryRegulationWarnings(targetFormulaId: string, countryCode: string) {
+    const breakdown = calculateBreakdown(targetFormulaId);
+    const rules = countryRegulations.filter((rule) => rule.country_code === countryCode);
+
+    const warnings: {
+      country_code: string;
+      country_name: string;
+      level: string;
+      regulation_type: string;
+      inci_name: string;
+      korean_name: string;
+      cas_no: string;
+      final_percentage: number;
+      max_percentage: number | null;
+      message: string;
+      reference_note: string;
+    }[] = [];
+
+    breakdown.forEach((item) => {
+      const matchedRules = rules.filter((rule) => matchCountryRegulation(item, rule));
+
+      matchedRules.forEach((rule) => {
+        const finalPercentage = Number(item.final_percentage || 0);
+        const maxPercentage = Number(rule.max_percentage || 0);
+
+        if (rule.is_prohibited) {
+          warnings.push({
+            country_code: rule.country_code,
+            country_name: rule.country_name,
+            level: "위험",
+            regulation_type: "금지",
+            inci_name: item.inci_name,
+            korean_name: item.korean_name,
+            cas_no: item.cas_no,
+            final_percentage: finalPercentage,
+            max_percentage: null,
+            message: rule.warning_message || "해당 국가에서 금지 성분으로 등록되어 있습니다.",
+            reference_note: rule.reference_note || "",
+          });
+        } else if (maxPercentage > 0 && finalPercentage > maxPercentage) {
+          warnings.push({
+            country_code: rule.country_code,
+            country_name: rule.country_name,
+            level: "위험",
+            regulation_type: rule.regulation_type || "Restricted",
+            inci_name: item.inci_name,
+            korean_name: item.korean_name,
+            cas_no: item.cas_no,
+            final_percentage: finalPercentage,
+            max_percentage: maxPercentage,
+            message:
+              rule.warning_message ||
+              `최종함량 ${finalPercentage.toFixed(6)}%가 ${countryCode} 허용한도 ${maxPercentage}%를 초과했습니다.`,
+            reference_note: rule.reference_note || "",
+          });
+        } else {
+          warnings.push({
+            country_code: rule.country_code,
+            country_name: rule.country_name,
+            level: "정보",
+            regulation_type: rule.regulation_type || "정보",
+            inci_name: item.inci_name,
+            korean_name: item.korean_name,
+            cas_no: item.cas_no,
+            final_percentage: finalPercentage,
+            max_percentage: maxPercentage > 0 ? maxPercentage : null,
+            message: rule.warning_message || "국가별 규제 DB에 등록된 성분입니다. 기준을 확인하세요.",
+            reference_note: rule.reference_note || "",
+          });
+        }
+      });
+    });
+
+    return warnings;
+  }
+
+  function getGlobalRegulationSummary(targetFormulaId: string) {
+    const rows = selectedCountryCodes.map((countryCode) => {
+      const warnings = getCountryRegulationWarnings(targetFormulaId, countryCode);
+      const dangerCount = warnings.filter((warning) => warning.level === "위험").length;
+      const cautionCount = warnings.filter((warning) => warning.level === "주의").length;
+      const infoCount = warnings.filter((warning) => warning.level === "정보").length;
+      const score = Math.max(0, 100 - dangerCount * 30 - cautionCount * 10);
+
+      return {
+        countryCode,
+        countryName:
+          countryRegulations.find((item) => item.country_code === countryCode)?.country_name ||
+          countryCode,
+        warnings,
+        dangerCount,
+        cautionCount,
+        infoCount,
+        score,
+        pass: dangerCount === 0,
+      };
+    });
+
+    return rows;
+  }
+
+  function getAllCountryRegulationWarnings(targetFormulaId: string) {
+    return selectedCountryCodes.flatMap((countryCode) =>
+      getCountryRegulationWarnings(targetFormulaId, countryCode)
+    );
+  }
+
+  async function saveCountryRegulation() {
+    if (!assertCanEdit()) return;
+
+    if (!countryCodeInput || !countryNameInput || (!regInciInput && !regCasInput)) {
+      alert("국가코드, 국가명, INCI 또는 CAS No.를 입력하세요.");
+      return;
+    }
+
+    const payload = {
+      country_code: countryCodeInput.trim().toUpperCase(),
+      country_name: countryNameInput.trim(),
+      inci_name: regInciInput.trim(),
+      cas_no: regCasInput.trim(),
+      regulation_type: regTypeInput.trim() || "Restricted",
+      max_percentage: Number(regMaxInput || 0),
+      is_prohibited: regProhibitedInput,
+      warning_message: regWarningInput.trim(),
+      reference_note: regReferenceInput.trim(),
+    };
+
+    const { error } = await supabase.from("country_regulations").insert([payload]);
+
+    if (error) {
+      alert("국가별 규제 저장 오류: " + error.message);
+      return;
+    }
+
+    await logAudit("국가별규제", `${payload.country_code}-${payload.inci_name || payload.cas_no}`, "등록", null, payload);
+
+    setRegInciInput("");
+    setRegCasInput("");
+    setRegMaxInput("");
+    setRegProhibitedInput(false);
+    setRegWarningInput("");
+    setRegReferenceInput("");
+    loadAll();
+  }
+
+  async function deleteCountryRegulation(item: CountryRegulation) {
+    if (!assertCanDelete()) return;
+
+    const ok = window.confirm(`${item.country_code} / ${item.inci_name || item.cas_no} 규제 기준을 삭제할까요?`);
+
+    if (!ok) return;
+
+    const { error } = await supabase.from("country_regulations").delete().eq("id", item.id);
+
+    if (error) {
+      alert("국가별 규제 삭제 오류: " + error.message);
+      return;
+    }
+
+    await logAudit("국가별규제", item.id, "삭제", item, null);
+    loadAll();
+  }
+
+  function downloadGlobalRegulationReport() {
+    if (!globalRegFormulaId) {
+      alert("처방을 선택하세요.");
+      return;
+    }
+
+    const formula = getFormulaById(globalRegFormulaId);
+    const rows = getAllCountryRegulationWarnings(globalRegFormulaId).map((warning) => [
+      warning.country_code,
+      warning.country_name,
+      warning.level,
+      warning.regulation_type,
+      warning.inci_name,
+      warning.korean_name,
+      warning.cas_no,
+      warning.final_percentage.toFixed(6),
+      warning.max_percentage ?? "",
+      warning.message,
+      warning.reference_note,
+    ]);
+
+    downloadCsv(
+      `${formula?.formula_code || "Formula"}_Global_Regulation_Report.csv`,
+      ["국가코드", "국가명", "등급", "규제유형", "INCI", "국문명", "CAS No.", "최종함량(%)", "허용한도(%)", "메시지", "Reference"],
+      rows
+    );
+  }
+
   function downloadRegulationWarnings() {
     if (!regulationFormulaId) {
       alert("처방을 선택하세요.");
@@ -3776,6 +4019,7 @@ export default function Home() {
     ["formula", "처방관리"],
     ["validation", "처방검증"],
     ["regulation", "규제검증"],
+    ["globalRegulation", "국가별규제"],
     ["stability", "안정도관리"],
     ["approval", "승인관리"],
     ["lock", "처방잠금"],
@@ -3907,6 +4151,7 @@ export default function Home() {
               <DashboardKpiCard title="목표원가 달성률" value={`${getAdvancedDashboardKpis().targetCostRate.toFixed(1)}%`} subtitle={`평균 원료원가 ${getAdvancedDashboardKpis().averageFormulaCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg`} accent="#0ea5e9" />
               <DashboardKpiCard title="평균 제조원가" value={`${getAdvancedDashboardKpis().averageBomCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} subtitle="BOM 반영 원가(원/kg)" accent="#10b981" />
               <DashboardKpiCard title="휴지통" value={getAdvancedDashboardKpis().trashCount} subtitle={`최근 Audit 7일 ${getAdvancedDashboardKpis().recentAuditCount}건`} accent="#6b7280" />
+              <DashboardKpiCard title="국가별 규제 DB" value={countryRegulations.length} subtitle={`검증국가 ${getAvailableCountryCodes().length}개`} accent="#9333ea" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "20px", marginBottom: "28px" }}>
@@ -5164,6 +5409,190 @@ export default function Home() {
                 </table>
               </>
             )}
+          </>
+        )}
+
+        {menu === "globalRegulation" && (
+          <>
+            <h1>Global Regulation Engine</h1>
+            <p>
+              국가별 성분 규제 DB를 기준으로 처방의 Breakdown 최종함량을 검증합니다. KR/EU/CN/US/JP/ASEAN 등 국가별 판매 가능성을 확인할 수 있습니다.
+            </p>
+
+            <h2>국가별 규제 기준 등록</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "720px", marginBottom: "24px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input placeholder="국가코드 예: EU" value={countryCodeInput || ""} onChange={(e) => setCountryCodeInput(e.target.value)} />
+                <input placeholder="국가명 예: European Union" value={countryNameInput || ""} onChange={(e) => setCountryNameInput(e.target.value)} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input placeholder="INCI 예: Salicylic Acid" value={regInciInput || ""} onChange={(e) => setRegInciInput(e.target.value)} />
+                <input placeholder="CAS No. 예: 69-72-7" value={regCasInput || ""} onChange={(e) => setRegCasInput(e.target.value)} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                <select value={regTypeInput || ""} onChange={(e) => setRegTypeInput(e.target.value)}>
+                  <option value="Restricted">Restricted</option>
+                  <option value="Prohibited">Prohibited</option>
+                  <option value="Warning">Warning</option>
+                  <option value="Positive List">Positive List</option>
+                </select>
+
+                <input placeholder="허용한도(%) 예: 2" value={regMaxInput || ""} onChange={(e) => setRegMaxInput(e.target.value)} />
+
+                <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input type="checkbox" checked={regProhibitedInput} onChange={(e) => setRegProhibitedInput(e.target.checked)} />
+                  금지성분
+                </label>
+              </div>
+
+              <input placeholder="경고 메시지" value={regWarningInput || ""} onChange={(e) => setRegWarningInput(e.target.value)} />
+              <input placeholder="Reference 예: EU 1223/2009 Annex III" value={regReferenceInput || ""} onChange={(e) => setRegReferenceInput(e.target.value)} />
+
+              <button onClick={saveCountryRegulation}>국가별 규제 기준 저장</button>
+            </div>
+
+            <h2>국가별 처방 검증</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "720px", marginBottom: "24px" }}>
+              <select value={globalRegFormulaId || ""} onChange={(e) => setGlobalRegFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} - {formula.formula_name} v{formula.version}
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                {getAvailableCountryCodes().map((countryCode) => (
+                  <label key={countryCode} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedCountryCodes.includes(countryCode)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCountryCodes(Array.from(new Set([...selectedCountryCodes, countryCode])));
+                        } else {
+                          setSelectedCountryCodes(selectedCountryCodes.filter((item) => item !== countryCode));
+                        }
+                      }}
+                    />
+                    {countryCode}
+                  </label>
+                ))}
+              </div>
+
+              <button onClick={downloadGlobalRegulationReport}>국가별 규제검증 Report CSV 다운로드</button>
+            </div>
+
+            {globalRegFormulaId && (
+              <>
+                <h2>국가별 판매 가능성 요약</h2>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>국가</th>
+                      <th>국가명</th>
+                      <th>점수</th>
+                      <th>판정</th>
+                      <th>위험</th>
+                      <th>주의</th>
+                      <th>정보</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getGlobalRegulationSummary(globalRegFormulaId).map((row) => (
+                      <tr key={row.countryCode}>
+                        <td>{row.countryCode}</td>
+                        <td>{row.countryName}</td>
+                        <td style={{ fontWeight: "bold" }}>{row.score}</td>
+                        <td style={{ color: row.pass ? "green" : "red", fontWeight: "bold" }}>
+                          {row.pass ? "판매 가능 검토" : "위험 항목 존재"}
+                        </td>
+                        <td style={{ color: row.dangerCount > 0 ? "red" : "green", fontWeight: "bold" }}>{row.dangerCount}</td>
+                        <td style={{ color: row.cautionCount > 0 ? "#d97706" : "green", fontWeight: "bold" }}>{row.cautionCount}</td>
+                        <td>{row.infoCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h2>국가별 자동 경고 상세</h2>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>국가</th>
+                      <th>등급</th>
+                      <th>규제유형</th>
+                      <th>INCI</th>
+                      <th>국문명</th>
+                      <th>CAS No.</th>
+                      <th>최종함량(%)</th>
+                      <th>허용한도(%)</th>
+                      <th>메시지</th>
+                      <th>Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getAllCountryRegulationWarnings(globalRegFormulaId).map((warning, index) => (
+                      <tr key={`${warning.country_code}-${warning.inci_name}-${index}`}>
+                        <td>{warning.country_code}</td>
+                        <td style={{ color: warning.level === "위험" ? "red" : warning.level === "주의" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>
+                          {warning.level}
+                        </td>
+                        <td>{warning.regulation_type}</td>
+                        <td>{warning.inci_name}</td>
+                        <td>{warning.korean_name}</td>
+                        <td>{warning.cas_no}</td>
+                        <td>{warning.final_percentage.toFixed(6)}</td>
+                        <td>{warning.max_percentage ?? "-"}</td>
+                        <td>{warning.message}</td>
+                        <td>{warning.reference_note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <h2>국가별 규제 DB 목록</h2>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>국가</th>
+                  <th>국가명</th>
+                  <th>INCI</th>
+                  <th>CAS No.</th>
+                  <th>유형</th>
+                  <th>허용한도(%)</th>
+                  <th>금지</th>
+                  <th>메시지</th>
+                  <th>Reference</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {countryRegulations.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.country_code}</td>
+                    <td>{item.country_name}</td>
+                    <td>{item.inci_name}</td>
+                    <td>{item.cas_no}</td>
+                    <td>{item.regulation_type}</td>
+                    <td>{Number(item.max_percentage || 0)}</td>
+                    <td>{item.is_prohibited ? "Y" : "N"}</td>
+                    <td>{item.warning_message}</td>
+                    <td>{item.reference_note}</td>
+                    <td>
+                      <button onClick={() => deleteCountryRegulation(item)} style={{ background: "#dc2626" }}>
+                        삭제
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </>
         )}
 
