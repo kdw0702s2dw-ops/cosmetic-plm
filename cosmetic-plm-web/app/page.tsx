@@ -167,6 +167,15 @@ type ApprovalRequest = {
   review_note: string;
   created_at: string;
   reviewed_at: string;
+  senior_reviewer?: string;
+  qa_reviewer?: string;
+  ra_reviewer?: string;
+  manager_approver?: string;
+  senior_approved_at?: string;
+  qa_approved_at?: string;
+  ra_approved_at?: string;
+  manager_approved_at?: string;
+  release_note?: string;
   projects: Project;
   formulas: Formula;
 };
@@ -791,6 +800,15 @@ export default function Home() {
         review_note,
         created_at,
         reviewed_at,
+        senior_reviewer,
+        qa_reviewer,
+        ra_reviewer,
+        manager_approver,
+        senior_approved_at,
+        qa_approved_at,
+        ra_approved_at,
+        manager_approved_at,
+        release_note,
         projects ( id, project_code, customer_name, project_name, researcher, status, target_launch_date, description, product_type, dosage_form, target_user, concept_keywords, target_price, forbidden_ingredients, required_ingredients, customer_brief ),
         formulas ( id, formula_code, formula_name, version, parent_formula_id, revision_no, revision_note, target_cost, selling_price, is_locked, locked_at, locked_by, lock_reason, prepared_by, reviewed_by, approved_by, approved_at )
       `)
@@ -1552,27 +1570,36 @@ export default function Home() {
   }
 
   async function addApprovalRequest() {
-    if (!approvalProjectId || !approvalFormulaId || !approvalRequester) {
-      alert("프로젝트, 처방, 요청자를 입력하세요.");
+    if (!approvalProjectId || !approvalFormulaId) {
+      alert("프로젝트와 처방을 선택하세요.");
       return;
     }
 
-    const { error } = await supabase.from("approval_requests").insert([
-      {
-        project_id: approvalProjectId,
-        formula_id: approvalFormulaId,
-        request_type: approvalRequestType,
-        status: "Review",
-        requester: approvalRequester,
-        reviewer: approvalReviewer,
-        request_note: approvalRequestNote,
-      },
-    ]);
+    const requesterName = approvalRequester || userProfile?.display_name || authUser?.email || "Requester";
+
+    const payload = {
+      project_id: approvalProjectId,
+      formula_id: approvalFormulaId,
+      request_type: approvalRequestType,
+      status: "Senior Review",
+      requester: requesterName,
+      reviewer: approvalReviewer,
+      request_note: approvalRequestNote,
+      senior_reviewer: approvalReviewer || "",
+      qa_reviewer: "",
+      ra_reviewer: "",
+      manager_approver: "",
+      release_note: "",
+    };
+
+    const { error } = await supabase.from("approval_requests").insert([payload]);
 
     if (error) {
       alert("승인요청 저장 오류: " + error.message);
       return;
     }
+
+    await logAudit("승인Workflow", approvalFormulaId, "승인요청", null, payload);
 
     setApprovalProjectId("");
     setApprovalFormulaId("");
@@ -1583,17 +1610,102 @@ export default function Home() {
     loadAll();
   }
 
+  function getApprovalWorkflowSteps() {
+    return ["Senior Review", "QA Review", "RA Review", "Manager Approval", "Approved", "Released"];
+  }
+
+  function getApprovalStatusLabel(status: string) {
+    const labels: Record<string, string> = {
+      Review: "검토중",
+      "Senior Review": "선임 검토",
+      "QA Review": "QA 검토",
+      "RA Review": "RA 검토",
+      "Manager Approval": "팀장 승인",
+      Approved: "최종 승인",
+      Released: "배포 완료",
+      Rejected: "반려",
+    };
+
+    return labels[status] || status;
+  }
+
+  function getApprovalStatusColor(status: string) {
+    if (status === "Released" || status === "Approved") return "green";
+    if (status === "Rejected") return "red";
+    if (status === "Manager Approval") return "#7c3aed";
+    if (status === "QA Review" || status === "RA Review") return "#d97706";
+    return "#2563eb";
+  }
+
+  function getApprovalProgress(status: string) {
+    const steps = getApprovalWorkflowSteps();
+    const index = steps.indexOf(status);
+
+    if (status === "Rejected") return 0;
+    if (index < 0) return 10;
+
+    return Math.round(((index + 1) / steps.length) * 100);
+  }
+
+  function getNextApprovalStatus(status: string) {
+    if (status === "Review") return "Senior Review";
+    if (status === "Senior Review") return "QA Review";
+    if (status === "QA Review") return "RA Review";
+    if (status === "RA Review") return "Manager Approval";
+    if (status === "Manager Approval") return "Approved";
+    if (status === "Approved") return "Released";
+
+    return "";
+  }
+
+  function getApprovalActionLabel(status: string) {
+    if (status === "Review" || status === "Senior Review") return "선임 승인";
+    if (status === "QA Review") return "QA 승인";
+    if (status === "RA Review") return "RA 승인";
+    if (status === "Manager Approval") return "최종 승인";
+    if (status === "Approved") return "배포";
+    return "처리";
+  }
+
   async function updateApprovalStatus(id: string, status: string) {
     if (!assertCanApprove()) return;
-    const reviewNote = window.prompt(`${status} 처리 사유 또는 코멘트를 입력하세요.`) || "";
+
+    const target = approvalRequests.find((request) => request.id === id);
+    const reviewNote = window.prompt(`${getApprovalStatusLabel(status)} 처리 사유 또는 코멘트를 입력하세요.`) || "";
+
+    const payload: any = {
+      status,
+      review_note: reviewNote,
+      reviewed_at: new Date().toISOString(),
+    };
+
+    if (status === "QA Review") {
+      payload.senior_reviewer = userProfile?.display_name || authUser?.email || "";
+      payload.senior_approved_at = new Date().toISOString();
+    }
+
+    if (status === "RA Review") {
+      payload.qa_reviewer = userProfile?.display_name || authUser?.email || "";
+      payload.qa_approved_at = new Date().toISOString();
+    }
+
+    if (status === "Manager Approval") {
+      payload.ra_reviewer = userProfile?.display_name || authUser?.email || "";
+      payload.ra_approved_at = new Date().toISOString();
+    }
+
+    if (status === "Approved") {
+      payload.manager_approver = userProfile?.display_name || authUser?.email || "";
+      payload.manager_approved_at = new Date().toISOString();
+    }
+
+    if (status === "Released") {
+      payload.release_note = reviewNote;
+    }
 
     const { error } = await supabase
       .from("approval_requests")
-      .update({
-        status,
-        review_note: reviewNote,
-        reviewed_at: new Date().toISOString(),
-      })
+      .update(payload)
       .eq("id", id);
 
     if (error) {
@@ -1601,6 +1713,59 @@ export default function Home() {
       return;
     }
 
+    if (target?.formulas?.id && status === "Approved") {
+      const formula = target.formulas;
+
+      await supabase
+        .from("formulas")
+        .update({
+          is_locked: true,
+          locked_at: new Date().toISOString(),
+          locked_by: userProfile?.display_name || authUser?.email || "",
+          lock_reason: "Approval Workflow Final Approved",
+          approved_by: userProfile?.display_name || authUser?.email || "",
+          approved_at: new Date().toISOString(),
+        })
+        .eq("id", formula.id);
+    }
+
+    await logAudit("승인Workflow", id, getApprovalStatusLabel(status), target || null, payload);
+    loadAll();
+  }
+
+  async function processNextApprovalStep(request: ApprovalRequest) {
+    const nextStatus = getNextApprovalStatus(request.status);
+
+    if (!nextStatus) {
+      alert("더 이상 진행할 단계가 없습니다.");
+      return;
+    }
+
+    await updateApprovalStatus(request.id, nextStatus);
+  }
+
+  async function rejectApprovalRequest(request: ApprovalRequest) {
+    if (!assertCanApprove()) return;
+
+    const reviewNote = window.prompt("반려 사유를 입력하세요.") || "";
+
+    const payload = {
+      status: "Rejected",
+      review_note: reviewNote,
+      reviewed_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("approval_requests")
+      .update(payload)
+      .eq("id", request.id);
+
+    if (error) {
+      alert("반려 처리 오류: " + error.message);
+      return;
+    }
+
+    await logAudit("승인Workflow", request.id, "반려", request, payload);
     loadAll();
   }
 
@@ -6682,11 +6847,11 @@ export default function Home() {
 
         {menu === "approval" && (
           <>
-            <h1>승인관리 Workflow</h1>
-            <p>프로젝트와 처방의 승인 요청, 검토, 승인, 반려, 배포 상태를 관리합니다.</p>
+            <h1>승인관리 Release Workflow</h1>
+            <p>연구원 요청 → 선임 검토 → QA 검토 → RA 검토 → 팀장 승인 → 최종 승인 → 배포 완료 순서로 처방 승인 체계를 관리합니다.</p>
 
             <h2>승인 요청 등록</h2>
-            <div style={{ display: "grid", gap: "10px", maxWidth: "700px" }}>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px" }}>
               <select value={approvalProjectId || ""} onChange={(e) => setApprovalProjectId(e.target.value)}>
                 <option value="">프로젝트 선택</option>
                 {projects.map((project) => (
@@ -6700,7 +6865,7 @@ export default function Home() {
                 <option value="">처방 선택</option>
                 {formulas.map((formula) => (
                   <option key={formula.id} value={formula.id}>
-                    {formula.formula_code} - {formula.formula_name} v{formula.version}
+                    {formula.formula_code} - {formula.formula_name} v{formula.version} {formula.is_locked ? "(LOCKED)" : ""}
                   </option>
                 ))}
               </select>
@@ -6711,16 +6876,17 @@ export default function Home() {
                 <option value="안정도승인">안정도승인</option>
                 <option value="양산승인">양산승인</option>
                 <option value="변경승인">변경승인</option>
+                <option value="규제승인">규제승인</option>
               </select>
 
               <input
-                placeholder="요청자 예: 연구원 홍길동"
+                placeholder="요청자 미입력 시 현재 로그인 사용자 자동 입력"
                 value={approvalRequester || ""}
                 onChange={(e) => setApprovalRequester(e.target.value)}
               />
 
               <input
-                placeholder="검토자 예: 팀장 김OO"
+                placeholder="1차 검토자 예: 선임연구원 / 팀장"
                 value={approvalReviewer || ""}
                 onChange={(e) => setApprovalReviewer(e.target.value)}
               />
@@ -6732,8 +6898,44 @@ export default function Home() {
                 rows={4}
               />
 
-              <button onClick={addApprovalRequest}>승인 요청</button>
+              <button onClick={addApprovalRequest}>승인 Workflow 시작</button>
             </div>
+
+            <h2>Workflow 단계 기준</h2>
+            <table style={tableStyle}>
+              <tbody>
+                <tr>
+                  <th>1</th>
+                  <td>Senior Review</td>
+                  <td>선임/팀장 1차 처방 검토</td>
+                </tr>
+                <tr>
+                  <th>2</th>
+                  <td>QA Review</td>
+                  <td>품질/안정도/문서 검토</td>
+                </tr>
+                <tr>
+                  <th>3</th>
+                  <td>RA Review</td>
+                  <td>국가별 규제/전성분 검토</td>
+                </tr>
+                <tr>
+                  <th>4</th>
+                  <td>Manager Approval</td>
+                  <td>최종 승인자 승인</td>
+                </tr>
+                <tr>
+                  <th>5</th>
+                  <td>Approved</td>
+                  <td>처방 자동 LOCK 및 전자서명 기록</td>
+                </tr>
+                <tr>
+                  <th>6</th>
+                  <td>Released</td>
+                  <td>고객 제출/양산 배포 가능 상태</td>
+                </tr>
+              </tbody>
+            </table>
 
             <h2>승인 요청 목록</h2>
             <table style={tableStyle}>
@@ -6742,9 +6944,13 @@ export default function Home() {
                   <th>요청구분</th>
                   <th>프로젝트</th>
                   <th>처방</th>
-                  <th>상태</th>
+                  <th>Workflow</th>
+                  <th>진행률</th>
                   <th>요청자</th>
-                  <th>검토자</th>
+                  <th>선임</th>
+                  <th>QA</th>
+                  <th>RA</th>
+                  <th>최종승인</th>
                   <th>요청내용</th>
                   <th>검토의견</th>
                   <th>요청일</th>
@@ -6757,30 +6963,59 @@ export default function Home() {
                   <tr key={request.id}>
                     <td>{request.request_type}</td>
                     <td>{request.projects?.project_code} / {request.projects?.project_name}</td>
-                    <td>{request.formulas?.formula_code} v{request.formulas?.version}</td>
-                    <td
-                      style={{
-                        fontWeight: "bold",
-                        color:
-                          request.status === "Approved" || request.status === "Released"
-                            ? "green"
-                            : request.status === "Rejected"
-                            ? "red"
-                            : "orange",
-                      }}
-                    >
-                      {request.status}
+                    <td>
+                      {request.formulas?.formula_code} v{request.formulas?.version}
+                      <div style={{ color: request.formulas?.is_locked ? "red" : "#6b7280", fontSize: "12px" }}>
+                        {request.formulas?.is_locked ? "LOCKED" : "EDITABLE"}
+                      </div>
+                    </td>
+                    <td style={{ color: getApprovalStatusColor(request.status), fontWeight: "bold" }}>
+                      {getApprovalStatusLabel(request.status)}
+                    </td>
+                    <td>
+                      <div style={{ width: "120px", height: "10px", background: "#e5e7eb", borderRadius: "999px", overflow: "hidden" }}>
+                        <div
+                          style={{
+                            width: `${getApprovalProgress(request.status)}%`,
+                            height: "100%",
+                            background: getApprovalStatusColor(request.status),
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: "12px" }}>{getApprovalProgress(request.status)}%</div>
                     </td>
                     <td>{request.requester}</td>
-                    <td>{request.reviewer}</td>
+                    <td>
+                      {request.senior_reviewer || request.reviewer || "-"}
+                      <div style={{ fontSize: "12px" }}>{request.senior_approved_at ? new Date(request.senior_approved_at).toLocaleDateString() : ""}</div>
+                    </td>
+                    <td>
+                      {request.qa_reviewer || "-"}
+                      <div style={{ fontSize: "12px" }}>{request.qa_approved_at ? new Date(request.qa_approved_at).toLocaleDateString() : ""}</div>
+                    </td>
+                    <td>
+                      {request.ra_reviewer || "-"}
+                      <div style={{ fontSize: "12px" }}>{request.ra_approved_at ? new Date(request.ra_approved_at).toLocaleDateString() : ""}</div>
+                    </td>
+                    <td>
+                      {request.manager_approver || "-"}
+                      <div style={{ fontSize: "12px" }}>{request.manager_approved_at ? new Date(request.manager_approved_at).toLocaleDateString() : ""}</div>
+                    </td>
                     <td>{request.request_note}</td>
                     <td>{request.review_note}</td>
                     <td>{request.created_at ? new Date(request.created_at).toLocaleDateString() : "-"}</td>
                     <td>{request.reviewed_at ? new Date(request.reviewed_at).toLocaleDateString() : "-"}</td>
                     <td>
-                      <button onClick={() => updateApprovalStatus(request.id, "Approved")}>승인</button>
-                      <button onClick={() => updateApprovalStatus(request.id, "Rejected")}>반려</button>
-                      <button onClick={() => updateApprovalStatus(request.id, "Released")}>배포</button>
+                      {request.status !== "Rejected" && request.status !== "Released" && (
+                        <button onClick={() => processNextApprovalStep(request)}>
+                          {getApprovalActionLabel(request.status)}
+                        </button>
+                      )}
+                      {request.status !== "Rejected" && request.status !== "Released" && (
+                        <button onClick={() => rejectApprovalRequest(request)} style={{ background: "#dc2626" }}>
+                          반려
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
