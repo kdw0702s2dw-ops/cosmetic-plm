@@ -20,8 +20,13 @@ type MaterialDocument = {
   document_type: string;
   document_title: string;
   document_url: string;
+  file_path?: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
   issue_date: string;
   expiry_date: string;
+  uploaded_by?: string;
   remark: string;
   raw_materials: RawMaterial;
 };
@@ -449,6 +454,8 @@ export default function Home() {
   const [docIssueDate, setDocIssueDate] = useState("");
   const [docExpiryDate, setDocExpiryDate] = useState("");
   const [docRemark, setDocRemark] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docUploadStatus, setDocUploadStatus] = useState("");
   const [sheetFormulaId, setSheetFormulaId] = useState("");
   const [labelFormulaId, setLabelFormulaId] = useState("");
   const [validationFormulaId, setValidationFormulaId] = useState("");
@@ -899,8 +906,13 @@ export default function Home() {
         document_type,
         document_title,
         document_url,
+        file_path,
+        file_name,
+        file_size,
+        mime_type,
         issue_date,
         expiry_date,
+        uploaded_by,
         remark,
         raw_materials ( id, raw_code, raw_name, supplier, unit_price, currency, moq )
       `)
@@ -2931,37 +2943,145 @@ export default function Home() {
     return new Date().toLocaleDateString("ko-KR");
   }
 
+  function getMaterialDocumentExpiryStatus(item: MaterialDocument) {
+    if (!item.expiry_date) {
+      return { label: "만료일 없음", color: "#6b7280" };
+    }
+
+    const today = new Date();
+    const expiry = new Date(item.expiry_date);
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return { label: "만료", color: "red" };
+    }
+
+    if (diffDays <= 30) {
+      return { label: `만료 ${diffDays}일 전`, color: "#d97706" };
+    }
+
+    return { label: "정상", color: "green" };
+  }
+
+  function getMaterialDocumentsByRaw(rawId: string) {
+    return materialDocuments.filter((doc) => doc.raw_materials?.id === rawId);
+  }
+
+  function getDocumentStoragePath(rawId: string, file: File) {
+    const safeName = file.name.replace(/[^a-zA-Z0-9가-힣._-]/g, "_");
+    const timestamp = Date.now();
+
+    return `${rawId}/${timestamp}_${safeName}`;
+  }
+
+  async function uploadMaterialDocumentFile(rawId: string, file: File) {
+    const filePath = getDocumentStoragePath(rawId, file);
+
+    const { error } = await supabase.storage
+      .from("material-documents")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const { data } = supabase.storage
+      .from("material-documents")
+      .getPublicUrl(filePath);
+
+    return {
+      filePath,
+      publicUrl: data.publicUrl,
+    };
+  }
+
+  async function deleteMaterialDocument(item: MaterialDocument) {
+    if (!assertCanDelete()) return;
+
+    const ok = window.confirm(`${item.document_title} 문서를 삭제할까요?`);
+
+    if (!ok) return;
+
+    if (item.file_path) {
+      await supabase.storage.from("material-documents").remove([item.file_path]);
+    }
+
+    const { error } = await supabase
+      .from("material_documents")
+      .delete()
+      .eq("id", item.id);
+
+    if (error) {
+      alert("문서 삭제 오류: " + error.message);
+      return;
+    }
+
+    await logAudit("원료문서", item.id, "삭제", item, null);
+    loadAll();
+  }
+
   async function addMaterialDocument() {
+    if (!assertCanEdit()) return;
+
     if (!docRawMaterialId || !docType || !docTitle) {
       alert("원료, 문서구분, 문서명을 입력하세요.");
       return;
     }
 
-    const { error } = await supabase.from("material_documents").insert([
-      {
+    setDocUploadStatus("문서 저장 중...");
+
+    let uploadedFile = {
+      filePath: "",
+      publicUrl: docUrl,
+    };
+
+    try {
+      if (docFile) {
+        uploadedFile = await uploadMaterialDocumentFile(docRawMaterialId, docFile);
+      }
+
+      const payload = {
         raw_material_id: docRawMaterialId,
         document_type: docType,
         document_title: docTitle,
-        document_url: docUrl,
+        document_url: uploadedFile.publicUrl || docUrl,
+        file_path: uploadedFile.filePath || "",
+        file_name: docFile?.name || "",
+        file_size: docFile?.size || 0,
+        mime_type: docFile?.type || "",
         issue_date: docIssueDate || null,
         expiry_date: docExpiryDate || null,
+        uploaded_by: userProfile?.display_name || authUser?.email || "",
         remark: docRemark,
-      },
-    ]);
+      };
 
-    if (error) {
-      alert("문서 저장 오류: " + error.message);
-      return;
+      const { error } = await supabase.from("material_documents").insert([payload]);
+
+      if (error) {
+        alert("문서 저장 오류: " + error.message);
+        setDocUploadStatus("저장 실패");
+        return;
+      }
+
+      await logAudit("원료문서", docTitle, "등록", null, payload);
+
+      setDocRawMaterialId("");
+      setDocType("COA");
+      setDocTitle("");
+      setDocUrl("");
+      setDocIssueDate("");
+      setDocExpiryDate("");
+      setDocRemark("");
+      setDocFile(null);
+      setDocUploadStatus("문서 저장 완료");
+      loadAll();
+    } catch (error) {
+      alert("문서 업로드 오류: " + (error as Error).message);
+      setDocUploadStatus("업로드 실패");
     }
-
-    setDocRawMaterialId("");
-    setDocType("COA");
-    setDocTitle("");
-    setDocUrl("");
-    setDocIssueDate("");
-    setDocExpiryDate("");
-    setDocRemark("");
-    loadAll();
   }
 
   async function addProcessStep() {
@@ -4217,7 +4337,9 @@ export default function Home() {
     const permissions: Record<string, string[]> = {
       dashboard: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       project: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      raw: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      documents: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       ingredient: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       global: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -4284,6 +4406,7 @@ export default function Home() {
     ["dashboard", "대시보드"],
     ["project", "프로젝트관리"],
     ["raw", "원료관리"],
+    ["documents", "원료문서센터"],
     ["globalIngredient", "성분관리"],
     ["composition", "원료조성표"],
     ["formula", "처방관리"],
@@ -4936,6 +5059,8 @@ export default function Home() {
                   <th>MOQ(kg)</th>
                   <th>조성합계</th>
                   <th>조성상태</th>
+                  <th>문서수</th>
+                  <th>문서상태</th>
                   <th>관리</th>
                 </tr>
               </thead>
@@ -4952,12 +5077,136 @@ export default function Home() {
                     <td style={{ color: Math.abs(getCompositionTotalByRaw(m.id) - 100) < 0.0001 ? "green" : "red", fontWeight: "bold" }}>
                       {Math.abs(getCompositionTotalByRaw(m.id) - 100) < 0.0001 ? "완료" : "검토"}
                     </td>
+                    <td>{getMaterialDocumentsByRaw(m.id).length}</td>
                     <td>
+                      {getMaterialDocumentsByRaw(m.id).some((doc) => getMaterialDocumentExpiryStatus(doc).label.includes("만료")) ? (
+                        <span style={{ color: "#d97706", fontWeight: "bold" }}>검토</span>
+                      ) : (
+                        <span style={{ color: "green", fontWeight: "bold" }}>정상</span>
+                      )}
+                    </td>
+                    <td>
+                      <button onClick={() => setMenu("documents")}>문서센터</button>
                       <button onClick={() => updateRawMaterial(m)}>수정</button>
                       <button onClick={() => deleteRawMaterial(m)} style={{ background: "#dc2626" }}>삭제</button>
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {menu === "documents" && (
+          <>
+            <h1>원료문서센터</h1>
+            <p>원료별 COA, MSDS, TDS, Specification, Allergen, Vegan, Halal, RSPO 등 공급사 문서를 업로드하고 만료일을 관리합니다.</p>
+
+            <h2>문서 업로드</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "700px", marginBottom: "24px" }}>
+              <select value={docRawMaterialId || ""} onChange={(e) => setDocRawMaterialId(e.target.value)}>
+                <option value="">원료 선택</option>
+                {materials.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.raw_code} - {m.raw_name} / {m.supplier}
+                  </option>
+                ))}
+              </select>
+
+              <select value={docType || "COA"} onChange={(e) => setDocType(e.target.value)}>
+                <option value="COA">COA</option>
+                <option value="MSDS">MSDS</option>
+                <option value="TDS">TDS</option>
+                <option value="Specification">Specification</option>
+                <option value="Allergen Statement">Allergen Statement</option>
+                <option value="Non-Animal Statement">Non-Animal Statement</option>
+                <option value="Vegan Certificate">Vegan Certificate</option>
+                <option value="Halal Certificate">Halal Certificate</option>
+                <option value="RSPO Certificate">RSPO Certificate</option>
+                <option value="Other">Other</option>
+              </select>
+
+              <input placeholder="문서명 예: Glycerin COA 2026" value={docTitle || ""} onChange={(e) => setDocTitle(e.target.value)} />
+
+              <input
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setDocFile(file);
+
+                  if (file && !docTitle) {
+                    setDocTitle(file.name);
+                  }
+                }}
+              />
+
+              <input placeholder="외부 문서 URL 사용 시 입력" value={docUrl || ""} onChange={(e) => setDocUrl(e.target.value)} />
+
+              <label>발행일</label>
+              <input type="date" value={docIssueDate || ""} onChange={(e) => setDocIssueDate(e.target.value)} />
+
+              <label>만료일</label>
+              <input type="date" value={docExpiryDate || ""} onChange={(e) => setDocExpiryDate(e.target.value)} />
+
+              <input placeholder="비고" value={docRemark || ""} onChange={(e) => setDocRemark(e.target.value)} />
+
+              <button onClick={addMaterialDocument}>문서 저장</button>
+              <p style={{ color: "#2563eb", fontWeight: "bold" }}>{docUploadStatus}</p>
+            </div>
+
+            <h2>문서 목록</h2>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>원료코드</th>
+                  <th>원료명</th>
+                  <th>공급사</th>
+                  <th>문서구분</th>
+                  <th>문서명</th>
+                  <th>파일명</th>
+                  <th>발행일</th>
+                  <th>만료일</th>
+                  <th>상태</th>
+                  <th>업로드자</th>
+                  <th>비고</th>
+                  <th>열기</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {materialDocuments.map((doc) => {
+                  const status = getMaterialDocumentExpiryStatus(doc);
+
+                  return (
+                    <tr key={doc.id}>
+                      <td>{doc.raw_materials?.raw_code}</td>
+                      <td>{doc.raw_materials?.raw_name}</td>
+                      <td>{doc.raw_materials?.supplier}</td>
+                      <td>{doc.document_type}</td>
+                      <td>{doc.document_title}</td>
+                      <td>{doc.file_name || "-"}</td>
+                      <td>{doc.issue_date || "-"}</td>
+                      <td>{doc.expiry_date || "-"}</td>
+                      <td style={{ color: status.color, fontWeight: "bold" }}>{status.label}</td>
+                      <td>{doc.uploaded_by || "-"}</td>
+                      <td>{doc.remark}</td>
+                      <td>
+                        {doc.document_url ? (
+                          <a href={doc.document_url} target="_blank" rel="noreferrer">
+                            열기
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>
+                        <button onClick={() => deleteMaterialDocument(doc)} style={{ background: "#dc2626" }}>
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </>
