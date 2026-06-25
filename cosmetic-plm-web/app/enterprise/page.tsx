@@ -128,6 +128,30 @@ type RegulationImpact = {
   action: string;
 };
 
+type CustomerPortalItem = {
+  id: string;
+  customer_name: string;
+  project_code: string;
+  project_name: string;
+  current_status: string;
+  sample_status: "Not Sent" | "Sent" | "Feedback Received" | "Approved";
+  submission_status: "Not Prepared" | "Prepared" | "Sent" | "Approved";
+  visible_to_customer: boolean;
+  last_update: string;
+};
+
+type SampleFeedback = {
+  id: string;
+  sample_no: string;
+  customer_name: string;
+  project_code: string;
+  formula_code: string;
+  sent_date: string;
+  quantity: string;
+  feedback: string;
+  status: "Sent" | "Feedback Received" | "Revision Needed" | "Approved";
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -364,6 +388,46 @@ const initialRegulations: RegulationRecord[] = [
   },
 ];
 
+
+const initialCustomerPortalItems: CustomerPortalItem[] = [
+  {
+    id: "CP-001",
+    customer_name: "ABC 브랜드",
+    project_code: "26A001",
+    project_name: "고보습 비건 크림",
+    current_status: "개발중",
+    sample_status: "Sent",
+    submission_status: "Prepared",
+    visible_to_customer: true,
+    last_update: "2026-06-25",
+  },
+  {
+    id: "CP-002",
+    customer_name: "DEF 코스메틱",
+    project_code: "26A002",
+    project_name: "저자극 장벽 세럼",
+    current_status: "샘플발송",
+    sample_status: "Feedback Received",
+    submission_status: "Not Prepared",
+    visible_to_customer: true,
+    last_update: "2026-06-25",
+  },
+];
+
+const initialSampleFeedbacks: SampleFeedback[] = [
+  {
+    id: "SF-001",
+    sample_no: "S-2026-001",
+    customer_name: "ABC 브랜드",
+    project_code: "26A001",
+    formula_code: "FC-001",
+    sent_date: "2026-06-20",
+    quantity: "20EA",
+    feedback: "보습감 우수, 향을 조금 약하게 요청",
+    status: "Feedback Received",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -472,6 +536,15 @@ export default function EnterprisePage() {
   const [regSearch, setRegSearch] = useState("");
   const [regImpactCountry, setRegImpactCountry] = useState("EU");
   const [regImpacts, setRegImpacts] = useState<RegulationImpact[]>([]);
+
+  const [customerPortalItems, setCustomerPortalItems] = useState<CustomerPortalItem[]>(initialCustomerPortalItems);
+  const [sampleFeedbacks, setSampleFeedbacks] = useState<SampleFeedback[]>(initialSampleFeedbacks);
+  const [customerFilter, setCustomerFilter] = useState("ALL");
+  const [newSampleCustomer, setNewSampleCustomer] = useState("ABC 브랜드");
+  const [newSampleProjectCode, setNewSampleProjectCode] = useState("26A001");
+  const [newSampleFormulaCode, setNewSampleFormulaCode] = useState("FC-001");
+  const [newSampleQuantity, setNewSampleQuantity] = useState("20EA");
+  const [newSampleFeedback, setNewSampleFeedback] = useState("");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -597,6 +670,21 @@ export default function EnterprisePage() {
       high: regImpacts.filter((item) => item.risk === "HIGH").length,
     };
   }, [regulations, regImpacts]);
+
+  const filteredCustomerPortalItems = useMemo(() => {
+    if (customerFilter === "ALL") return customerPortalItems;
+    return customerPortalItems.filter((item) => item.customer_name === customerFilter);
+  }, [customerPortalItems, customerFilter]);
+
+  const customerStats = useMemo(() => {
+    return {
+      customers: new Set(customerPortalItems.map((item) => item.customer_name)).size,
+      visible: customerPortalItems.filter((item) => item.visible_to_customer).length,
+      samples: sampleFeedbacks.length,
+      feedback: sampleFeedbacks.filter((item) => item.status === "Feedback Received" || item.status === "Revision Needed").length,
+      submissionPrepared: customerPortalItems.filter((item) => item.submission_status === "Prepared" || item.submission_status === "Sent" || item.submission_status === "Approved").length,
+    };
+  }, [customerPortalItems, sampleFeedbacks]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -1211,13 +1299,122 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function toggleCustomerVisibility(id: string) {
+    setCustomerPortalItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, visible_to_customer: !item.visible_to_customer, last_update: new Date().toISOString().slice(0, 10) } : item
+      )
+    );
+  }
+
+  function updateCustomerSubmissionStatus(id: string, status: CustomerPortalItem["submission_status"]) {
+    setCustomerPortalItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, submission_status: status, last_update: new Date().toISOString().slice(0, 10) } : item
+      )
+    );
+  }
+
+  function nextSampleNo() {
+    return `S-${new Date().getFullYear()}-${String(sampleFeedbacks.length + 1).padStart(3, "0")}`;
+  }
+
+  function addSampleFeedback() {
+    const sample: SampleFeedback = {
+      id: crypto.randomUUID(),
+      sample_no: nextSampleNo(),
+      customer_name: newSampleCustomer,
+      project_code: newSampleProjectCode,
+      formula_code: newSampleFormulaCode,
+      sent_date: new Date().toISOString().slice(0, 10),
+      quantity: newSampleQuantity,
+      feedback: newSampleFeedback,
+      status: newSampleFeedback ? "Feedback Received" : "Sent",
+    };
+
+    setSampleFeedbacks([sample, ...sampleFeedbacks]);
+
+    setCustomerPortalItems((prev) =>
+      prev.map((item) =>
+        item.project_code === newSampleProjectCode
+          ? {
+              ...item,
+              sample_status: newSampleFeedback ? "Feedback Received" : "Sent",
+              current_status: "샘플발송",
+              last_update: new Date().toISOString().slice(0, 10),
+            }
+          : item
+      )
+    );
+
+    setNewSampleFeedback("");
+  }
+
+  function createRevisionFromFeedback(sample: SampleFeedback) {
+    const sourceFormula = formulas.find((formula) => formula.formula_code === sample.formula_code);
+    const nextCode = nextFormulaCode(formulas);
+
+    const newFormula: EnterpriseFormula = {
+      id: crypto.randomUUID(),
+      formula_code: nextCode,
+      formula_name: `${sourceFormula?.formula_name || sample.formula_code} 피드백 Revision`,
+      version: sourceFormula ? (Number(sourceFormula.version || "1") + 0.1).toFixed(1) : "1.1",
+      project_code: sample.project_code,
+      status: "Draft",
+      total_percent: 100,
+      material_cost: sourceFormula?.material_cost || 0,
+      is_locked: false,
+      revision_note: `Customer Feedback ${sample.sample_no}: ${sample.feedback || "피드백 기반 수정"}`,
+    };
+
+    setFormulas([newFormula, ...formulas]);
+    setSampleFeedbacks((prev) =>
+      prev.map((item) =>
+        item.id === sample.id ? { ...item, status: "Revision Needed" } : item
+      )
+    );
+    setActive("formula");
+  }
+
+  function exportCustomerPortalCsv() {
+    exportCsv("enterprise_customer_portal.csv", [
+      ["customer_name", "project_code", "project_name", "current_status", "sample_status", "submission_status", "visible_to_customer", "last_update"],
+      ...filteredCustomerPortalItems.map((item) => [
+        item.customer_name,
+        item.project_code,
+        item.project_name,
+        item.current_status,
+        item.sample_status,
+        item.submission_status,
+        item.visible_to_customer,
+        item.last_update,
+      ]),
+    ]);
+  }
+
+  function exportSampleFeedbackCsv() {
+    exportCsv("enterprise_sample_feedback.csv", [
+      ["sample_no", "customer_name", "project_code", "formula_code", "sent_date", "quantity", "feedback", "status"],
+      ...sampleFeedbacks.map((item) => [
+        item.sample_no,
+        item.customer_name,
+        item.project_code,
+        item.formula_code,
+        item.sent_date,
+        item.quantity,
+        item.feedback,
+        item.status,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 8</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 9</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / AI / Quality Module에 이어 Regulation Module을 Enterprise 구조로 분리합니다. 국가별 규제 DB, 업데이트 감지, 영향도 분석, PIF/CPSR 준비 흐름을 검증합니다.
+            Project / Formula / Ingredient / AI / Quality / Regulation Module에 이어 Customer Module을 Enterprise 구조로 분리합니다. 고객 포털, 샘플 발송, 피드백, 고객 제출 패키지 흐름을 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -1229,16 +1426,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>AI 준비도</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{ingredients.length > 5 ? 85 : 70}</div></div>
             <div style={cardStyle()}><strong>품질 문서</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{qualityDocuments.length}</div></div>
             <div style={cardStyle()}><strong>규제 DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{regulations.length}</div></div>
+            <div style={cardStyle()}><strong>고객공유</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{customerPortalItems.filter((item) => item.visible_to_customer).length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 8 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 9 목표</h2>
           <ul>
-            <li>Regulation Module 독립 UI 검증</li>
-            <li>국가별 규제 DB / Regulation Update / AI 규제질의 흐름 통합</li>
-            <li>처방별 규제 영향도와 PIF/CPSR 준비 상태를 한 화면에서 관리</li>
-            <li>다음 단계에서 실제 country_regulations, regulation_updates 테이블과 연결</li>
+            <li>Customer Module 독립 UI 검증</li>
+            <li>고객 포털 / 샘플 발송 / 피드백 / 고객 제출 패키지 흐름 통합</li>
+            <li>고객에게 공개 가능한 정보와 내부 연구정보를 분리</li>
+            <li>다음 단계에서 실제 customer_projects, sample_feedbacks, submission_packages 테이블과 연결</li>
           </ul>
         </section>
       </>
@@ -1927,6 +2125,162 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderCustomerModule() {
+    const customerList = Array.from(new Set(customerPortalItems.map((item) => item.customer_name)));
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Customer Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            고객 포털, 프로젝트 공유, 샘플 발송, 피드백, 고객 제출 패키지를 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>고객사</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{customerStats.customers}</div></div>
+            <div style={cardStyle()}><strong>공개 프로젝트</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{customerStats.visible}</div></div>
+            <div style={cardStyle()}><strong>샘플</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{customerStats.samples}</div></div>
+            <div style={cardStyle()}><strong>피드백</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{customerStats.feedback}</div></div>
+            <div style={cardStyle()}><strong>제출준비</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{customerStats.submissionPrepared}</div></div>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>Customer Portal Lite</h2>
+            <button onClick={exportCustomerPortalCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              고객포털 CSV Export
+            </button>
+          </div>
+
+          <div style={{ marginBottom: "12px" }}>
+            <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+              <option value="ALL">전체 고객</option>
+              {customerList.map((customer) => (
+                <option key={customer} value={customer}>{customer}</option>
+              ))}
+            </select>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>고객사</th>
+                <th style={tableCellStyle(true)}>프로젝트</th>
+                <th style={tableCellStyle(true)}>상태</th>
+                <th style={tableCellStyle(true)}>샘플</th>
+                <th style={tableCellStyle(true)}>제출자료</th>
+                <th style={tableCellStyle(true)}>고객공개</th>
+                <th style={tableCellStyle(true)}>업데이트</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCustomerPortalItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.customer_name}</td>
+                  <td style={tableCellStyle()}>{item.project_code}<br />{item.project_name}</td>
+                  <td style={tableCellStyle()}>{item.current_status}</td>
+                  <td style={tableCellStyle()}>{item.sample_status}</td>
+                  <td style={tableCellStyle()}>
+                    <select value={item.submission_status} onChange={(e) => updateCustomerSubmissionStatus(item.id, e.target.value as CustomerPortalItem["submission_status"])}>
+                      <option value="Not Prepared">Not Prepared</option>
+                      <option value="Prepared">Prepared</option>
+                      <option value="Sent">Sent</option>
+                      <option value="Approved">Approved</option>
+                    </select>
+                  </td>
+                  <td style={{ ...tableCellStyle(), color: item.visible_to_customer ? "#059669" : "#dc2626", fontWeight: "bold" }}>{item.visible_to_customer ? "VISIBLE" : "HIDDEN"}</td>
+                  <td style={tableCellStyle()}>{item.last_update}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => toggleCustomerVisibility(item.id)}>
+                      {item.visible_to_customer ? "Hide" : "Show"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Sample Request & Feedback</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <select value={newSampleCustomer} onChange={(e) => setNewSampleCustomer(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {customerList.map((customer) => (
+                <option key={customer} value={customer}>{customer}</option>
+              ))}
+            </select>
+            <select value={newSampleProjectCode} onChange={(e) => setNewSampleProjectCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {projects.map((project) => (
+                <option key={project.id} value={project.project_code}>{project.project_code} / {project.project_name}</option>
+              ))}
+            </select>
+            <select value={newSampleFormulaCode} onChange={(e) => setNewSampleFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <input value={newSampleQuantity} onChange={(e) => setNewSampleQuantity(e.target.value)} placeholder="수량 예: 20EA" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <textarea value={newSampleFeedback} onChange={(e) => setNewSampleFeedback(e.target.value)} placeholder="고객 피드백. 없으면 발송 기록만 생성됩니다." rows={3} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addSampleFeedback} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                샘플 발송/피드백 등록
+              </button>
+              <button onClick={exportSampleFeedbackCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                샘플 CSV Export
+              </button>
+            </div>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>샘플번호</th>
+                <th style={tableCellStyle(true)}>고객사</th>
+                <th style={tableCellStyle(true)}>프로젝트</th>
+                <th style={tableCellStyle(true)}>처방</th>
+                <th style={tableCellStyle(true)}>발송일</th>
+                <th style={tableCellStyle(true)}>수량</th>
+                <th style={tableCellStyle(true)}>피드백</th>
+                <th style={tableCellStyle(true)}>상태</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sampleFeedbacks.map((sample) => (
+                <tr key={sample.id}>
+                  <td style={tableCellStyle()}>{sample.sample_no}</td>
+                  <td style={tableCellStyle()}>{sample.customer_name}</td>
+                  <td style={tableCellStyle()}>{sample.project_code}</td>
+                  <td style={tableCellStyle()}>{sample.formula_code}</td>
+                  <td style={tableCellStyle()}>{sample.sent_date}</td>
+                  <td style={tableCellStyle()}>{sample.quantity}</td>
+                  <td style={tableCellStyle()}>{sample.feedback || "-"}</td>
+                  <td style={{ ...tableCellStyle(), color: sample.status === "Approved" ? "#059669" : sample.status === "Revision Needed" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{sample.status}</td>
+                  <td style={tableCellStyle()}>
+                    {sample.feedback ? <button onClick={() => createRevisionFromFeedback(sample)}>Revision 생성</button> : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>고객 제출 패키지 연결</h2>
+          <ul>
+            <li>Formula Sheet: Formula Module과 연결</li>
+            <li>Breakdown IL / Full IL: Ingredient + Regulation Module과 연결</li>
+            <li>문서 체크리스트: Quality Module과 연결</li>
+            <li>Risk Check: Regulation Impact와 연결</li>
+            <li>다음 Phase에서 실제 고객 제출 패키지 이력 테이블로 확장</li>
+          </ul>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -1945,7 +2299,7 @@ export default function EnterprisePage() {
     if (active === "ai") return renderAiModule();
     if (active === "quality") return renderQualityModule();
     if (active === "regulation") return renderRegulationModule();
-    if (active === "customer") return renderSimpleModule("Customer Module", ["Customer Portal Lite", "고객제출패키지", "샘플 피드백", "고객별 현황"]);
+    if (active === "customer") return renderCustomerModule();
     if (active === "supplier") return renderSimpleModule("Supplier Module", ["Supplier Portal Lite", "문서 요청", "만료 알림", "업로드 양식"]);
     return renderSimpleModule("Admin Module", ["사용자/권한", "Audit Log", "System Health", "Production Readiness", "Backup"]);
   }
@@ -1954,7 +2308,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 8 Regulation Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 9 Customer Module</p>
 
         {menus.map((item) => (
           <button
