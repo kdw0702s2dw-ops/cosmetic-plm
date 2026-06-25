@@ -487,6 +487,7 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authInviteCode, setAuthInviteCode] = useState("");
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authLoading, setAuthLoading] = useState(true);
   const inputStyle = {
@@ -536,6 +537,8 @@ export default function Home() {
     background: "white",
     marginBottom: "20px",
   };
+
+  const SIGNUP_INVITE_CODE = "PLM2026";
 
 
 
@@ -862,6 +865,11 @@ export default function Home() {
       return;
     }
 
+    if (authInviteCode.trim() !== SIGNUP_INVITE_CODE) {
+      alert("가입 코드가 올바르지 않습니다. 관리자에게 가입 코드를 요청하세요.");
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email: authEmail,
       password: authPassword,
@@ -881,6 +889,7 @@ export default function Home() {
       };
 
       await supabase.from("user_profiles").upsert([profilePayload]);
+      setAuthInviteCode("");
       alert("회원가입이 완료되었습니다. 이메일 확인 설정이 켜져 있으면 메일 인증 후 로그인하세요.");
     }
   }
@@ -7567,11 +7576,23 @@ export default function Home() {
 
           <div style={{ display: "grid", gap: "10px" }}>
             {authMode === "signup" && (
-              <input
-                placeholder="이름 예: 홍길동"
-                value={authDisplayName || ""}
-                onChange={(e) => setAuthDisplayName(e.target.value)}
-              />
+              <>
+                <input
+                  placeholder="이름 예: 홍길동"
+                  value={authDisplayName || ""}
+                  onChange={(e) => setAuthDisplayName(e.target.value)}
+                />
+
+                <input
+                  placeholder="가입 코드"
+                  value={authInviteCode || ""}
+                  onChange={(e) => setAuthInviteCode(e.target.value)}
+                />
+
+                <p style={{ color: "#6b7280", fontSize: "12px", margin: 0 }}>
+                  가입 코드는 관리자에게 요청하세요.
+                </p>
+              </>
             )}
 
             <input
