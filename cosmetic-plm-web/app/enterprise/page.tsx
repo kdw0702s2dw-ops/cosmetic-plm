@@ -14,6 +14,7 @@ type ModuleKey =
   | "regulation"
   | "customer"
   | "supplier"
+  | "dataIntegration"
   | "admin";
 
 type EnterpriseProject = {
@@ -213,6 +214,24 @@ type LaunchGateItem = {
   action: string;
 };
 
+type DataMappingItem = {
+  module: string;
+  local_name: string;
+  target_table: string;
+  status: "READY" | "NEEDS_SCHEMA" | "NEEDS_RLS" | "PENDING";
+  records: number;
+  key_fields: string;
+  action: string;
+};
+
+type RlsPolicyItem = {
+  table_name: string;
+  role_name: string;
+  permission: "read" | "write" | "admin";
+  status: "READY" | "DRAFT" | "MISSING";
+  policy_note: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -223,6 +242,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "regulation", label: "Regulation Module" },
   { key: "customer", label: "Customer Module" },
   { key: "supplier", label: "Supplier Module" },
+  { key: "dataIntegration", label: "Data Integration" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -719,6 +739,10 @@ export default function EnterprisePage() {
   const [launchGateItems, setLaunchGateItems] = useState<LaunchGateItem[]>([]);
   const [dashboardStatus, setDashboardStatus] = useState("");
 
+  const [dataMappings, setDataMappings] = useState<DataMappingItem[]>([]);
+  const [rlsPolicies, setRlsPolicies] = useState<RlsPolicyItem[]>([]);
+  const [dataIntegrationStatus, setDataIntegrationStatus] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -943,6 +967,17 @@ export default function EnterprisePage() {
       },
     ];
   }, [projects, formulas, ingredients, approvalRecords, regImpacts, supplierTasks, sampleFeedbacks, healthItems]);
+
+  const dataIntegrationStats = useMemo(() => {
+    return {
+      mappings: dataMappings.length,
+      ready: dataMappings.filter((item) => item.status === "READY").length,
+      needsSchema: dataMappings.filter((item) => item.status === "NEEDS_SCHEMA").length,
+      needsRls: dataMappings.filter((item) => item.status === "NEEDS_RLS").length,
+      policies: rlsPolicies.length,
+      policyReady: rlsPolicies.filter((item) => item.status === "READY").length,
+    };
+  }, [dataMappings, rlsPolicies]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -2034,13 +2069,214 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateDataMappings() {
+    const mappings: DataMappingItem[] = [
+      {
+        module: "Project",
+        local_name: "projects",
+        target_table: "enterprise_projects",
+        status: projects.length > 0 ? "READY" : "PENDING",
+        records: projects.length,
+        key_fields: "id, project_code, customer_name, project_name, status",
+        action: "기존 projects 테이블과 통합하거나 enterprise_projects 신규 테이블 생성",
+      },
+      {
+        module: "Formula",
+        local_name: "formulas",
+        target_table: "enterprise_formulas",
+        status: formulas.length > 0 ? "READY" : "PENDING",
+        records: formulas.length,
+        key_fields: "id, formula_code, version, project_code, status, is_locked",
+        action: "formulas / formula_items와 연결 가능한 FK 설계 필요",
+      },
+      {
+        module: "Ingredient",
+        local_name: "ingredients",
+        target_table: "ingredient_master_global",
+        status: ingredients.length >= 5 ? "READY" : "NEEDS_SCHEMA",
+        records: ingredients.length,
+        key_fields: "inci_name, korean_name, cas_no, ec_no, function_ko",
+        action: "대량 검색을 위해 inci_name, cas_no, korean_name 인덱스 생성",
+      },
+      {
+        module: "Raw Material",
+        local_name: "rawMaterials",
+        target_table: "raw_materials",
+        status: rawMaterials.length > 0 ? "READY" : "PENDING",
+        records: rawMaterials.length,
+        key_fields: "raw_code, raw_name, supplier, unit_price, main_inci",
+        action: "원료조성표와 supplier_tasks FK 연결",
+      },
+      {
+        module: "Quality",
+        local_name: "qualityDocuments",
+        target_table: "material_documents",
+        status: qualityDocuments.length > 0 ? "READY" : "PENDING",
+        records: qualityDocuments.length,
+        key_fields: "raw_code, document_type, expiry_date, status",
+        action: "Storage bucket 파일 URL 및 만료일 알림 구조 연결",
+      },
+      {
+        module: "Regulation",
+        local_name: "regulations",
+        target_table: "country_regulations",
+        status: regulations.length > 0 ? "READY" : "PENDING",
+        records: regulations.length,
+        key_fields: "country_code, inci_name, cas_no, regulation_type, max_percent",
+        action: "국가+INCI+CAS 중복 방지 unique key 검토",
+      },
+      {
+        module: "Customer",
+        local_name: "customerPortalItems",
+        target_table: "customer_portal_items",
+        status: "NEEDS_RLS",
+        records: customerPortalItems.length,
+        key_fields: "customer_name, project_code, visible_to_customer",
+        action: "customer role이 본인 고객사 데이터만 볼 수 있도록 RLS 필요",
+      },
+      {
+        module: "Supplier",
+        local_name: "supplierTasks",
+        target_table: "supplier_tasks",
+        status: "NEEDS_RLS",
+        records: supplierTasks.length,
+        key_fields: "supplier, raw_code, required_document, request_status",
+        action: "supplier role이 본인 공급사 문서 요청만 볼 수 있도록 RLS 필요",
+      },
+      {
+        module: "Admin",
+        local_name: "adminUsers",
+        target_table: "user_profiles",
+        status: "NEEDS_RLS",
+        records: adminUsers.length,
+        key_fields: "id, email, role, is_active",
+        action: "manager만 사용자 Role 수정 가능하도록 RLS 및 RPC 분리",
+      },
+      {
+        module: "Audit",
+        local_name: "adminAudits",
+        target_table: "audit_logs",
+        status: "READY",
+        records: adminAudits.length,
+        key_fields: "actor, action, module, target, created_at",
+        action: "insert only 정책 권장, 수정/삭제 제한",
+      },
+    ];
+
+    setDataMappings(mappings);
+
+    const policies: RlsPolicyItem[] = [
+      {
+        table_name: "enterprise_projects",
+        role_name: "researcher/qa/ra/manager",
+        permission: "read",
+        status: "DRAFT",
+        policy_note: "내부 사용자는 프로젝트 조회 가능, 고객/공급사는 제한",
+      },
+      {
+        table_name: "enterprise_formulas",
+        role_name: "researcher/senior/manager",
+        permission: "write",
+        status: "DRAFT",
+        policy_note: "researcher는 Draft 작성, Released/Locked 수정은 senior 이상",
+      },
+      {
+        table_name: "ingredient_master_global",
+        role_name: "researcher/qa/ra/viewer",
+        permission: "read",
+        status: "READY",
+        policy_note: "성분 마스터는 내부 사용자 조회 가능",
+      },
+      {
+        table_name: "country_regulations",
+        role_name: "ra/manager",
+        permission: "write",
+        status: "DRAFT",
+        policy_note: "RA와 Manager만 규제 DB 수정 가능",
+      },
+      {
+        table_name: "customer_portal_items",
+        role_name: "customer",
+        permission: "read",
+        status: "MISSING",
+        policy_note: "customer_name 또는 account mapping 기반 본인 데이터만 조회",
+      },
+      {
+        table_name: "supplier_tasks",
+        role_name: "supplier",
+        permission: "read",
+        status: "MISSING",
+        policy_note: "supplier 필드 매칭 기반 본인 공급사 요청만 조회",
+      },
+      {
+        table_name: "user_profiles",
+        role_name: "manager",
+        permission: "admin",
+        status: "DRAFT",
+        policy_note: "manager만 role/is_active 수정 가능",
+      },
+      {
+        table_name: "audit_logs",
+        role_name: "all_authenticated",
+        permission: "write",
+        status: "DRAFT",
+        policy_note: "insert only, update/delete 금지",
+      },
+    ];
+
+    setRlsPolicies(policies);
+    setDataIntegrationStatus(`Data Mapping 생성 완료: ${mappings.length}개 테이블 / RLS 정책 ${policies.length}개`);
+  }
+
+  function exportDataMappingCsv() {
+    exportCsv("enterprise_data_mapping.csv", [
+      ["module", "local_name", "target_table", "status", "records", "key_fields", "action"],
+      ...dataMappings.map((item) => [
+        item.module,
+        item.local_name,
+        item.target_table,
+        item.status,
+        item.records,
+        item.key_fields,
+        item.action,
+      ]),
+    ]);
+  }
+
+  function exportRlsPolicyCsv() {
+    exportCsv("enterprise_rls_policy_draft.csv", [
+      ["table_name", "role_name", "permission", "status", "policy_note"],
+      ...rlsPolicies.map((item) => [
+        item.table_name,
+        item.role_name,
+        item.permission,
+        item.status,
+        item.policy_note,
+      ]),
+    ]);
+  }
+
+  function exportServiceLayerPlanCsv() {
+    exportCsv("enterprise_service_layer_plan.csv", [
+      ["service_file", "target_tables", "responsibility"],
+      ["services/projectService.ts", "enterprise_projects", "Project CRUD, status update, project code generation"],
+      ["services/formulaService.ts", "enterprise_formulas, formula_items", "Formula CRUD, version clone, lock/release"],
+      ["services/ingredientService.ts", "ingredient_master_global, raw_materials", "Search, pagination, seed import, raw material link"],
+      ["services/qualityService.ts", "material_documents, stability_records, approval_requests", "Document expiry, stability, approval"],
+      ["services/regulationService.ts", "country_regulations, regulation_impacts", "Regulation DB and impact analysis"],
+      ["services/customerService.ts", "customer_portal_items, sample_feedbacks", "Customer portal and feedback"],
+      ["services/supplierService.ts", "supplier_tasks, supplier_scorecards", "Supplier requests and scorecards"],
+      ["services/adminService.ts", "user_profiles, audit_logs", "Role, audit, health, backup"],
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 12</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 13</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise 1차 모듈 전환을 바탕으로 Executive Dashboard와 Final Launch Gate를 구성합니다. 경영 KPI, 출시 준비도, Blocker, 모듈별 운영 현황을 한 화면에서 검증합니다.
+            Enterprise 1차 모듈 전환을 바탕으로 Data Integration Center를 구성합니다. 현재 화면의 임시 상태 데이터를 Supabase 테이블, RLS, 서비스 계층으로 옮기기 위한 매핑과 전환 준비 상태를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -2056,6 +2292,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>공급사요청</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{supplierTasks.length}</div></div>
             <div style={cardStyle()}><strong>Admin Users</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{adminUsers.length}</div></div>
             <div style={cardStyle()}><strong>Launch Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{launchGateItems.filter((item) => item.status === "PASS").length}</div></div>
+            <div style={cardStyle()}><strong>Data Tables</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{dataMappings.length}</div></div>
           </div>
         </section>
 
@@ -2119,12 +2356,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 12 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 13 목표</h2>
           <ul>
-            <li>Executive Dashboard 독립 UI 검증</li>
-            <li>Project / Formula / Ingredient / QA / RA / Supplier / Customer / Admin KPI 통합</li>
-            <li>Final Launch Readiness Gate와 출시 Blocker 관리</li>
-            <li>다음 단계에서 실제 Supabase 데이터 기반 KPI API로 분리</li>
+            <li>Data Integration Center 독립 UI 검증</li>
+            <li>현재 Enterprise 임시 데이터를 Supabase 테이블로 이전하기 위한 매핑 생성</li>
+            <li>RLS 정책 초안과 서비스 계층 분리 준비</li>
+            <li>다음 단계에서 실제 services/*.ts 파일과 Supabase CRUD 연동으로 확장</li>
           </ul>
         </section>
       </>
@@ -3121,6 +3358,113 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderDataIntegrationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Data Integration Center</h1>
+          <p style={{ color: "#6b7280" }}>
+            현재 Enterprise 화면의 임시 상태 데이터를 실제 Supabase 테이블, RLS 정책, 서비스 계층으로 옮기기 위한 전환 준비 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Mappings</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{dataIntegrationStats.mappings}</div></div>
+            <div style={cardStyle()}><strong>READY</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{dataIntegrationStats.ready}</div></div>
+            <div style={cardStyle()}><strong>Need Schema</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{dataIntegrationStats.needsSchema}</div></div>
+            <div style={cardStyle()}><strong>Need RLS</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{dataIntegrationStats.needsRls}</div></div>
+            <div style={cardStyle()}><strong>RLS Drafts</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{dataIntegrationStats.policies}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateDataMappings} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Data Mapping 생성
+            </button>
+            <button onClick={exportDataMappingCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Mapping CSV
+            </button>
+            <button onClick={exportRlsPolicyCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              RLS Draft CSV
+            </button>
+            <button onClick={exportServiceLayerPlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Service Plan CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{dataIntegrationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Table Mapping</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Local State</th>
+                <th style={tableCellStyle(true)}>Target Table</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Records</th>
+                <th style={tableCellStyle(true)}>Key Fields</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dataMappings.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Data Mapping 생성을 실행하세요.</td></tr>}
+              {dataMappings.map((item) => (
+                <tr key={`${item.module}-${item.target_table}`}>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={tableCellStyle()}>{item.local_name}</td>
+                  <td style={tableCellStyle()}>{item.target_table}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "READY" ? "#059669" : item.status === "PENDING" ? "#6b7280" : item.status === "NEEDS_SCHEMA" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.records}</td>
+                  <td style={tableCellStyle()}>{item.key_fields}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>RLS Policy Draft</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Table</th>
+                <th style={tableCellStyle(true)}>Role</th>
+                <th style={tableCellStyle(true)}>Permission</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Policy Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rlsPolicies.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Data Mapping 생성 시 RLS 초안이 함께 생성됩니다.</td></tr>}
+              {rlsPolicies.map((item) => (
+                <tr key={`${item.table_name}-${item.role_name}-${item.permission}`}>
+                  <td style={tableCellStyle()}>{item.table_name}</td>
+                  <td style={tableCellStyle()}>{item.role_name}</td>
+                  <td style={tableCellStyle()}>{item.permission}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "READY" ? "#059669" : item.status === "DRAFT" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.policy_note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>다음 전환 순서</h2>
+          <ol>
+            <li>services 폴더 생성: projectService, formulaService, ingredientService부터 분리</li>
+            <li>Supabase 테이블 누락분 생성: customer_portal_items, supplier_tasks, supplier_scorecards 등</li>
+            <li>RLS 정책 적용: customer/supplier 외부 계정 데이터 제한</li>
+            <li>Enterprise page.tsx의 useState 임시 데이터를 서비스 호출 구조로 교체</li>
+            <li>기존 app/page.tsx의 핵심 기능을 모듈 단위로 하나씩 이전</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
   function renderAdminModule() {
     return (
       <>
@@ -3310,6 +3654,7 @@ export default function EnterprisePage() {
     if (active === "regulation") return renderRegulationModule();
     if (active === "customer") return renderCustomerModule();
     if (active === "supplier") return renderSupplierModule();
+    if (active === "dataIntegration") return renderDataIntegrationModule();
     return renderAdminModule();
   }
 
@@ -3317,7 +3662,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 12 Executive Dashboard & Launch Gate</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 13 Data Integration Center</p>
 
         {menus.map((item) => (
           <button
