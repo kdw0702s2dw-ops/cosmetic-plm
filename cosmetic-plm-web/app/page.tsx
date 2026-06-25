@@ -304,6 +304,26 @@ type FormulaOptimizationRow = {
   risk_note: string;
 };
 
+type StabilityPredictionResult = {
+  overall_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  viscosity_risk: string;
+  ph_risk: string;
+  separation_risk: string;
+  discoloration_risk: string;
+  odor_risk: string;
+  microbial_risk: string;
+  risk_notes: string[];
+  test_recommendations: string[];
+  formula_summary: {
+    oil_phase_percent: number;
+    water_phase_percent: number;
+    thickener_percent: number;
+    preservative_percent: number;
+    active_percent: number;
+  };
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -654,6 +674,8 @@ export default function Home() {
   const [optimizerMode, setOptimizerMode] = useState("원가절감");
   const [optimizerRows, setOptimizerRows] = useState<FormulaOptimizationRow[]>([]);
   const [optimizerStatus, setOptimizerStatus] = useState("");
+  const [stabilityPredictFormulaId, setStabilityPredictFormulaId] = useState("");
+  const [stabilityPrediction, setStabilityPrediction] = useState<StabilityPredictionResult | null>(null);
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5081,6 +5103,120 @@ export default function Home() {
     );
   }
 
+  function getFormulaIngredientRowsForPrediction(targetFormulaId: string) {
+    return formulaItems
+      .filter((item) => item.formulas?.id === targetFormulaId)
+      .flatMap((item) => {
+        const rawId = item.raw_materials?.id;
+        const inputPercent = Number(item.percentage || 0);
+        const compRows = rawId ? getCompositionRowsByRaw(rawId) : [];
+
+        return compRows.map((comp) => ({
+          raw_name: item.raw_materials?.raw_name || "",
+          raw_percent: inputPercent,
+          inci_name: comp.ingredients?.inci_name || "",
+          korean_name: comp.ingredients?.korean_name || "",
+          function_ko: comp.ingredients?.function_ko || "",
+          final_percent: (inputPercent * Number(comp.percentage || 0)) / 100,
+        }));
+      });
+  }
+
+  function includesAnyText(value: string, keywords: string[]) {
+    const text = String(value || "").toLowerCase();
+    return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+  }
+
+  function runStabilityPrediction() {
+    if (!stabilityPredictFormulaId) {
+      alert("예측할 처방을 선택하세요.");
+      return;
+    }
+
+    const rows = getFormulaIngredientRowsForPrediction(stabilityPredictFormulaId);
+
+    if (rows.length === 0) {
+      alert("원료조성표 기반 INCI 정보가 없습니다. 원료조성표를 먼저 등록하세요.");
+      return;
+    }
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        const text = `${row.inci_name} ${row.korean_name} ${row.function_ko} ${row.raw_name}`.toLowerCase();
+
+        if (includesAnyText(text, ["oil", "triglyceride", "squalane", "ester", "오일", "에몰리언트", "유상"])) acc.oil_phase_percent += row.final_percent;
+        if (includesAnyText(text, ["water", "aqua", "정제수", "수상"])) acc.water_phase_percent += row.final_percent;
+        if (includesAnyText(text, ["carbomer", "gum", "xanthan", "cellulose", "점증", "카보머", "검"])) acc.thickener_percent += row.final_percent;
+        if (includesAnyText(text, ["phenoxyethanol", "hexanediol", "ethylhexylglycerin", "preservative", "보존"])) acc.preservative_percent += row.final_percent;
+        if (includesAnyText(text, ["niacinamide", "retinol", "ascorbic", "panthenol", "adenosine", "salicylic", "active", "미백", "주름", "진정"])) acc.active_percent += row.final_percent;
+
+        return acc;
+      },
+      {
+        oil_phase_percent: 0,
+        water_phase_percent: 0,
+        thickener_percent: 0,
+        preservative_percent: 0,
+        active_percent: 0,
+      }
+    );
+
+    const riskNotes: string[] = [];
+    const testRecommendations: string[] = [];
+
+    if (summary.oil_phase_percent > 20 && summary.thickener_percent < 0.2) {
+      riskNotes.push("유상 비율이 높고 점증/안정화 성분이 낮아 분리 가능성이 있습니다.");
+      testRecommendations.push("45℃, 50℃, 동결융해, 원심분리 테스트를 우선 진행하세요.");
+    }
+
+    if (summary.thickener_percent > 1.2) {
+      riskNotes.push("점증제 총량이 높아 뭉침, 탄성 과다, 펌핑성 저하 가능성이 있습니다.");
+      testRecommendations.push("점도 주차 변화와 펌핑성/토출성 평가를 추가하세요.");
+    }
+
+    if (summary.preservative_percent < 0.7) {
+      riskNotes.push("보존 시스템이 낮을 수 있습니다. 미생물 안정성 확인이 필요합니다.");
+      testRecommendations.push("Challenge Test 또는 방부력 사전 스크리닝을 권장합니다.");
+    }
+
+    const hasRetinol = rows.some((row) => includesAnyText(`${row.inci_name} ${row.korean_name}`, ["retinol", "레티놀"]));
+    const hasAscorbic = rows.some((row) => includesAnyText(`${row.inci_name} ${row.korean_name}`, ["ascorbic", "아스코빅", "vitamin c"]));
+    const hasNiacinamide = rows.some((row) => includesAnyText(`${row.inci_name} ${row.korean_name}`, ["niacinamide", "나이아신"]));
+
+    if (hasRetinol) {
+      riskNotes.push("Retinol 계열은 광/열/산소에 민감합니다.");
+      testRecommendations.push("차광/에어리스 포장 검토 및 광안정성 테스트를 추가하세요.");
+    }
+
+    if (hasAscorbic) {
+      riskNotes.push("Ascorbic Acid 계열은 산화로 인한 변색/취 변화 가능성이 있습니다.");
+      testRecommendations.push("색상 ΔE, 냄새 변화, pH 주차 변화를 추적하세요.");
+    }
+
+    if (hasNiacinamide) {
+      riskNotes.push("Niacinamide는 저pH 조건에서 자극 이슈 가능성이 있어 pH 확인이 필요합니다.");
+      testRecommendations.push("pH 5.5~7.0 권장 범위 내 안정성 확인을 권장합니다.");
+    }
+
+    const riskCount = riskNotes.length;
+    const overallScore = Math.max(40, 95 - riskCount * 10);
+    const riskLevel: "LOW" | "MEDIUM" | "HIGH" = riskCount >= 5 ? "HIGH" : riskCount >= 2 ? "MEDIUM" : "LOW";
+
+    setStabilityPrediction({
+      overall_score: overallScore,
+      risk_level: riskLevel,
+      viscosity_risk: summary.thickener_percent > 1.2 ? "HIGH" : summary.thickener_percent < 0.1 ? "MEDIUM" : "LOW",
+      ph_risk: hasNiacinamide || hasAscorbic ? "MEDIUM" : "LOW",
+      separation_risk: summary.oil_phase_percent > 20 && summary.thickener_percent < 0.2 ? "HIGH" : summary.oil_phase_percent > 15 ? "MEDIUM" : "LOW",
+      discoloration_risk: hasRetinol || hasAscorbic ? "HIGH" : "LOW",
+      odor_risk: summary.oil_phase_percent > 15 ? "MEDIUM" : "LOW",
+      microbial_risk: summary.preservative_percent < 0.7 ? "HIGH" : "LOW",
+      risk_notes: riskNotes.length ? riskNotes : ["현재 처방 데이터 기준 주요 안정성 리스크가 낮습니다."],
+      test_recommendations: testRecommendations.length ? testRecommendations : ["일반 안정도: 4℃ / RT / 45℃ / 50℃ / Cycle 조건 확인 권장."],
+      formula_summary: summary,
+    });
+  }
+
   function getOptimizationFormulaItems(targetFormulaId: string) {
     return formulaItems.filter((item) => item.formulas?.id === targetFormulaId);
   }
@@ -6675,6 +6811,7 @@ export default function Home() {
       aiRegulation: ["manager", "ra", "qa", "senior", "researcher"],
       officialWatch: ["manager", "ra"],
       stability: ["manager", "qa", "senior", "researcher", "viewer"],
+      stabilityPredict: ["manager", "qa", "senior", "researcher"],
       approval: ["manager", "qa", "senior"],
       lock: ["manager", "qa", "senior"],
       stage: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -6765,6 +6902,7 @@ export default function Home() {
       title: "QA팀",
       items: [
         ["stability", "안정도관리"],
+        ["stabilityPredict", "AI 안정성예측"],
       ],
     },
     {
@@ -9825,6 +9963,72 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {menu === "stabilityPredict" && (
+          <>
+            <h1>v28.0 AI Stability Prediction Engine</h1>
+            <p style={{ color: "#6b7280" }}>
+              원료조성표와 처방 투입량을 기반으로 분리, 점도, pH, 변색, 취 변화, 미생물 리스크를 사전 예측합니다.
+            </p>
+
+            <h2>안정성 예측 조건</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
+              <select value={stabilityPredictFormulaId || ""} onChange={(e) => setStabilityPredictFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} v{formula.version} - {formula.formula_name}
+                  </option>
+                ))}
+              </select>
+
+              <button onClick={runStabilityPrediction} style={{ background: "#7c3aed" }}>
+                AI 안정성 예측 실행
+              </button>
+            </div>
+
+            {stabilityPrediction && (
+              <>
+                <h2>예측 결과</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}><strong>종합점수</strong><div>{stabilityPrediction.overall_score}/100</div></div>
+                  <div style={cardStyle}><strong>Risk</strong><div style={{ color: stabilityPrediction.risk_level === "HIGH" ? "red" : stabilityPrediction.risk_level === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>{stabilityPrediction.risk_level}</div></div>
+                  <div style={cardStyle}><strong>점도</strong><div>{stabilityPrediction.viscosity_risk}</div></div>
+                  <div style={cardStyle}><strong>pH</strong><div>{stabilityPrediction.ph_risk}</div></div>
+                  <div style={cardStyle}><strong>분리</strong><div>{stabilityPrediction.separation_risk}</div></div>
+                  <div style={cardStyle}><strong>변색</strong><div>{stabilityPrediction.discoloration_risk}</div></div>
+                  <div style={cardStyle}><strong>취 변화</strong><div>{stabilityPrediction.odor_risk}</div></div>
+                  <div style={cardStyle}><strong>미생물</strong><div>{stabilityPrediction.microbial_risk}</div></div>
+                </div>
+
+                <h3>처방 구조 요약</h3>
+                <table style={tableStyle}>
+                  <tbody>
+                    <tr><th>Water Phase 추정</th><td>{stabilityPrediction.formula_summary.water_phase_percent.toFixed(4)}%</td></tr>
+                    <tr><th>Oil Phase 추정</th><td>{stabilityPrediction.formula_summary.oil_phase_percent.toFixed(4)}%</td></tr>
+                    <tr><th>점증/안정화 성분</th><td>{stabilityPrediction.formula_summary.thickener_percent.toFixed(4)}%</td></tr>
+                    <tr><th>보존 시스템</th><td>{stabilityPrediction.formula_summary.preservative_percent.toFixed(4)}%</td></tr>
+                    <tr><th>활성 성분</th><td>{stabilityPrediction.formula_summary.active_percent.toFixed(4)}%</td></tr>
+                  </tbody>
+                </table>
+
+                <h3>예상 리스크</h3>
+                <ul>
+                  {stabilityPrediction.risk_notes.map((note, index) => (
+                    <li key={index}>{note}</li>
+                  ))}
+                </ul>
+
+                <h3>추천 안정도 시험</h3>
+                <ul>
+                  {stabilityPrediction.test_recommendations.map((note, index) => (
+                    <li key={index}>{note}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </>
         )}
 
