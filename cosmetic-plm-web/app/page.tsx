@@ -7929,6 +7929,143 @@ export default function Home() {
           </>
         )}
 
+        {menu === "regUpdate" && (
+          <>
+            <h1>Regulation Update Center</h1>
+            <p>
+              공식/공신력 자료를 CSV로 정리해 업로드하면 기존 국가별 규제 DB와 비교하여 신규/변경/동일 항목을 자동 감지합니다.
+            </p>
+
+            <h2>1순위 공식자료 업데이트 소스</h2>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>지역</th>
+                  <th>권장 소스</th>
+                  <th>PLM 처리 방식</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>EU</td>
+                  <td>European Commission CosIng / Cosmetics Regulation 1223/2009</td>
+                  <td>CSV 정리 후 INCI/CAS 기준 Import</td>
+                </tr>
+                <tr>
+                  <td>US</td>
+                  <td>FDA Prohibited & Restricted Ingredients</td>
+                  <td>제한/금지 성분 CSV 정리 후 Import</td>
+                </tr>
+                <tr>
+                  <td>ASEAN</td>
+                  <td>ASEAN Cosmetic Directive Annexes</td>
+                  <td>Annex II/III/VI 등 CSV 정리 후 Import</td>
+                </tr>
+                <tr>
+                  <td>China</td>
+                  <td>NMPA IECIC / 고시 자료</td>
+                  <td>IECIC 여부 및 제한/금지 업데이트</td>
+                </tr>
+                <tr>
+                  <td>Japan</td>
+                  <td>일본 화장품 기준/성분 고시</td>
+                  <td>제한/금지/주의 성분 CSV 정리 후 Import</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h2>공식자료 업로드 / 변경감지</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
+              <input
+                placeholder="자료명 예: EU CosIng Annex Update 2026-06"
+                value={regUpdateSourceName || ""}
+                onChange={(e) => setRegUpdateSourceName(e.target.value)}
+              />
+
+              <input
+                placeholder="공식자료 URL 또는 내부 근거 링크"
+                value={regUpdateSourceUrl || ""}
+                onChange={(e) => setRegUpdateSourceUrl(e.target.value)}
+              />
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={downloadOfficialRegulationUpdateTemplate}>
+                  업로드 CSV 양식 다운로드
+                </button>
+                <button onClick={applyRegulationUpdates} style={{ background: "#059669" }}>
+                  신규/변경사항 PLM 반영
+                </button>
+              </div>
+
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+
+                  if (file) {
+                    previewRegulationUpdateCsv(file);
+                    e.target.value = "";
+                  }
+                }}
+              />
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>{regUpdateStatus}</p>
+            </div>
+
+            <h2>변경감지 결과</h2>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+              {["ALL", "NEW", "UPDATE", "NO_CHANGE"].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setRegUpdateFilter(filter)}
+                  style={{ background: regUpdateFilter === filter ? "#2563eb" : "#6b7280" }}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th>국가</th>
+                  <th>INCI</th>
+                  <th>CAS</th>
+                  <th>규제유형</th>
+                  <th>한도(%)</th>
+                  <th>금지</th>
+                  <th>경고</th>
+                  <th>근거</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getFilteredRegUpdateRows().map((row, index) => (
+                  <tr key={`${row.country_code}-${row.inci_name}-${row.cas_no}-${index}`}>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        color: row.update_type === "NEW" ? "green" : row.update_type === "UPDATE" ? "#d97706" : "#6b7280",
+                      }}
+                    >
+                      {row.update_type}
+                    </td>
+                    <td>{row.country_code} / {row.country_name}</td>
+                    <td>{row.inci_name}</td>
+                    <td>{row.cas_no}</td>
+                    <td>{row.regulation_type}</td>
+                    <td>{row.max_percentage}</td>
+                    <td>{row.is_prohibited ? "YES" : "-"}</td>
+                    <td>{row.warning_message}</td>
+                    <td>{row.reference_note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {menu === "globalRegulation" && (
           <>
             <h1>Global Regulation Engine</h1>
