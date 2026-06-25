@@ -198,6 +198,21 @@ type SystemHealthItem = {
   action: string;
 };
 
+type EnterpriseKpi = {
+  label: string;
+  value: string | number;
+  status: "GOOD" | "WATCH" | "RISK";
+  note: string;
+};
+
+type LaunchGateItem = {
+  category: string;
+  status: "PASS" | "PENDING" | "BLOCK";
+  owner: string;
+  detail: string;
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -701,6 +716,8 @@ export default function EnterprisePage() {
   const [adminUserRole, setAdminUserRole] = useState<AdminUser["role"]>("researcher");
   const [adminFilter, setAdminFilter] = useState("ALL");
   const [productionMode, setProductionMode] = useState("Production");
+  const [launchGateItems, setLaunchGateItems] = useState<LaunchGateItem[]>([]);
+  const [dashboardStatus, setDashboardStatus] = useState("");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -873,6 +890,59 @@ export default function EnterprisePage() {
       healthWarn: healthItems.filter((item) => item.status === "WARN").length,
     };
   }, [adminUsers, adminAudits, healthItems]);
+
+  const executiveKpis = useMemo<EnterpriseKpi[]>(() => {
+    return [
+      {
+        label: "Active Projects",
+        value: projects.length,
+        status: projects.length > 0 ? "GOOD" : "RISK",
+        note: "진행 프로젝트 수",
+      },
+      {
+        label: "Formula Ready",
+        value: formulas.filter((item) => Math.abs(item.total_percent - 100) < 0.0001).length,
+        status: formulas.every((item) => Math.abs(item.total_percent - 100) < 0.0001) ? "GOOD" : "RISK",
+        note: "처방 총합 100% 기준",
+      },
+      {
+        label: "Ingredient DB",
+        value: ingredients.length,
+        status: ingredients.length >= 10 ? "GOOD" : ingredients.length >= 5 ? "WATCH" : "RISK",
+        note: "성분 DB 규모",
+      },
+      {
+        label: "QA Pending",
+        value: approvalRecords.filter((item) => item.status === "Requested").length,
+        status: approvalRecords.some((item) => item.status === "Requested") ? "WATCH" : "GOOD",
+        note: "승인 대기 건수",
+      },
+      {
+        label: "RA High Risk",
+        value: regImpacts.filter((item) => item.risk === "HIGH").length,
+        status: regImpacts.some((item) => item.risk === "HIGH") ? "RISK" : "GOOD",
+        note: "규제 영향도 HIGH",
+      },
+      {
+        label: "Supplier Overdue",
+        value: supplierTasks.filter((item) => item.request_status === "Overdue").length,
+        status: supplierTasks.some((item) => item.request_status === "Overdue") ? "RISK" : "GOOD",
+        note: "공급사 문서 지연",
+      },
+      {
+        label: "Customer Feedback",
+        value: sampleFeedbacks.filter((item) => item.status === "Feedback Received" || item.status === "Revision Needed").length,
+        status: sampleFeedbacks.some((item) => item.status === "Revision Needed") ? "WATCH" : "GOOD",
+        note: "피드백 및 Revision 필요",
+      },
+      {
+        label: "System Health",
+        value: healthItems.length ? `${healthItems.filter((item) => item.status === "PASS").length}/${healthItems.length}` : "Not Run",
+        status: healthItems.some((item) => item.status === "FAIL") ? "RISK" : healthItems.some((item) => item.status === "WARN") ? "WATCH" : "GOOD",
+        note: "Admin Health Check 기준",
+      },
+    ];
+  }, [projects, formulas, ingredients, approvalRecords, regImpacts, supplierTasks, sampleFeedbacks, healthItems]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -1861,13 +1931,116 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function runLaunchGateCheck() {
+    const items: LaunchGateItem[] = [
+      {
+        category: "Project",
+        status: projects.some((item) => item.status === "양산승인" || item.status === "출시") ? "PASS" : "PENDING",
+        owner: "R&D",
+        detail: "양산승인 또는 출시 상태 프로젝트 필요",
+        action: "Project Module에서 상태를 양산승인 이상으로 변경",
+      },
+      {
+        category: "Formula",
+        status: formulas.some((item) => item.status === "Released" || item.is_locked) ? "PASS" : "BLOCK",
+        owner: "R&D / QA",
+        detail: "Released 또는 Locked 처방 필요",
+        action: "Formula Module에서 최종 처방 Lock/Release 처리",
+      },
+      {
+        category: "QA Approval",
+        status: approvalRecords.some((item) => item.status === "Approved") ? "PASS" : "PENDING",
+        owner: "QA",
+        detail: "QA 승인 완료 필요",
+        action: "Quality Module에서 승인 처리",
+      },
+      {
+        category: "Ingredient",
+        status: ingredients.length >= 5 && rawMaterials.every((item) => Math.abs(item.composition_total - 100) < 0.0001) ? "PASS" : "BLOCK",
+        owner: "R&D",
+        detail: "성분 DB 및 원료조성 100% 확인",
+        action: "Ingredient Module에서 성분/원료조성 보완",
+      },
+      {
+        category: "Documents",
+        status: qualityStats.expired > 0 ? "BLOCK" : qualityStats.expiring > 0 ? "PENDING" : "PASS",
+        owner: "QC",
+        detail: `만료 ${qualityStats.expired}건 / 만료임박 ${qualityStats.expiring}건`,
+        action: "Quality 또는 Supplier Module에서 문서 갱신",
+      },
+      {
+        category: "Regulation",
+        status: regImpacts.some((item) => item.risk === "HIGH") ? "BLOCK" : regImpacts.length > 0 ? "PASS" : "PENDING",
+        owner: "RA",
+        detail: "규제 영향도 분석 필요",
+        action: "Regulation Module에서 영향도 분석 실행",
+      },
+      {
+        category: "Customer",
+        status: customerPortalItems.some((item) => item.submission_status === "Approved") ? "PASS" : "PENDING",
+        owner: "Sales",
+        detail: "고객 제출자료 승인 여부",
+        action: "Customer Module에서 제출자료 상태 확인",
+      },
+      {
+        category: "Supplier",
+        status: supplierStats.overdue > 0 ? "BLOCK" : supplierStats.requested > 0 ? "PENDING" : "PASS",
+        owner: "QC / SCM",
+        detail: `요청중 ${supplierStats.requested}건 / 지연 ${supplierStats.overdue}건`,
+        action: "Supplier Module에서 지연 문서 처리",
+      },
+    ];
+
+    setLaunchGateItems(items);
+    setDashboardStatus(
+      `Launch Gate 완료: PASS ${items.filter((item) => item.status === "PASS").length} / PENDING ${items.filter((item) => item.status === "PENDING").length} / BLOCK ${items.filter((item) => item.status === "BLOCK").length}`
+    );
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "RUN_LAUNCH_GATE",
+        module: "Executive Dashboard",
+        target: `BLOCK ${items.filter((item) => item.status === "BLOCK").length}`,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+  }
+
+  function exportExecutiveDashboardCsv() {
+    exportCsv("enterprise_executive_dashboard.csv", [
+      ["kpi", "value", "status", "note"],
+      ...executiveKpis.map((item) => [
+        item.label,
+        item.value,
+        item.status,
+        item.note,
+      ]),
+    ]);
+  }
+
+  function exportLaunchGateCsv() {
+    exportCsv("enterprise_launch_gate.csv", [
+      ["category", "status", "owner", "detail", "action"],
+      ...launchGateItems.map((item) => [
+        item.category,
+        item.status,
+        item.owner,
+        item.detail,
+        item.action,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 11</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 12</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / AI / Quality / Regulation / Customer / Supplier Module에 이어 Admin Module을 Enterprise 구조로 분리합니다. 사용자, 권한, Audit, System Health, Backup/Restore 운영 흐름을 검증합니다.
+            Enterprise 1차 모듈 전환을 바탕으로 Executive Dashboard와 Final Launch Gate를 구성합니다. 경영 KPI, 출시 준비도, Blocker, 모듈별 운영 현황을 한 화면에서 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -1882,16 +2055,76 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>고객공유</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{customerPortalItems.filter((item) => item.visible_to_customer).length}</div></div>
             <div style={cardStyle()}><strong>공급사요청</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{supplierTasks.length}</div></div>
             <div style={cardStyle()}><strong>Admin Users</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{adminUsers.length}</div></div>
+            <div style={cardStyle()}><strong>Launch Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{launchGateItems.filter((item) => item.status === "PASS").length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 11 목표</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>Executive KPI</h2>
+            <button onClick={exportExecutiveDashboardCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              KPI CSV
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px" }}>
+            {executiveKpis.map((kpi) => (
+              <div key={kpi.label} style={cardStyle()}>
+                <strong>{kpi.label}</strong>
+                <div style={{ fontSize: "28px", fontWeight: "bold", color: kpi.status === "GOOD" ? "#059669" : kpi.status === "WATCH" ? "#d97706" : "#dc2626" }}>{kpi.value}</div>
+                <div style={{ color: "#6b7280", fontSize: "13px" }}>{kpi.note}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>Final Launch Readiness Gate</h2>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={runLaunchGateCheck} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                Launch Gate Check
+              </button>
+              <button onClick={exportLaunchGateCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                Gate CSV
+              </button>
+            </div>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{dashboardStatus}</p>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Category</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Detail</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {launchGateItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Launch Gate Check를 실행하세요.</td></tr>}
+              {launchGateItems.map((item) => (
+                <tr key={item.category}>
+                  <td style={tableCellStyle()}>{item.category}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "PENDING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.detail}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 12 목표</h2>
           <ul>
-            <li>Admin Module 독립 UI 검증</li>
-            <li>사용자/권한, Audit Log, System Health, Production Readiness, Backup 흐름 통합</li>
-            <li>운영 전 데이터 품질과 권한 상태를 한 화면에서 확인</li>
-            <li>다음 단계에서 실제 user_profiles, audit_logs, backup 정책과 연결</li>
+            <li>Executive Dashboard 독립 UI 검증</li>
+            <li>Project / Formula / Ingredient / QA / RA / Supplier / Customer / Admin KPI 통합</li>
+            <li>Final Launch Readiness Gate와 출시 Blocker 관리</li>
+            <li>다음 단계에서 실제 Supabase 데이터 기반 KPI API로 분리</li>
           </ul>
         </section>
       </>
@@ -3084,7 +3317,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 11 Admin Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 12 Executive Dashboard & Launch Gate</p>
 
         {menus.map((item) => (
           <button
