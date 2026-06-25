@@ -360,6 +360,14 @@ type HealthIssue = {
   action: string;
 };
 
+type ProductionCheckItem = {
+  category: string;
+  item: string;
+  status: "PASS" | "WARN" | "FAIL";
+  detail: string;
+  action: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -726,6 +734,9 @@ export default function Home() {
   const [healthSeverityFilter, setHealthSeverityFilter] = useState("ALL");
   const [healthCategoryFilter, setHealthCategoryFilter] = useState("ALL");
   const [healthStatus, setHealthStatus] = useState("");
+  const [productionMode, setProductionMode] = useState("Production");
+  const [productionChecks, setProductionChecks] = useState<ProductionCheckItem[]>([]);
+  const [productionStatus, setProductionStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5177,6 +5188,133 @@ export default function Home() {
     return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
+  function runProductionReadinessCheck() {
+    const checks: ProductionCheckItem[] = [];
+
+    checks.push({
+      category: "Auth",
+      item: "로그인 사용자",
+      status: authUser ? "PASS" : "FAIL",
+      detail: authUser?.email || "로그인 정보 없음",
+      action: authUser ? "정상" : "로그인 설정을 확인하세요.",
+    });
+
+    checks.push({
+      category: "Auth",
+      item: "User Profile",
+      status: userProfile ? "PASS" : "WARN",
+      detail: userProfile ? `${userProfile.display_name} / ${userProfile.role}` : "프로필 없음",
+      action: userProfile ? "정상" : "user_profiles 자동 생성/권한 설정을 확인하세요.",
+    });
+
+    checks.push({
+      category: "Database",
+      item: "프로젝트 데이터",
+      status: projects.length > 0 ? "PASS" : "WARN",
+      detail: `${projects.length}건`,
+      action: projects.length > 0 ? "정상" : "샘플 프로젝트 또는 실제 프로젝트를 등록하세요.",
+    });
+
+    checks.push({
+      category: "Database",
+      item: "Global Ingredient Master",
+      status: globalIngredients.length >= 100 ? "PASS" : globalIngredients.length > 0 ? "WARN" : "FAIL",
+      detail: `${globalIngredients.length}건`,
+      action: globalIngredients.length >= 100 ? "정상" : "Seed DB/Bulk Import로 성분 DB를 보강하세요.",
+    });
+
+    checks.push({
+      category: "Database",
+      item: "국가별 규제 DB",
+      status: countryRegulations.length >= 20 ? "PASS" : countryRegulations.length > 0 ? "WARN" : "FAIL",
+      detail: `${countryRegulations.length}건`,
+      action: countryRegulations.length >= 20 ? "정상" : "Regulation Seed DB 또는 공식자료 업데이트를 진행하세요.",
+    });
+
+    checks.push({
+      category: "Formula",
+      item: "처방 총합 검증",
+      status: formulas.every((formula) => {
+        const itemCount = formulaItems.filter((item) => item.formulas?.id === formula.id).length;
+        if (itemCount === 0) return true;
+        return Math.abs(getFormulaTotal(formula.id) - 100) <= 0.0001;
+      }) ? "PASS" : "FAIL",
+      detail: "처방 총합 100% 검증",
+      action: "System Health에서 처방 총합 오류를 먼저 수정하세요.",
+    });
+
+    checks.push({
+      category: "Quality",
+      item: "원료문서 등록",
+      status: materialDocuments.length > 0 ? "PASS" : "WARN",
+      detail: `${materialDocuments.length}건`,
+      action: materialDocuments.length > 0 ? "정상" : "COA/MSDS/TDS 등 기본 문서를 업로드하세요.",
+    });
+
+    checks.push({
+      category: "Audit",
+      item: "Audit Log",
+      status: auditLogs.length > 0 ? "PASS" : "WARN",
+      detail: `${auditLogs.length}건`,
+      action: auditLogs.length > 0 ? "정상" : "운영 전 Audit 기록 흐름을 테스트하세요.",
+    });
+
+    checks.push({
+      category: "Approval",
+      item: "승인 Workflow",
+      status: approvalRequests.length > 0 ? "PASS" : "WARN",
+      detail: `${approvalRequests.length}건`,
+      action: approvalRequests.length > 0 ? "정상" : "샘플 승인 요청으로 Workflow를 검증하세요.",
+    });
+
+    checks.push({
+      category: "Backup",
+      item: "CSV Export",
+      status: "PASS",
+      detail: "각 모듈 CSV Export 사용 가능",
+      action: "운영 전 월 1회 백업 운영룰을 정하세요.",
+    });
+
+    const failCount = checks.filter((check) => check.status === "FAIL").length;
+    const warnCount = checks.filter((check) => check.status === "WARN").length;
+
+    setProductionChecks(checks);
+    setProductionStatus(`Production Readiness 완료: PASS ${checks.filter((c) => c.status === "PASS").length} / WARN ${warnCount} / FAIL ${failCount}`);
+  }
+
+  function exportProductionChecksCsv() {
+    const rows = productionChecks.map((check) => [
+      check.category,
+      check.item,
+      check.status,
+      check.detail,
+      check.action,
+    ]);
+
+    downloadCsv(
+      "production_readiness_checklist.csv",
+      ["category", "item", "status", "detail", "action"],
+      rows
+    );
+  }
+
+  function exportCoreBackupCsv() {
+    const rows = [
+      ["projects", projects.length],
+      ["raw_materials", materials.length],
+      ["ingredients", ingredients.length],
+      ["ingredient_master_global", globalIngredients.length],
+      ["formulas", formulas.length],
+      ["formula_items", formulaItems.length],
+      ["country_regulations", countryRegulations.length],
+      ["material_documents", materialDocuments.length],
+      ["approval_requests", approvalRequests.length],
+      ["audit_logs", auditLogs.length],
+    ];
+
+    downloadCsv("plm_core_backup_summary.csv", ["table", "record_count"], rows);
+  }
+
   function runSystemHealthCheck() {
     const issues: HealthIssue[] = [];
 
@@ -7245,6 +7383,7 @@ export default function Home() {
       dashboard: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       copilot: ["manager", "qa", "ra", "senior", "researcher"],
       health: ["manager", "qa", "ra", "senior"],
+      production: ["manager"],
       project: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       raw: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -7328,18 +7467,17 @@ export default function Home() {
       ],
     },
     {
-      title: "연구팀 R&D",
+      title: "연구개발",
       items: [
         ["project", "프로젝트관리"],
+        ["formula", "처방관리"],
         ["raw", "원료관리"],
         ["globalIngredient", "성분관리"],
         ["composition", "원료조성표"],
-        ["formula", "처방관리"],
         ["aiFormula", "AI 처방엔진"],
         ["formulaOptimizer", "AI 처방최적화"],
         ["aiIngredient", "AI 성분분석"],
         ["validation", "처방검증"],
-        ["stage", "개발일정"],
         ["cost", "원가관리"],
         ["bom", "BOM원가"],
         ["bomSimulator", "AI BOM 시뮬레이터"],
@@ -7347,20 +7485,15 @@ export default function Home() {
       ],
     },
     {
-      title: "QC팀",
+      title: "품질 QC",
       items: [
         ["documents", "원료문서센터"],
-      ],
-    },
-    {
-      title: "QA팀",
-      items: [
         ["stability", "안정도관리"],
         ["stabilityPredict", "AI 안정성예측"],
       ],
     },
     {
-      title: "RA팀",
+      title: "규제 RA",
       items: [
         ["regulation", "규제검증"],
         ["globalRegulation", "국가별규제"],
@@ -7378,6 +7511,7 @@ export default function Home() {
       title: "관리자",
       items: [
         ["health", "System Health"],
+        ["production", "Production Readiness"],
         ["lock", "처방잠금"],
         ["audit", "Audit Log"],
         ["trash", "휴지통"],
@@ -7486,7 +7620,7 @@ export default function Home() {
   }
 
   return (
-    <main style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial" }}>
+    <main style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial", background: "#f9fafb", overflow: "hidden" }}>
         <style jsx global>{`
           table {
             border-collapse: collapse;
@@ -7550,7 +7684,7 @@ export default function Home() {
           }
         `}</style>
 
-      <aside style={{ width: "260px", background: "#111827", color: "white", padding: "22px", overflowY: "auto", maxHeight: "100vh" }}>
+      <aside style={{ width: "280px", minWidth: "280px", background: "#111827", color: "white", padding: "22px", overflowY: "auto", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box" }}>
         <h2>🧪 Cosmetic PLM</h2>
         <p style={{ color: "#9ca3af", fontSize: "12px", marginTop: "-8px" }}>
           {getUserRoleLabel()} / {getPermissionLabel()}
@@ -7585,8 +7719,8 @@ export default function Home() {
                   style={{
                     display: "block",
                     width: "100%",
-                    margin: "6px 0",
-                    padding: "9px 10px",
+                    margin: "5px 0",
+                    padding: "8px 10px",
                     background: menu === key ? "#2563eb" : "#374151",
                     color: "white",
                     border: "none",
@@ -7605,6 +7739,87 @@ export default function Home() {
       </aside>
 
       <section style={{ flex: 1, padding: "40px" }}>
+        {menu === "production" && (
+          <>
+            <h1>v32.0 Production Readiness Center</h1>
+            <p style={{ color: "#6b7280" }}>
+              운영 배포 전 로그인, 권한, 데이터, 규제, 승인, Audit, 백업 준비 상태를 점검합니다.
+              개발일정 메뉴는 프로젝트관리와 중복되어 좌측 메뉴에서 제외하고 프로젝트관리 중심으로 통합하는 구조로 변경했습니다.
+            </p>
+
+            <h2>운영 모드</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <select value={productionMode || "Production"} onChange={(e) => setProductionMode(e.target.value)}>
+                <option value="Development">Development</option>
+                <option value="Training">Training</option>
+                <option value="Production">Production</option>
+              </select>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={runProductionReadinessCheck} style={{ background: "#7c3aed" }}>
+                  Production Readiness Check 실행
+                </button>
+                <button onClick={exportProductionChecksCsv} style={{ background: "#059669" }}>
+                  체크리스트 CSV 내보내기
+                </button>
+                <button onClick={exportCoreBackupCsv} style={{ background: "#0ea5e9" }}>
+                  Core Backup Summary 내보내기
+                </button>
+              </div>
+
+              <p style={{ color: "#2563eb", fontWeight: "bold" }}>{productionStatus}</p>
+            </div>
+
+            <h2>운영 준비 현황</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+              <div style={cardStyle}><strong>Mode</strong><div>{productionMode}</div></div>
+              <div style={cardStyle}><strong>PASS</strong><div style={{ color: "green", fontWeight: "bold" }}>{productionChecks.filter((c) => c.status === "PASS").length}</div></div>
+              <div style={cardStyle}><strong>WARN</strong><div style={{ color: "#d97706", fontWeight: "bold" }}>{productionChecks.filter((c) => c.status === "WARN").length}</div></div>
+              <div style={cardStyle}><strong>FAIL</strong><div style={{ color: "red", fontWeight: "bold" }}>{productionChecks.filter((c) => c.status === "FAIL").length}</div></div>
+              <div style={cardStyle}><strong>Users</strong><div>{userProfile ? 1 : 0}</div></div>
+              <div style={cardStyle}><strong>Projects</strong><div>{projects.length}</div></div>
+              <div style={cardStyle}><strong>Formulas</strong><div>{formulas.length}</div></div>
+              <div style={cardStyle}><strong>Audit</strong><div>{auditLogs.length}</div></div>
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>상태</th>
+                  <th>카테고리</th>
+                  <th>점검항목</th>
+                  <th>상세</th>
+                  <th>조치</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productionChecks.length === 0 && (
+                  <tr><td colSpan={5}>Production Readiness Check를 실행하세요.</td></tr>
+                )}
+                {productionChecks.map((check, index) => (
+                  <tr key={`${check.category}-${check.item}-${index}`}>
+                    <td style={{ color: check.status === "FAIL" ? "red" : check.status === "WARN" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {check.status}
+                    </td>
+                    <td>{check.category}</td>
+                    <td>{check.item}</td>
+                    <td>{check.detail}</td>
+                    <td>{check.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h2>운영 권장사항</h2>
+            <ul>
+              <li>개발일정은 별도 메뉴 대신 프로젝트관리 내 상태/단계 관리로 통합 운영하는 것을 권장합니다.</li>
+              <li>운영 전 System Health에서 HIGH 이슈를 먼저 0건으로 줄이세요.</li>
+              <li>정식 운영 시 Supabase RLS 정책을 Role 기반으로 세분화하세요.</li>
+              <li>월 1회 이상 CSV Export 백업과 Audit Log 검토를 운영 기준으로 설정하세요.</li>
+            </ul>
+          </>
+        )}
+
         {menu === "health" && (
           <>
             <h1>v31.0 System Health & Data Quality Center</h1>
