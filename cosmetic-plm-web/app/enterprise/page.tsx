@@ -17,6 +17,7 @@ type ModuleKey =
   | "dataIntegration"
   | "services"
   | "supabaseSchema"
+  | "supabaseBridge"
   | "admin";
 
 type EnterpriseProject = {
@@ -259,6 +260,22 @@ type SupabaseIndexPlan = {
   purpose: string;
 };
 
+type SupabaseBridgeItem = {
+  service: string;
+  table_name: string;
+  operation: "SELECT" | "INSERT" | "UPDATE" | "UPSERT" | "DELETE";
+  status: "READY" | "NEEDS_TEST" | "BLOCKED";
+  test_payload: string;
+  note: string;
+};
+
+type SupabaseSmokeTest = {
+  test_name: string;
+  status: "PASS" | "WARN" | "FAIL" | "READY";
+  detail: string;
+  next_action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -272,6 +289,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "dataIntegration", label: "Data Integration" },
   { key: "services", label: "Service Layer" },
   { key: "supabaseSchema", label: "Supabase Schema" },
+  { key: "supabaseBridge", label: "Supabase Bridge" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -778,6 +796,10 @@ export default function EnterprisePage() {
   const [supabaseIndexPlans, setSupabaseIndexPlans] = useState<SupabaseIndexPlan[]>([]);
   const [supabaseSchemaStatus, setSupabaseSchemaStatus] = useState("");
 
+  const [supabaseBridgeItems, setSupabaseBridgeItems] = useState<SupabaseBridgeItem[]>([]);
+  const [supabaseSmokeTests, setSupabaseSmokeTests] = useState<SupabaseSmokeTest[]>([]);
+  const [supabaseBridgeStatus, setSupabaseBridgeStatus] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1032,6 +1054,18 @@ export default function EnterprisePage() {
       indexes: supabaseIndexPlans.length,
     };
   }, [supabaseTablePlans, supabaseIndexPlans]);
+
+  const supabaseBridgeStats = useMemo(() => {
+    return {
+      total: supabaseBridgeItems.length,
+      ready: supabaseBridgeItems.filter((item) => item.status === "READY").length,
+      needsTest: supabaseBridgeItems.filter((item) => item.status === "NEEDS_TEST").length,
+      blocked: supabaseBridgeItems.filter((item) => item.status === "BLOCKED").length,
+      smokePass: supabaseSmokeTests.filter((item) => item.status === "PASS").length,
+      smokeWarn: supabaseSmokeTests.filter((item) => item.status === "WARN").length,
+      smokeFail: supabaseSmokeTests.filter((item) => item.status === "FAIL").length,
+    };
+  }, [supabaseBridgeItems, supabaseSmokeTests]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -2603,13 +2637,178 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateSupabaseBridgePlan() {
+    const items: SupabaseBridgeItem[] = [
+      {
+        service: "enterpriseSupabaseService.createProject",
+        table_name: "enterprise_projects",
+        operation: "INSERT",
+        status: "READY",
+        test_payload: "{ project_code, customer_name, project_name, status }",
+        note: "Project Module 등록 버튼을 Supabase insert로 교체",
+      },
+      {
+        service: "enterpriseSupabaseService.listProjects",
+        table_name: "enterprise_projects",
+        operation: "SELECT",
+        status: "READY",
+        test_payload: "order by created_at desc",
+        note: "Project 목록 조회",
+      },
+      {
+        service: "enterpriseSupabaseService.updateProjectStatus",
+        table_name: "enterprise_projects",
+        operation: "UPDATE",
+        status: "READY",
+        test_payload: "{ status, progress } by id/project_code",
+        note: "상태 변경 드롭다운 연결",
+      },
+      {
+        service: "enterpriseSupabaseService.createFormula",
+        table_name: "enterprise_formulas",
+        operation: "INSERT",
+        status: "READY",
+        test_payload: "{ formula_code, version, project_code, status }",
+        note: "Formula Module 처방 등록 연결",
+      },
+      {
+        service: "enterpriseSupabaseService.cloneFormula",
+        table_name: "enterprise_formulas",
+        operation: "INSERT",
+        status: "NEEDS_TEST",
+        test_payload: "source formula -> new version",
+        note: "clone 시 formula_items 복사 추가 필요",
+      },
+      {
+        service: "enterpriseSupabaseService.searchIngredients",
+        table_name: "ingredient_master_global",
+        operation: "SELECT",
+        status: "READY",
+        test_payload: "keyword + range pagination",
+        note: "대량 성분 DB 최적화 핵심",
+      },
+      {
+        service: "enterpriseSupabaseService.upsertIngredient",
+        table_name: "ingredient_master_global",
+        operation: "UPSERT",
+        status: "NEEDS_TEST",
+        test_payload: "{ inci_name, cas_no } unique 기준",
+        note: "현재 실제 unique constraint 확인 필요",
+      },
+      {
+        service: "enterpriseSupabaseService.createRawMaterial",
+        table_name: "enterprise_raw_materials",
+        operation: "INSERT",
+        status: "READY",
+        test_payload: "{ raw_code, raw_name, supplier, main_inci }",
+        note: "원료마스터 등록 연결",
+      },
+      {
+        service: "enterpriseSupabaseService.createAuditLog",
+        table_name: "audit_logs",
+        operation: "INSERT",
+        status: "READY",
+        test_payload: "{ actor, action, module, target, after_json }",
+        note: "모든 service 함수에서 공통 호출",
+      },
+      {
+        service: "enterpriseSupabaseService.listCustomerPortalItems",
+        table_name: "enterprise_customer_portal_items",
+        operation: "SELECT",
+        status: "NEEDS_TEST",
+        test_payload: "customer_name + visible_to_customer",
+        note: "외부 고객 RLS 적용 후 활성화",
+      },
+      {
+        service: "enterpriseSupabaseService.listSupplierTasks",
+        table_name: "enterprise_supplier_tasks",
+        operation: "SELECT",
+        status: "NEEDS_TEST",
+        test_payload: "supplier + request_status",
+        note: "외부 공급사 RLS 적용 후 활성화",
+      },
+    ];
+
+    setSupabaseBridgeItems(items);
+    setSupabaseBridgeStatus(`CRUD Bridge 생성 완료: ${items.length}개 연결 후보 / READY ${items.filter((item) => item.status === "READY").length}개`);
+  }
+
+  function runSupabaseSmokeChecklist() {
+    const tests: SupabaseSmokeTest[] = [
+      {
+        test_name: "Environment Variables",
+        status: "READY",
+        detail: ".env.local의 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 확인 필요",
+        next_action: "로컬에서 이미 로그인/DB 연동이 되고 있으면 PASS 처리 가능",
+      },
+      {
+        test_name: "Schema Applied",
+        status: "PASS",
+        detail: "phase15_enterprise_schema_fixed.sql 실행 성공 확인됨",
+        next_action: "Table Editor에서 enterprise_* 테이블 존재 확인",
+      },
+      {
+        test_name: "Project Insert",
+        status: "READY",
+        detail: "enterprise_projects insert 테스트 준비",
+        next_action: "Phase 17에서 createProject 버튼과 연결",
+      },
+      {
+        test_name: "Ingredient Pagination",
+        status: "READY",
+        detail: "ingredient_master_global range/search 테스트 준비",
+        next_action: "성분 1,000건 이상 데이터에서 pageSize 50 기준 확인",
+      },
+      {
+        test_name: "Audit Insert",
+        status: "READY",
+        detail: "audit_logs insert 테스트 준비",
+        next_action: "각 CRUD 성공 후 audit_logs에 기록",
+      },
+      {
+        test_name: "Customer/Supplier RLS",
+        status: "WARN",
+        detail: "외부 고객/공급사 계정 매핑 전까지는 제한 정책 활성화 보류",
+        next_action: "customer_accounts / supplier_accounts 매핑 테이블 설계 후 적용",
+      },
+    ];
+
+    setSupabaseSmokeTests(tests);
+  }
+
+  function exportSupabaseBridgeCsv() {
+    exportCsv("enterprise_supabase_crud_bridge.csv", [
+      ["service", "table_name", "operation", "status", "test_payload", "note"],
+      ...supabaseBridgeItems.map((item) => [
+        item.service,
+        item.table_name,
+        item.operation,
+        item.status,
+        item.test_payload,
+        item.note,
+      ]),
+    ]);
+  }
+
+  function exportSmokeTestCsv() {
+    exportCsv("enterprise_supabase_smoke_tests.csv", [
+      ["test_name", "status", "detail", "next_action"],
+      ...supabaseSmokeTests.map((item) => [
+        item.test_name,
+        item.status,
+        item.detail,
+        item.next_action,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 15</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 16</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise 1차 모듈 전환과 Service Layer Scaffold를 바탕으로 Supabase Schema & RLS Kit를 구성합니다. 실제 운영 DB 테이블, 인덱스, RLS 정책, 외부 고객/공급사 권한 분리를 위한 SQL 적용 준비 상태를 검증합니다.
+            Supabase Schema & RLS 적용 완료 이후 실제 CRUD 연결을 준비합니다. Enterprise 화면의 임시 데이터를 Supabase 테이블로 저장/조회/수정하기 위한 서비스 브릿지, Smoke Test, 적용 우선순위를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -2628,6 +2827,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Data Tables</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{dataMappings.length}</div></div>
             <div style={cardStyle()}><strong>Services</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{serviceLayerItems.length}</div></div>
             <div style={cardStyle()}><strong>Schema Plan</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{supabaseTablePlans.length}</div></div>
+            <div style={cardStyle()}><strong>CRUD Bridge</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{supabaseBridgeItems.length}</div></div>
           </div>
         </section>
 
@@ -2691,12 +2891,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 15 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 16 목표</h2>
           <ul>
-            <li>Supabase Schema & RLS Kit 독립 UI 검증</li>
-            <li>Enterprise 운영용 테이블/인덱스/RLS 초안 생성</li>
-            <li>customer/supplier 외부 계정의 데이터 접근 범위 분리 준비</li>
-            <li>다음 단계에서 SQL Editor 적용 후 실제 CRUD 서비스 연결</li>
+            <li>Supabase CRUD Bridge 독립 UI 검증</li>
+            <li>Project / Formula / Ingredient 우선 실제 CRUD 연결 준비</li>
+            <li>Smoke Test와 적용 우선순위 확인</li>
+            <li>다음 단계에서 Enterprise 화면의 useState 저장 로직을 Supabase service 호출로 교체</li>
           </ul>
         </section>
       </>
@@ -3693,6 +3893,110 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderSupabaseBridgeModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Supabase CRUD Bridge</h1>
+          <p style={{ color: "#6b7280" }}>
+            Phase 15에서 생성한 Supabase 테이블을 실제 Enterprise 화면과 연결하기 위한 CRUD 브릿지입니다.
+            Project / Formula / Ingredient부터 실제 DB 저장 구조로 이동합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Bridge</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{supabaseBridgeStats.total}</div></div>
+            <div style={cardStyle()}><strong>READY</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{supabaseBridgeStats.ready}</div></div>
+            <div style={cardStyle()}><strong>Need Test</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{supabaseBridgeStats.needsTest}</div></div>
+            <div style={cardStyle()}><strong>Blocked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{supabaseBridgeStats.blocked}</div></div>
+            <div style={cardStyle()}><strong>Smoke PASS</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{supabaseBridgeStats.smokePass}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateSupabaseBridgePlan} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              CRUD Bridge 생성
+            </button>
+            <button onClick={runSupabaseSmokeChecklist} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Smoke Checklist
+            </button>
+            <button onClick={exportSupabaseBridgeCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Bridge CSV
+            </button>
+            <button onClick={exportSmokeTestCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Smoke CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{supabaseBridgeStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>CRUD Bridge Plan</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Service</th>
+                <th style={tableCellStyle(true)}>Table</th>
+                <th style={tableCellStyle(true)}>Operation</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Test Payload</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supabaseBridgeItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>CRUD Bridge 생성을 실행하세요.</td></tr>}
+              {supabaseBridgeItems.map((item) => (
+                <tr key={`${item.service}-${item.operation}`}>
+                  <td style={tableCellStyle()}>{item.service}</td>
+                  <td style={tableCellStyle()}>{item.table_name}</td>
+                  <td style={tableCellStyle()}>{item.operation}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "READY" ? "#059669" : item.status === "NEEDS_TEST" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.test_payload}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Smoke Test Checklist</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Test</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Detail</th>
+                <th style={tableCellStyle(true)}>Next Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supabaseSmokeTests.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Smoke Checklist를 실행하세요.</td></tr>}
+              {supabaseSmokeTests.map((item) => (
+                <tr key={item.test_name}>
+                  <td style={tableCellStyle()}>{item.test_name}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "WARN" ? "#d97706" : item.status === "FAIL" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.detail}</td>
+                  <td style={tableCellStyle()}>{item.next_action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>실제 연동 우선순위</h2>
+          <ol>
+            <li>Project Module: 등록/목록/상태 변경을 enterprise_projects와 연결</li>
+            <li>Ingredient Module: ingredient_master_global 검색을 Supabase range/pagination으로 교체</li>
+            <li>Formula Module: 처방 등록/Clone/Lock을 enterprise_formulas와 연결</li>
+            <li>Audit Log: 모든 create/update 액션 성공 후 audit_logs insert</li>
+            <li>Customer/Supplier Portal: 외부 계정 RLS 매핑 후 활성화</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
   function renderSupabaseSchemaModule() {
     return (
       <>
@@ -4170,6 +4474,7 @@ export default function EnterprisePage() {
     if (active === "dataIntegration") return renderDataIntegrationModule();
     if (active === "services") return renderServiceLayerModule();
     if (active === "supabaseSchema") return renderSupabaseSchemaModule();
+    if (active === "supabaseBridge") return renderSupabaseBridgeModule();
     return renderAdminModule();
   }
 
@@ -4177,7 +4482,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 15 Supabase Schema & RLS Kit</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 16 Supabase CRUD Bridge</p>
 
         {menus.map((item) => (
           <button
