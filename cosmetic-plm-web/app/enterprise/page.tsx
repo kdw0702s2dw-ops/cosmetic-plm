@@ -79,6 +79,35 @@ type AiAnalysisResult = {
   next_actions: string[];
 };
 
+type QualityDocument = {
+  id: string;
+  raw_code: string;
+  raw_name: string;
+  supplier: string;
+  document_type: string;
+  document_title: string;
+  expiry_date: string;
+  status: "OK" | "EXPIRING" | "EXPIRED" | "MISSING";
+};
+
+type StabilityRecord = {
+  id: string;
+  formula_code: string;
+  condition: string;
+  week: string;
+  result: "PASS" | "WATCH" | "FAIL";
+  finding: string;
+};
+
+type ApprovalRecord = {
+  id: string;
+  target: string;
+  type: "Formula" | "Document" | "Launch";
+  requester: string;
+  approver: string;
+  status: "Requested" | "Approved" | "Rejected";
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -229,6 +258,59 @@ const initialRawMaterials: EnterpriseRawMaterial[] = [
   },
 ];
 
+const initialQualityDocuments: QualityDocument[] = [
+  {
+    id: "QD-001",
+    raw_code: "RM-001",
+    raw_name: "Glycerin 99.5%",
+    supplier: "A Supplier",
+    document_type: "MSDS",
+    document_title: "MSDS 2026",
+    expiry_date: "2027-01-01",
+    status: "OK",
+  },
+  {
+    id: "QD-002",
+    raw_code: "RM-002",
+    raw_name: "Niacinamide USP",
+    supplier: "B Supplier",
+    document_type: "COA",
+    document_title: "COA Lot 2026-01",
+    expiry_date: "2026-07-30",
+    status: "EXPIRING",
+  },
+];
+
+const initialStabilityRecords: StabilityRecord[] = [
+  {
+    id: "ST-001",
+    formula_code: "FC-001",
+    condition: "45℃",
+    week: "4W",
+    result: "PASS",
+    finding: "색/취/점도 특이사항 없음",
+  },
+  {
+    id: "ST-002",
+    formula_code: "FC-002",
+    condition: "Cycle",
+    week: "2W",
+    result: "WATCH",
+    finding: "점도 8% 감소, 추가 관찰 필요",
+  },
+];
+
+const initialApprovals: ApprovalRecord[] = [
+  {
+    id: "AP-001",
+    target: "FC-002 v2.0",
+    type: "Formula",
+    requester: "연구팀",
+    approver: "QA Manager",
+    status: "Requested",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -315,6 +397,18 @@ export default function EnterprisePage() {
   const [aiClaims, setAiClaims] = useState("보습, 진정, 비건, 저자극");
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
 
+  const [qualityDocuments, setQualityDocuments] = useState<QualityDocument[]>(initialQualityDocuments);
+  const [stabilityRecords, setStabilityRecords] = useState<StabilityRecord[]>(initialStabilityRecords);
+  const [approvalRecords, setApprovalRecords] = useState<ApprovalRecord[]>(initialApprovals);
+  const [qualityFilter, setQualityFilter] = useState("ALL");
+  const [newDocRawCode, setNewDocRawCode] = useState("RM-001");
+  const [newDocType, setNewDocType] = useState("COA");
+  const [newDocTitle, setNewDocTitle] = useState("");
+  const [newDocExpiry, setNewDocExpiry] = useState("");
+  const [newStabilityFormulaCode, setNewStabilityFormulaCode] = useState("FC-001");
+  const [newStabilityCondition, setNewStabilityCondition] = useState("45℃");
+  const [newStabilityFinding, setNewStabilityFinding] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -393,6 +487,22 @@ export default function EnterprisePage() {
       invalidComposition: rawMaterials.filter((item) => Math.abs(item.composition_total - 100) > 0.0001).length,
     };
   }, [ingredients, rawMaterials]);
+
+  const qualityStats = useMemo(() => {
+    return {
+      documents: qualityDocuments.length,
+      expiring: qualityDocuments.filter((item) => item.status === "EXPIRING").length,
+      expired: qualityDocuments.filter((item) => item.status === "EXPIRED").length,
+      stabilityWatch: stabilityRecords.filter((item) => item.result === "WATCH").length,
+      stabilityFail: stabilityRecords.filter((item) => item.result === "FAIL").length,
+      approvalPending: approvalRecords.filter((item) => item.status === "Requested").length,
+    };
+  }, [qualityDocuments, stabilityRecords, approvalRecords]);
+
+  const filteredQualityDocuments = useMemo(() => {
+    if (qualityFilter === "ALL") return qualityDocuments;
+    return qualityDocuments.filter((item) => item.status === qualityFilter);
+  }, [qualityFilter, qualityDocuments]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -761,13 +871,107 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function getDocumentStatusByExpiry(expiry: string): QualityDocument["status"] {
+    if (!expiry) return "MISSING";
+
+    const today = new Date();
+    const expiryDate = new Date(expiry);
+    const diffDays = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return "EXPIRED";
+    if (diffDays <= 60) return "EXPIRING";
+    return "OK";
+  }
+
+  function addQualityDocument() {
+    if (!newDocTitle) {
+      alert("문서명을 입력하세요.");
+      return;
+    }
+
+    const raw = rawMaterials.find((item) => item.raw_code === newDocRawCode);
+
+    const doc: QualityDocument = {
+      id: crypto.randomUUID(),
+      raw_code: newDocRawCode,
+      raw_name: raw?.raw_name || "-",
+      supplier: raw?.supplier || "-",
+      document_type: newDocType,
+      document_title: newDocTitle,
+      expiry_date: newDocExpiry,
+      status: getDocumentStatusByExpiry(newDocExpiry),
+    };
+
+    setQualityDocuments([doc, ...qualityDocuments]);
+    setNewDocTitle("");
+    setNewDocExpiry("");
+  }
+
+  function addStabilityRecord() {
+    if (!newStabilityFinding) {
+      alert("안정도 관찰 내용을 입력하세요.");
+      return;
+    }
+
+    const record: StabilityRecord = {
+      id: crypto.randomUUID(),
+      formula_code: newStabilityFormulaCode,
+      condition: newStabilityCondition,
+      week: "Initial",
+      result: newStabilityFinding.includes("분리") || newStabilityFinding.includes("변색") ? "WATCH" : "PASS",
+      finding: newStabilityFinding,
+    };
+
+    setStabilityRecords([record, ...stabilityRecords]);
+    setNewStabilityFinding("");
+  }
+
+  function approveRecord(id: string) {
+    setApprovalRecords((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "Approved" } : item
+      )
+    );
+  }
+
+  function rejectRecord(id: string) {
+    setApprovalRecords((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "Rejected" } : item
+      )
+    );
+  }
+
+  function requestFormulaApproval(formulaCode: string) {
+    const record: ApprovalRecord = {
+      id: crypto.randomUUID(),
+      target: formulaCode,
+      type: "Formula",
+      requester: "R&D",
+      approver: "QA Manager",
+      status: "Requested",
+    };
+
+    setApprovalRecords([record, ...approvalRecords]);
+    setActive("quality");
+  }
+
+  function exportQualityCsv() {
+    exportCsv("enterprise_quality_module.csv", [
+      ["section", "id", "target", "type", "status", "detail"],
+      ...qualityDocuments.map((doc) => ["document", doc.id, doc.raw_code, doc.document_type, doc.status, `${doc.document_title} / ${doc.expiry_date}`]),
+      ...stabilityRecords.map((record) => ["stability", record.id, record.formula_code, record.condition, record.result, record.finding]),
+      ...approvalRecords.map((record) => ["approval", record.id, record.target, record.type, record.status, `${record.requester} -> ${record.approver}`]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 6</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 7</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient Module에 이어 AI Module을 Enterprise 구조로 분리합니다. AI 처방, 규제, 안정성, 원가, 클레임 검토 흐름을 하나의 화면에서 검증합니다.
+            Project / Formula / Ingredient / AI Module에 이어 Quality Module을 Enterprise 구조로 분리합니다. 원료문서, 안정도, 승인 흐름을 하나의 QA/QC 화면에서 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -777,16 +981,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>원료</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{ingredientStats.rawTotal}</div></div>
             <div style={cardStyle()}><strong>규제주의</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#d97706" }}>{ingredientStats.restricted}</div></div>
             <div style={cardStyle()}><strong>AI 준비도</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{ingredients.length > 5 ? 85 : 70}</div></div>
+            <div style={cardStyle()}><strong>품질 문서</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{qualityDocuments.length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 6 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 7 목표</h2>
           <ul>
-            <li>AI Formula Generator 2.0 구조 검증</li>
-            <li>AI Ingredient / Regulation / Stability / BOM 흐름 통합</li>
-            <li>컨셉, 판매국가, 목표원가, 클레임 기반 분석</li>
-            <li>다음 단계에서 실제 PLM 데이터와 Supabase 기반 AI 서비스로 분리</li>
+            <li>Quality Module 독립 UI 검증</li>
+            <li>원료문서센터 / Supplier Portal / 안정도관리 / 승인 흐름 통합</li>
+            <li>문서 만료, 안정도 이슈, 승인 대기 건수를 한 화면에서 관리</li>
+            <li>다음 단계에서 실제 material_documents, stability_tests, approval_requests 테이블과 연결</li>
           </ul>
         </section>
       </>
@@ -941,7 +1146,8 @@ export default function EnterprisePage() {
                   <td style={tableCellStyle()}>{formula.revision_note}</td>
                   <td style={tableCellStyle()}>
                     <button onClick={() => cloneFormula(formula.id)} style={{ marginRight: "6px" }}>Clone</button>
-                    <button onClick={() => toggleFormulaLock(formula.id)}>{formula.is_locked ? "Unlock" : "Lock"}</button>
+                    <button onClick={() => toggleFormulaLock(formula.id)} style={{ marginRight: "6px" }}>{formula.is_locked ? "Unlock" : "Lock"}</button>
+                    <button onClick={() => requestFormulaApproval(`${formula.formula_code} v${formula.version}`)}>Approval</button>
                   </td>
                 </tr>
               ))}
@@ -1171,6 +1377,175 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderQualityModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Quality Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            원료문서, Supplier Portal, 안정도, 승인관리 흐름을 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>문서</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{qualityStats.documents}</div></div>
+            <div style={cardStyle()}><strong>만료임박</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{qualityStats.expiring}</div></div>
+            <div style={cardStyle()}><strong>만료</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{qualityStats.expired}</div></div>
+            <div style={cardStyle()}><strong>안정도 Watch</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{qualityStats.stabilityWatch}</div></div>
+            <div style={cardStyle()}><strong>승인대기</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{qualityStats.approvalPending}</div></div>
+          </div>
+
+          <button onClick={exportQualityCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+            Quality CSV Export
+          </button>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>원료문서 등록</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <select value={newDocRawCode} onChange={(e) => setNewDocRawCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {rawMaterials.map((raw) => (
+                <option key={raw.id} value={raw.raw_code}>{raw.raw_code} / {raw.raw_name} / {raw.supplier}</option>
+              ))}
+            </select>
+            <select value={newDocType} onChange={(e) => setNewDocType(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="COA">COA</option>
+              <option value="MSDS">MSDS</option>
+              <option value="TDS">TDS</option>
+              <option value="Specification">Specification</option>
+              <option value="Allergen Statement">Allergen Statement</option>
+              <option value="Vegan Statement">Vegan Statement</option>
+              <option value="Halal Statement">Halal Statement</option>
+              <option value="RSPO Statement">RSPO Statement</option>
+            </select>
+            <input value={newDocTitle} onChange={(e) => setNewDocTitle(e.target.value)} placeholder="문서명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={newDocExpiry} onChange={(e) => setNewDocExpiry(e.target.value)} placeholder="만료일 예: 2027-01-01" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <button onClick={addQualityDocument} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              문서 등록
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+            <select value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)}>
+              <option value="ALL">전체</option>
+              <option value="OK">OK</option>
+              <option value="EXPIRING">EXPIRING</option>
+              <option value="EXPIRED">EXPIRED</option>
+              <option value="MISSING">MISSING</option>
+            </select>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>원료코드</th>
+                <th style={tableCellStyle(true)}>원료명</th>
+                <th style={tableCellStyle(true)}>공급사</th>
+                <th style={tableCellStyle(true)}>문서유형</th>
+                <th style={tableCellStyle(true)}>문서명</th>
+                <th style={tableCellStyle(true)}>만료일</th>
+                <th style={tableCellStyle(true)}>상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredQualityDocuments.map((doc) => (
+                <tr key={doc.id}>
+                  <td style={tableCellStyle()}>{doc.raw_code}</td>
+                  <td style={tableCellStyle()}>{doc.raw_name}</td>
+                  <td style={tableCellStyle()}>{doc.supplier}</td>
+                  <td style={tableCellStyle()}>{doc.document_type}</td>
+                  <td style={tableCellStyle()}>{doc.document_title}</td>
+                  <td style={tableCellStyle()}>{doc.expiry_date || "-"}</td>
+                  <td style={{ ...tableCellStyle(), color: doc.status === "OK" ? "#059669" : doc.status === "EXPIRING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{doc.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>안정도 기록</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <select value={newStabilityFormulaCode} onChange={(e) => setNewStabilityFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name} v{formula.version}</option>
+              ))}
+            </select>
+            <select value={newStabilityCondition} onChange={(e) => setNewStabilityCondition(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="4℃">4℃</option>
+              <option value="RT">RT</option>
+              <option value="45℃">45℃</option>
+              <option value="50℃">50℃</option>
+              <option value="Cycle">Cycle</option>
+              <option value="Centrifuge">Centrifuge</option>
+            </select>
+            <textarea value={newStabilityFinding} onChange={(e) => setNewStabilityFinding(e.target.value)} placeholder="관찰 내용 예: 특이사항 없음 / 점도 감소 / 분리 발생" rows={3} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <button onClick={addStabilityRecord} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              안정도 기록 추가
+            </button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>처방</th>
+                <th style={tableCellStyle(true)}>조건</th>
+                <th style={tableCellStyle(true)}>시점</th>
+                <th style={tableCellStyle(true)}>결과</th>
+                <th style={tableCellStyle(true)}>관찰</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stabilityRecords.map((record) => (
+                <tr key={record.id}>
+                  <td style={tableCellStyle()}>{record.formula_code}</td>
+                  <td style={tableCellStyle()}>{record.condition}</td>
+                  <td style={tableCellStyle()}>{record.week}</td>
+                  <td style={{ ...tableCellStyle(), color: record.result === "PASS" ? "#059669" : record.result === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{record.result}</td>
+                  <td style={tableCellStyle()}>{record.finding}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>승인관리</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>대상</th>
+                <th style={tableCellStyle(true)}>유형</th>
+                <th style={tableCellStyle(true)}>요청자</th>
+                <th style={tableCellStyle(true)}>승인자</th>
+                <th style={tableCellStyle(true)}>상태</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {approvalRecords.map((record) => (
+                <tr key={record.id}>
+                  <td style={tableCellStyle()}>{record.target}</td>
+                  <td style={tableCellStyle()}>{record.type}</td>
+                  <td style={tableCellStyle()}>{record.requester}</td>
+                  <td style={tableCellStyle()}>{record.approver}</td>
+                  <td style={{ ...tableCellStyle(), color: record.status === "Approved" ? "#059669" : record.status === "Rejected" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{record.status}</td>
+                  <td style={tableCellStyle()}>
+                    {record.status === "Requested" ? (
+                      <>
+                        <button onClick={() => approveRecord(record.id)} style={{ marginRight: "6px" }}>Approve</button>
+                        <button onClick={() => rejectRecord(record.id)}>Reject</button>
+                      </>
+                    ) : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -1187,7 +1562,7 @@ export default function EnterprisePage() {
     if (active === "formula") return renderFormulaModule();
     if (active === "ingredient") return renderIngredientModule();
     if (active === "ai") return renderAiModule();
-    if (active === "quality") return renderSimpleModule("Quality Module", ["원료문서센터", "Supplier Portal", "안정도관리", "AI 안정성예측"]);
+    if (active === "quality") return renderQualityModule();
     if (active === "regulation") return renderSimpleModule("Regulation Module", ["규제검증", "국가별규제", "Regulation Update", "AI 규제질의", "PIF/CPSR"]);
     if (active === "customer") return renderSimpleModule("Customer Module", ["Customer Portal Lite", "고객제출패키지", "샘플 피드백", "고객별 현황"]);
     if (active === "supplier") return renderSimpleModule("Supplier Module", ["Supplier Portal Lite", "문서 요청", "만료 알림", "업로드 양식"]);
@@ -1198,7 +1573,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 6 AI Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 7 Quality Module</p>
 
         {menus.map((item) => (
           <button
