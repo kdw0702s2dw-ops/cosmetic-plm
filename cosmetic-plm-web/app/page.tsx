@@ -309,6 +309,32 @@ type FullIlItem = {
   function_ko: string;
 };
 
+type AiFormulaSuggestion = {
+  phase: string;
+  inci_name: string;
+  korean_name: string;
+  purpose: string;
+  recommended_percent: number;
+  min_percent: number;
+  max_percent: number;
+  raw_material_id?: string;
+  raw_material_name?: string;
+  unit_price?: number;
+  cost?: number;
+  note: string;
+};
+
+type AiFormulaResult = {
+  formula_type: string;
+  concept: string;
+  target_ph: string;
+  target_viscosity: string;
+  total_percent: number;
+  estimated_cost: number;
+  risk_notes: string[];
+  suggestions: AiFormulaSuggestion[];
+};
+
 export default function Home() {
   const [menu, setMenu] = useState("dashboard");
 
@@ -469,6 +495,16 @@ export default function Home() {
   const [formulaTab, setFormulaTab] = useState("basic");
   const [compareFormulaIdA, setCompareFormulaIdA] = useState("");
   const [compareFormulaIdB, setCompareFormulaIdB] = useState("");
+
+  const [aiFormulaType, setAiFormulaType] = useState("수분크림");
+  const [aiConcept, setAiConcept] = useState("고보습, 저자극");
+  const [aiTargetCost, setAiTargetCost] = useState("5000");
+  const [aiTargetCountries, setAiTargetCountries] = useState("KR,EU,CN,US,JP,ASEAN");
+  const [aiAvoidIngredients, setAiAvoidIngredients] = useState("");
+  const [aiRequiredIngredients, setAiRequiredIngredients] = useState("");
+  const [aiDraftCode, setAiDraftCode] = useState("");
+  const [aiDraftName, setAiDraftName] = useState("");
+  const [aiResult, setAiResult] = useState<AiFormulaResult | null>(null);
 
   const [breakdownFormulaId, setBreakdownFormulaId] = useState("");
   const [fullIlFormulaId, setFullIlFormulaId] = useState("");
@@ -2729,6 +2765,265 @@ export default function Home() {
 
       return Number(b.final_percentage || 0) - Number(a.final_percentage || 0);
     });
+  }
+
+  function normalizeTextForAi(value: string) {
+    return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function findGlobalIngredientByKeywords(keywords: string[]) {
+    return globalIngredients.find((item) => {
+      const text = normalizeTextForAi(
+        [
+          item.inci_name,
+          item.korean_name,
+          item.function_ko,
+          item.function_en,
+          item.regulation_note,
+          item.iecic_status,
+          item.cosmos_status,
+          item.vegan_status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      return keywords.some((keyword) => text.includes(normalizeTextForAi(keyword)));
+    });
+  }
+
+  function findRawMaterialForIngredient(inciName: string, koreanName: string) {
+    const normalizedInci = normalizeTextForAi(inciName);
+    const normalizedKo = normalizeTextForAi(koreanName);
+
+    const direct = materials.find((material) => {
+      const rawText = normalizeTextForAi(`${material.raw_name} ${material.raw_code}`);
+      return rawText.includes(normalizedInci) || rawText.includes(normalizedKo);
+    });
+
+    if (direct) return direct;
+
+    const composition = compositions.find((row) => {
+      const inci = normalizeTextForAi(row.ingredients?.inci_name || "");
+      const ko = normalizeTextForAi(row.ingredients?.korean_name || "");
+
+      return inci === normalizedInci || ko === normalizedKo || inci.includes(normalizedInci) || ko.includes(normalizedKo);
+    });
+
+    return composition?.raw_materials || undefined;
+  }
+
+  function buildAiSuggestion(
+    phase: string,
+    keywords: string[],
+    fallbackInci: string,
+    fallbackKo: string,
+    purpose: string,
+    recommendedPercent: number,
+    minPercent: number,
+    maxPercent: number,
+    note: string
+  ): AiFormulaSuggestion {
+    const global = findGlobalIngredientByKeywords(keywords) || {
+      inci_name: fallbackInci,
+      korean_name: fallbackKo,
+    } as GlobalIngredient;
+
+    const raw = findRawMaterialForIngredient(global.inci_name || fallbackInci, global.korean_name || fallbackKo);
+    const unitPrice = Number(raw?.unit_price || 0);
+    const cost = raw ? (unitPrice * recommendedPercent) / 100 : 0;
+
+    return {
+      phase,
+      inci_name: global.inci_name || fallbackInci,
+      korean_name: global.korean_name || fallbackKo,
+      purpose,
+      recommended_percent: recommendedPercent,
+      min_percent: minPercent,
+      max_percent: maxPercent,
+      raw_material_id: raw?.id,
+      raw_material_name: raw?.raw_name,
+      unit_price: unitPrice,
+      cost,
+      note: raw ? note : `${note} / 원료마스터 매칭 필요`,
+    };
+  }
+
+  function getAiFormulaTemplate() {
+    const type = normalizeTextForAi(aiFormulaType);
+    const concept = normalizeTextForAi(aiConcept);
+    const required = normalizeTextForAi(aiRequiredIngredients);
+    const avoid = normalizeTextForAi(aiAvoidIngredients);
+
+    const suggestions: AiFormulaSuggestion[] = [];
+
+    suggestions.push(buildAiSuggestion("Phase A", ["water", "aqua", "정제수"], "Water", "정제수", "Base", 70, 50, 90, "기본 수상 베이스"));
+    suggestions.push(buildAiSuggestion("Phase A", ["glycerin", "글리세린"], "Glycerin", "글리세린", "Humectant", concept.includes("고보습") ? 5 : 3, 1, 10, "기본 보습제"));
+    suggestions.push(buildAiSuggestion("Phase A", ["betaine", "베타인"], "Betaine", "베타인", "Humectant / Mildness", concept.includes("저자극") ? 3 : 2, 0.5, 5, "저자극 보습 보조"));
+    suggestions.push(buildAiSuggestion("Phase A", ["panthenol", "판테놀"], "Panthenol", "판테놀", "Soothing", concept.includes("진정") || concept.includes("저자극") ? 1 : 0.5, 0.1, 5, "진정 및 장벽 보조"));
+
+    if (type.includes("크림") || type.includes("로션") || type.includes("cream")) {
+      suggestions.push(buildAiSuggestion("Phase B", ["caprylic", "triglyceride", "카프릴릭"], "Caprylic/Capric Triglyceride", "카프릴릭/카프릭트라이글리세라이드", "Emollient", 6, 2, 15, "가벼운 에몰리언트"));
+      suggestions.push(buildAiSuggestion("Phase B", ["squalane", "스쿠알란"], "Squalane", "스쿠알란", "Emollient", concept.includes("프리미엄") ? 3 : 1.5, 0.5, 10, "보습막 및 사용감 개선"));
+      suggestions.push(buildAiSuggestion("Phase B", ["cetearyl alcohol", "세테아릴"], "Cetearyl Alcohol", "세테아릴알코올", "Consistency", 2, 0.5, 5, "크림 점도 및 바디감"));
+      suggestions.push(buildAiSuggestion("Phase B", ["glyceryl stearate", "글리세릴스테아레이트"], "Glyceryl Stearate", "글리세릴스테아레이트", "Emulsifier", 2.5, 1, 5, "기본 유화제"));
+    }
+
+    if (type.includes("세럼") || type.includes("앰플") || type.includes("serum")) {
+      suggestions.push(buildAiSuggestion("Phase A", ["butylene glycol", "부틸렌글라이콜"], "Butylene Glycol", "부틸렌글라이콜", "Humectant / Solvent", 5, 1, 10, "세럼 보습 및 용제"));
+      suggestions.push(buildAiSuggestion("Phase C", ["sodium hyaluronate", "하이알루로네이트"], "Sodium Hyaluronate", "소듐하이알루로네이트", "Moisturizing", 0.1, 0.01, 1, "고보습 컨셉 핵심"));
+    }
+
+    if (concept.includes("미백") || required.includes("나이아신") || required.includes("niacinamide")) {
+      suggestions.push(buildAiSuggestion("Phase A", ["niacinamide", "나이아신"], "Niacinamide", "나이아신아마이드", "Brightening", 2, 0.5, 5, "미백/톤 케어 컨셉"));
+    }
+
+    if (concept.includes("장벽") || concept.includes("세라마이드") || required.includes("ceramide")) {
+      suggestions.push(buildAiSuggestion("Phase C", ["ceramide", "세라마이드"], "Ceramide NP", "세라마이드엔피", "Barrier Care", 0.05, 0.01, 0.5, "장벽 케어 컨셉"));
+    }
+
+    suggestions.push(buildAiSuggestion("Phase C", ["allantoin", "알란토인"], "Allantoin", "알란토인", "Soothing", 0.2, 0.05, 0.5, "피부 진정 보조"));
+    suggestions.push(buildAiSuggestion("Phase C", ["1,2-hexanediol", "헥산다이올"], "1,2-Hexanediol", "1,2-헥산다이올", "Preservative Booster", 1.5, 0.5, 3, "보존 보조 및 보습"));
+    suggestions.push(buildAiSuggestion("Phase C", ["ethylhexylglycerin", "에틸헥실글리세린"], "Ethylhexylglycerin", "에틸헥실글리세린", "Preservative Booster", 0.3, 0.1, 1, "보존 보조"));
+
+    const filtered = suggestions.filter((item) => {
+      const text = normalizeTextForAi(`${item.inci_name} ${item.korean_name}`);
+      return !avoid || !avoid.split(",").some((keyword) => keyword.trim() && text.includes(normalizeTextForAi(keyword.trim())));
+    });
+
+    const subtotal = filtered.reduce((sum, item) => sum + Number(item.recommended_percent || 0), 0);
+    const water = filtered.find((item) => normalizeTextForAi(item.inci_name) === "water");
+
+    if (water) {
+      water.recommended_percent = Math.max(0, 100 - (subtotal - water.recommended_percent));
+      water.cost = water.raw_material_id ? (Number(water.unit_price || 0) * water.recommended_percent) / 100 : 0;
+    }
+
+    return filtered;
+  }
+
+  function checkAiRegulationRisks(suggestions: AiFormulaSuggestion[]) {
+    const countries = aiTargetCountries
+      .split(",")
+      .map((country) => country.trim().toUpperCase())
+      .filter(Boolean);
+
+    const risks: string[] = [];
+
+    suggestions.forEach((item) => {
+      countries.forEach((country) => {
+        const match = countryRegulations.find((reg) => {
+          const sameCountry = reg.country_code?.toUpperCase() === country;
+          const sameInci = item.inci_name && reg.inci_name?.toLowerCase() === item.inci_name.toLowerCase();
+          const sameCas = false;
+
+          return sameCountry && (sameInci || sameCas);
+        });
+
+        if (!match) return;
+
+        if (match.is_prohibited) {
+          risks.push(`${country}: ${item.inci_name} 금지성분 가능성 - ${match.warning_message}`);
+          return;
+        }
+
+        if (Number(match.max_percentage || 0) > 0 && item.recommended_percent > Number(match.max_percentage || 0)) {
+          risks.push(`${country}: ${item.inci_name} ${item.recommended_percent}% > 허용 ${match.max_percentage}%`);
+          return;
+        }
+
+        if (match.regulation_type === "Warning") {
+          risks.push(`${country}: ${item.inci_name} 주의 - ${match.warning_message}`);
+        }
+      });
+    });
+
+    return risks;
+  }
+
+  function generateAiFormula() {
+    const suggestions = getAiFormulaTemplate();
+    const estimatedCost = suggestions.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+    const total = suggestions.reduce((sum, item) => sum + Number(item.recommended_percent || 0), 0);
+    const riskNotes = checkAiRegulationRisks(suggestions);
+
+    setAiResult({
+      formula_type: aiFormulaType,
+      concept: aiConcept,
+      target_ph: aiFormulaType.includes("크림") ? "5.5 ~ 6.5" : "5.0 ~ 6.5",
+      target_viscosity: aiFormulaType.includes("크림") ? "20,000 ~ 60,000 cPs" : "제품 유형별 설정 필요",
+      total_percent: total,
+      estimated_cost: estimatedCost,
+      risk_notes: riskNotes,
+      suggestions,
+    });
+  }
+
+  async function createFormulaFromAiDraft() {
+    if (!assertCanEdit()) return;
+
+    if (!aiResult) {
+      alert("먼저 AI 처방 초안을 생성하세요.");
+      return;
+    }
+
+    const codeValue = aiDraftCode || `AI-${new Date().getFullYear()}-${String(formulas.length + 1).padStart(3, "0")}`;
+    const nameValue = aiDraftName || `${aiFormulaType} AI Draft`;
+
+    const { data: newFormula, error } = await supabase
+      .from("formulas")
+      .insert([
+        {
+          formula_code: codeValue,
+          formula_name: nameValue,
+          version: "0.1",
+          revision_no: 1,
+          revision_note: `AI Formula Assistant Draft / ${aiConcept}`,
+          target_cost: Number(aiTargetCost || 0),
+          selling_price: 0,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      alert("AI 처방 저장 오류: " + error.message);
+      return;
+    }
+
+    const items = aiResult.suggestions
+      .filter((item) => item.raw_material_id)
+      .map((item) => ({
+        formula_id: newFormula.id,
+        raw_material_id: item.raw_material_id,
+        phase: item.phase,
+        percentage: Number(item.recommended_percent || 0),
+        remark: `AI 추천: ${item.purpose} / ${item.note}`,
+      }));
+
+    if (items.length > 0) {
+      const { error: itemError } = await supabase.from("formula_items").insert(items);
+
+      if (itemError) {
+        alert("AI 처방 원료 저장 오류: " + itemError.message);
+        return;
+      }
+    }
+
+    await logAudit("AI Formula Assistant", newFormula.id, "AI 처방초안 생성", null, {
+      formula_code: codeValue,
+      formula_name: nameValue,
+      concept: aiConcept,
+      item_count: items.length,
+      estimated_cost: aiResult.estimated_cost,
+      risks: aiResult.risk_notes,
+    });
+
+    setSelectedFormulaId(newFormula.id);
+    setFormulaId(newFormula.id);
+    setMenu("formula");
+    alert(`AI 처방 초안 저장 완료: ${codeValue} / 원료 ${items.length}개 연결`);
+    loadAll();
   }
 
   async function addFormula() {
@@ -5350,6 +5645,7 @@ export default function Home() {
       global: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       formula: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      aiFormula: ["manager", "qa", "ra", "senior", "researcher"],
       validation: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       regulation: ["manager", "qa", "ra", "viewer"],
       globalRegulation: ["manager", "ra", "viewer"],
@@ -5425,6 +5721,7 @@ export default function Home() {
         ["globalIngredient", "성분관리"],
         ["composition", "원료조성표"],
         ["formula", "처방관리"],
+        ["aiFormula", "AI 처방엔진"],
         ["validation", "처방검증"],
         ["stage", "개발일정"],
         ["cost", "원가관리"],
