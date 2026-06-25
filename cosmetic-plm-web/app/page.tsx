@@ -291,6 +291,19 @@ type OfficialSourceWatch = {
   note: string;
 };
 
+type FormulaOptimizationRow = {
+  raw_material_id: string;
+  raw_code: string;
+  raw_name: string;
+  current_percent: number;
+  suggested_percent: number;
+  current_cost: number;
+  suggested_cost: number;
+  saving: number;
+  reason: string;
+  risk_note: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -636,6 +649,11 @@ export default function Home() {
   const [aiRegCountry, setAiRegCountry] = useState("EU");
   const [officialWatchText, setOfficialWatchText] = useState("");
   const [officialWatchResult, setOfficialWatchResult] = useState<string[]>([]);
+  const [optimizerFormulaId, setOptimizerFormulaId] = useState("");
+  const [optimizerTargetCost, setOptimizerTargetCost] = useState("");
+  const [optimizerMode, setOptimizerMode] = useState("원가절감");
+  const [optimizerRows, setOptimizerRows] = useState<FormulaOptimizationRow[]>([]);
+  const [optimizerStatus, setOptimizerStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5063,6 +5081,142 @@ export default function Home() {
     );
   }
 
+  function getOptimizationFormulaItems(targetFormulaId: string) {
+    return formulaItems.filter((item) => item.formulas?.id === targetFormulaId);
+  }
+
+  function getAlternativeRawMaterials(sourceRaw: RawMaterial) {
+    const sourceComps = getCompositionRowsByRaw(sourceRaw.id);
+    const sourceFunctionText = sourceComps
+      .map((comp) => `${comp.ingredients?.function_ko || ""}`)
+      .join(" ")
+      .toLowerCase();
+
+    return materials
+      .filter((raw) => raw.id !== sourceRaw.id)
+      .filter((raw) => Number(raw.unit_price || 0) > 0 && Number(raw.unit_price || 0) < Number(sourceRaw.unit_price || 0))
+      .filter((raw) => {
+        const comps = getCompositionRowsByRaw(raw.id);
+        const text = comps.map((comp) => `${comp.ingredients?.function_ko || ""}`).join(" ").toLowerCase();
+
+        if (!sourceFunctionText) return raw.raw_name.toLowerCase().includes(sourceRaw.raw_name.toLowerCase().slice(0, 4));
+        if (sourceFunctionText.includes("보습") || sourceFunctionText.includes("humectant")) return text.includes("보습") || text.includes("humectant");
+        if (sourceFunctionText.includes("emollient") || sourceFunctionText.includes("에몰리언트")) return text.includes("emollient") || text.includes("에몰리언트");
+        if (sourceFunctionText.includes("보존") || sourceFunctionText.includes("preservative")) return text.includes("보존") || text.includes("preservative");
+
+        return false;
+      })
+      .slice(0, 3);
+  }
+
+  function runFormulaOptimizer() {
+    if (!optimizerFormulaId) {
+      alert("최적화할 처방을 선택하세요.");
+      return;
+    }
+
+    const selectedFormula = formulas.find((formula) => formula.id === optimizerFormulaId);
+    const items = getOptimizationFormulaItems(optimizerFormulaId);
+
+    if (!selectedFormula || items.length === 0) {
+      alert("처방 원료가 없습니다.");
+      return;
+    }
+
+    const targetCost = Number(optimizerTargetCost || selectedFormula.target_cost || 0);
+    const currentCost = getFormulaCost(optimizerFormulaId);
+    const rows: FormulaOptimizationRow[] = [];
+
+    items.forEach((item) => {
+      const raw = item.raw_materials;
+      const currentPercent = Number(item.percentage || 0);
+      const unitPrice = Number(raw?.unit_price || 0);
+      const currentCostRow = (unitPrice * currentPercent) / 100;
+
+      if (!raw || unitPrice <= 0 || currentPercent <= 0) return;
+
+      const alternatives = getAlternativeRawMaterials(raw);
+      const cheaper = alternatives[0];
+
+      if (cheaper && optimizerMode === "원가절감") {
+        const suggestedCost = (Number(cheaper.unit_price || 0) * currentPercent) / 100;
+
+        rows.push({
+          raw_material_id: raw.id,
+          raw_code: raw.raw_code,
+          raw_name: `${raw.raw_name} → ${cheaper.raw_name}`,
+          current_percent: currentPercent,
+          suggested_percent: currentPercent,
+          current_cost: currentCostRow,
+          suggested_cost: suggestedCost,
+          saving: currentCostRow - suggestedCost,
+          reason: "동일/유사 기능의 저가 원료 후보 발견",
+          risk_note: "대체 시 사용감, 안정도, 규제, 공급사 문서 재확인 필요",
+        });
+      } else if (optimizerMode === "사용감개선" && currentPercent > 5 && unitPrice > 0) {
+        const suggestedPercent = Math.max(currentPercent * 0.9, currentPercent - 1);
+        const suggestedCost = (unitPrice * suggestedPercent) / 100;
+
+        rows.push({
+          raw_material_id: raw.id,
+          raw_code: raw.raw_code,
+          raw_name: raw.raw_name,
+          current_percent: currentPercent,
+          suggested_percent: suggestedPercent,
+          current_cost: currentCostRow,
+          suggested_cost: suggestedCost,
+          saving: currentCostRow - suggestedCost,
+          reason: "고함량 원료 사용감/끈적임 저감을 위한 10% 감량 제안",
+          risk_note: "효능/클레임 유지 가능 여부 확인 필요",
+        });
+      } else if (optimizerMode === "목표원가" && targetCost > 0 && currentCost > targetCost && currentCostRow > 0) {
+        const reductionRate = Math.min(0.15, (currentCost - targetCost) / currentCost);
+        const suggestedPercent = currentPercent * (1 - reductionRate);
+        const suggestedCost = (unitPrice * suggestedPercent) / 100;
+
+        rows.push({
+          raw_material_id: raw.id,
+          raw_code: raw.raw_code,
+          raw_name: raw.raw_name,
+          current_percent: currentPercent,
+          suggested_percent: suggestedPercent,
+          current_cost: currentCostRow,
+          suggested_cost: suggestedCost,
+          saving: currentCostRow - suggestedCost,
+          reason: `목표원가 ${targetCost.toLocaleString()}원/kg 달성을 위한 부분 감량 제안`,
+          risk_note: "처방 밸런스 및 효능 유지 확인 필요",
+        });
+      }
+    });
+
+    const totalSaving = rows.reduce((sum, row) => sum + row.saving, 0);
+
+    setOptimizerRows(rows.sort((a, b) => b.saving - a.saving));
+    setOptimizerStatus(
+      `최적화 분석 완료: 제안 ${rows.length}건 / 현재 원가 ${currentCost.toFixed(0)}원/kg / 예상 절감 ${totalSaving.toFixed(0)}원/kg / 예상 원가 ${(currentCost - totalSaving).toFixed(0)}원/kg`
+    );
+  }
+
+  function exportFormulaOptimizerCsv() {
+    const rows = optimizerRows.map((row) => [
+      row.raw_code,
+      row.raw_name,
+      row.current_percent,
+      row.suggested_percent,
+      row.current_cost,
+      row.suggested_cost,
+      row.saving,
+      row.reason,
+      row.risk_note,
+    ]);
+
+    downloadCsv(
+      "formula_optimizer_result.csv",
+      ["raw_code", "raw_name", "current_percent", "suggested_percent", "current_cost", "suggested_cost", "saving", "reason", "risk_note"],
+      rows
+    );
+  }
+
   function getOfficialSourceWatchList(): OfficialSourceWatch[] {
     return [
       {
@@ -6512,6 +6666,7 @@ export default function Home() {
       composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       formula: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       aiFormula: ["manager", "qa", "ra", "senior", "researcher"],
+      formulaOptimizer: ["manager", "senior", "researcher"],
       aiIngredient: ["manager", "qa", "ra", "senior", "researcher"],
       validation: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       regulation: ["manager", "qa", "ra", "viewer"],
@@ -6591,6 +6746,7 @@ export default function Home() {
         ["composition", "원료조성표"],
         ["formula", "처방관리"],
         ["aiFormula", "AI 처방엔진"],
+        ["formulaOptimizer", "AI 처방최적화"],
         ["aiIngredient", "AI 성분분석"],
         ["validation", "처방검증"],
         ["stage", "개발일정"],
@@ -7989,6 +8145,89 @@ export default function Home() {
                 </table>
               </>
             )}
+          </>
+        )}
+
+        {menu === "formulaOptimizer" && (
+          <>
+            <h1>v27.0 AI Formula Optimization Engine</h1>
+            <p style={{ color: "#6b7280" }}>
+              기존 처방의 원가, 사용감, 목표원가 달성 가능성을 분석하고 원료 대체/함량 조정 후보를 제안합니다.
+            </p>
+
+            <h2>최적화 조건</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
+              <select value={optimizerFormulaId || ""} onChange={(e) => setOptimizerFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} v{formula.version} - {formula.formula_name} / 현재원가 {getFormulaCost(formula.id).toFixed(0)}원/kg
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <select value={optimizerMode || "원가절감"} onChange={(e) => setOptimizerMode(e.target.value)}>
+                  <option value="원가절감">원가절감</option>
+                  <option value="목표원가">목표원가</option>
+                  <option value="사용감개선">사용감개선</option>
+                </select>
+
+                <input
+                  placeholder="목표원가(원/kg), 목표원가 모드에서 사용"
+                  value={optimizerTargetCost || ""}
+                  onChange={(e) => setOptimizerTargetCost(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={runFormulaOptimizer} style={{ background: "#7c3aed" }}>
+                  AI 최적화 분석 실행
+                </button>
+                <button onClick={exportFormulaOptimizerCsv} style={{ background: "#059669" }}>
+                  최적화 결과 CSV 내보내기
+                </button>
+              </div>
+
+              <p style={{ color: "#2563eb", fontWeight: "bold" }}>{optimizerStatus}</p>
+            </div>
+
+            <h2>최적화 제안</h2>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>원료코드</th>
+                  <th>원료/대체안</th>
+                  <th>현재%</th>
+                  <th>제안%</th>
+                  <th>현재원가</th>
+                  <th>제안원가</th>
+                  <th>절감</th>
+                  <th>제안사유</th>
+                  <th>검토사항</th>
+                </tr>
+              </thead>
+              <tbody>
+                {optimizerRows.length === 0 && (
+                  <tr><td colSpan={9}>최적화 분석 결과가 없습니다.</td></tr>
+                )}
+                {optimizerRows.map((row, index) => (
+                  <tr key={`${row.raw_material_id}-${index}`}>
+                    <td>{row.raw_code}</td>
+                    <td>{row.raw_name}</td>
+                    <td>{row.current_percent.toFixed(4)}</td>
+                    <td style={{ fontWeight: "bold" }}>{row.suggested_percent.toFixed(4)}</td>
+                    <td>{row.current_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td>{row.suggested_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                    <td style={{ color: row.saving > 0 ? "green" : "#6b7280", fontWeight: "bold" }}>
+                      {row.saving.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td>{row.reason}</td>
+                    <td>{row.risk_note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </>
         )}
 
