@@ -108,6 +108,26 @@ type ApprovalRecord = {
   status: "Requested" | "Approved" | "Rejected";
 };
 
+type RegulationRecord = {
+  id: string;
+  country_code: string;
+  inci_name: string;
+  cas_no: string;
+  regulation_type: "Allowed" | "Restricted" | "Prohibited" | "Warning";
+  max_percent: number;
+  note: string;
+  source: string;
+};
+
+type RegulationImpact = {
+  formula_code: string;
+  country_code: string;
+  ingredient: string;
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  issue: string;
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -311,6 +331,39 @@ const initialApprovals: ApprovalRecord[] = [
   },
 ];
 
+const initialRegulations: RegulationRecord[] = [
+  {
+    id: "REG-001",
+    country_code: "EU",
+    inci_name: "Phenoxyethanol",
+    cas_no: "122-99-6",
+    regulation_type: "Restricted",
+    max_percent: 1,
+    note: "Preservative restriction",
+    source: "Seed Regulation DB",
+  },
+  {
+    id: "REG-002",
+    country_code: "CN",
+    inci_name: "Niacinamide",
+    cas_no: "98-92-0",
+    regulation_type: "Allowed",
+    max_percent: 0,
+    note: "IECIC Listed",
+    source: "Seed Regulation DB",
+  },
+  {
+    id: "REG-003",
+    country_code: "EU",
+    inci_name: "Hydroquinone",
+    cas_no: "123-31-9",
+    regulation_type: "Prohibited",
+    max_percent: 0,
+    note: "Prohibited ingredient example",
+    source: "Seed Regulation DB",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -409,6 +462,17 @@ export default function EnterprisePage() {
   const [newStabilityCondition, setNewStabilityCondition] = useState("45℃");
   const [newStabilityFinding, setNewStabilityFinding] = useState("");
 
+  const [regulations, setRegulations] = useState<RegulationRecord[]>(initialRegulations);
+  const [regCountry, setRegCountry] = useState("EU");
+  const [regInci, setRegInci] = useState("");
+  const [regCas, setRegCas] = useState("");
+  const [regType, setRegType] = useState<RegulationRecord["regulation_type"]>("Restricted");
+  const [regMaxPercent, setRegMaxPercent] = useState("");
+  const [regNote, setRegNote] = useState("");
+  const [regSearch, setRegSearch] = useState("");
+  const [regImpactCountry, setRegImpactCountry] = useState("EU");
+  const [regImpacts, setRegImpacts] = useState<RegulationImpact[]>([]);
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -503,6 +567,36 @@ export default function EnterprisePage() {
     if (qualityFilter === "ALL") return qualityDocuments;
     return qualityDocuments.filter((item) => item.status === qualityFilter);
   }, [qualityFilter, qualityDocuments]);
+
+  const filteredRegulations = useMemo(() => {
+    const keyword = regSearch.trim().toLowerCase();
+    if (!keyword) return regulations;
+
+    return regulations.filter((item) =>
+      [
+        item.country_code,
+        item.inci_name,
+        item.cas_no,
+        item.regulation_type,
+        item.note,
+        item.source,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [regSearch, regulations]);
+
+  const regulationStats = useMemo(() => {
+    return {
+      total: regulations.length,
+      restricted: regulations.filter((item) => item.regulation_type === "Restricted").length,
+      prohibited: regulations.filter((item) => item.regulation_type === "Prohibited").length,
+      warning: regulations.filter((item) => item.regulation_type === "Warning").length,
+      impacts: regImpacts.length,
+      high: regImpacts.filter((item) => item.risk === "HIGH").length,
+    };
+  }, [regulations, regImpacts]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -965,13 +1059,165 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function addRegulationRecord() {
+    if (!regCountry || !regInci) {
+      alert("국가코드와 INCI를 입력하세요.");
+      return;
+    }
+
+    const record: RegulationRecord = {
+      id: crypto.randomUUID(),
+      country_code: regCountry.toUpperCase(),
+      inci_name: regInci,
+      cas_no: regCas,
+      regulation_type: regType,
+      max_percent: Number(regMaxPercent || 0),
+      note: regNote || "Manual regulation record",
+      source: "Manual",
+    };
+
+    setRegulations([record, ...regulations]);
+    setRegInci("");
+    setRegCas("");
+    setRegMaxPercent("");
+    setRegNote("");
+  }
+
+  function runRegulationImpactAnalysis() {
+    const targetRegs = regulations.filter((item) => item.country_code === regImpactCountry);
+    const impacts: RegulationImpact[] = [];
+
+    formulas.forEach((formula) => {
+      const conceptIngredients = ingredients.filter((ingredient) => {
+        const formulaText = `${formula.formula_name} ${formula.revision_note}`.toLowerCase();
+        return (
+          formulaText.includes(ingredient.korean_name.toLowerCase()) ||
+          formulaText.includes(ingredient.inci_name.toLowerCase()) ||
+          formulaText.includes(ingredient.function_ko.toLowerCase())
+        );
+      });
+
+      const fallbackIngredients = conceptIngredients.length ? conceptIngredients : ingredients.slice(0, 3);
+
+      fallbackIngredients.forEach((ingredient) => {
+        const matched = targetRegs.find((reg) => {
+          const sameInci = reg.inci_name.toLowerCase() === ingredient.inci_name.toLowerCase();
+          const sameCas = reg.cas_no && reg.cas_no === ingredient.cas_no;
+          return sameInci || sameCas;
+        });
+
+        if (!matched) return;
+
+        if (matched.regulation_type === "Prohibited") {
+          impacts.push({
+            formula_code: formula.formula_code,
+            country_code: matched.country_code,
+            ingredient: ingredient.inci_name,
+            risk: "HIGH",
+            issue: "금지 성분 가능성",
+            action: "처방에서 제외하거나 대체 성분 검토",
+          });
+        } else if (matched.regulation_type === "Restricted") {
+          impacts.push({
+            formula_code: formula.formula_code,
+            country_code: matched.country_code,
+            ingredient: ingredient.inci_name,
+            risk: "MEDIUM",
+            issue: `제한 성분 / 최대 ${matched.max_percent || "-"}%`,
+            action: "최종 함량 계산 후 RA 검토",
+          });
+        } else if (matched.regulation_type === "Warning") {
+          impacts.push({
+            formula_code: formula.formula_code,
+            country_code: matched.country_code,
+            ingredient: ingredient.inci_name,
+            risk: "LOW",
+            issue: "주의 성분",
+            action: "표시/클레임/사용범위 확인",
+          });
+        }
+      });
+    });
+
+    setRegImpacts(impacts);
+  }
+
+  function importRegulationSeed() {
+    const seeds: RegulationRecord[] = [
+      {
+        id: crypto.randomUUID(),
+        country_code: "ASEAN",
+        inci_name: "Phenoxyethanol",
+        cas_no: "122-99-6",
+        regulation_type: "Restricted",
+        max_percent: 1,
+        note: "ASEAN preservative limit example",
+        source: "Seed Import",
+      },
+      {
+        id: crypto.randomUUID(),
+        country_code: "JP",
+        inci_name: "Salicylic Acid",
+        cas_no: "69-72-7",
+        regulation_type: "Restricted",
+        max_percent: 0.2,
+        note: "Japan restriction example",
+        source: "Seed Import",
+      },
+      {
+        id: crypto.randomUUID(),
+        country_code: "US",
+        inci_name: "Mercury Compounds",
+        cas_no: "",
+        regulation_type: "Prohibited",
+        max_percent: 0,
+        note: "US prohibited ingredient example",
+        source: "Seed Import",
+      },
+    ];
+
+    const existingKeys = new Set(regulations.map((item) => `${item.country_code}-${item.inci_name}`.toLowerCase()));
+    const filtered = seeds.filter((item) => !existingKeys.has(`${item.country_code}-${item.inci_name}`.toLowerCase()));
+
+    setRegulations([...filtered, ...regulations]);
+  }
+
+  function exportRegulationCsv() {
+    exportCsv("enterprise_regulation_module.csv", [
+      ["country_code", "inci_name", "cas_no", "regulation_type", "max_percent", "note", "source"],
+      ...filteredRegulations.map((item) => [
+        item.country_code,
+        item.inci_name,
+        item.cas_no,
+        item.regulation_type,
+        item.max_percent,
+        item.note,
+        item.source,
+      ]),
+    ]);
+  }
+
+  function exportRegulationImpactCsv() {
+    exportCsv("enterprise_regulation_impact.csv", [
+      ["formula_code", "country_code", "ingredient", "risk", "issue", "action"],
+      ...regImpacts.map((item) => [
+        item.formula_code,
+        item.country_code,
+        item.ingredient,
+        item.risk,
+        item.issue,
+        item.action,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 7</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 8</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / AI Module에 이어 Quality Module을 Enterprise 구조로 분리합니다. 원료문서, 안정도, 승인 흐름을 하나의 QA/QC 화면에서 검증합니다.
+            Project / Formula / Ingredient / AI / Quality Module에 이어 Regulation Module을 Enterprise 구조로 분리합니다. 국가별 규제 DB, 업데이트 감지, 영향도 분석, PIF/CPSR 준비 흐름을 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -982,16 +1228,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>규제주의</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#d97706" }}>{ingredientStats.restricted}</div></div>
             <div style={cardStyle()}><strong>AI 준비도</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{ingredients.length > 5 ? 85 : 70}</div></div>
             <div style={cardStyle()}><strong>품질 문서</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{qualityDocuments.length}</div></div>
+            <div style={cardStyle()}><strong>규제 DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{regulations.length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 7 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 8 목표</h2>
           <ul>
-            <li>Quality Module 독립 UI 검증</li>
-            <li>원료문서센터 / Supplier Portal / 안정도관리 / 승인 흐름 통합</li>
-            <li>문서 만료, 안정도 이슈, 승인 대기 건수를 한 화면에서 관리</li>
-            <li>다음 단계에서 실제 material_documents, stability_tests, approval_requests 테이블과 연결</li>
+            <li>Regulation Module 독립 UI 검증</li>
+            <li>국가별 규제 DB / Regulation Update / AI 규제질의 흐름 통합</li>
+            <li>처방별 규제 영향도와 PIF/CPSR 준비 상태를 한 화면에서 관리</li>
+            <li>다음 단계에서 실제 country_regulations, regulation_updates 테이블과 연결</li>
           </ul>
         </section>
       </>
@@ -1546,6 +1793,140 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderRegulationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Regulation Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            국가별 규제 DB, 공식자료 업데이트, 규제 영향도 분석, PIF/CPSR 준비 흐름을 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>규제 DB</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{regulationStats.total}</div></div>
+            <div style={cardStyle()}><strong>Restricted</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{regulationStats.restricted}</div></div>
+            <div style={cardStyle()}><strong>Prohibited</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{regulationStats.prohibited}</div></div>
+            <div style={cardStyle()}><strong>Impact</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{regulationStats.impacts}</div></div>
+            <div style={cardStyle()}><strong>HIGH</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{regulationStats.high}</div></div>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>국가별 규제 등록</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <input value={regCountry} onChange={(e) => setRegCountry(e.target.value.toUpperCase())} placeholder="국가코드 예: EU, CN, US, JP, ASEAN" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={regInci} onChange={(e) => setRegInci(e.target.value)} placeholder="INCI" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={regCas} onChange={(e) => setRegCas(e.target.value)} placeholder="CAS No." style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={regType} onChange={(e) => setRegType(e.target.value as RegulationRecord["regulation_type"])} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="Allowed">Allowed</option>
+              <option value="Restricted">Restricted</option>
+              <option value="Prohibited">Prohibited</option>
+              <option value="Warning">Warning</option>
+            </select>
+            <input value={regMaxPercent} onChange={(e) => setRegMaxPercent(e.target.value)} placeholder="최대 사용한도 % / 없으면 0" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <textarea value={regNote} onChange={(e) => setRegNote(e.target.value)} placeholder="규제 Note / 근거" rows={3} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addRegulationRecord} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                규제 등록
+              </button>
+              <button onClick={importRegulationSeed} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                Seed 규제 추가
+              </button>
+              <button onClick={exportRegulationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                규제 CSV Export
+              </button>
+            </div>
+          </div>
+
+          <input value={regSearch} onChange={(e) => setRegSearch(e.target.value)} placeholder="국가, INCI, CAS, 규제유형 검색" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", width: "100%", boxSizing: "border-box", marginBottom: "12px" }} />
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>국가</th>
+                <th style={tableCellStyle(true)}>INCI</th>
+                <th style={tableCellStyle(true)}>CAS</th>
+                <th style={tableCellStyle(true)}>규제유형</th>
+                <th style={tableCellStyle(true)}>한도%</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRegulations.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.country_code}</td>
+                  <td style={tableCellStyle()}>{item.inci_name}</td>
+                  <td style={tableCellStyle()}>{item.cas_no}</td>
+                  <td style={{ ...tableCellStyle(), color: item.regulation_type === "Prohibited" ? "#dc2626" : item.regulation_type === "Restricted" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.regulation_type}</td>
+                  <td style={tableCellStyle()}>{item.max_percent}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>{item.source}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>규제 영향도 분석</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <select value={regImpactCountry} onChange={(e) => setRegImpactCountry(e.target.value)}>
+              {Array.from(new Set(regulations.map((item) => item.country_code))).map((country) => (
+                <option key={country} value={country}>{country}</option>
+              ))}
+            </select>
+            <button onClick={runRegulationImpactAnalysis} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              영향도 분석 실행
+            </button>
+            <button onClick={exportRegulationImpactCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              영향도 CSV Export
+            </button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>처방</th>
+                <th style={tableCellStyle(true)}>국가</th>
+                <th style={tableCellStyle(true)}>성분</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Issue</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {regImpacts.length === 0 && (
+                <tr><td style={tableCellStyle()} colSpan={6}>영향도 분석을 실행하세요.</td></tr>
+              )}
+              {regImpacts.map((item, index) => (
+                <tr key={`${item.formula_code}-${item.ingredient}-${index}`}>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.country_code}</td>
+                  <td style={tableCellStyle()}>{item.ingredient}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk === "HIGH" ? "#dc2626" : item.risk === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk}</td>
+                  <td style={tableCellStyle()}>{item.issue}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>PIF / CPSR 준비 체크</h2>
+          <ul>
+            <li>Formula Sheet 준비: {formulas.length > 0 ? "READY" : "MISSING"}</li>
+            <li>Full IL / Breakdown IL 준비: {ingredients.length > 0 ? "READY" : "MISSING"}</li>
+            <li>원료문서 준비: {qualityDocuments.length > 0 ? "READY" : "MISSING"}</li>
+            <li>규제 영향도 분석: {regImpacts.length > 0 ? "READY" : "PENDING"}</li>
+            <li>CPSR 세부 독성/노출 평가는 다음 Phase에서 확장</li>
+          </ul>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -1563,7 +1944,7 @@ export default function EnterprisePage() {
     if (active === "ingredient") return renderIngredientModule();
     if (active === "ai") return renderAiModule();
     if (active === "quality") return renderQualityModule();
-    if (active === "regulation") return renderSimpleModule("Regulation Module", ["규제검증", "국가별규제", "Regulation Update", "AI 규제질의", "PIF/CPSR"]);
+    if (active === "regulation") return renderRegulationModule();
     if (active === "customer") return renderSimpleModule("Customer Module", ["Customer Portal Lite", "고객제출패키지", "샘플 피드백", "고객별 현황"]);
     if (active === "supplier") return renderSimpleModule("Supplier Module", ["Supplier Portal Lite", "문서 요청", "만료 알림", "업로드 양식"]);
     return renderSimpleModule("Admin Module", ["사용자/권한", "Audit Log", "System Health", "Production Readiness", "Backup"]);
@@ -1573,7 +1954,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 7 Quality Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 8 Regulation Module</p>
 
         {menus.map((item) => (
           <button
