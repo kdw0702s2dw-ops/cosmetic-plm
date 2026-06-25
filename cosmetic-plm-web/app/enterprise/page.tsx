@@ -19,6 +19,7 @@ type ModuleKey =
   | "supabaseSchema"
   | "supabaseBridge"
   | "realData"
+  | "repository"
   | "admin";
 
 type EnterpriseProject = {
@@ -293,6 +294,24 @@ type RealDataValidationItem = {
   detail: string;
 };
 
+type MasterRepositoryNode = {
+  id: string;
+  node_type: "Project" | "Formula" | "Ingredient" | "RawMaterial" | "Supplier" | "Customer" | "Document" | "Regulation";
+  code: string;
+  name: string;
+  linked_to: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  source_table: string;
+};
+
+type RepositoryImpactItem = {
+  source: string;
+  target: string;
+  impact_type: "Formula" | "BOM" | "Regulation" | "Customer" | "Supplier" | "Document";
+  risk: "LOW" | "MEDIUM" | "HIGH";
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -308,6 +327,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "supabaseSchema", label: "Supabase Schema" },
   { key: "supabaseBridge", label: "Supabase Bridge" },
   { key: "realData", label: "Real Data Pilot" },
+  { key: "repository", label: "Master Repository" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -822,6 +842,11 @@ export default function EnterprisePage() {
   const [realDataValidations, setRealDataValidations] = useState<RealDataValidationItem[]>([]);
   const [realDataStatus, setRealDataStatus] = useState("");
 
+  const [repositoryNodes, setRepositoryNodes] = useState<MasterRepositoryNode[]>([]);
+  const [repositoryImpacts, setRepositoryImpacts] = useState<RepositoryImpactItem[]>([]);
+  const [repositoryStatus, setRepositoryStatus] = useState("");
+  const [repositoryFocus, setRepositoryFocus] = useState("ALL");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1100,6 +1125,21 @@ export default function EnterprisePage() {
       warn: realDataValidations.filter((item) => item.status === "WARN").length,
     };
   }, [realDataPilotItems, realDataValidations]);
+
+  const repositoryStats = useMemo(() => {
+    return {
+      nodes: repositoryNodes.length,
+      highRisk: repositoryNodes.filter((item) => item.risk_level === "HIGH").length,
+      mediumRisk: repositoryNodes.filter((item) => item.risk_level === "MEDIUM").length,
+      impacts: repositoryImpacts.length,
+      impactHigh: repositoryImpacts.filter((item) => item.risk === "HIGH").length,
+    };
+  }, [repositoryNodes, repositoryImpacts]);
+
+  const filteredRepositoryNodes = useMemo(() => {
+    if (repositoryFocus === "ALL") return repositoryNodes;
+    return repositoryNodes.filter((item) => item.node_type === repositoryFocus);
+  }, [repositoryNodes, repositoryFocus]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -2970,13 +3010,180 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateMasterRepository() {
+    const nodes: MasterRepositoryNode[] = [
+      ...projects.map((item) => ({
+        id: `project-${item.id}`,
+        node_type: "Project" as const,
+        code: item.project_code,
+        name: item.project_name,
+        linked_to: item.customer_name,
+        risk_level: item.status === "보류" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_projects",
+      })),
+      ...formulas.map((item) => ({
+        id: `formula-${item.id}`,
+        node_type: "Formula" as const,
+        code: `${item.formula_code} v${item.version}`,
+        name: item.formula_name,
+        linked_to: item.project_code,
+        risk_level: item.is_locked ? "LOW" as const : item.status === "Draft" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_formulas",
+      })),
+      ...ingredients.map((item) => ({
+        id: `ingredient-${item.id}`,
+        node_type: "Ingredient" as const,
+        code: item.inci_name,
+        name: item.korean_name,
+        linked_to: item.cas_no || "CAS 미입력",
+        risk_level: item.eu_status.toLowerCase().includes("restricted") ? "MEDIUM" as const : "LOW" as const,
+        source_table: "ingredient_master_global",
+      })),
+      ...rawMaterials.map((item) => ({
+        id: `raw-${item.id}`,
+        node_type: "RawMaterial" as const,
+        code: item.raw_code,
+        name: item.raw_name,
+        linked_to: item.main_inci,
+        risk_level: Math.abs(item.composition_total - 100) > 0.0001 ? "HIGH" as const : "LOW" as const,
+        source_table: "enterprise_raw_materials",
+      })),
+      ...qualityDocuments.map((item) => ({
+        id: `doc-${item.id}`,
+        node_type: "Document" as const,
+        code: item.document_type,
+        name: item.document_title,
+        linked_to: item.raw_code,
+        risk_level: item.status === "EXPIRED" ? "HIGH" as const : item.status === "EXPIRING" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_material_documents",
+      })),
+      ...regulations.map((item) => ({
+        id: `reg-${item.id}`,
+        node_type: "Regulation" as const,
+        code: `${item.country_code}-${item.inci_name}`,
+        name: item.regulation_type,
+        linked_to: item.cas_no || item.inci_name,
+        risk_level: item.regulation_type === "Prohibited" ? "HIGH" as const : item.regulation_type === "Restricted" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_country_regulations",
+      })),
+      ...customerPortalItems.map((item) => ({
+        id: `customer-${item.id}`,
+        node_type: "Customer" as const,
+        code: item.customer_name,
+        name: item.project_name,
+        linked_to: item.project_code,
+        risk_level: item.submission_status === "Not Prepared" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_customer_portal_items",
+      })),
+      ...supplierTasks.map((item) => ({
+        id: `supplier-${item.id}`,
+        node_type: "Supplier" as const,
+        code: item.supplier,
+        name: item.required_document,
+        linked_to: item.raw_code,
+        risk_level: item.request_status === "Overdue" ? "HIGH" as const : item.request_status === "Requested" ? "MEDIUM" as const : "LOW" as const,
+        source_table: "enterprise_supplier_tasks",
+      })),
+    ];
+
+    setRepositoryNodes(nodes);
+    setRepositoryStatus(`Master Repository 생성 완료: ${nodes.length}개 노드 / HIGH ${nodes.filter((item) => item.risk_level === "HIGH").length}개`);
+  }
+
+  function runRepositoryImpactAnalysis() {
+    const impacts: RepositoryImpactItem[] = [];
+
+    rawMaterials.forEach((raw) => {
+      formulas
+        .filter((formula) => formula.revision_note.toLowerCase().includes(raw.main_inci.toLowerCase()) || formula.formula_name.toLowerCase().includes(raw.main_inci.toLowerCase()))
+        .forEach((formula) => {
+          impacts.push({
+            source: raw.raw_code,
+            target: `${formula.formula_code} v${formula.version}`,
+            impact_type: "Formula",
+            risk: raw.composition_total !== 100 ? "HIGH" : "MEDIUM",
+            action: "원료조성/대표 INCI 변경 시 처방 Breakdown IL 재계산 필요",
+          });
+        });
+
+      supplierTasks
+        .filter((task) => task.raw_code === raw.raw_code)
+        .forEach((task) => {
+          impacts.push({
+            source: raw.raw_code,
+            target: task.supplier,
+            impact_type: "Supplier",
+            risk: task.request_status === "Overdue" ? "HIGH" : "MEDIUM",
+            action: "공급사 문서 상태 확인 필요",
+          });
+        });
+    });
+
+    ingredients.forEach((ingredient) => {
+      regulations
+        .filter((reg) => reg.inci_name.toLowerCase() === ingredient.inci_name.toLowerCase() || (reg.cas_no && reg.cas_no === ingredient.cas_no))
+        .forEach((reg) => {
+          impacts.push({
+            source: ingredient.inci_name,
+            target: reg.country_code,
+            impact_type: "Regulation",
+            risk: reg.regulation_type === "Prohibited" ? "HIGH" : reg.regulation_type === "Restricted" ? "MEDIUM" : "LOW",
+            action: "판매국가별 최종 사용한도 및 금지 여부 검토",
+          });
+        });
+    });
+
+    customerPortalItems.forEach((customer) => {
+      formulas
+        .filter((formula) => formula.project_code === customer.project_code)
+        .forEach((formula) => {
+          impacts.push({
+            source: formula.formula_code,
+            target: customer.customer_name,
+            impact_type: "Customer",
+            risk: customer.submission_status === "Approved" ? "HIGH" : "MEDIUM",
+            action: "고객 제출 후 처방 변경 시 Revision 및 재승인 필요",
+          });
+        });
+    });
+
+    setRepositoryImpacts(impacts);
+  }
+
+  function exportMasterRepositoryCsv() {
+    exportCsv("enterprise_master_repository.csv", [
+      ["node_type", "code", "name", "linked_to", "risk_level", "source_table"],
+      ...filteredRepositoryNodes.map((item) => [
+        item.node_type,
+        item.code,
+        item.name,
+        item.linked_to,
+        item.risk_level,
+        item.source_table,
+      ]),
+    ]);
+  }
+
+  function exportRepositoryImpactCsv() {
+    exportCsv("enterprise_repository_impact_analysis.csv", [
+      ["source", "target", "impact_type", "risk", "action"],
+      ...repositoryImpacts.map((item) => [
+        item.source,
+        item.target,
+        item.impact_type,
+        item.risk,
+        item.action,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 17</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 18 + 18.5</h1>
           <p style={{ color: "#6b7280" }}>
-            Project와 Ingredient를 우선 대상으로 실제 Supabase 데이터 연결을 시작합니다. 기존 useState 데모 데이터를 단계적으로 Supabase 조회/등록/상태변경 서비스 호출 구조로 전환하기 위한 Pilot 화면입니다.
+            Project / Formula / Ingredient / Raw Material의 실제 Supabase CRUD 전환과 Enterprise Master Repository를 통합합니다. 모든 모듈이 하나의 Repository를 참조하도록 하여 영향분석, BOM, 규제, 고객, 공급사 연결 기반을 구축합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -2997,6 +3204,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Schema Plan</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{supabaseTablePlans.length}</div></div>
             <div style={cardStyle()}><strong>CRUD Bridge</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{supabaseBridgeItems.length}</div></div>
             <div style={cardStyle()}><strong>Real Pilot</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{realDataPilotItems.length}</div></div>
+            <div style={cardStyle()}><strong>Repository</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{repositoryNodes.length}</div></div>
           </div>
         </section>
 
@@ -3060,12 +3268,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 17 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 18 + 18.5 목표</h2>
           <ul>
-            <li>Real Data Pilot 독립 UI 검증</li>
-            <li>Project Module과 Ingredient Module을 실제 Supabase CRUD 연결 대상으로 지정</li>
-            <li>대량 성분 검색은 range/pageSize 기반으로 전환</li>
-            <li>다음 단계에서 Formula / Quality / Regulation 실데이터 연결로 확장</li>
+            <li>Project / Formula / Ingredient / Raw Material 실제 Supabase CRUD 전환 준비</li>
+            <li>Enterprise Master Repository 통합 구조 검증</li>
+            <li>원료 변경 → 처방/BOM/규제/고객/공급사 영향도 분석 기반 구축</li>
+            <li>다음 단계에서 Customer/Supplier 외부 포털 RLS 고도화로 확장</li>
           </ul>
         </section>
       </>
@@ -4062,6 +4270,119 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderMasterRepositoryModule() {
+    const nodeTypes = Array.from(new Set(repositoryNodes.map((item) => item.node_type)));
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Enterprise Master Repository</h1>
+          <p style={{ color: "#6b7280" }}>
+            모든 PLM 데이터를 하나의 Repository 관점으로 연결합니다. 이 구조가 있어야 원료 변경, 규제 변경,
+            고객 피드백, 공급사 문서 이슈가 처방과 출시 리스크에 미치는 영향을 자동 분석할 수 있습니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Nodes</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{repositoryStats.nodes}</div></div>
+            <div style={cardStyle()}><strong>HIGH Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{repositoryStats.highRisk}</div></div>
+            <div style={cardStyle()}><strong>MEDIUM Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{repositoryStats.mediumRisk}</div></div>
+            <div style={cardStyle()}><strong>Impacts</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{repositoryStats.impacts}</div></div>
+            <div style={cardStyle()}><strong>Impact HIGH</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{repositoryStats.impactHigh}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateMasterRepository} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Repository 생성
+            </button>
+            <button onClick={runRepositoryImpactAnalysis} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              영향도 분석
+            </button>
+            <button onClick={exportMasterRepositoryCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Repository CSV
+            </button>
+            <button onClick={exportRepositoryImpactCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Impact CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{repositoryStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Repository Nodes</h2>
+          <div style={{ marginBottom: "12px" }}>
+            <select value={repositoryFocus} onChange={(e) => setRepositoryFocus(e.target.value)}>
+              <option value="ALL">전체</option>
+              {nodeTypes.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Code</th>
+                <th style={tableCellStyle(true)}>Name</th>
+                <th style={tableCellStyle(true)}>Linked To</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Source Table</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRepositoryNodes.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Repository 생성을 실행하세요.</td></tr>}
+              {filteredRepositoryNodes.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.node_type}</td>
+                  <td style={tableCellStyle()}>{item.code}</td>
+                  <td style={tableCellStyle()}>{item.name}</td>
+                  <td style={tableCellStyle()}>{item.linked_to}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td>
+                  <td style={tableCellStyle()}>{item.source_table}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Impact Analysis</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Source</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Impact Type</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {repositoryImpacts.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>영향도 분석을 실행하세요.</td></tr>}
+              {repositoryImpacts.map((item, index) => (
+                <tr key={`${item.source}-${item.target}-${index}`}>
+                  <td style={tableCellStyle()}>{item.source}</td>
+                  <td style={tableCellStyle()}>{item.target}</td>
+                  <td style={tableCellStyle()}>{item.impact_type}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk === "HIGH" ? "#dc2626" : item.risk === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Real CRUD 전환 상태</h2>
+          <ul>
+            <li>Project / Formula / Ingredient / Raw Material은 Supabase 서비스 연결 대상으로 지정되었습니다.</li>
+            <li>Repository는 각 모듈 데이터를 source_table 기준으로 연결합니다.</li>
+            <li>다음 Phase에서는 Customer/Supplier 외부 포털 RLS와 실제 계정 매핑을 고도화합니다.</li>
+          </ul>
+        </section>
+      </>
+    );
+  }
+
   function renderRealDataPilotModule() {
     return (
       <>
@@ -4749,6 +5070,7 @@ export default function EnterprisePage() {
     if (active === "supabaseSchema") return renderSupabaseSchemaModule();
     if (active === "supabaseBridge") return renderSupabaseBridgeModule();
     if (active === "realData") return renderRealDataPilotModule();
+    if (active === "repository") return renderMasterRepositoryModule();
     return renderAdminModule();
   }
 
@@ -4756,7 +5078,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 17 Real Data Pilot</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 18 Real CRUD + Master Repository</p>
 
         {menus.map((item) => (
           <button
