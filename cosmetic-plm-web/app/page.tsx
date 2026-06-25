@@ -347,6 +347,18 @@ type AiIntelligenceResult = {
   regulation_summary: string[];
 };
 
+type AiIngredientAnalysis = {
+  ingredient: GlobalIngredient;
+  matched_raw_materials: RawMaterial[];
+  regulation_rows: CountryRegulation[];
+  recommended_range: string;
+  stability_notes: string[];
+  formulation_notes: string[];
+  substitute_candidates: GlobalIngredient[];
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  score: number;
+};
+
 export default function Home() {
   const [menu, setMenu] = useState("dashboard");
 
@@ -518,6 +530,9 @@ export default function Home() {
   const [aiDraftName, setAiDraftName] = useState("");
   const [aiResult, setAiResult] = useState<AiFormulaResult | null>(null);
   const [aiIntelligence, setAiIntelligence] = useState<AiIntelligenceResult | null>(null);
+  const [aiIngredientSearch, setAiIngredientSearch] = useState("");
+  const [aiIngredientId, setAiIngredientId] = useState("");
+  const [aiIngredientAnalysis, setAiIngredientAnalysis] = useState<AiIngredientAnalysis | null>(null);
 
   const [breakdownFormulaId, setBreakdownFormulaId] = useState("");
   const [fullIlFormulaId, setFullIlFormulaId] = useState("");
@@ -2777,6 +2792,162 @@ export default function Home() {
       if (!aAboveOne && bAboveOne) return 1;
 
       return Number(b.final_percentage || 0) - Number(a.final_percentage || 0);
+    });
+  }
+
+  function getFilteredAiIngredients() {
+    const keyword = aiIngredientSearch.trim().toLowerCase();
+
+    if (!keyword) {
+      return globalIngredients.slice(0, 100);
+    }
+
+    return globalIngredients
+      .filter((item) => {
+        const text = [
+          item.inci_name,
+          item.korean_name,
+          item.chinese_name,
+          item.japanese_name,
+          item.cas_no,
+          item.ec_no,
+          item.function_ko,
+          item.function_en,
+          item.iecic_status,
+          item.cosmos_status,
+          item.vegan_status,
+          item.halal_status,
+          item.rspo_status,
+          item.eu_status,
+          item.china_status,
+          item.japan_status,
+          item.asean_status,
+          item.ewg_grade,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return text.includes(keyword);
+      })
+      .slice(0, 100);
+  }
+
+  function getIngredientRecommendedRange(item: GlobalIngredient) {
+    const text = `${item.inci_name} ${item.korean_name} ${item.function_ko} ${item.function_en}`.toLowerCase();
+
+    if (item.max_use_percent) {
+      return `0.01 ~ ${item.max_use_percent}% 이하`;
+    }
+
+    if (text.includes("preservative") || text.includes("보존")) return "0.1 ~ 1.0%";
+    if (text.includes("retinol") || text.includes("레티놀")) return "0.01 ~ 0.3%";
+    if (text.includes("salicylic") || text.includes("살리실")) return "0.1 ~ 2.0%";
+    if (text.includes("niacinamide") || text.includes("나이아신")) return "2.0 ~ 5.0%";
+    if (text.includes("panthenol") || text.includes("판테놀")) return "0.5 ~ 5.0%";
+    if (text.includes("hyaluronate") || text.includes("히알루")) return "0.01 ~ 1.0%";
+    if (text.includes("ceramide") || text.includes("세라마이드")) return "0.01 ~ 0.5%";
+    if (text.includes("thick") || text.includes("점증") || text.includes("gum") || text.includes("카보머")) return "0.05 ~ 1.0%";
+    if (text.includes("humectant") || text.includes("보습")) return "1.0 ~ 10.0%";
+    if (text.includes("emollient") || text.includes("에몰리언트")) return "1.0 ~ 20.0%";
+
+    return "원료 특성 및 제품 유형별 설정 필요";
+  }
+
+  function getIngredientStabilityNotes(item: GlobalIngredient) {
+    const text = `${item.inci_name} ${item.korean_name} ${item.function_ko} ${item.function_en}`.toLowerCase();
+    const notes: string[] = [];
+
+    if (text.includes("retinol") || text.includes("레티놀")) notes.push("광/열/산소 안정성 검토 필요. 에어리스/차광 포장 권장.");
+    if (text.includes("ascorbic") || text.includes("아스코")) notes.push("산화 안정성 및 pH 조건 검토 필요.");
+    if (text.includes("carbomer") || text.includes("카보머")) notes.push("중화제, 전해질, pH에 따른 점도 변화 확인 필요.");
+    if (text.includes("niacinamide") || text.includes("나이아신")) notes.push("저pH 제형에서 니코틴산 전환/피부자극 가능성 검토.");
+    if (text.includes("hyaluronate") || text.includes("히알루")) notes.push("고분자/저분자 원료별 점도 및 사용감 차이 확인.");
+    if (text.includes("preservative") || text.includes("보존")) notes.push("방부력 테스트 및 국가별 보존제 한도 확인 필요.");
+
+    if (notes.length === 0) notes.push("일반적인 온도/광/미생물 안정성 시험으로 확인 권장.");
+
+    return notes;
+  }
+
+  function getIngredientFormulationNotes(item: GlobalIngredient) {
+    const text = `${item.inci_name} ${item.korean_name} ${item.function_ko} ${item.function_en}`.toLowerCase();
+    const notes: string[] = [];
+
+    if (text.includes("humectant") || text.includes("보습")) notes.push("수상 Phase에 적용 권장. 끈적임은 다가알코올/베타인 조합으로 밸런싱.");
+    if (text.includes("emollient") || text.includes("에몰리언트")) notes.push("유상 Phase에서 사용감, 산패, 유화 안정성 확인.");
+    if (text.includes("thick") || text.includes("점증") || text.includes("gum")) notes.push("분산 순서와 수화 시간이 중요. 뭉침 방지 공정 필요.");
+    if (text.includes("surfactant") || text.includes("계면")) notes.push("HLB, 자극, 점도 형성, 전해질 영향 확인.");
+    if (text.includes("preservative") || text.includes("보존")) notes.push("pH, 용해도, 부스터 조합, Challenge Test 확인.");
+    if (notes.length === 0) notes.push("제형 유형별 용해도, 투입 Phase, pH, 가열 안정성 확인 필요.");
+
+    return notes;
+  }
+
+  function getIngredientSubstituteCandidates(item: GlobalIngredient) {
+    const targetFunction = `${item.function_ko} ${item.function_en}`.toLowerCase();
+    const targetInci = (item.inci_name || "").toLowerCase();
+
+    return globalIngredients
+      .filter((candidate) => candidate.id !== item.id)
+      .filter((candidate) => {
+        const text = `${candidate.function_ko} ${candidate.function_en} ${candidate.inci_name} ${candidate.korean_name}`.toLowerCase();
+
+        if (targetFunction.includes("보습") || targetFunction.includes("humectant")) {
+          return text.includes("보습") || text.includes("humectant");
+        }
+
+        if (targetFunction.includes("emollient") || targetFunction.includes("에몰리언트")) {
+          return text.includes("emollient") || text.includes("에몰리언트");
+        }
+
+        if (targetFunction.includes("preservative") || targetFunction.includes("보존")) {
+          return text.includes("preservative") || text.includes("보존");
+        }
+
+        if (targetInci.includes("ceramide")) return text.includes("ceramide") || text.includes("세라마이드");
+        if (targetInci.includes("hyaluronate")) return text.includes("hyaluronate") || text.includes("히알루");
+
+        return targetFunction && text.includes(targetFunction.split(" ")[0]);
+      })
+      .slice(0, 8);
+  }
+
+  function analyzeAiIngredient(item: GlobalIngredient) {
+    const matchedRawMaterials = materials.filter((material) => {
+      const text = `${material.raw_name} ${material.raw_code}`.toLowerCase();
+      return (
+        text.includes((item.inci_name || "").toLowerCase()) ||
+        text.includes((item.korean_name || "").toLowerCase())
+      );
+    });
+
+    const regulationRows = countryRegulations.filter((reg) => {
+      const sameInci = item.inci_name && reg.inci_name?.toLowerCase() === item.inci_name.toLowerCase();
+      const sameCas = item.cas_no && reg.cas_no === item.cas_no;
+      return sameInci || sameCas;
+    });
+
+    const highRisk = regulationRows.some((row) => row.is_prohibited);
+    const mediumRisk =
+      !highRisk &&
+      (regulationRows.some((row) => row.regulation_type === "Restricted") ||
+        item.max_use_percent ||
+        String(item.regulation_note || "").includes("확인"));
+
+    const riskLevel = highRisk ? "HIGH" : mediumRisk ? "MEDIUM" : "LOW";
+    const score = riskLevel === "HIGH" ? 45 : riskLevel === "MEDIUM" ? 70 : 90;
+
+    setAiIngredientAnalysis({
+      ingredient: item,
+      matched_raw_materials: matchedRawMaterials,
+      regulation_rows: regulationRows,
+      recommended_range: getIngredientRecommendedRange(item),
+      stability_notes: getIngredientStabilityNotes(item),
+      formulation_notes: getIngredientFormulationNotes(item),
+      substitute_candidates: getIngredientSubstituteCandidates(item),
+      risk_level: riskLevel,
+      score,
     });
   }
 
@@ -5739,6 +5910,7 @@ export default function Home() {
       composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       formula: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       aiFormula: ["manager", "qa", "ra", "senior", "researcher"],
+      aiIngredient: ["manager", "qa", "ra", "senior", "researcher"],
       validation: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       regulation: ["manager", "qa", "ra", "viewer"],
       globalRegulation: ["manager", "ra", "viewer"],
@@ -5815,6 +5987,7 @@ export default function Home() {
         ["composition", "원료조성표"],
         ["formula", "처방관리"],
         ["aiFormula", "AI 처방엔진"],
+        ["aiIngredient", "AI 성분분석"],
         ["validation", "처방검증"],
         ["stage", "개발일정"],
         ["cost", "원가관리"],
@@ -7033,6 +7206,183 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {menu === "aiIngredient" && (
+          <>
+            <h1>AI Ingredient Intelligence</h1>
+            <p style={{ color: "#6b7280" }}>
+              Global Ingredient Master, 원료마스터, 국가별 규제 DB를 연결해 성분별 기능/권장함량/규제/대체원료/공급원료를 분석합니다.
+            </p>
+
+            <h2>성분 검색</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <input
+                placeholder="INCI / 국문명 / CAS / 기능 검색 예: Niacinamide, 보습, 98-92-0"
+                value={aiIngredientSearch || ""}
+                onChange={(e) => setAiIngredientSearch(e.target.value)}
+              />
+
+              <select
+                value={aiIngredientId || ""}
+                onChange={(e) => {
+                  const selected = globalIngredients.find((item) => item.id === e.target.value);
+                  setAiIngredientId(e.target.value);
+
+                  if (selected) {
+                    analyzeAiIngredient(selected);
+                  }
+                }}
+              >
+                <option value="">분석할 성분 선택</option>
+                {getFilteredAiIngredients().map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.inci_name} / {item.korean_name} / {item.cas_no} / {item.function_ko}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {aiIngredientAnalysis && (
+              <>
+                <h2>성분 분석 결과</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}><strong>INCI</strong><div>{aiIngredientAnalysis.ingredient.inci_name}</div></div>
+                  <div style={cardStyle}><strong>국문명</strong><div>{aiIngredientAnalysis.ingredient.korean_name}</div></div>
+                  <div style={cardStyle}><strong>CAS</strong><div>{aiIngredientAnalysis.ingredient.cas_no || "-"}</div></div>
+                  <div style={cardStyle}><strong>EC</strong><div>{aiIngredientAnalysis.ingredient.ec_no || "-"}</div></div>
+                  <div style={cardStyle}><strong>AI Score</strong><div>{aiIngredientAnalysis.score}/100</div></div>
+                  <div style={cardStyle}>
+                    <strong>Risk</strong>
+                    <div style={{ color: aiIngredientAnalysis.risk_level === "HIGH" ? "red" : aiIngredientAnalysis.risk_level === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {aiIngredientAnalysis.risk_level}
+                    </div>
+                  </div>
+                </div>
+
+                <h3>기본 정보</h3>
+                <table style={tableStyle}>
+                  <tbody>
+                    <tr>
+                      <th>기능</th>
+                      <td>{aiIngredientAnalysis.ingredient.function_ko} / {aiIngredientAnalysis.ingredient.function_en}</td>
+                      <th>권장 사용범위</th>
+                      <td>{aiIngredientAnalysis.recommended_range}</td>
+                    </tr>
+                    <tr>
+                      <th>IECIC</th>
+                      <td>{aiIngredientAnalysis.ingredient.iecic_status || "-"}</td>
+                      <th>COSMOS / VEGAN / HALAL / RSPO</th>
+                      <td>
+                        {aiIngredientAnalysis.ingredient.cosmos_status || "-"} / {aiIngredientAnalysis.ingredient.vegan_status || "-"} / {aiIngredientAnalysis.ingredient.halal_status || "-"} / {aiIngredientAnalysis.ingredient.rspo_status || "-"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>EU / China / Japan / ASEAN</th>
+                      <td colSpan={3}>
+                        {aiIngredientAnalysis.ingredient.eu_status || "-"} / {aiIngredientAnalysis.ingredient.china_status || "-"} / {aiIngredientAnalysis.ingredient.japan_status || "-"} / {aiIngredientAnalysis.ingredient.asean_status || "-"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>EWG</th>
+                      <td>{aiIngredientAnalysis.ingredient.ewg_grade || "-"}</td>
+                      <th>알러젠</th>
+                      <td>{aiIngredientAnalysis.ingredient.allergen_note || "-"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h3>제형 적용 Notes</h3>
+                <ul>{aiIngredientAnalysis.formulation_notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+
+                <h3>안정성 검토 Notes</h3>
+                <ul>{aiIngredientAnalysis.stability_notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+
+                <h3>국가별 규제 매칭</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>국가</th>
+                      <th>규제유형</th>
+                      <th>한도%</th>
+                      <th>금지</th>
+                      <th>경고</th>
+                      <th>근거</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiIngredientAnalysis.regulation_rows.length === 0 && (
+                      <tr><td colSpan={6}>현재 국가별 규제 DB 매칭 없음</td></tr>
+                    )}
+                    {aiIngredientAnalysis.regulation_rows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.country_code} / {row.country_name}</td>
+                        <td>{row.regulation_type}</td>
+                        <td>{row.max_percentage}</td>
+                        <td>{row.is_prohibited ? "YES" : "-"}</td>
+                        <td>{row.warning_message}</td>
+                        <td>{row.reference_note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>공급 가능 원료 매칭</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>원료코드</th>
+                      <th>원료명</th>
+                      <th>공급사</th>
+                      <th>단가</th>
+                      <th>MOQ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiIngredientAnalysis.matched_raw_materials.length === 0 && (
+                      <tr><td colSpan={5}>원료마스터 매칭 없음</td></tr>
+                    )}
+                    {aiIngredientAnalysis.matched_raw_materials.map((raw) => (
+                      <tr key={raw.id}>
+                        <td>{raw.raw_code}</td>
+                        <td>{raw.raw_name}</td>
+                        <td>{raw.supplier}</td>
+                        <td>{Number(raw.unit_price || 0).toLocaleString()}</td>
+                        <td>{Number(raw.moq || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>대체 후보 성분</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>INCI</th>
+                      <th>국문명</th>
+                      <th>CAS</th>
+                      <th>기능</th>
+                      <th>규제 Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiIngredientAnalysis.substitute_candidates.length === 0 && (
+                      <tr><td colSpan={5}>대체 후보 매칭 없음</td></tr>
+                    )}
+                    {aiIngredientAnalysis.substitute_candidates.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.inci_name}</td>
+                        <td>{item.korean_name}</td>
+                        <td>{item.cas_no}</td>
+                        <td>{item.function_ko}</td>
+                        <td>{item.regulation_note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </>
         )}
 
