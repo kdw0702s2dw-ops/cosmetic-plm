@@ -232,6 +232,22 @@ type CountryRegulation = {
   updated_at: string;
 };
 
+type RegulationUpdateRow = {
+  country_code: string;
+  country_name: string;
+  inci_name: string;
+  cas_no: string;
+  regulation_type: string;
+  max_percentage: number;
+  is_prohibited: boolean;
+  warning_message: string;
+  reference_note: string;
+  source_name?: string;
+  source_url?: string;
+  update_type?: string;
+  matched_existing_id?: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -494,6 +510,11 @@ export default function Home() {
   const [regWarningInput, setRegWarningInput] = useState("");
   const [regReferenceInput, setRegReferenceInput] = useState("");
   const [regSeedStatus, setRegSeedStatus] = useState("");
+  const [regUpdateSourceName, setRegUpdateSourceName] = useState("EU CosIng / Annex Update");
+  const [regUpdateSourceUrl, setRegUpdateSourceUrl] = useState("");
+  const [regUpdateRows, setRegUpdateRows] = useState<RegulationUpdateRow[]>([]);
+  const [regUpdateStatus, setRegUpdateStatus] = useState("");
+  const [regUpdateFilter, setRegUpdateFilter] = useState("ALL");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -4188,6 +4209,195 @@ export default function Home() {
     downloadCsv("country_regulations_export.csv", getCountryRegulationCsvHeaders(), rows);
   }
 
+  function normalizeRegulationColumnName(name: string) {
+    return String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[()\[\]{}]/g, "")
+      .replace(/[-/]/g, "_");
+  }
+
+  function getRegulationColumnAliases() {
+    return {
+      country_code: ["country_code", "country", "market", "국가코드", "국가", "region"],
+      country_name: ["country_name", "market_name", "국가명", "지역명"],
+      inci_name: ["inci", "inci_name", "ingredient", "ingredient_name", "성분명", "영문명"],
+      cas_no: ["cas", "cas_no", "cas_number", "cas번호", "cas_no."],
+      regulation_type: ["regulation_type", "type", "status", "규제유형", "규제", "annex"],
+      max_percentage: ["max_percentage", "max_percent", "max_use", "limit", "허용한도", "최대함량"],
+      is_prohibited: ["is_prohibited", "prohibited", "ban", "banned", "금지", "금지성분"],
+      warning_message: ["warning_message", "warning", "message", "주의", "경고", "비고"],
+      reference_note: ["reference_note", "reference", "source", "근거", "출처", "annex_reference"],
+    } as Record<string, string[]>;
+  }
+
+  function mapRegulationCsvRecord(headers: string[], row: string[], fallbackSourceName = "", fallbackSourceUrl = "") {
+    const aliases = getRegulationColumnAliases();
+    const normalizedHeaders = headers.map((header) => normalizeRegulationColumnName(header));
+
+    const getValue = (targetKey: string) => {
+      const candidates = aliases[targetKey] || [targetKey];
+      const normalizedCandidates = candidates.map((item) => normalizeRegulationColumnName(item));
+      const index = normalizedHeaders.findIndex((header) => normalizedCandidates.includes(header));
+
+      return index >= 0 ? row[index] || "" : "";
+    };
+
+    const countryCode = (getValue("country_code") || "EU").toUpperCase();
+    const regulationType = getValue("regulation_type") || "Warning";
+    const prohibitedRaw = String(getValue("is_prohibited") || "").toLowerCase();
+
+    return {
+      country_code: countryCode,
+      country_name: getValue("country_name") || countryCode,
+      inci_name: getValue("inci_name"),
+      cas_no: getValue("cas_no"),
+      regulation_type: regulationType,
+      max_percentage: Number(getValue("max_percentage") || 0),
+      is_prohibited:
+        prohibitedRaw === "true" ||
+        prohibitedRaw === "yes" ||
+        prohibitedRaw === "y" ||
+        prohibitedRaw === "1" ||
+        regulationType.toLowerCase().includes("prohibit") ||
+        regulationType.toLowerCase().includes("ban"),
+      warning_message: getValue("warning_message"),
+      reference_note: getValue("reference_note") || fallbackSourceName,
+      source_name: fallbackSourceName,
+      source_url: fallbackSourceUrl,
+    } as RegulationUpdateRow;
+  }
+
+  function getExistingRegulationMatch(row: RegulationUpdateRow) {
+    return countryRegulations.find((item) => {
+      const sameCountry = item.country_code?.toUpperCase() === row.country_code?.toUpperCase();
+      const sameInci = row.inci_name && item.inci_name?.toLowerCase() === row.inci_name?.toLowerCase();
+      const sameCas = row.cas_no && item.cas_no === row.cas_no;
+
+      return sameCountry && (sameInci || sameCas);
+    });
+  }
+
+  function classifyRegulationUpdate(row: RegulationUpdateRow) {
+    const existing = getExistingRegulationMatch(row);
+
+    if (!existing) {
+      return { ...row, update_type: "NEW", matched_existing_id: "" };
+    }
+
+    const changed =
+      existing.regulation_type !== row.regulation_type ||
+      Number(existing.max_percentage || 0) !== Number(row.max_percentage || 0) ||
+      Boolean(existing.is_prohibited) !== Boolean(row.is_prohibited) ||
+      (existing.warning_message || "") !== (row.warning_message || "") ||
+      (existing.reference_note || "") !== (row.reference_note || "");
+
+    return {
+      ...row,
+      update_type: changed ? "UPDATE" : "NO_CHANGE",
+      matched_existing_id: existing.id,
+    };
+  }
+
+  async function previewRegulationUpdateCsv(file: File) {
+    setRegUpdateStatus("공식자료 CSV를 분석하는 중입니다...");
+
+    const text = await file.text();
+    const lines = text
+      .replace(/^\ufeff/, "")
+      .split(/\r?\n/)
+      .filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      alert("CSV에 데이터가 없습니다.");
+      setRegUpdateStatus("");
+      return;
+    }
+
+    const headers = parseCsvLine(lines[0]).map((header) => header.trim());
+    const rows = lines.slice(1).map((line) => parseCsvLine(line));
+
+    const mapped = rows
+      .map((row) => mapRegulationCsvRecord(headers, row, regUpdateSourceName, regUpdateSourceUrl))
+      .filter((row) => row.country_code && (row.inci_name || row.cas_no))
+      .map((row) => classifyRegulationUpdate(row));
+
+    setRegUpdateRows(mapped);
+    setRegUpdateStatus(
+      `변경감지 완료: 신규 ${mapped.filter((row) => row.update_type === "NEW").length} / 변경 ${mapped.filter((row) => row.update_type === "UPDATE").length} / 동일 ${mapped.filter((row) => row.update_type === "NO_CHANGE").length}`
+    );
+  }
+
+  function getFilteredRegUpdateRows() {
+    if (regUpdateFilter === "ALL") return regUpdateRows;
+
+    return regUpdateRows.filter((row) => row.update_type === regUpdateFilter);
+  }
+
+  async function applyRegulationUpdates() {
+    if (!assertCanEdit()) return;
+
+    const targetRows = regUpdateRows.filter((row) => row.update_type === "NEW" || row.update_type === "UPDATE");
+
+    if (targetRows.length === 0) {
+      alert("반영할 신규/변경 데이터가 없습니다.");
+      return;
+    }
+
+    const ok = window.confirm(`${targetRows.length}건의 규제 변경사항을 country_regulations에 반영할까요?`);
+
+    if (!ok) return;
+
+    const payload = targetRows.map((row) => ({
+      country_code: row.country_code,
+      country_name: row.country_name,
+      inci_name: row.inci_name,
+      cas_no: row.cas_no,
+      regulation_type: row.regulation_type,
+      max_percentage: Number(row.max_percentage || 0),
+      is_prohibited: row.is_prohibited,
+      warning_message: row.warning_message,
+      reference_note: [row.reference_note, row.source_url].filter(Boolean).join(" | "),
+    }));
+
+    const { error } = await supabase
+      .from("country_regulations")
+      .upsert(payload, {
+        onConflict: "country_code,inci_name,cas_no",
+        ignoreDuplicates: false,
+      });
+
+    if (error) {
+      alert("규제 업데이트 반영 오류: " + error.message);
+      return;
+    }
+
+    await logAudit("Regulation Update Center", "Official Source Import", "공식자료 반영", null, {
+      source_name: regUpdateSourceName,
+      source_url: regUpdateSourceUrl,
+      total: targetRows.length,
+      new_count: targetRows.filter((row) => row.update_type === "NEW").length,
+      update_count: targetRows.filter((row) => row.update_type === "UPDATE").length,
+    });
+
+    setRegUpdateStatus(`반영 완료: ${targetRows.length}건`);
+    setRegUpdateRows([]);
+    loadAll();
+  }
+
+  function downloadOfficialRegulationUpdateTemplate() {
+    downloadCsv(
+      "official_regulation_update_template.csv",
+      getCountryRegulationCsvHeaders(),
+      [
+        ["EU", "European Union", "Salicylic Acid", "69-72-7", "Restricted", "2", "false", "공식자료 기준 사용한도 확인 필요", "EU CosIng / Annex III"],
+        ["US", "United States", "Mercury Compounds", "", "Prohibited", "0", "true", "FDA prohibited/restricted ingredient check", "FDA prohibited/restricted ingredients"],
+        ["ASEAN", "ASEAN", "Hydroquinone", "123-31-9", "Prohibited", "0", "true", "ASEAN Annex prohibited/restricted check", "ASEAN Cosmetic Directive Annex"],
+      ]
+    );
+  }
+
   async function saveCountryRegulation() {
     if (!assertCanEdit()) return;
 
@@ -5143,6 +5353,7 @@ export default function Home() {
       validation: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       regulation: ["manager", "qa", "ra", "viewer"],
       globalRegulation: ["manager", "ra", "viewer"],
+      regUpdate: ["manager", "ra"],
       stability: ["manager", "qa", "senior", "researcher", "viewer"],
       approval: ["manager", "qa", "senior"],
       lock: ["manager", "qa", "senior"],
@@ -5238,6 +5449,7 @@ export default function Home() {
       items: [
         ["regulation", "규제검증"],
         ["globalRegulation", "국가별규제"],
+        ["regUpdate", "규제업데이트센터"],
         ["breakdown", "Breakdown IL"],
         ["fullil", "Full IL"],
         ["label", "전성분"],
