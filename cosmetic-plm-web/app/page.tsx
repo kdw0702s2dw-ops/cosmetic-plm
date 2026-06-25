@@ -351,6 +351,15 @@ type CopilotAnswer = {
   matched_projects: Project[];
 };
 
+type HealthIssue = {
+  category: string;
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  title: string;
+  target: string;
+  detail: string;
+  action: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -713,6 +722,10 @@ export default function Home() {
   const [bomSimResult, setBomSimResult] = useState<BomSimulationResult | null>(null);
   const [copilotQuestion, setCopilotQuestion] = useState("고보습 크림 처방을 만들고 EU 규제와 원가 리스크를 같이 검토해줘");
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null);
+  const [healthIssues, setHealthIssues] = useState<HealthIssue[]>([]);
+  const [healthSeverityFilter, setHealthSeverityFilter] = useState("ALL");
+  const [healthCategoryFilter, setHealthCategoryFilter] = useState("ALL");
+  const [healthStatus, setHealthStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5164,6 +5177,197 @@ export default function Home() {
     return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
+  function runSystemHealthCheck() {
+    const issues: HealthIssue[] = [];
+
+    globalIngredients.forEach((item) => {
+      if (!item.inci_name) {
+        issues.push({
+          category: "성분마스터",
+          severity: "HIGH",
+          title: "INCI 누락",
+          target: item.korean_name || item.id,
+          detail: "Global Ingredient Master에 INCI가 없습니다.",
+          action: "성분관리에서 INCI를 입력하세요.",
+        });
+      }
+
+      if (!item.cas_no) {
+        issues.push({
+          category: "성분마스터",
+          severity: "LOW",
+          title: "CAS No. 누락",
+          target: item.inci_name || item.korean_name,
+          detail: "CAS No.가 비어 있습니다.",
+          action: "공식자료 확인 후 CAS No.를 보완하세요.",
+        });
+      }
+    });
+
+    materials.forEach((raw) => {
+      const total = getCompositionTotalByRaw(raw.id);
+
+      if (Math.abs(total - 100) > 0.0001) {
+        issues.push({
+          category: "원료조성표",
+          severity: "HIGH",
+          title: "원료조성 합계 오류",
+          target: `${raw.raw_code} / ${raw.raw_name}`,
+          detail: `현재 조성합계 ${total.toFixed(4)}%`,
+          action: "원료조성표에서 구성성분 합계를 100%로 맞추세요.",
+        });
+      }
+
+      if (getMaterialDocumentsByRaw(raw.id).length === 0) {
+        issues.push({
+          category: "원료문서",
+          severity: "MEDIUM",
+          title: "원료문서 없음",
+          target: `${raw.raw_code} / ${raw.raw_name}`,
+          detail: "COA/MSDS/TDS/Spec 등 문서가 등록되지 않았습니다.",
+          action: "원료문서센터에서 필수 문서를 업로드하세요.",
+        });
+      }
+    });
+
+    formulas.forEach((formula) => {
+      const total = getFormulaTotal(formula.id);
+      const itemCount = formulaItems.filter((item) => item.formulas?.id === formula.id).length;
+
+      if (itemCount === 0) {
+        issues.push({
+          category: "처방관리",
+          severity: "HIGH",
+          title: "처방 원료 없음",
+          target: `${formula.formula_code} v${formula.version}`,
+          detail: "처방 원료가 등록되지 않았습니다.",
+          action: "처방관리에서 원료를 추가하세요.",
+        });
+      }
+
+      if (itemCount > 0 && Math.abs(total - 100) > 0.0001) {
+        issues.push({
+          category: "처방관리",
+          severity: "HIGH",
+          title: "처방 총합 오류",
+          target: `${formula.formula_code} v${formula.version}`,
+          detail: `현재 처방 총합 ${total.toFixed(4)}%`,
+          action: "처방관리에서 투입량 합계를 100%로 맞추세요.",
+        });
+      }
+
+      if (!getBomByFormula(formula.id)) {
+        issues.push({
+          category: "BOM원가",
+          severity: "LOW",
+          title: "BOM 원가 미등록",
+          target: `${formula.formula_code} v${formula.version}`,
+          detail: "BOM 부자재/충전/간접비 정보가 없습니다.",
+          action: "BOM원가 또는 AI BOM 시뮬레이터에서 원가 정보를 등록하세요.",
+        });
+      }
+    });
+
+    const regulationKeyMap = new Map<string, number>();
+    countryRegulations.forEach((reg) => {
+      const key = `${reg.country_code}|${reg.inci_name}|${reg.cas_no}`;
+      regulationKeyMap.set(key, (regulationKeyMap.get(key) || 0) + 1);
+
+      if (!reg.inci_name && !reg.cas_no) {
+        issues.push({
+          category: "규제DB",
+          severity: "HIGH",
+          title: "규제 성분 식별값 누락",
+          target: reg.country_code,
+          detail: "INCI와 CAS가 모두 비어 있습니다.",
+          action: "국가별규제에서 INCI 또는 CAS를 입력하세요.",
+        });
+      }
+    });
+
+    regulationKeyMap.forEach((count, key) => {
+      if (count > 1) {
+        issues.push({
+          category: "규제DB",
+          severity: "MEDIUM",
+          title: "규제 DB 중복 가능성",
+          target: key,
+          detail: `${count}건 중복 가능성이 있습니다.`,
+          action: "국가별규제에서 중복 데이터를 정리하세요.",
+        });
+      }
+    });
+
+    materialDocuments.forEach((doc) => {
+      if (!doc.expiry_date) {
+        issues.push({
+          category: "원료문서",
+          severity: "LOW",
+          title: "문서 만료일 없음",
+          target: `${doc.raw_materials?.raw_code || ""} / ${doc.document_title}`,
+          detail: "문서 만료일이 비어 있습니다.",
+          action: "원료문서센터에서 만료일을 입력하세요.",
+        });
+        return;
+      }
+
+      const today = new Date();
+      const expiry = new Date(doc.expiry_date);
+      const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        issues.push({
+          category: "원료문서",
+          severity: "HIGH",
+          title: "문서 만료",
+          target: `${doc.raw_materials?.raw_code || ""} / ${doc.document_title}`,
+          detail: `${Math.abs(diffDays)}일 전에 만료되었습니다.`,
+          action: "최신 문서를 공급사로부터 받아 업데이트하세요.",
+        });
+      } else if (diffDays <= 30) {
+        issues.push({
+          category: "원료문서",
+          severity: "MEDIUM",
+          title: "문서 만료 임박",
+          target: `${doc.raw_materials?.raw_code || ""} / ${doc.document_title}`,
+          detail: `${diffDays}일 후 만료됩니다.`,
+          action: "갱신 문서를 사전 요청하세요.",
+        });
+      }
+    });
+
+    setHealthIssues(issues);
+    setHealthStatus(
+      `Health Check 완료: 총 ${issues.length}건 / HIGH ${issues.filter((i) => i.severity === "HIGH").length} / MEDIUM ${issues.filter((i) => i.severity === "MEDIUM").length} / LOW ${issues.filter((i) => i.severity === "LOW").length}`
+    );
+  }
+
+  function getFilteredHealthIssues() {
+    return healthIssues.filter((issue) => {
+      const severityOk = healthSeverityFilter === "ALL" || issue.severity === healthSeverityFilter;
+      const categoryOk = healthCategoryFilter === "ALL" || issue.category === healthCategoryFilter;
+
+      return severityOk && categoryOk;
+    });
+  }
+
+  function exportHealthIssuesCsv() {
+    const rows = getFilteredHealthIssues().map((issue) => [
+      issue.category,
+      issue.severity,
+      issue.title,
+      issue.target,
+      issue.detail,
+      issue.action,
+    ]);
+
+    downloadCsv(
+      "system_health_data_quality_issues.csv",
+      ["category", "severity", "title", "target", "detail", "action"],
+      rows
+    );
+  }
+
   function detectCopilotIntent(question: string): CopilotAnswer["intent"] {
     const q = question.toLowerCase();
 
@@ -7040,6 +7244,7 @@ export default function Home() {
     const permissions: Record<string, string[]> = {
       dashboard: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       copilot: ["manager", "qa", "ra", "senior", "researcher"],
+      health: ["manager", "qa", "ra", "senior"],
       project: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       raw: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -7172,6 +7377,7 @@ export default function Home() {
     {
       title: "관리자",
       items: [
+        ["health", "System Health"],
         ["lock", "처방잠금"],
         ["audit", "Audit Log"],
         ["trash", "휴지통"],
@@ -7399,6 +7605,83 @@ export default function Home() {
       </aside>
 
       <section style={{ flex: 1, padding: "40px" }}>
+        {menu === "health" && (
+          <>
+            <h1>v31.0 System Health & Data Quality Center</h1>
+            <p style={{ color: "#6b7280" }}>
+              성분, 원료조성표, 처방, 규제DB, 원료문서, BOM 데이터 품질을 한 번에 점검합니다.
+            </p>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+              <button onClick={runSystemHealthCheck} style={{ background: "#7c3aed" }}>
+                System Health Check 실행
+              </button>
+              <button onClick={exportHealthIssuesCsv} style={{ background: "#059669" }}>
+                이슈 CSV 내보내기
+              </button>
+            </div>
+
+            <p style={{ color: "#2563eb", fontWeight: "bold" }}>{healthStatus}</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+              <div style={cardStyle}><strong>Total Issues</strong><div>{healthIssues.length}</div></div>
+              <div style={cardStyle}><strong>HIGH</strong><div style={{ color: "red", fontWeight: "bold" }}>{healthIssues.filter((i) => i.severity === "HIGH").length}</div></div>
+              <div style={cardStyle}><strong>MEDIUM</strong><div style={{ color: "#d97706", fontWeight: "bold" }}>{healthIssues.filter((i) => i.severity === "MEDIUM").length}</div></div>
+              <div style={cardStyle}><strong>LOW</strong><div style={{ color: "green", fontWeight: "bold" }}>{healthIssues.filter((i) => i.severity === "LOW").length}</div></div>
+              <div style={cardStyle}><strong>성분</strong><div>{globalIngredients.length}</div></div>
+              <div style={cardStyle}><strong>원료</strong><div>{materials.length}</div></div>
+              <div style={cardStyle}><strong>처방</strong><div>{formulas.length}</div></div>
+              <div style={cardStyle}><strong>문서</strong><div>{materialDocuments.length}</div></div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+              <select value={healthSeverityFilter} onChange={(e) => setHealthSeverityFilter(e.target.value)}>
+                <option value="ALL">전체 위험도</option>
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="LOW">LOW</option>
+              </select>
+
+              <select value={healthCategoryFilter} onChange={(e) => setHealthCategoryFilter(e.target.value)}>
+                <option value="ALL">전체 카테고리</option>
+                {Array.from(new Set(healthIssues.map((issue) => issue.category))).map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>위험도</th>
+                  <th>카테고리</th>
+                  <th>이슈</th>
+                  <th>대상</th>
+                  <th>상세</th>
+                  <th>조치</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getFilteredHealthIssues().length === 0 && (
+                  <tr><td colSpan={6}>Health Check를 실행하거나 필터 조건을 변경하세요.</td></tr>
+                )}
+                {getFilteredHealthIssues().map((issue, index) => (
+                  <tr key={`${issue.category}-${issue.target}-${index}`}>
+                    <td style={{ color: issue.severity === "HIGH" ? "red" : issue.severity === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {issue.severity}
+                    </td>
+                    <td>{issue.category}</td>
+                    <td>{issue.title}</td>
+                    <td>{issue.target}</td>
+                    <td>{issue.detail}</td>
+                    <td>{issue.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {menu === "copilot" && (
           <>
             <h1>v30.0 AI Cosmetic R&D Copilot</h1>
