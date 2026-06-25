@@ -250,6 +250,24 @@ type RegulationUpdateRow = {
   confidence?: number;
 };
 
+type RegulationImpactRow = {
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  country_code: string;
+  regulation_type: string;
+  inci_name: string;
+  cas_no: string;
+  max_percentage: number;
+  formula_id: string;
+  formula_code: string;
+  formula_name: string;
+  version: string;
+  project_code: string;
+  project_name: string;
+  final_percentage: number;
+  issue: string;
+  suggestion: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -586,6 +604,10 @@ export default function Home() {
   const [regAutoCountryName, setRegAutoCountryName] = useState("European Union");
   const [regAutoParseStatus, setRegAutoParseStatus] = useState("");
   const [regAutoReviewOnly, setRegAutoReviewOnly] = useState(true);
+  const [regImpactCountryFilter, setRegImpactCountryFilter] = useState("ALL");
+  const [regImpactSeverityFilter, setRegImpactSeverityFilter] = useState("ALL");
+  const [regImpactRows, setRegImpactRows] = useState<RegulationImpactRow[]>([]);
+  const [regImpactStatus, setRegImpactStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -4881,6 +4903,189 @@ export default function Home() {
       .trim();
   }
 
+  function getCompositionRowsByRaw(rawId: string) {
+    return compositions.filter((composition) => composition.raw_materials?.id === rawId);
+  }
+
+  function getProjectsByFormulaId(targetFormulaId: string) {
+    return projectFormulas
+      .filter((item) => item.formulas?.id === targetFormulaId)
+      .map((item) => item.projects)
+      .filter(Boolean);
+  }
+
+  function getFormulaIngredientFinalPercentages(targetFormulaId: string) {
+    const rows: {
+      formula: Formula;
+      raw: RawMaterial;
+      ingredient: Ingredient;
+      final_percentage: number;
+      formula_item_percentage: number;
+      composition_percentage: number;
+    }[] = [];
+
+    const targetItems = formulaItems.filter((item) => item.formulas?.id === targetFormulaId);
+
+    targetItems.forEach((item) => {
+      const rawId = item.raw_materials?.id;
+      const formulaPercent = Number(item.percentage || 0);
+
+      if (!rawId) return;
+
+      const compRows = getCompositionRowsByRaw(rawId);
+
+      compRows.forEach((composition) => {
+        rows.push({
+          formula: item.formulas,
+          raw: item.raw_materials,
+          ingredient: composition.ingredients,
+          final_percentage: (formulaPercent * Number(composition.percentage || 0)) / 100,
+          formula_item_percentage: formulaPercent,
+          composition_percentage: Number(composition.percentage || 0),
+        });
+      });
+    });
+
+    return rows;
+  }
+
+  function getSubstituteSuggestionForRegulation(inciName: string) {
+    const target = globalIngredients.find((item) => item.inci_name?.toLowerCase() === inciName?.toLowerCase());
+    const functionText = `${target?.function_ko || ""} ${target?.function_en || ""}`.toLowerCase();
+
+    const candidates = globalIngredients
+      .filter((item) => item.inci_name?.toLowerCase() !== inciName?.toLowerCase())
+      .filter((item) => {
+        const text = `${item.function_ko || ""} ${item.function_en || ""} ${item.inci_name || ""} ${item.korean_name || ""}`.toLowerCase();
+
+        if (functionText.includes("preservative") || functionText.includes("보존")) return text.includes("preservative") || text.includes("보존") || text.includes("hexanediol") || text.includes("ethylhexylglycerin");
+        if (functionText.includes("humectant") || functionText.includes("보습")) return text.includes("humectant") || text.includes("보습") || text.includes("glycerin") || text.includes("betaine");
+        if (functionText.includes("emollient") || functionText.includes("에몰리언트")) return text.includes("emollient") || text.includes("에몰리언트") || text.includes("triglyceride") || text.includes("squalane");
+
+        return false;
+      })
+      .slice(0, 3)
+      .map((item) => item.inci_name)
+      .filter(Boolean);
+
+    return candidates.length > 0 ? `대체 후보: ${candidates.join(", ")}` : "대체 성분/함량 조정 검토 필요";
+  }
+
+  function analyzeRegulationImpact() {
+    const sourceRows = regUpdateRows.length > 0
+      ? regUpdateRows.filter((row) => row.update_type === "NEW" || row.update_type === "UPDATE")
+      : countryRegulations;
+
+    if (sourceRows.length === 0) {
+      alert("분석할 규제 데이터가 없습니다. 규제 DB 또는 변경감지 결과를 먼저 준비하세요.");
+      return;
+    }
+
+    const impacts: RegulationImpactRow[] = [];
+
+    formulas.forEach((formula) => {
+      const ingredientRows = getFormulaIngredientFinalPercentages(formula.id);
+      const linkedProjects = getProjectsByFormulaId(formula.id);
+
+      ingredientRows.forEach((row) => {
+        sourceRows.forEach((reg: any) => {
+          const sameInci = reg.inci_name && row.ingredient?.inci_name?.toLowerCase() === String(reg.inci_name).toLowerCase();
+          const sameCas = reg.cas_no && row.ingredient?.cas_no === reg.cas_no;
+
+          if (!sameInci && !sameCas) return;
+
+          const maxPercentage = Number(reg.max_percentage || 0);
+          const isOverLimit = maxPercentage > 0 && row.final_percentage > maxPercentage;
+          const isProhibited = Boolean(reg.is_prohibited);
+          const isWarning = reg.regulation_type === "Warning" || reg.regulation_type === "Restricted";
+
+          if (!isProhibited && !isOverLimit && !isWarning) return;
+
+          const severity: "HIGH" | "MEDIUM" | "LOW" = isProhibited || isOverLimit ? "HIGH" : reg.regulation_type === "Restricted" ? "MEDIUM" : "LOW";
+          const issue = isProhibited
+            ? "금지 성분 가능성"
+            : isOverLimit
+            ? `최종함량 ${row.final_percentage.toFixed(6)}% > 허용 ${maxPercentage}%`
+            : `${reg.regulation_type} 검토 필요`;
+
+          const projectsForRows = linkedProjects.length > 0 ? linkedProjects : [{ project_code: "-", project_name: "-" } as Project];
+
+          projectsForRows.forEach((project) => {
+            impacts.push({
+              severity,
+              country_code: reg.country_code,
+              regulation_type: reg.regulation_type,
+              inci_name: row.ingredient?.inci_name || reg.inci_name,
+              cas_no: row.ingredient?.cas_no || reg.cas_no,
+              max_percentage: maxPercentage,
+              formula_id: formula.id,
+              formula_code: formula.formula_code,
+              formula_name: formula.formula_name,
+              version: formula.version,
+              project_code: project.project_code,
+              project_name: project.project_name,
+              final_percentage: row.final_percentage,
+              issue,
+              suggestion: getSubstituteSuggestionForRegulation(row.ingredient?.inci_name || reg.inci_name),
+            });
+          });
+        });
+      });
+    });
+
+    setRegImpactRows(impacts);
+    setRegImpactStatus(
+      `영향분석 완료: 총 ${impacts.length}건 / HIGH ${impacts.filter((row) => row.severity === "HIGH").length} / MEDIUM ${impacts.filter((row) => row.severity === "MEDIUM").length} / LOW ${impacts.filter((row) => row.severity === "LOW").length}`
+    );
+  }
+
+  function getFilteredRegImpactRows() {
+    return regImpactRows.filter((row) => {
+      const countryOk = regImpactCountryFilter === "ALL" || row.country_code === regImpactCountryFilter;
+      const severityOk = regImpactSeverityFilter === "ALL" || row.severity === regImpactSeverityFilter;
+
+      return countryOk && severityOk;
+    });
+  }
+
+  function exportRegulationImpactCsv() {
+    const headers = [
+      "severity",
+      "country_code",
+      "regulation_type",
+      "inci_name",
+      "cas_no",
+      "max_percentage",
+      "formula_code",
+      "formula_name",
+      "version",
+      "project_code",
+      "project_name",
+      "final_percentage",
+      "issue",
+      "suggestion",
+    ];
+
+    const rows = getFilteredRegImpactRows().map((row) => [
+      row.severity,
+      row.country_code,
+      row.regulation_type,
+      row.inci_name,
+      row.cas_no,
+      row.max_percentage,
+      row.formula_code,
+      row.formula_name,
+      row.version,
+      row.project_code,
+      row.project_name,
+      row.final_percentage,
+      row.issue,
+      row.suggestion,
+    ]);
+
+    downloadCsv("regulation_impact_analysis.csv", headers, rows);
+  }
+
   function parseOfficialTextToRegulationRows() {
     if (!regOfficialText.trim()) {
       alert("공식자료 텍스트를 입력하세요.");
@@ -8525,6 +8730,79 @@ export default function Home() {
               />
 
               <p style={{ fontWeight: "bold", color: "#2563eb" }}>{regUpdateStatus}</p>
+            </div>
+
+            <h2>v25.1 Regulation Impact Analysis</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "24px" }}>
+              <p style={{ color: "#6b7280" }}>
+                변경감지 결과 또는 현재 국가별 규제 DB를 기준으로 모든 처방/프로젝트의 영향을 자동 분석합니다.
+                원료조성표 기준 최종 INCI 함량을 계산해 금지/제한/주의 성분을 찾습니다.
+              </p>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={analyzeRegulationImpact} style={{ background: "#dc2626" }}>
+                  규제 영향도 분석 실행
+                </button>
+                <button onClick={exportRegulationImpactCsv} style={{ background: "#059669" }}>
+                  영향분석 CSV 내보내기
+                </button>
+              </div>
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>{regImpactStatus}</p>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <select value={regImpactCountryFilter} onChange={(e) => setRegImpactCountryFilter(e.target.value)}>
+                  <option value="ALL">전체 국가</option>
+                  {Array.from(new Set(regImpactRows.map((row) => row.country_code))).map((country) => (
+                    <option key={country} value={country}>{country}</option>
+                  ))}
+                </select>
+
+                <select value={regImpactSeverityFilter} onChange={(e) => setRegImpactSeverityFilter(e.target.value)}>
+                  <option value="ALL">전체 위험도</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="LOW">LOW</option>
+                </select>
+              </div>
+
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th>위험도</th>
+                    <th>국가</th>
+                    <th>성분</th>
+                    <th>CAS</th>
+                    <th>규제</th>
+                    <th>한도%</th>
+                    <th>처방</th>
+                    <th>프로젝트</th>
+                    <th>최종함량%</th>
+                    <th>이슈</th>
+                    <th>제안</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getFilteredRegImpactRows().length === 0 && (
+                    <tr><td colSpan={11}>분석 결과가 없습니다.</td></tr>
+                  )}
+                  {getFilteredRegImpactRows().map((row, index) => (
+                    <tr key={`${row.formula_id}-${row.country_code}-${row.inci_name}-${index}`}>
+                      <td style={{ color: row.severity === "HIGH" ? "red" : row.severity === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>{row.severity}</td>
+                      <td>{row.country_code}</td>
+                      <td>{row.inci_name}</td>
+                      <td>{row.cas_no}</td>
+                      <td>{row.regulation_type}</td>
+                      <td>{row.max_percentage}</td>
+                      <td>{row.formula_code} v{row.version}<br />{row.formula_name}</td>
+                      <td>{row.project_code}<br />{row.project_name}</td>
+                      <td>{row.final_percentage.toFixed(6)}</td>
+                      <td>{row.issue}</td>
+                      <td>{row.suggestion}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
             <h2>변경감지 결과</h2>
