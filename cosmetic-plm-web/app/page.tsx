@@ -5203,6 +5203,7 @@ export default function Home() {
       title: "공통",
       items: [
         ["dashboard", "대시보드"],
+        ["approval", "승인관리"],
       ],
     },
     {
@@ -5210,7 +5211,6 @@ export default function Home() {
       items: [
         ["project", "프로젝트관리"],
         ["raw", "원료관리"],
-        ["documents", "원료문서센터"],
         ["globalIngredient", "성분관리"],
         ["composition", "원료조성표"],
         ["formula", "처방관리"],
@@ -5222,13 +5222,15 @@ export default function Home() {
       ],
     },
     {
+      title: "QC팀",
+      items: [
+        ["documents", "원료문서센터"],
+      ],
+    },
+    {
       title: "QA팀",
       items: [
         ["stability", "안정도관리"],
-        ["approval", "승인관리"],
-        ["lock", "처방잠금"],
-        ["audit", "Audit Log"],
-        ["trash", "휴지통"],
       ],
     },
     {
@@ -5246,6 +5248,9 @@ export default function Home() {
     {
       title: "관리자",
       items: [
+        ["lock", "처방잠금"],
+        ["audit", "Audit Log"],
+        ["trash", "휴지통"],
         ["users", "사용자관리"],
       ],
     },
