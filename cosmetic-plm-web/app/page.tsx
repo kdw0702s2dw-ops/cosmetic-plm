@@ -340,6 +340,17 @@ type BomSimulationResult = {
   scenario_note: string;
 };
 
+type CopilotAnswer = {
+  intent: "FORMULA" | "INGREDIENT" | "REGULATION" | "COST" | "STABILITY" | "PROJECT" | "GENERAL";
+  summary: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  actions: string[];
+  references: string[];
+  matched_formulas: Formula[];
+  matched_ingredients: GlobalIngredient[];
+  matched_projects: Project[];
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -700,6 +711,8 @@ export default function Home() {
   const [bomSimLaborChange, setBomSimLaborChange] = useState("0");
   const [bomSimLogisticsChange, setBomSimLogisticsChange] = useState("0");
   const [bomSimResult, setBomSimResult] = useState<BomSimulationResult | null>(null);
+  const [copilotQuestion, setCopilotQuestion] = useState("고보습 크림 처방을 만들고 EU 규제와 원가 리스크를 같이 검토해줘");
+  const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null);
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5151,6 +5164,146 @@ export default function Home() {
     return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
+  function detectCopilotIntent(question: string): CopilotAnswer["intent"] {
+    const q = question.toLowerCase();
+
+    if (q.includes("처방") || q.includes("formula") || q.includes("크림") || q.includes("세럼")) return "FORMULA";
+    if (q.includes("성분") || q.includes("inci") || q.includes("원료") || q.includes("ingredient")) return "INGREDIENT";
+    if (q.includes("규제") || q.includes("eu") || q.includes("china") || q.includes("asean") || q.includes("fda")) return "REGULATION";
+    if (q.includes("원가") || q.includes("cost") || q.includes("bom") || q.includes("마진")) return "COST";
+    if (q.includes("안정") || q.includes("분리") || q.includes("점도") || q.includes("stability")) return "STABILITY";
+    if (q.includes("프로젝트") || q.includes("고객") || q.includes("출시")) return "PROJECT";
+
+    return "GENERAL";
+  }
+
+  function findCopilotIngredients(question: string) {
+    const q = question.toLowerCase();
+
+    return globalIngredients
+      .filter((item) => {
+        const keys = [item.inci_name, item.korean_name, item.cas_no, item.ec_no]
+          .filter(Boolean)
+          .map((value) => String(value).toLowerCase());
+
+        return keys.some((key) => key && q.includes(key));
+      })
+      .slice(0, 8);
+  }
+
+  function findCopilotFormulas(question: string) {
+    const q = question.toLowerCase();
+
+    return formulas
+      .filter((formula) => {
+        return (
+          q.includes(String(formula.formula_code || "").toLowerCase()) ||
+          q.includes(String(formula.formula_name || "").toLowerCase())
+        );
+      })
+      .slice(0, 5);
+  }
+
+  function findCopilotProjects(question: string) {
+    const q = question.toLowerCase();
+
+    return projects
+      .filter((project) => {
+        return (
+          q.includes(String(project.project_code || "").toLowerCase()) ||
+          q.includes(String(project.project_name || "").toLowerCase()) ||
+          q.includes(String(project.customer_name || "").toLowerCase())
+        );
+      })
+      .slice(0, 5);
+  }
+
+  function runResearchCopilot() {
+    if (!copilotQuestion.trim()) {
+      alert("Copilot 질문을 입력하세요.");
+      return;
+    }
+
+    const intent = detectCopilotIntent(copilotQuestion);
+    const matchedIngredients = findCopilotIngredients(copilotQuestion);
+    const matchedFormulas = findCopilotFormulas(copilotQuestion);
+    const matchedProjects = findCopilotProjects(copilotQuestion);
+    const actions: string[] = [];
+    const references: string[] = [];
+    let riskLevel: "LOW" | "MEDIUM" | "HIGH" = "LOW";
+
+    if (intent === "FORMULA") {
+      actions.push("AI 처방엔진에서 제형/컨셉/판매국가를 입력해 1차 처방 초안을 생성하세요.");
+      actions.push("AI 처방최적화에서 목표원가 또는 사용감 개선 시뮬레이션을 실행하세요.");
+      actions.push("AI 안정성예측에서 분리/점도/pH/변색 리스크를 확인하세요.");
+      references.push("AI 처방엔진", "AI 처방최적화", "AI 안정성예측");
+    }
+
+    if (intent === "INGREDIENT") {
+      actions.push("AI 성분분석에서 INCI/CAS 기준으로 기능, 권장 사용범위, 대체 후보를 확인하세요.");
+      actions.push("원료마스터와 원료조성표 매칭 여부를 확인하세요.");
+      references.push("AI 성분분석", "성분관리", "원료조성표");
+    }
+
+    if (intent === "REGULATION") {
+      actions.push("AI 규제질의에서 성분 또는 처방코드 기준 국가별 규제 가능 여부를 확인하세요.");
+      actions.push("규제업데이트센터에서 공식자료 변경 여부와 영향도 분석을 실행하세요.");
+      riskLevel = "MEDIUM";
+      references.push("AI 규제질의", "규제업데이트센터", "국가별규제");
+    }
+
+    if (intent === "COST") {
+      actions.push("AI BOM 시뮬레이터에서 환율/원료단가/부자재비 변동 시나리오를 확인하세요.");
+      actions.push("AI 처방최적화에서 원가절감 후보 원료를 확인하세요.");
+      references.push("AI BOM 시뮬레이터", "AI 처방최적화", "BOM원가");
+    }
+
+    if (intent === "STABILITY") {
+      actions.push("AI 안정성예측에서 처방 구조와 안정성 리스크를 먼저 확인하세요.");
+      actions.push("안정도관리에서 시험번호를 생성하고 추천 조건을 기록하세요.");
+      riskLevel = "MEDIUM";
+      references.push("AI 안정성예측", "안정도관리");
+    }
+
+    if (intent === "PROJECT") {
+      actions.push("프로젝트관리에서 프로젝트 상태와 연결 처방을 확인하세요.");
+      actions.push("승인관리에서 Release Workflow 진행 여부를 확인하세요.");
+      references.push("프로젝트관리", "승인관리", "대시보드");
+    }
+
+    if (actions.length === 0) {
+      actions.push("질문에 INCI, CAS, 처방코드, 프로젝트코드, 판매국가 중 하나를 포함하면 더 정확하게 분석할 수 있습니다.");
+      references.push("AI 처방엔진", "AI 성분분석", "AI 규제질의");
+    }
+
+    const hasHighRiskIngredient = matchedIngredients.some((item) => {
+      const text = `${item.regulation_note || ""} ${item.eu_status || ""} ${item.china_status || ""} ${item.japan_status || ""} ${item.asean_status || ""}`.toLowerCase();
+      return text.includes("prohibit") || text.includes("금지") || text.includes("restricted") || text.includes("제한");
+    });
+
+    if (hasHighRiskIngredient) riskLevel = "HIGH";
+
+    const summary = `질문 의도는 ${intent}로 판단됩니다. 매칭 성분 ${matchedIngredients.length}개, 처방 ${matchedFormulas.length}개, 프로젝트 ${matchedProjects.length}개를 찾았습니다.`;
+
+    setCopilotAnswer({
+      intent,
+      summary,
+      risk_level: riskLevel,
+      actions,
+      references,
+      matched_formulas: matchedFormulas,
+      matched_ingredients: matchedIngredients,
+      matched_projects: matchedProjects,
+    });
+
+    logAudit("AI R&D Copilot", "QUESTION", "질의", null, {
+      question: copilotQuestion,
+      intent,
+      risk_level: riskLevel,
+      summary,
+    });
+  }
+
   function runBomCostSimulation() {
     if (!bomSimFormulaId) {
       alert("시뮬레이션할 처방을 선택하세요.");
@@ -6886,6 +7039,7 @@ export default function Home() {
 
     const permissions: Record<string, string[]> = {
       dashboard: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      copilot: ["manager", "qa", "ra", "senior", "researcher"],
       project: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       raw: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -6964,6 +7118,7 @@ export default function Home() {
       title: "공통",
       items: [
         ["dashboard", "대시보드"],
+        ["copilot", "AI 연구 Copilot"],
         ["approval", "승인관리"],
       ],
     },
@@ -7244,6 +7399,141 @@ export default function Home() {
       </aside>
 
       <section style={{ flex: 1, padding: "40px" }}>
+        {menu === "copilot" && (
+          <>
+            <h1>v30.0 AI Cosmetic R&D Copilot</h1>
+            <p style={{ color: "#6b7280" }}>
+              처방, 성분, 규제, 원가, 안정성, 프로젝트 질문을 하나의 창에서 입력하면 관련 PLM 기능과 데이터를 연결해 다음 행동을 제안합니다.
+            </p>
+
+            <h2>Copilot 질문</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "24px" }}>
+              <textarea
+                placeholder="예: FC-001 EU 판매 가능해? / 고보습 크림 처방 추천해줘 / Salicylic Acid 규제 확인해줘 / 원가 줄일 방법 알려줘"
+                value={copilotQuestion || ""}
+                onChange={(e) => setCopilotQuestion(e.target.value)}
+                rows={5}
+              />
+
+              <button onClick={runResearchCopilot} style={{ background: "#7c3aed" }}>
+                AI Copilot 분석
+              </button>
+            </div>
+
+            {copilotAnswer && (
+              <>
+                <h2>Copilot 답변</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}><strong>Intent</strong><div>{copilotAnswer.intent}</div></div>
+                  <div style={cardStyle}>
+                    <strong>Risk</strong>
+                    <div style={{ color: copilotAnswer.risk_level === "HIGH" ? "red" : copilotAnswer.risk_level === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {copilotAnswer.risk_level}
+                    </div>
+                  </div>
+                  <div style={cardStyle}><strong>성분</strong><div>{copilotAnswer.matched_ingredients.length}개</div></div>
+                  <div style={cardStyle}><strong>처방</strong><div>{copilotAnswer.matched_formulas.length}개</div></div>
+                  <div style={cardStyle}><strong>프로젝트</strong><div>{copilotAnswer.matched_projects.length}개</div></div>
+                </div>
+
+                <div style={{ border: "1px solid #d1d5db", borderRadius: "8px", padding: "14px", marginBottom: "20px" }}>
+                  <h3 style={{ marginTop: 0 }}>요약</h3>
+                  <p style={{ fontWeight: "bold" }}>{copilotAnswer.summary}</p>
+                </div>
+
+                <h3>추천 Action</h3>
+                <ul>
+                  {copilotAnswer.actions.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+
+                <h3>연결 기능</h3>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
+                  {copilotAnswer.references.map((item, index) => (
+                    <span key={index} style={{ background: "#eef2ff", color: "#3730a3", padding: "6px 10px", borderRadius: "999px", fontWeight: "bold" }}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+
+                <h3>매칭 성분</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>INCI</th>
+                      <th>국문명</th>
+                      <th>CAS</th>
+                      <th>기능</th>
+                      <th>규제 Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {copilotAnswer.matched_ingredients.length === 0 && <tr><td colSpan={5}>매칭 성분 없음</td></tr>}
+                    {copilotAnswer.matched_ingredients.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.inci_name}</td>
+                        <td>{item.korean_name}</td>
+                        <td>{item.cas_no}</td>
+                        <td>{item.function_ko}</td>
+                        <td>{item.regulation_note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>매칭 처방</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>처방코드</th>
+                      <th>처방명</th>
+                      <th>Version</th>
+                      <th>LOCK</th>
+                      <th>원가</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {copilotAnswer.matched_formulas.length === 0 && <tr><td colSpan={5}>매칭 처방 없음</td></tr>}
+                    {copilotAnswer.matched_formulas.map((formula) => (
+                      <tr key={formula.id}>
+                        <td>{formula.formula_code}</td>
+                        <td>{formula.formula_name}</td>
+                        <td>{formula.version}</td>
+                        <td>{formula.is_locked ? "LOCKED" : "EDITABLE"}</td>
+                        <td>{getFormulaCost(formula.id).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>매칭 프로젝트</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>프로젝트코드</th>
+                      <th>고객사</th>
+                      <th>프로젝트명</th>
+                      <th>상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {copilotAnswer.matched_projects.length === 0 && <tr><td colSpan={4}>매칭 프로젝트 없음</td></tr>}
+                    {copilotAnswer.matched_projects.map((project) => (
+                      <tr key={project.id}>
+                        <td>{project.project_code}</td>
+                        <td>{project.customer_name}</td>
+                        <td>{project.project_name}</td>
+                        <td>{project.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </>
+        )}
+
         {menu === "dashboard" && (
           <>
             <h1>Cosmetic PLM Executive Dashboard</h1>
