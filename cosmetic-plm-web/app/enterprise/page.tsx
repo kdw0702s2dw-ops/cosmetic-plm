@@ -15,6 +15,7 @@ type ModuleKey =
   | "customer"
   | "supplier"
   | "dataIntegration"
+  | "services"
   | "admin";
 
 type EnterpriseProject = {
@@ -232,6 +233,15 @@ type RlsPolicyItem = {
   policy_note: string;
 };
 
+type ServiceLayerItem = {
+  service_file: string;
+  module: string;
+  status: "CREATED" | "PLANNED" | "NEEDS_SUPABASE";
+  tables: string;
+  functions: string[];
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -243,6 +253,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "customer", label: "Customer Module" },
   { key: "supplier", label: "Supplier Module" },
   { key: "dataIntegration", label: "Data Integration" },
+  { key: "services", label: "Service Layer" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -742,6 +753,8 @@ export default function EnterprisePage() {
   const [dataMappings, setDataMappings] = useState<DataMappingItem[]>([]);
   const [rlsPolicies, setRlsPolicies] = useState<RlsPolicyItem[]>([]);
   const [dataIntegrationStatus, setDataIntegrationStatus] = useState("");
+  const [serviceLayerItems, setServiceLayerItems] = useState<ServiceLayerItem[]>([]);
+  const [serviceLayerStatus, setServiceLayerStatus] = useState("");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -978,6 +991,15 @@ export default function EnterprisePage() {
       policyReady: rlsPolicies.filter((item) => item.status === "READY").length,
     };
   }, [dataMappings, rlsPolicies]);
+
+  const serviceLayerStats = useMemo(() => {
+    return {
+      total: serviceLayerItems.length,
+      created: serviceLayerItems.filter((item) => item.status === "CREATED").length,
+      planned: serviceLayerItems.filter((item) => item.status === "PLANNED").length,
+      needsSupabase: serviceLayerItems.filter((item) => item.status === "NEEDS_SUPABASE").length,
+    };
+  }, [serviceLayerItems]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -2270,13 +2292,121 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateServiceLayerPlan() {
+    const items: ServiceLayerItem[] = [
+      {
+        service_file: "services/projectService.ts",
+        module: "Project",
+        status: "CREATED",
+        tables: "enterprise_projects",
+        functions: ["listProjects", "createProject", "updateProjectStatus", "generateProjectCode", "exportProjects"],
+        action: "Project Module useState 로직을 projectService로 이전",
+      },
+      {
+        service_file: "services/formulaService.ts",
+        module: "Formula",
+        status: "CREATED",
+        tables: "enterprise_formulas, formula_items",
+        functions: ["listFormulas", "createFormula", "cloneFormula", "lockFormula", "releaseFormula"],
+        action: "Formula Module의 version/lock/clone 로직 이전",
+      },
+      {
+        service_file: "services/ingredientService.ts",
+        module: "Ingredient",
+        status: "CREATED",
+        tables: "ingredient_master_global, raw_materials",
+        functions: ["searchIngredients", "createIngredient", "importSeedIngredients", "listRawMaterials", "createRawMaterial"],
+        action: "대량 데이터 대응 pagination/search 서비스 적용",
+      },
+      {
+        service_file: "services/qualityService.ts",
+        module: "Quality",
+        status: "CREATED",
+        tables: "material_documents, stability_records, approval_requests",
+        functions: ["listDocuments", "createDocument", "checkExpiry", "addStabilityRecord", "approveRequest"],
+        action: "문서/안정도/승인 로직 이전",
+      },
+      {
+        service_file: "services/regulationService.ts",
+        module: "Regulation",
+        status: "CREATED",
+        tables: "country_regulations, regulation_impacts",
+        functions: ["listRegulations", "createRegulation", "runImpactAnalysis", "exportRegulationImpact"],
+        action: "규제 DB/영향도 분석 서비스 이전",
+      },
+      {
+        service_file: "services/customerService.ts",
+        module: "Customer",
+        status: "CREATED",
+        tables: "customer_portal_items, sample_feedbacks",
+        functions: ["listCustomerPortalItems", "toggleVisibility", "addSampleFeedback", "createRevisionFromFeedback"],
+        action: "고객 포털/샘플 피드백 로직 이전",
+      },
+      {
+        service_file: "services/supplierService.ts",
+        module: "Supplier",
+        status: "CREATED",
+        tables: "supplier_tasks, supplier_scorecards",
+        functions: ["listSupplierTasks", "createSupplierTask", "updateSupplierTaskStatus", "generateScorecards"],
+        action: "공급사 문서 요청/평가 로직 이전",
+      },
+      {
+        service_file: "services/adminService.ts",
+        module: "Admin",
+        status: "CREATED",
+        tables: "user_profiles, audit_logs",
+        functions: ["listUsers", "createUser", "updateRole", "logAudit", "runHealthCheck"],
+        action: "권한/Audit/System Health 로직 이전",
+      },
+      {
+        service_file: "services/dashboardService.ts",
+        module: "Dashboard",
+        status: "CREATED",
+        tables: "all enterprise tables",
+        functions: ["getExecutiveKpis", "runLaunchGateCheck", "exportBackupSummary"],
+        action: "Executive Dashboard KPI와 Launch Gate 로직 이전",
+      },
+    ];
+
+    setServiceLayerItems(items);
+    setServiceLayerStatus(`Service Layer 생성 완료: ${items.length}개 서비스 파일 / ${items.reduce((sum, item) => sum + item.functions.length, 0)}개 함수`);
+  }
+
+  function exportServiceLayerCsv() {
+    exportCsv("enterprise_service_layer_scaffold.csv", [
+      ["service_file", "module", "status", "tables", "functions", "action"],
+      ...serviceLayerItems.map((item) => [
+        item.service_file,
+        item.module,
+        item.status,
+        item.tables,
+        item.functions.join(" / "),
+        item.action,
+      ]),
+    ]);
+  }
+
+  function exportSupabaseCrudPlanCsv() {
+    exportCsv("enterprise_supabase_crud_plan.csv", [
+      ["priority", "service", "crud_scope", "note"],
+      [1, "projectService.ts", "select/insert/update", "project_code 자동채번 RPC 또는 service 함수 필요"],
+      [2, "ingredientService.ts", "select range/search/insert/upsert", "대량 데이터 대응 limit/range/page_size 필수"],
+      [3, "formulaService.ts", "select/insert/update/clone", "Released/Locked 상태 수정 제한 필요"],
+      [4, "qualityService.ts", "select/insert/update", "Storage URL, expiry_date, approval_requests 연결"],
+      [5, "regulationService.ts", "select/upsert/impact", "country_code + inci_name + cas_no unique key 검토"],
+      [6, "customerService.ts", "select/update", "customer role RLS 적용 후 외부 공개 가능"],
+      [7, "supplierService.ts", "select/update", "supplier role RLS 적용 후 공급사 문서요청 공개"],
+      [8, "adminService.ts", "select/update/insert audit", "manager 권한 전용"],
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 13</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 14</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise 1차 모듈 전환을 바탕으로 Data Integration Center를 구성합니다. 현재 화면의 임시 상태 데이터를 Supabase 테이블, RLS, 서비스 계층으로 옮기기 위한 매핑과 전환 준비 상태를 검증합니다.
+            Enterprise 1차 모듈 전환을 바탕으로 Service Layer Scaffold를 구성합니다. page.tsx 안의 업무 로직을 services/*.ts로 분리하기 위한 표준 함수 구조와 Supabase CRUD 준비 상태를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -2293,6 +2423,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Admin Users</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{adminUsers.length}</div></div>
             <div style={cardStyle()}><strong>Launch Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{launchGateItems.filter((item) => item.status === "PASS").length}</div></div>
             <div style={cardStyle()}><strong>Data Tables</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{dataMappings.length}</div></div>
+            <div style={cardStyle()}><strong>Services</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{serviceLayerItems.length}</div></div>
           </div>
         </section>
 
@@ -2356,12 +2487,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 13 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 14 목표</h2>
           <ul>
-            <li>Data Integration Center 독립 UI 검증</li>
-            <li>현재 Enterprise 임시 데이터를 Supabase 테이블로 이전하기 위한 매핑 생성</li>
-            <li>RLS 정책 초안과 서비스 계층 분리 준비</li>
-            <li>다음 단계에서 실제 services/*.ts 파일과 Supabase CRUD 연동으로 확장</li>
+            <li>Service Layer Scaffold 독립 UI 검증</li>
+            <li>projectService, formulaService, ingredientService 등 표준 서비스 파일 구조 생성</li>
+            <li>향후 Supabase CRUD, Pagination, Audit Log 연결 준비</li>
+            <li>다음 단계에서 실제 Enterprise 화면의 useState 로직을 서비스 호출 구조로 교체</li>
           </ul>
         </section>
       </>
@@ -3358,6 +3489,81 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderServiceLayerModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Service Layer Scaffold</h1>
+          <p style={{ color: "#6b7280" }}>
+            Enterprise page.tsx에 모여 있는 업무 로직을 services/*.ts로 분리하기 위한 서비스 계층 설계 화면입니다.
+            이 단계 이후부터 실제 코드 구조가 page 중심에서 service 중심으로 이동합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Services</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{serviceLayerStats.total}</div></div>
+            <div style={cardStyle()}><strong>Created</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{serviceLayerStats.created}</div></div>
+            <div style={cardStyle()}><strong>Planned</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{serviceLayerStats.planned}</div></div>
+            <div style={cardStyle()}><strong>Need Supabase</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{serviceLayerStats.needsSupabase}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateServiceLayerPlan} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Service Layer 생성
+            </button>
+            <button onClick={exportServiceLayerCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Service CSV
+            </button>
+            <button onClick={exportSupabaseCrudPlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Supabase CRUD Plan
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{serviceLayerStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Service Files</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Service File</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Tables</th>
+                <th style={tableCellStyle(true)}>Functions</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {serviceLayerItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Service Layer 생성을 실행하세요.</td></tr>}
+              {serviceLayerItems.map((item) => (
+                <tr key={item.service_file}>
+                  <td style={tableCellStyle()}>{item.service_file}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "CREATED" ? "#059669" : item.status === "PLANNED" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.tables}</td>
+                  <td style={tableCellStyle()}>{item.functions.join(" / ")}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>서비스 계층 전환 원칙</h2>
+          <ol>
+            <li>UI는 입력/표시만 담당하고, 생성/수정/검색/검증 로직은 service 함수로 이동합니다.</li>
+            <li>Supabase 연동은 service 내부에서만 수행합니다.</li>
+            <li>Audit Log는 service 함수에서 공통으로 기록합니다.</li>
+            <li>대량 데이터는 반드시 pagination/range/search 기반으로 조회합니다.</li>
+            <li>customer/supplier 외부 권한은 RLS 정책 적용 후 활성화합니다.</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
   function renderDataIntegrationModule() {
     return (
       <>
@@ -3655,6 +3861,7 @@ export default function EnterprisePage() {
     if (active === "customer") return renderCustomerModule();
     if (active === "supplier") return renderSupplierModule();
     if (active === "dataIntegration") return renderDataIntegrationModule();
+    if (active === "services") return renderServiceLayerModule();
     return renderAdminModule();
   }
 
@@ -3662,7 +3869,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 13 Data Integration Center</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 14 Service Layer Scaffold</p>
 
         {menus.map((item) => (
           <button
