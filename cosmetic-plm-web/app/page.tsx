@@ -324,6 +324,22 @@ type StabilityPredictionResult = {
   };
 };
 
+type BomSimulationResult = {
+  base_material_cost: number;
+  adjusted_material_cost: number;
+  packaging_cost: number;
+  filling_cost: number;
+  labor_cost: number;
+  logistics_cost: number;
+  overhead_rate: number;
+  final_cost: number;
+  suggested_price: number;
+  margin_rate: number;
+  exchange_rate_impact: number;
+  raw_price_impact: number;
+  scenario_note: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -676,6 +692,14 @@ export default function Home() {
   const [optimizerStatus, setOptimizerStatus] = useState("");
   const [stabilityPredictFormulaId, setStabilityPredictFormulaId] = useState("");
   const [stabilityPrediction, setStabilityPrediction] = useState<StabilityPredictionResult | null>(null);
+  const [bomSimFormulaId, setBomSimFormulaId] = useState("");
+  const [bomSimExchangeRate, setBomSimExchangeRate] = useState("1");
+  const [bomSimRawPriceChange, setBomSimRawPriceChange] = useState("0");
+  const [bomSimPackagingChange, setBomSimPackagingChange] = useState("0");
+  const [bomSimFillingChange, setBomSimFillingChange] = useState("0");
+  const [bomSimLaborChange, setBomSimLaborChange] = useState("0");
+  const [bomSimLogisticsChange, setBomSimLogisticsChange] = useState("0");
+  const [bomSimResult, setBomSimResult] = useState<BomSimulationResult | null>(null);
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5127,6 +5151,75 @@ export default function Home() {
     return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
   }
 
+  function runBomCostSimulation() {
+    if (!bomSimFormulaId) {
+      alert("시뮬레이션할 처방을 선택하세요.");
+      return;
+    }
+
+    const selectedBom = getBomByFormula(bomSimFormulaId);
+    const baseMaterialCost = getFormulaCost(bomSimFormulaId);
+    const exchangeRate = Number(bomSimExchangeRate || 1);
+    const rawPriceChange = Number(bomSimRawPriceChange || 0) / 100;
+    const packagingChange = Number(bomSimPackagingChange || 0) / 100;
+    const fillingChange = Number(bomSimFillingChange || 0) / 100;
+    const laborChange = Number(bomSimLaborChange || 0) / 100;
+    const logisticsChange = Number(bomSimLogisticsChange || 0) / 100;
+
+    const adjustedMaterialCost = baseMaterialCost * exchangeRate * (1 + rawPriceChange);
+    const packaging = Number(selectedBom?.packaging_cost || 0) * (1 + packagingChange);
+    const filling = Number(selectedBom?.filling_cost || 0) * (1 + fillingChange);
+    const labor = Number(selectedBom?.labor_cost || 0) * (1 + laborChange);
+    const logistics = Number(selectedBom?.logistics_cost || 0) * (1 + logisticsChange);
+    const overheadRateValue = Number(selectedBom?.overhead_rate || 0);
+    const marginRateValue = Number(selectedBom?.target_margin_rate || 0);
+
+    const directCost = adjustedMaterialCost + packaging + filling + labor + logistics;
+    const finalCost = directCost * (1 + overheadRateValue / 100);
+    const suggestedPrice = marginRateValue >= 100 ? 0 : finalCost / (1 - marginRateValue / 100);
+
+    setBomSimResult({
+      base_material_cost: baseMaterialCost,
+      adjusted_material_cost: adjustedMaterialCost,
+      packaging_cost: packaging,
+      filling_cost: filling,
+      labor_cost: labor,
+      logistics_cost: logistics,
+      overhead_rate: overheadRateValue,
+      final_cost: finalCost,
+      suggested_price: suggestedPrice,
+      margin_rate: marginRateValue,
+      exchange_rate_impact: adjustedMaterialCost - baseMaterialCost * (1 + rawPriceChange),
+      raw_price_impact: baseMaterialCost * rawPriceChange,
+      scenario_note: `환율 ${exchangeRate}배 / 원료단가 ${bomSimRawPriceChange || 0}% / 부자재 ${bomSimPackagingChange || 0}% / 충전 ${bomSimFillingChange || 0}% / 인건비 ${bomSimLaborChange || 0}% / 물류 ${bomSimLogisticsChange || 0}%`,
+    });
+  }
+
+  function exportBomSimulationCsv() {
+    if (!bomSimResult) {
+      alert("먼저 BOM 시뮬레이션을 실행하세요.");
+      return;
+    }
+
+    downloadCsv(
+      "bom_cost_simulation.csv",
+      ["item", "value"],
+      [
+        ["base_material_cost", bomSimResult.base_material_cost],
+        ["adjusted_material_cost", bomSimResult.adjusted_material_cost],
+        ["packaging_cost", bomSimResult.packaging_cost],
+        ["filling_cost", bomSimResult.filling_cost],
+        ["labor_cost", bomSimResult.labor_cost],
+        ["logistics_cost", bomSimResult.logistics_cost],
+        ["overhead_rate", bomSimResult.overhead_rate],
+        ["final_cost", bomSimResult.final_cost],
+        ["suggested_price", bomSimResult.suggested_price],
+        ["margin_rate", bomSimResult.margin_rate],
+        ["scenario_note", bomSimResult.scenario_note],
+      ]
+    );
+  }
+
   function runStabilityPrediction() {
     if (!stabilityPredictFormulaId) {
       alert("예측할 처방을 선택하세요.");
@@ -6889,6 +6982,7 @@ export default function Home() {
         ["stage", "개발일정"],
         ["cost", "원가관리"],
         ["bom", "BOM원가"],
+        ["bomSimulator", "AI BOM 시뮬레이터"],
         ["batch", "배치계산"],
       ],
     },
@@ -10643,6 +10737,74 @@ export default function Home() {
                         <td>{item.remark}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </>
+        )}
+
+        {menu === "bomSimulator" && (
+          <>
+            <h1>v29.0 AI BOM Cost Simulator</h1>
+            <p style={{ color: "#6b7280" }}>
+              환율, 원료단가, 부자재비, 충전비, 인건비, 물류비 변동에 따른 최종 제조원가와 권장 공급가를 시뮬레이션합니다.
+            </p>
+
+            <h2>시뮬레이션 조건</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
+              <select value={bomSimFormulaId || ""} onChange={(e) => setBomSimFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} v{formula.version} - {formula.formula_name} / 현재 BOM원가 {getBomFinalCost(formula.id).toFixed(0)}원/kg
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                <input placeholder="환율 배수 예: 1.05" value={bomSimExchangeRate || ""} onChange={(e) => setBomSimExchangeRate(e.target.value)} />
+                <input placeholder="원료단가 변동% 예: 10" value={bomSimRawPriceChange || ""} onChange={(e) => setBomSimRawPriceChange(e.target.value)} />
+                <input placeholder="부자재비 변동% 예: 5" value={bomSimPackagingChange || ""} onChange={(e) => setBomSimPackagingChange(e.target.value)} />
+                <input placeholder="충전비 변동% 예: 3" value={bomSimFillingChange || ""} onChange={(e) => setBomSimFillingChange(e.target.value)} />
+                <input placeholder="인건비 변동% 예: 4" value={bomSimLaborChange || ""} onChange={(e) => setBomSimLaborChange(e.target.value)} />
+                <input placeholder="물류비 변동% 예: 8" value={bomSimLogisticsChange || ""} onChange={(e) => setBomSimLogisticsChange(e.target.value)} />
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={runBomCostSimulation} style={{ background: "#7c3aed" }}>
+                  BOM 원가 시뮬레이션 실행
+                </button>
+                <button onClick={exportBomSimulationCsv} style={{ background: "#059669" }}>
+                  시뮬레이션 CSV 내보내기
+                </button>
+              </div>
+            </div>
+
+            {bomSimResult && (
+              <>
+                <h2>시뮬레이션 결과</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}><strong>기존 원료원가</strong><div>{bomSimResult.base_material_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>조정 원료원가</strong><div>{bomSimResult.adjusted_material_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>부자재비</strong><div>{bomSimResult.packaging_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>충전비</strong><div>{bomSimResult.filling_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>인건비</strong><div>{bomSimResult.labor_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>물류비</strong><div>{bomSimResult.logistics_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>간접비율</strong><div>{bomSimResult.overhead_rate.toFixed(2)}%</div></div>
+                  <div style={cardStyle}><strong>최종 제조원가</strong><div style={{ fontWeight: "bold", color: "#dc2626" }}>{bomSimResult.final_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>권장 공급가</strong><div style={{ fontWeight: "bold", color: "#2563eb" }}>{bomSimResult.suggested_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                </div>
+
+                <h3>Scenario Note</h3>
+                <p>{bomSimResult.scenario_note}</p>
+
+                <h3>원가 구성</h3>
+                <table style={tableStyle}>
+                  <tbody>
+                    <tr><th>원료원가 영향</th><td>{bomSimResult.raw_price_impact.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</td></tr>
+                    <tr><th>환율 영향</th><td>{bomSimResult.exchange_rate_impact.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</td></tr>
+                    <tr><th>목표 마진율</th><td>{bomSimResult.margin_rate.toFixed(2)}%</td></tr>
                   </tbody>
                 </table>
               </>
