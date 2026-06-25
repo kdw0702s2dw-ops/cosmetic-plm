@@ -268,6 +268,17 @@ type RegulationImpactRow = {
   suggestion: string;
 };
 
+type AiRegulationAnswer = {
+  question: string;
+  answer_type: "INGREDIENT" | "FORMULA" | "COUNTRY" | "GENERAL";
+  summary: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  matched_ingredients: GlobalIngredient[];
+  matched_regulations: CountryRegulation[];
+  affected_formulas: RegulationImpactRow[];
+  recommendations: string[];
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -608,6 +619,9 @@ export default function Home() {
   const [regImpactSeverityFilter, setRegImpactSeverityFilter] = useState("ALL");
   const [regImpactRows, setRegImpactRows] = useState<RegulationImpactRow[]>([]);
   const [regImpactStatus, setRegImpactStatus] = useState("");
+  const [aiRegQuestion, setAiRegQuestion] = useState("EU에서 Salicylic Acid 사용 가능한가?");
+  const [aiRegAnswer, setAiRegAnswer] = useState<AiRegulationAnswer | null>(null);
+  const [aiRegCountry, setAiRegCountry] = useState("EU");
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -5039,6 +5053,133 @@ export default function Home() {
     );
   }
 
+  function extractCountriesFromQuestion(question: string) {
+    const upper = question.toUpperCase();
+    const countries: string[] = [];
+
+    ["EU", "US", "CN", "CHINA", "JP", "JAPAN", "ASEAN", "KR", "KOREA"].forEach((token) => {
+      if (upper.includes(token)) {
+        if (token === "CHINA") countries.push("CN");
+        else if (token === "JAPAN") countries.push("JP");
+        else if (token === "KOREA") countries.push("KR");
+        else countries.push(token);
+      }
+    });
+
+    return Array.from(new Set(countries.length ? countries : [aiRegCountry]));
+  }
+
+  function findIngredientsFromQuestion(question: string) {
+    const q = question.toLowerCase();
+
+    return globalIngredients
+      .filter((item) => {
+        const keys = [item.inci_name, item.korean_name, item.cas_no, item.ec_no]
+          .filter(Boolean)
+          .map((value) => String(value).toLowerCase());
+
+        return keys.some((key) => key && q.includes(key));
+      })
+      .slice(0, 10);
+  }
+
+  function findFormulaFromQuestion(question: string) {
+    const q = question.toLowerCase();
+
+    return formulas.find((formula) =>
+      q.includes(String(formula.formula_code || "").toLowerCase()) ||
+      q.includes(String(formula.formula_name || "").toLowerCase())
+    );
+  }
+
+  function answerIngredientRegulationQuestion(question: string, countries: string[]) {
+    const matchedIngredients = findIngredientsFromQuestion(question);
+    const matchedFormula = findFormulaFromQuestion(question);
+    let matchedRegulations: CountryRegulation[] = [];
+    let affectedFormulas: RegulationImpactRow[] = [];
+    const recommendations: string[] = [];
+
+    if (matchedIngredients.length > 0) {
+      matchedRegulations = countryRegulations.filter((reg) => {
+        const countryOk = countries.includes(reg.country_code);
+        const ingredientOk = matchedIngredients.some((ingredient) => {
+          const sameInci = ingredient.inci_name && reg.inci_name?.toLowerCase() === ingredient.inci_name.toLowerCase();
+          const sameCas = ingredient.cas_no && reg.cas_no === ingredient.cas_no;
+
+          return sameInci || sameCas;
+        });
+
+        return countryOk && ingredientOk;
+      });
+    }
+
+    if (matchedFormula) {
+      const currentImpactBackup = regImpactRows;
+      analyzeRegulationImpact();
+      affectedFormulas = regImpactRows.filter((row) => row.formula_id === matchedFormula.id && countries.includes(row.country_code));
+      setRegImpactRows(currentImpactBackup);
+    }
+
+    const hasProhibited = matchedRegulations.some((reg) => reg.is_prohibited);
+    const hasRestricted = matchedRegulations.some((reg) => reg.regulation_type === "Restricted");
+    const hasWarning = matchedRegulations.some((reg) => reg.regulation_type === "Warning");
+
+    let riskLevel: "LOW" | "MEDIUM" | "HIGH" = "LOW";
+
+    if (hasProhibited || affectedFormulas.some((row) => row.severity === "HIGH")) riskLevel = "HIGH";
+    else if (hasRestricted || hasWarning || affectedFormulas.some((row) => row.severity === "MEDIUM")) riskLevel = "MEDIUM";
+
+    if (matchedRegulations.length === 0 && matchedIngredients.length > 0) {
+      recommendations.push("현재 국가별 규제 DB에 명확한 제한/금지 매칭이 없습니다. 공식자료 확인 후 RA 검토를 권장합니다.");
+    }
+
+    matchedRegulations.forEach((reg) => {
+      if (reg.is_prohibited) recommendations.push(`${reg.country_code}: ${reg.inci_name} 금지 가능성. 처방 사용 금지 또는 대체 필요.`);
+      else if (reg.max_percentage > 0) recommendations.push(`${reg.country_code}: ${reg.inci_name} 최대 ${reg.max_percentage}% 기준 확인.`);
+      else recommendations.push(`${reg.country_code}: ${reg.inci_name} ${reg.regulation_type} - ${reg.warning_message}`);
+    });
+
+    if (affectedFormulas.length > 0) {
+      recommendations.push(`영향받는 처방 ${affectedFormulas.length}건 확인. Regulation Impact Analysis에서 상세 검토하세요.`);
+    }
+
+    const summary =
+      matchedFormula
+        ? `${matchedFormula.formula_code} 처방의 ${countries.join(", ")} 규제 영향 검토 결과: ${riskLevel}`
+        : matchedIngredients.length > 0
+        ? `${matchedIngredients.map((item) => item.inci_name).join(", ")}의 ${countries.join(", ")} 규제 검토 결과: ${riskLevel}`
+        : "질문에서 성분 또는 처방을 명확히 찾지 못했습니다. INCI, CAS, 처방코드를 포함해 다시 질문하세요.";
+
+    return {
+      question,
+      answer_type: matchedFormula ? "FORMULA" : matchedIngredients.length > 0 ? "INGREDIENT" : "GENERAL",
+      summary,
+      risk_level: riskLevel,
+      matched_ingredients: matchedIngredients,
+      matched_regulations: matchedRegulations,
+      affected_formulas: affectedFormulas,
+      recommendations,
+    } as AiRegulationAnswer;
+  }
+
+  function runAiRegulationAssistant() {
+    if (!aiRegQuestion.trim()) {
+      alert("질문을 입력하세요.");
+      return;
+    }
+
+    const countries = extractCountriesFromQuestion(aiRegQuestion);
+    const answer = answerIngredientRegulationQuestion(aiRegQuestion, countries);
+
+    setAiRegAnswer(answer);
+
+    logAudit("AI Regulation Assistant", "QUESTION", "질의", null, {
+      question: aiRegQuestion,
+      summary: answer.summary,
+      risk_level: answer.risk_level,
+    });
+  }
+
   function getFilteredRegImpactRows() {
     return regImpactRows.filter((row) => {
       const countryOk = regImpactCountryFilter === "ALL" || row.country_code === regImpactCountryFilter;
@@ -6236,6 +6377,7 @@ export default function Home() {
       regulation: ["manager", "qa", "ra", "viewer"],
       globalRegulation: ["manager", "ra", "viewer"],
       regUpdate: ["manager", "ra"],
+      aiRegulation: ["manager", "ra", "qa", "senior", "researcher"],
       stability: ["manager", "qa", "senior", "researcher", "viewer"],
       approval: ["manager", "qa", "senior"],
       lock: ["manager", "qa", "senior"],
@@ -6334,6 +6476,7 @@ export default function Home() {
         ["regulation", "규제검증"],
         ["globalRegulation", "국가별규제"],
         ["regUpdate", "규제업데이트센터"],
+        ["aiRegulation", "AI 규제질의"],
         ["breakdown", "Breakdown IL"],
         ["fullil", "Full IL"],
         ["label", "전성분"],
@@ -8593,6 +8736,158 @@ export default function Home() {
                       <th>향료/색소 정렬</th>
                       <td>별도 후순위 처리하지 않고 Breakdown 최종함량 기준으로 정렬합니다.</td>
                     </tr>
+                  </tbody>
+                </table>
+              </>
+            )}
+          </>
+        )}
+
+        {menu === "aiRegulation" && (
+          <>
+            <h1>AI Regulation Assistant</h1>
+            <p style={{ color: "#6b7280" }}>
+              국가별 규제 DB, Global Ingredient Master, 처방 영향도 분석 데이터를 기반으로 자연어 규제 질의에 답변합니다.
+            </p>
+
+            <h2>규제 질의</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "24px" }}>
+              <select value={aiRegCountry || "EU"} onChange={(e) => setAiRegCountry(e.target.value)}>
+                <option value="EU">EU</option>
+                <option value="CN">China</option>
+                <option value="US">US</option>
+                <option value="JP">Japan</option>
+                <option value="ASEAN">ASEAN</option>
+                <option value="KR">Korea</option>
+              </select>
+
+              <textarea
+                placeholder="예: EU에서 Salicylic Acid 사용 가능한가? / FC-001 중국 판매 가능해? / Phenoxyethanol 최대 함량 알려줘"
+                value={aiRegQuestion || ""}
+                onChange={(e) => setAiRegQuestion(e.target.value)}
+                rows={4}
+              />
+
+              <button onClick={runAiRegulationAssistant}>AI 규제 답변 생성</button>
+            </div>
+
+            {aiRegAnswer && (
+              <>
+                <h2>AI 답변</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}>
+                    <strong>질문유형</strong>
+                    <div>{aiRegAnswer.answer_type}</div>
+                  </div>
+                  <div style={cardStyle}>
+                    <strong>Risk Level</strong>
+                    <div style={{ color: aiRegAnswer.risk_level === "HIGH" ? "red" : aiRegAnswer.risk_level === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {aiRegAnswer.risk_level}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <strong>매칭 성분</strong>
+                    <div>{aiRegAnswer.matched_ingredients.length}개</div>
+                  </div>
+                  <div style={cardStyle}>
+                    <strong>규제 매칭</strong>
+                    <div>{aiRegAnswer.matched_regulations.length}건</div>
+                  </div>
+                </div>
+
+                <div style={{ border: "1px solid #d1d5db", borderRadius: "8px", padding: "14px", marginBottom: "20px" }}>
+                  <h3 style={{ marginTop: 0 }}>요약</h3>
+                  <p style={{ fontWeight: "bold" }}>{aiRegAnswer.summary}</p>
+                </div>
+
+                <h3>추천 조치</h3>
+                <ul>
+                  {aiRegAnswer.recommendations.length === 0 && <li>현재 DB 기준 추가 조치 없음. 단, 공식자료 최종 확인은 필요합니다.</li>}
+                  {aiRegAnswer.recommendations.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+
+                <h3>매칭 성분</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>INCI</th>
+                      <th>국문명</th>
+                      <th>CAS</th>
+                      <th>기능</th>
+                      <th>EU/China/Japan/ASEAN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiRegAnswer.matched_ingredients.length === 0 && <tr><td colSpan={5}>매칭 성분 없음</td></tr>}
+                    {aiRegAnswer.matched_ingredients.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.inci_name}</td>
+                        <td>{item.korean_name}</td>
+                        <td>{item.cas_no}</td>
+                        <td>{item.function_ko}</td>
+                        <td>{item.eu_status || "-"} / {item.china_status || "-"} / {item.japan_status || "-"} / {item.asean_status || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>국가별 규제 근거</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>국가</th>
+                      <th>INCI</th>
+                      <th>CAS</th>
+                      <th>규제유형</th>
+                      <th>한도%</th>
+                      <th>금지</th>
+                      <th>경고</th>
+                      <th>근거</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiRegAnswer.matched_regulations.length === 0 && <tr><td colSpan={8}>규제 DB 매칭 없음</td></tr>}
+                    {aiRegAnswer.matched_regulations.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.country_code}</td>
+                        <td>{row.inci_name}</td>
+                        <td>{row.cas_no}</td>
+                        <td>{row.regulation_type}</td>
+                        <td>{row.max_percentage}</td>
+                        <td>{row.is_prohibited ? "YES" : "-"}</td>
+                        <td>{row.warning_message}</td>
+                        <td>{row.reference_note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <h3>영향받는 처방</h3>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>위험도</th>
+                      <th>처방</th>
+                      <th>프로젝트</th>
+                      <th>성분</th>
+                      <th>최종함량%</th>
+                      <th>이슈</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiRegAnswer.affected_formulas.length === 0 && <tr><td colSpan={6}>영향받는 처방 없음</td></tr>}
+                    {aiRegAnswer.affected_formulas.map((row, index) => (
+                      <tr key={`${row.formula_id}-${index}`}>
+                        <td style={{ color: row.severity === "HIGH" ? "red" : row.severity === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>{row.severity}</td>
+                        <td>{row.formula_code} v{row.version}<br />{row.formula_name}</td>
+                        <td>{row.project_code}<br />{row.project_name}</td>
+                        <td>{row.inci_name}</td>
+                        <td>{row.final_percentage.toFixed(6)}</td>
+                        <td>{row.issue}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </>
