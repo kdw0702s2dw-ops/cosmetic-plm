@@ -279,6 +279,18 @@ type AiRegulationAnswer = {
   recommendations: string[];
 };
 
+type OfficialSourceWatch = {
+  region: string;
+  source_name: string;
+  source_url: string;
+  update_frequency: string;
+  owner: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  last_checked: string;
+  status: "Due" | "Watch" | "OK";
+  note: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -622,6 +634,8 @@ export default function Home() {
   const [aiRegQuestion, setAiRegQuestion] = useState("EU에서 Salicylic Acid 사용 가능한가?");
   const [aiRegAnswer, setAiRegAnswer] = useState<AiRegulationAnswer | null>(null);
   const [aiRegCountry, setAiRegCountry] = useState("EU");
+  const [officialWatchText, setOfficialWatchText] = useState("");
+  const [officialWatchResult, setOfficialWatchResult] = useState<string[]>([]);
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -4917,10 +4931,6 @@ export default function Home() {
       .trim();
   }
 
-  function getCompositionRowsByRaw(rawId: string) {
-    return compositions.filter((composition) => composition.raw_materials?.id === rawId);
-  }
-
   function getProjectsByFormulaId(targetFormulaId: string) {
     return projectFormulas
       .filter((item) => item.formulas?.id === targetFormulaId)
@@ -5050,6 +5060,136 @@ export default function Home() {
     setRegImpactRows(impacts);
     setRegImpactStatus(
       `영향분석 완료: 총 ${impacts.length}건 / HIGH ${impacts.filter((row) => row.severity === "HIGH").length} / MEDIUM ${impacts.filter((row) => row.severity === "MEDIUM").length} / LOW ${impacts.filter((row) => row.severity === "LOW").length}`
+    );
+  }
+
+  function getOfficialSourceWatchList(): OfficialSourceWatch[] {
+    return [
+      {
+        region: "EU",
+        source_name: "European Commission CosIng / Regulation 1223/2009",
+        source_url: "https://single-market-economy.ec.europa.eu/sectors/cosmetics/cosmetic-ingredient-database_en",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "HIGH",
+        last_checked: "",
+        status: "Due",
+        note: "CosIng, Annex II/III/IV/V/VI 변경 확인",
+      },
+      {
+        region: "US",
+        source_name: "FDA Prohibited & Restricted Ingredients",
+        source_url: "https://www.fda.gov/cosmetics/cosmetics-laws-regulations/prohibited-restricted-ingredients-cosmetics",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "HIGH",
+        last_checked: "",
+        status: "Due",
+        note: "금지/제한 성분, MoCRA 관련 업데이트 확인",
+      },
+      {
+        region: "ASEAN",
+        source_name: "ASEAN Cosmetic Directive Annexes",
+        source_url: "https://www.hsa.gov.sg/cosmetic-products/asean-cosmetic-directive",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "HIGH",
+        last_checked: "",
+        status: "Due",
+        note: "Annex II/III/VI, 보존제/색소/자외선차단제 변경 확인",
+      },
+      {
+        region: "China",
+        source_name: "NMPA IECIC / Safety Technical Standards",
+        source_url: "NMPA official notice / IECIC channel",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "HIGH",
+        last_checked: "",
+        status: "Due",
+        note: "IECIC 등재, 금지/제한 원료, 신원료 공고 확인",
+      },
+      {
+        region: "Japan",
+        source_name: "MHLW / Japan Standards for Cosmetics",
+        source_url: "MHLW official standards",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "MEDIUM",
+        last_checked: "",
+        status: "Watch",
+        note: "일본 화장품 기준 및 성분 고시 변경 확인",
+      },
+      {
+        region: "Korea",
+        source_name: "MFDS 화장품 안전기준 / 고시",
+        source_url: "MFDS official notice",
+        update_frequency: "Monthly",
+        owner: "RA",
+        priority: "MEDIUM",
+        last_checked: "",
+        status: "Watch",
+        note: "사용금지/사용제한 원료, 기능성 고시 확인",
+      },
+    ];
+  }
+
+  function detectOfficialWatchKeywords() {
+    const text = officialWatchText.toLowerCase();
+    const results: string[] = [];
+
+    const keywordMap = [
+      { keyword: "annex ii", message: "EU Annex II 금지성분 변경 가능성" },
+      { keyword: "annex iii", message: "EU Annex III 제한성분 변경 가능성" },
+      { keyword: "prohibited", message: "금지성분 관련 변경 가능성" },
+      { keyword: "restricted", message: "제한성분 관련 변경 가능성" },
+      { keyword: "preservative", message: "보존제 관련 변경 가능성" },
+      { keyword: "uv filter", message: "자외선차단제 관련 변경 가능성" },
+      { keyword: "colorant", message: "색소 관련 변경 가능성" },
+      { keyword: "iecic", message: "중국 IECIC 관련 변경 가능성" },
+      { keyword: "new ingredient", message: "신규 원료/신원료 관련 변경 가능성" },
+      { keyword: "maximum concentration", message: "최대 사용한도 변경 가능성" },
+      { keyword: "최대", message: "최대 사용한도 변경 가능성" },
+      { keyword: "금지", message: "금지성분 관련 변경 가능성" },
+      { keyword: "제한", message: "제한성분 관련 변경 가능성" },
+      { keyword: "고시", message: "공식 고시 변경 가능성" },
+    ];
+
+    keywordMap.forEach((item) => {
+      if (text.includes(item.keyword)) {
+        results.push(item.message);
+      }
+    });
+
+    const casMatches = officialWatchText.match(/\b\d{2,7}-\d{2}-\d\b/g) || [];
+
+    if (casMatches.length > 0) {
+      results.push(`CAS 번호 ${Array.from(new Set(casMatches)).slice(0, 10).join(", ")} 감지`);
+    }
+
+    if (results.length === 0) {
+      results.push("주요 규제 변경 키워드가 감지되지 않았습니다. RA 수동 검토는 계속 권장됩니다.");
+    }
+
+    setOfficialWatchResult(Array.from(new Set(results)));
+  }
+
+  function exportOfficialWatchListCsv() {
+    const rows = getOfficialSourceWatchList().map((item) => [
+      item.region,
+      item.source_name,
+      item.source_url,
+      item.update_frequency,
+      item.owner,
+      item.priority,
+      item.status,
+      item.note,
+    ]);
+
+    downloadCsv(
+      "official_source_watch_list_v26.csv",
+      ["region", "source_name", "source_url", "update_frequency", "owner", "priority", "status", "note"],
+      rows
     );
   }
 
@@ -6378,6 +6518,7 @@ export default function Home() {
       globalRegulation: ["manager", "ra", "viewer"],
       regUpdate: ["manager", "ra"],
       aiRegulation: ["manager", "ra", "qa", "senior", "researcher"],
+      officialWatch: ["manager", "ra"],
       stability: ["manager", "qa", "senior", "researcher", "viewer"],
       approval: ["manager", "qa", "senior"],
       lock: ["manager", "qa", "senior"],
@@ -6477,6 +6618,7 @@ export default function Home() {
         ["globalRegulation", "국가별규제"],
         ["regUpdate", "규제업데이트센터"],
         ["aiRegulation", "AI 규제질의"],
+        ["officialWatch", "공식자료모니터"],
         ["breakdown", "Breakdown IL"],
         ["fullil", "Full IL"],
         ["label", "전성분"],
@@ -8738,6 +8880,80 @@ export default function Home() {
                     </tr>
                   </tbody>
                 </table>
+              </>
+            )}
+          </>
+        )}
+
+        {menu === "officialWatch" && (
+          <>
+            <h1>v26.0 Official Source Watch Center</h1>
+            <p style={{ color: "#6b7280" }}>
+              EU, FDA, ASEAN, NMPA, 일본, 식약처 공식자료를 월간 체크 대상으로 관리하고, 공지/고시 텍스트에서 규제 변경 키워드를 1차 감지합니다.
+              실제 자동 크롤링은 서버 Cron 또는 GitHub Actions 단계에서 연결합니다.
+            </p>
+
+            <h2>공식자료 월간 체크 리스트</h2>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+              <button onClick={exportOfficialWatchListCsv} style={{ background: "#059669" }}>
+                공식자료 체크리스트 CSV 내보내기
+              </button>
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>지역</th>
+                  <th>소스</th>
+                  <th>URL/채널</th>
+                  <th>주기</th>
+                  <th>담당</th>
+                  <th>우선순위</th>
+                  <th>상태</th>
+                  <th>확인 포인트</th>
+                </tr>
+              </thead>
+              <tbody>
+                {getOfficialSourceWatchList().map((item) => (
+                  <tr key={`${item.region}-${item.source_name}`}>
+                    <td>{item.region}</td>
+                    <td>{item.source_name}</td>
+                    <td>{item.source_url}</td>
+                    <td>{item.update_frequency}</td>
+                    <td>{item.owner}</td>
+                    <td style={{ color: item.priority === "HIGH" ? "red" : item.priority === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>{item.priority}</td>
+                    <td>{item.status}</td>
+                    <td>{item.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h2>공식 고시/공지 텍스트 변경 키워드 감지</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "24px" }}>
+              <textarea
+                placeholder="공식 사이트 공지, PDF에서 복사한 텍스트, Annex 변경 문구 등을 붙여넣으세요."
+                value={officialWatchText || ""}
+                onChange={(e) => setOfficialWatchText(e.target.value)}
+                rows={8}
+              />
+
+              <button onClick={detectOfficialWatchKeywords} style={{ background: "#7c3aed" }}>
+                변경 키워드 감지
+              </button>
+            </div>
+
+            {officialWatchResult.length > 0 && (
+              <>
+                <h2>감지 결과</h2>
+                <ul>
+                  {officialWatchResult.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+                <p style={{ color: "#6b7280" }}>
+                  CAS 또는 제한/금지 키워드가 감지되면 규제업데이트센터에서 공식자료 텍스트 AI 추출 → NEW/UPDATE 검토 → PLM 반영 순서로 진행하세요.
+                </p>
               </>
             )}
           </>
