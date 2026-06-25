@@ -65,6 +65,20 @@ type EnterpriseRawMaterial = {
   composition_total: number;
 };
 
+type AiAnalysisResult = {
+  formula_concept: string;
+  target_countries: string;
+  target_cost: number;
+  suggested_formula_type: string;
+  expected_cost: number;
+  regulation_risk: "LOW" | "MEDIUM" | "HIGH";
+  stability_risk: "LOW" | "MEDIUM" | "HIGH";
+  claim_score: number;
+  recommended_ingredients: string[];
+  warnings: string[];
+  next_actions: string[];
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -294,6 +308,12 @@ export default function EnterprisePage() {
   const [rawSupplier, setRawSupplier] = useState("");
   const [rawPrice, setRawPrice] = useState("");
   const [rawMainInci, setRawMainInci] = useState("");
+
+  const [aiConcept, setAiConcept] = useState("고보습 비건 장벽 크림");
+  const [aiCountries, setAiCountries] = useState("EU, KR");
+  const [aiTargetCost, setAiTargetCost] = useState("5000");
+  const [aiClaims, setAiClaims] = useState("보습, 진정, 비건, 저자극");
+  const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -638,14 +658,116 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function runAiEnterpriseAnalysis() {
+    const targetCost = Number(aiTargetCost || 0);
+    const conceptText = `${aiConcept} ${aiClaims}`.toLowerCase();
+
+    const recommended = ingredients
+      .filter((item) => {
+        const text = `${item.inci_name} ${item.korean_name} ${item.function_ko} ${item.function_en}`.toLowerCase();
+
+        if (conceptText.includes("보습") || conceptText.includes("moisture")) {
+          if (text.includes("glycerin") || text.includes("hyaluronate") || text.includes("betaine") || text.includes("panthenol") || text.includes("보습")) return true;
+        }
+
+        if (conceptText.includes("진정") || conceptText.includes("soothing")) {
+          if (text.includes("panthenol") || text.includes("allantoin") || text.includes("진정")) return true;
+        }
+
+        if (conceptText.includes("비건") || conceptText.includes("vegan")) {
+          if (!text.includes("animal")) return true;
+        }
+
+        return false;
+      })
+      .slice(0, 8)
+      .map((item) => item.inci_name);
+
+    const hasPreservative = ingredients.some((item) => item.function_ko.includes("보존") || item.function_en.toLowerCase().includes("preservative"));
+    const restrictedCount = ingredients.filter((item) => item.eu_status.toLowerCase().includes("restricted")).length;
+    const expectedCost = Math.round((targetCost || 5000) * (conceptText.includes("비건") ? 1.08 : 0.96));
+    const regulationRisk: AiAnalysisResult["regulation_risk"] = restrictedCount >= 2 ? "HIGH" : restrictedCount === 1 ? "MEDIUM" : "LOW";
+    const stabilityRisk: AiAnalysisResult["stability_risk"] = conceptText.includes("크림") ? "MEDIUM" : "LOW";
+
+    const warnings: string[] = [];
+
+    if (!hasPreservative) warnings.push("보존 시스템 후보가 부족합니다. 보존제/방부부스터 검토가 필요합니다.");
+    if (expectedCost > targetCost && targetCost > 0) warnings.push(`예상 원가 ${expectedCost.toLocaleString()}원/kg이 목표 원가 ${targetCost.toLocaleString()}원/kg을 초과할 수 있습니다.`);
+    if (regulationRisk !== "LOW") warnings.push("EU Restricted 성분이 포함될 가능성이 있어 RA 검토가 필요합니다.");
+    if (conceptText.includes("저자극")) warnings.push("저자극 클레임은 인체적용/피부자극 시험 근거가 필요합니다.");
+
+    setAiResult({
+      formula_concept: aiConcept,
+      target_countries: aiCountries,
+      target_cost: targetCost,
+      suggested_formula_type: conceptText.includes("세럼") ? "Serum" : conceptText.includes("크림") ? "Cream" : "Emulsion",
+      expected_cost: expectedCost,
+      regulation_risk: regulationRisk,
+      stability_risk: stabilityRisk,
+      claim_score: Math.max(50, 90 - warnings.length * 10),
+      recommended_ingredients: recommended.length ? recommended : ["Glycerin", "Panthenol", "Betaine"],
+      warnings,
+      next_actions: [
+        "AI 처방 초안 생성 후 Formula Module에 Draft로 등록",
+        "Ingredient Module에서 추천 성분의 CAS/규제 정보 확인",
+        "Regulation Module에서 판매국가별 제한 여부 검토",
+        "Quality Module에서 안정성 예측 및 시험 조건 설정",
+        "BOM 시뮬레이터에서 목표원가 달성 여부 확인",
+      ],
+    });
+  }
+
+  function saveAiDraftAsFormula() {
+    if (!aiResult) {
+      alert("먼저 AI 분석을 실행하세요.");
+      return;
+    }
+
+    const newFormula: EnterpriseFormula = {
+      id: crypto.randomUUID(),
+      formula_code: nextFormulaCode(formulas),
+      formula_name: `${aiResult.formula_concept} AI Draft`,
+      version: "0.1",
+      project_code: projects[0]?.project_code || "UNLINKED",
+      status: "Draft",
+      total_percent: 100,
+      material_cost: aiResult.expected_cost,
+      is_locked: false,
+      revision_note: `AI Draft / ${aiResult.target_countries} / Claim Score ${aiResult.claim_score}`,
+    };
+
+    setFormulas([newFormula, ...formulas]);
+    setActive("formula");
+  }
+
+  function exportAiResultCsv() {
+    if (!aiResult) {
+      alert("AI 분석 결과가 없습니다.");
+      return;
+    }
+
+    exportCsv("enterprise_ai_analysis.csv", [
+      ["item", "value"],
+      ["concept", aiResult.formula_concept],
+      ["countries", aiResult.target_countries],
+      ["target_cost", aiResult.target_cost],
+      ["expected_cost", aiResult.expected_cost],
+      ["formula_type", aiResult.suggested_formula_type],
+      ["regulation_risk", aiResult.regulation_risk],
+      ["stability_risk", aiResult.stability_risk],
+      ["claim_score", aiResult.claim_score],
+      ["recommended_ingredients", aiResult.recommended_ingredients.join(" / ")],
+      ["warnings", aiResult.warnings.join(" / ")],
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 5</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 6</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula Module에 이어 Ingredient Module을 Enterprise 구조로 분리합니다.
-            성분 데이터가 1,000개 이상으로 증가해도 검색과 페이지네이션으로 안정적으로 사용할 수 있는 구조를 검증합니다.
+            Project / Formula / Ingredient Module에 이어 AI Module을 Enterprise 구조로 분리합니다. AI 처방, 규제, 안정성, 원가, 클레임 검토 흐름을 하나의 화면에서 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -654,17 +776,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>성분</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{ingredientStats.total}</div></div>
             <div style={cardStyle()}><strong>원료</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{ingredientStats.rawTotal}</div></div>
             <div style={cardStyle()}><strong>규제주의</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#d97706" }}>{ingredientStats.restricted}</div></div>
+            <div style={cardStyle()}><strong>AI 준비도</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{ingredients.length > 5 ? 85 : 70}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 5 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 6 목표</h2>
           <ul>
-            <li>Ingredient Module 독립 UI 검증</li>
-            <li>성분 검색/페이지네이션 구조 적용</li>
-            <li>원료마스터와 Global Ingredient 연결 구조 검증</li>
-            <li>Seed Import / CSV Export 흐름 검증</li>
-            <li>다음 단계에서 실제 Supabase ingredient_master_global 조회 최적화 적용</li>
+            <li>AI Formula Generator 2.0 구조 검증</li>
+            <li>AI Ingredient / Regulation / Stability / BOM 흐름 통합</li>
+            <li>컨셉, 판매국가, 목표원가, 클레임 기반 분석</li>
+            <li>다음 단계에서 실제 PLM 데이터와 Supabase 기반 AI 서비스로 분리</li>
           </ul>
         </section>
       </>
@@ -981,6 +1103,74 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderAiModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>AI Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            AI Formula Generator 2.0, AI Ingredient, AI Regulation, AI Stability, AI BOM을 하나의 Enterprise 흐름으로 통합합니다.
+          </p>
+
+          <h2>AI 처방/검토 조건</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px" }}>
+            <input value={aiConcept} onChange={(e) => setAiConcept(e.target.value)} placeholder="제품 컨셉 예: 고보습 비건 장벽 크림" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={aiCountries} onChange={(e) => setAiCountries(e.target.value)} placeholder="판매 국가 예: EU, KR, CN" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={aiTargetCost} onChange={(e) => setAiTargetCost(e.target.value)} placeholder="목표 원가 원/kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={aiClaims} onChange={(e) => setAiClaims(e.target.value)} placeholder="희망 클레임 예: 보습, 진정, 비건, 저자극" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={runAiEnterpriseAnalysis} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                AI Enterprise 분석
+              </button>
+              <button onClick={saveAiDraftAsFormula} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                AI Draft를 Formula로 저장
+              </button>
+              <button onClick={exportAiResultCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                AI 결과 CSV Export
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {aiResult && (
+          <>
+            <section style={cardStyle()}>
+              <h2 style={{ marginTop: 0 }}>AI 분석 결과</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }}>
+                <div style={cardStyle()}><strong>제형</strong><div style={{ fontSize: "24px", fontWeight: "bold" }}>{aiResult.suggested_formula_type}</div></div>
+                <div style={cardStyle()}><strong>예상원가</strong><div style={{ fontSize: "24px", fontWeight: "bold" }}>{aiResult.expected_cost.toLocaleString()}</div></div>
+                <div style={cardStyle()}><strong>규제 Risk</strong><div style={{ fontSize: "24px", fontWeight: "bold", color: aiResult.regulation_risk === "HIGH" ? "#dc2626" : aiResult.regulation_risk === "MEDIUM" ? "#d97706" : "#059669" }}>{aiResult.regulation_risk}</div></div>
+                <div style={cardStyle()}><strong>안정성 Risk</strong><div style={{ fontSize: "24px", fontWeight: "bold", color: aiResult.stability_risk === "HIGH" ? "#dc2626" : aiResult.stability_risk === "MEDIUM" ? "#d97706" : "#059669" }}>{aiResult.stability_risk}</div></div>
+                <div style={cardStyle()}><strong>Claim Score</strong><div style={{ fontSize: "24px", fontWeight: "bold", color: aiResult.claim_score >= 80 ? "#059669" : "#d97706" }}>{aiResult.claim_score}/100</div></div>
+              </div>
+            </section>
+
+            <section style={cardStyle()}>
+              <h2 style={{ marginTop: 0 }}>추천 성분</h2>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {aiResult.recommended_ingredients.map((item) => (
+                  <span key={item} style={{ background: "#eef2ff", color: "#3730a3", padding: "7px 11px", borderRadius: "999px", fontWeight: "bold" }}>{item}</span>
+                ))}
+              </div>
+
+              <h2>경고/검토사항</h2>
+              <ul>
+                {aiResult.warnings.length === 0 && <li>현재 조건 기준 주요 경고 없음</li>}
+                {aiResult.warnings.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+
+              <h2>다음 Action</h2>
+              <ol>
+                {aiResult.next_actions.map((item) => <li key={item}>{item}</li>)}
+              </ol>
+            </section>
+          </>
+        )}
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -996,7 +1186,7 @@ export default function EnterprisePage() {
     if (active === "project") return renderProjectModule();
     if (active === "formula") return renderFormulaModule();
     if (active === "ingredient") return renderIngredientModule();
-    if (active === "ai") return renderSimpleModule("AI Module", ["AI 처방", "AI 성분분석", "AI 규제", "AI 안정성", "AI BOM", "AI Copilot"]);
+    if (active === "ai") return renderAiModule();
     if (active === "quality") return renderSimpleModule("Quality Module", ["원료문서센터", "Supplier Portal", "안정도관리", "AI 안정성예측"]);
     if (active === "regulation") return renderSimpleModule("Regulation Module", ["규제검증", "국가별규제", "Regulation Update", "AI 규제질의", "PIF/CPSR"]);
     if (active === "customer") return renderSimpleModule("Customer Module", ["Customer Portal Lite", "고객제출패키지", "샘플 피드백", "고객별 현황"]);
@@ -1008,7 +1198,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 5 Ingredient Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 6 AI Module</p>
 
         {menus.map((item) => (
           <button
