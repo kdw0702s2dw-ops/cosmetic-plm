@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 type ProjectStatus = "개발중" | "샘플발송" | "양산승인" | "출시" | "보류";
+type FormulaStatus = "Draft" | "Review" | "Approved" | "Released" | "Locked";
 type ModuleKey =
   | "overview"
   | "project"
@@ -25,6 +26,19 @@ type EnterpriseProject = {
   progress: number;
   launch_target: string;
   memo: string;
+};
+
+type EnterpriseFormula = {
+  id: string;
+  formula_code: string;
+  formula_name: string;
+  version: string;
+  project_code: string;
+  status: FormulaStatus;
+  total_percent: number;
+  material_cost: number;
+  is_locked: boolean;
+  revision_note: string;
 };
 
 const menus: { key: ModuleKey; label: string }[] = [
@@ -65,6 +79,33 @@ const initialProjects: EnterpriseProject[] = [
   },
 ];
 
+const initialFormulas: EnterpriseFormula[] = [
+  {
+    id: "F-001",
+    formula_code: "FC-001",
+    formula_name: "고보습 비건 크림 1차",
+    version: "1.0",
+    project_code: "26A001",
+    status: "Draft",
+    total_percent: 100,
+    material_cost: 4280,
+    is_locked: false,
+    revision_note: "초기 처방",
+  },
+  {
+    id: "F-002",
+    formula_code: "FC-002",
+    formula_name: "저자극 장벽 세럼 2차",
+    version: "2.0",
+    project_code: "26A002",
+    status: "Review",
+    total_percent: 100,
+    material_cost: 5150,
+    is_locked: false,
+    revision_note: "고객 피드백 반영",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -100,8 +141,13 @@ function nextProjectCode(projects: EnterpriseProject[]) {
   return `${year}A${String(count).padStart(3, "0")}`;
 }
 
+function nextFormulaCode(formulas: EnterpriseFormula[]) {
+  return `FC-${String(formulas.length + 1).padStart(3, "0")}`;
+}
+
 export default function EnterprisePage() {
   const [active, setActive] = useState<ModuleKey>("overview");
+
   const [projects, setProjects] = useState<EnterpriseProject[]>(initialProjects);
   const [projectSearch, setProjectSearch] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -109,28 +155,36 @@ export default function EnterprisePage() {
   const [researcher, setResearcher] = useState("");
   const [projectMemo, setProjectMemo] = useState("");
   const [launchTarget, setLaunchTarget] = useState("");
+
+  const [formulas, setFormulas] = useState<EnterpriseFormula[]>(initialFormulas);
+  const [formulaSearch, setFormulaSearch] = useState("");
+  const [formulaProjectCode, setFormulaProjectCode] = useState("26A001");
+  const [formulaName, setFormulaName] = useState("");
+  const [formulaCost, setFormulaCost] = useState("");
+  const [formulaNote, setFormulaNote] = useState("");
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
     const keyword = projectSearch.trim().toLowerCase();
-
     if (!keyword) return projects;
-
-    return projects.filter((project) => {
-      const text = [
-        project.project_code,
-        project.customer_name,
-        project.project_name,
-        project.researcher,
-        project.status,
-        project.memo,
-      ]
+    return projects.filter((project) =>
+      [project.project_code, project.customer_name, project.project_name, project.researcher, project.status, project.memo]
         .join(" ")
-        .toLowerCase();
-
-      return text.includes(keyword);
-    });
+        .toLowerCase()
+        .includes(keyword)
+    );
   }, [projectSearch, projects]);
+
+  const filteredFormulas = useMemo(() => {
+    const keyword = formulaSearch.trim().toLowerCase();
+    if (!keyword) return formulas;
+    return formulas.filter((formula) =>
+      [formula.formula_code, formula.formula_name, formula.version, formula.project_code, formula.status, formula.revision_note]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [formulaSearch, formulas]);
 
   const projectStats = useMemo(() => {
     return {
@@ -142,17 +196,27 @@ export default function EnterprisePage() {
     };
   }, [projects]);
 
+  const formulaStats = useMemo(() => {
+    return {
+      total: formulas.length,
+      draft: formulas.filter((item) => item.status === "Draft").length,
+      review: formulas.filter((item) => item.status === "Review").length,
+      approved: formulas.filter((item) => item.status === "Approved").length,
+      released: formulas.filter((item) => item.status === "Released").length,
+      locked: formulas.filter((item) => item.is_locked).length,
+      avgCost: formulas.length ? formulas.reduce((sum, item) => sum + item.material_cost, 0) / formulas.length : 0,
+    };
+  }, [formulas]);
+
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
       alert("고객사와 프로젝트명을 입력하세요.");
       return;
     }
 
-    const code = nextProjectCode(projects);
-
     const newProject: EnterpriseProject = {
       id: crypto.randomUUID(),
-      project_code: code,
+      project_code: nextProjectCode(projects),
       customer_name: customerName,
       project_name: projectName,
       researcher: researcher || "미지정",
@@ -173,15 +237,96 @@ export default function EnterprisePage() {
   function updateProjectStatus(projectId: string, status: ProjectStatus) {
     setProjects((prev) =>
       prev.map((project) =>
-        project.id === projectId
-          ? { ...project, status, progress: progressByStatus(status) }
-          : project
+        project.id === projectId ? { ...project, status, progress: progressByStatus(status) } : project
       )
     );
   }
 
+  function addEnterpriseFormula() {
+    if (!formulaName) {
+      alert("처방명을 입력하세요.");
+      return;
+    }
+
+    const newFormula: EnterpriseFormula = {
+      id: crypto.randomUUID(),
+      formula_code: nextFormulaCode(formulas),
+      formula_name: formulaName,
+      version: "1.0",
+      project_code: formulaProjectCode,
+      status: "Draft",
+      total_percent: 100,
+      material_cost: Number(formulaCost || 0),
+      is_locked: false,
+      revision_note: formulaNote || "신규 처방",
+    };
+
+    setFormulas([newFormula, ...formulas]);
+    setFormulaName("");
+    setFormulaCost("");
+    setFormulaNote("");
+  }
+
+  function updateFormulaStatus(formulaId: string, status: FormulaStatus) {
+    setFormulas((prev) =>
+      prev.map((formula) =>
+        formula.id === formulaId
+          ? {
+              ...formula,
+              status,
+              is_locked: status === "Locked" || status === "Released" ? true : formula.is_locked,
+            }
+          : formula
+      )
+    );
+  }
+
+  function cloneFormula(formulaId: string) {
+    const source = formulas.find((formula) => formula.id === formulaId);
+    if (!source) return;
+
+    const nextVersionNumber = Number(source.version || "1") + 0.1;
+
+    const cloned: EnterpriseFormula = {
+      ...source,
+      id: crypto.randomUUID(),
+      formula_code: nextFormulaCode(formulas),
+      version: nextVersionNumber.toFixed(1),
+      status: "Draft",
+      is_locked: false,
+      revision_note: `Clone from ${source.formula_code} v${source.version}`,
+    };
+
+    setFormulas([cloned, ...formulas]);
+  }
+
+  function toggleFormulaLock(formulaId: string) {
+    setFormulas((prev) =>
+      prev.map((formula) =>
+        formula.id === formulaId
+          ? {
+              ...formula,
+              is_locked: !formula.is_locked,
+              status: !formula.is_locked ? "Locked" : "Draft",
+            }
+          : formula
+      )
+    );
+  }
+
+  function exportCsv(filename: string, rows: (string | number | boolean)[][]) {
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportProjectCsv() {
-    const rows = [
+    exportCsv("enterprise_project_module.csv", [
       ["project_code", "customer_name", "project_name", "researcher", "status", "progress", "launch_target", "memo"],
       ...filteredProjects.map((project) => [
         project.project_code,
@@ -193,43 +338,51 @@ export default function EnterprisePage() {
         project.launch_target,
         project.memo,
       ]),
-    ];
+    ]);
+  }
 
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "enterprise_project_module.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  function exportFormulaCsv() {
+    exportCsv("enterprise_formula_module.csv", [
+      ["formula_code", "formula_name", "version", "project_code", "status", "total_percent", "material_cost", "is_locked", "revision_note"],
+      ...filteredFormulas.map((formula) => [
+        formula.formula_code,
+        formula.formula_name,
+        formula.version,
+        formula.project_code,
+        formula.status,
+        formula.total_percent,
+        formula.material_cost,
+        formula.is_locked,
+        formula.revision_note,
+      ]),
+    ]);
   }
 
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 3</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 4</h1>
           <p style={{ color: "#6b7280" }}>
-            Project Module을 Enterprise 구조로 먼저 분리합니다. 현재 단계는 기존 PLM 데이터에 영향을 주지 않는 안전한 독립 검증 단계입니다.
+            Project Module에 이어 Formula Module을 Enterprise 구조로 분리합니다. 현재는 기존 PLM과 독립된 안전한 검증 단계입니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
-            <div style={cardStyle()}><strong>전체 프로젝트</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.total}</div></div>
-            <div style={cardStyle()}><strong>개발중</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.developing}</div></div>
-            <div style={cardStyle()}><strong>샘플발송</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.sample}</div></div>
-            <div style={cardStyle()}><strong>양산승인</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.approved}</div></div>
-            <div style={cardStyle()}><strong>출시</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{projectStats.launched}</div></div>
+            <div style={cardStyle()}><strong>프로젝트</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.total}</div></div>
+            <div style={cardStyle()}><strong>처방</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{formulaStats.total}</div></div>
+            <div style={cardStyle()}><strong>검토중</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{formulaStats.review}</div></div>
+            <div style={cardStyle()}><strong>배포/잠금</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{formulaStats.locked}</div></div>
+            <div style={cardStyle()}><strong>평균 원가</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{formulaStats.avgCost.toFixed(0)}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 3 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 4 목표</h2>
           <ul>
-            <li>프로젝트관리와 개발일정을 하나의 Project Module로 통합</li>
-            <li>프로젝트 코드: 년도 + A + 자동체번 구조 검증</li>
-            <li>상태를 클릭/선택으로 개발중 → 샘플발송 → 양산승인 → 출시로 변경</li>
-            <li>다음 단계에서 Supabase projects 테이블과 실제 연동</li>
+            <li>Formula Module 독립 UI 검증</li>
+            <li>처방 코드 자동 생성</li>
+            <li>Version / Clone / Status / Lock 흐름 검증</li>
+            <li>다음 단계에서 실제 Supabase formulas, formula_items와 연결</li>
           </ul>
         </section>
       </>
@@ -241,10 +394,6 @@ export default function EnterprisePage() {
       <>
         <section style={cardStyle()}>
           <h1 style={{ marginTop: 0 }}>Project Module</h1>
-          <p style={{ color: "#6b7280" }}>
-            Enterprise 구조의 첫 번째 실제 모듈입니다. 기존 프로젝트관리 기능을 분리하기 전 UI/업무 흐름을 검증합니다.
-          </p>
-
           <h2>프로젝트 등록</h2>
           <div style={{ display: "grid", gap: "10px", maxWidth: "820px" }}>
             <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="고객사" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
@@ -266,12 +415,7 @@ export default function EnterprisePage() {
             </button>
           </div>
 
-          <input
-            value={projectSearch}
-            onChange={(e) => setProjectSearch(e.target.value)}
-            placeholder="프로젝트 코드, 고객사, 프로젝트명, 담당자 검색"
-            style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", width: "100%", boxSizing: "border-box", marginBottom: "12px" }}
-          />
+          <input value={projectSearch} onChange={(e) => setProjectSearch(e.target.value)} placeholder="프로젝트 코드, 고객사, 프로젝트명, 담당자 검색" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", width: "100%", boxSizing: "border-box", marginBottom: "12px" }} />
 
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -319,6 +463,95 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderFormulaModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Formula Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            처방관리, Version Control, Revision Clone, Formula Lock 흐름을 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <h2>처방 등록</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px" }}>
+            <select value={formulaProjectCode} onChange={(e) => setFormulaProjectCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {projects.map((project) => (
+                <option key={project.id} value={project.project_code}>
+                  {project.project_code} / {project.customer_name} / {project.project_name}
+                </option>
+              ))}
+            </select>
+            <input value={formulaName} onChange={(e) => setFormulaName(e.target.value)} placeholder="처방명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={formulaCost} onChange={(e) => setFormulaCost(e.target.value)} placeholder="원료원가 원/kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <textarea value={formulaNote} onChange={(e) => setFormulaNote(e.target.value)} placeholder="Revision Note" rows={3} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <button onClick={addEnterpriseFormula} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              처방 등록
+            </button>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>처방 목록</h2>
+            <button onClick={exportFormulaCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              CSV Export
+            </button>
+          </div>
+
+          <input value={formulaSearch} onChange={(e) => setFormulaSearch(e.target.value)} placeholder="처방코드, 처방명, 프로젝트코드 검색" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", width: "100%", boxSizing: "border-box", marginBottom: "12px" }} />
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>처방코드</th>
+                <th style={tableCellStyle(true)}>처방명</th>
+                <th style={tableCellStyle(true)}>Version</th>
+                <th style={tableCellStyle(true)}>프로젝트</th>
+                <th style={tableCellStyle(true)}>상태</th>
+                <th style={tableCellStyle(true)}>총합%</th>
+                <th style={tableCellStyle(true)}>원료원가</th>
+                <th style={tableCellStyle(true)}>LOCK</th>
+                <th style={tableCellStyle(true)}>Revision Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredFormulas.map((formula) => (
+                <tr key={formula.id}>
+                  <td style={tableCellStyle()}>{formula.formula_code}</td>
+                  <td style={tableCellStyle()}>{formula.formula_name}</td>
+                  <td style={tableCellStyle()}>{formula.version}</td>
+                  <td style={tableCellStyle()}>{formula.project_code}</td>
+                  <td style={tableCellStyle()}>
+                    <select value={formula.status} onChange={(e) => updateFormulaStatus(formula.id, e.target.value as FormulaStatus)}>
+                      <option value="Draft">Draft</option>
+                      <option value="Review">Review</option>
+                      <option value="Approved">Approved</option>
+                      <option value="Released">Released</option>
+                      <option value="Locked">Locked</option>
+                    </select>
+                  </td>
+                  <td style={{ ...tableCellStyle(), color: Math.abs(formula.total_percent - 100) < 0.0001 ? "green" : "red", fontWeight: "bold" }}>
+                    {formula.total_percent.toFixed(4)}
+                  </td>
+                  <td style={tableCellStyle()}>{formula.material_cost.toLocaleString()}</td>
+                  <td style={{ ...tableCellStyle(), color: formula.is_locked ? "red" : "green", fontWeight: "bold" }}>
+                    {formula.is_locked ? "LOCKED" : "EDITABLE"}
+                  </td>
+                  <td style={tableCellStyle()}>{formula.revision_note}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => cloneFormula(formula.id)} style={{ marginRight: "6px" }}>Clone</button>
+                    <button onClick={() => toggleFormulaLock(formula.id)}>{formula.is_locked ? "Unlock" : "Lock"}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -332,7 +565,7 @@ export default function EnterprisePage() {
   function renderActive() {
     if (active === "overview") return renderOverview();
     if (active === "project") return renderProjectModule();
-    if (active === "formula") return renderSimpleModule("Formula Module", ["처방관리", "Version Control", "Revision History", "Formula Lock", "Formula Sheet"]);
+    if (active === "formula") return renderFormulaModule();
     if (active === "ingredient") return renderSimpleModule("Ingredient Module", ["원료마스터", "성분마스터", "Global Ingredient", "원료조성표", "CSV Import"]);
     if (active === "ai") return renderSimpleModule("AI Module", ["AI 처방", "AI 성분분석", "AI 규제", "AI 안정성", "AI BOM", "AI Copilot"]);
     if (active === "quality") return renderSimpleModule("Quality Module", ["원료문서센터", "Supplier Portal", "안정도관리", "AI 안정성예측"]);
@@ -346,7 +579,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 3 Project Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 4 Formula Module</p>
 
         {menus.map((item) => (
           <button
