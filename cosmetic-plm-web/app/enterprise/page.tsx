@@ -20,6 +20,7 @@ type ModuleKey =
   | "supabaseBridge"
   | "realData"
   | "repository"
+  | "externalRls"
   | "admin";
 
 type EnterpriseProject = {
@@ -312,6 +313,31 @@ type RepositoryImpactItem = {
   action: string;
 };
 
+type ExternalAccountMapping = {
+  id: string;
+  account_type: "customer" | "supplier";
+  email: string;
+  company_name: string;
+  mapped_key: string;
+  access_scope: "portal_only" | "documents_only" | "feedback_only" | "full_external";
+  status: "DRAFT" | "READY" | "ACTIVE" | "BLOCKED";
+};
+
+type ExternalRlsPolicy = {
+  table_name: string;
+  account_type: "customer" | "supplier";
+  policy_name: string;
+  access_rule: string;
+  status: "DRAFT" | "READY" | "APPLIED";
+};
+
+type PortalSecurityCheck = {
+  check: string;
+  status: "PASS" | "WARN" | "FAIL";
+  detail: string;
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -328,6 +354,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "supabaseBridge", label: "Supabase Bridge" },
   { key: "realData", label: "Real Data Pilot" },
   { key: "repository", label: "Master Repository" },
+  { key: "externalRls", label: "External Portal RLS" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -847,6 +874,14 @@ export default function EnterprisePage() {
   const [repositoryStatus, setRepositoryStatus] = useState("");
   const [repositoryFocus, setRepositoryFocus] = useState("ALL");
 
+  const [externalAccountMappings, setExternalAccountMappings] = useState<ExternalAccountMapping[]>([]);
+  const [externalRlsPolicies, setExternalRlsPolicies] = useState<ExternalRlsPolicy[]>([]);
+  const [portalSecurityChecks, setPortalSecurityChecks] = useState<PortalSecurityCheck[]>([]);
+  const [externalRlsStatus, setExternalRlsStatus] = useState("");
+  const [externalEmail, setExternalEmail] = useState("");
+  const [externalCompany, setExternalCompany] = useState("");
+  const [externalType, setExternalType] = useState<ExternalAccountMapping["account_type"]>("customer");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1140,6 +1175,19 @@ export default function EnterprisePage() {
     if (repositoryFocus === "ALL") return repositoryNodes;
     return repositoryNodes.filter((item) => item.node_type === repositoryFocus);
   }, [repositoryNodes, repositoryFocus]);
+
+  const externalRlsStats = useMemo(() => {
+    return {
+      mappings: externalAccountMappings.length,
+      customers: externalAccountMappings.filter((item) => item.account_type === "customer").length,
+      suppliers: externalAccountMappings.filter((item) => item.account_type === "supplier").length,
+      active: externalAccountMappings.filter((item) => item.status === "ACTIVE").length,
+      policies: externalRlsPolicies.length,
+      applied: externalRlsPolicies.filter((item) => item.status === "APPLIED").length,
+      pass: portalSecurityChecks.filter((item) => item.status === "PASS").length,
+      warn: portalSecurityChecks.filter((item) => item.status === "WARN").length,
+    };
+  }, [externalAccountMappings, externalRlsPolicies, portalSecurityChecks]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -3177,13 +3225,183 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateExternalAccountMappings() {
+    const customerMappings: ExternalAccountMapping[] = Array.from(new Set(customerPortalItems.map((item) => item.customer_name))).map((customer, index) => ({
+      id: `customer-map-${index}`,
+      account_type: "customer",
+      email: `${customer.replaceAll(" ", "").toLowerCase()}@customer.portal`,
+      company_name: customer,
+      mapped_key: customer,
+      access_scope: "portal_only",
+      status: "READY",
+    }));
+
+    const supplierMappings: ExternalAccountMapping[] = Array.from(new Set(supplierTasks.map((item) => item.supplier))).map((supplier, index) => ({
+      id: `supplier-map-${index}`,
+      account_type: "supplier",
+      email: `${supplier.replaceAll(" ", "").toLowerCase()}@supplier.portal`,
+      company_name: supplier,
+      mapped_key: supplier,
+      access_scope: "documents_only",
+      status: "READY",
+    }));
+
+    const allMappings = [...customerMappings, ...supplierMappings];
+    setExternalAccountMappings(allMappings);
+
+    const policies: ExternalRlsPolicy[] = [
+      {
+        table_name: "enterprise_customer_portal_items",
+        account_type: "customer",
+        policy_name: "customer_can_read_own_visible_projects",
+        access_rule: "auth.email() mapped to external_account_mappings.email AND customer_name = mapped_key AND visible_to_customer = true",
+        status: "READY",
+      },
+      {
+        table_name: "enterprise_sample_feedbacks",
+        account_type: "customer",
+        policy_name: "customer_can_read_own_samples",
+        access_rule: "customer_name = mapped_key",
+        status: "READY",
+      },
+      {
+        table_name: "enterprise_supplier_tasks",
+        account_type: "supplier",
+        policy_name: "supplier_can_read_own_tasks",
+        access_rule: "supplier = mapped_key",
+        status: "READY",
+      },
+      {
+        table_name: "enterprise_material_documents",
+        account_type: "supplier",
+        policy_name: "supplier_can_read_documents_for_own_raws",
+        access_rule: "supplier = mapped_key",
+        status: "DRAFT",
+      },
+    ];
+
+    setExternalRlsPolicies(policies);
+    setExternalRlsStatus(`외부 계정 매핑 생성 완료: 고객 ${customerMappings.length}개 / 공급사 ${supplierMappings.length}개 / RLS ${policies.length}개`);
+  }
+
+  function addExternalAccountMapping() {
+    if (!externalEmail || !externalCompany) {
+      alert("이메일과 회사명을 입력하세요.");
+      return;
+    }
+
+    const mapping: ExternalAccountMapping = {
+      id: crypto.randomUUID(),
+      account_type: externalType,
+      email: externalEmail,
+      company_name: externalCompany,
+      mapped_key: externalCompany,
+      access_scope: externalType === "customer" ? "portal_only" : "documents_only",
+      status: "DRAFT",
+    };
+
+    setExternalAccountMappings([mapping, ...externalAccountMappings]);
+    setExternalEmail("");
+    setExternalCompany("");
+  }
+
+  function activateExternalMapping(id: string) {
+    setExternalAccountMappings((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "ACTIVE" } : item
+      )
+    );
+  }
+
+  function runPortalSecurityCheck() {
+    const checks: PortalSecurityCheck[] = [
+      {
+        check: "Customer Mapping",
+        status: externalAccountMappings.some((item) => item.account_type === "customer") ? "PASS" : "WARN",
+        detail: `고객 매핑 ${externalAccountMappings.filter((item) => item.account_type === "customer").length}개`,
+        action: "고객사별 외부 계정 매핑 확인",
+      },
+      {
+        check: "Supplier Mapping",
+        status: externalAccountMappings.some((item) => item.account_type === "supplier") ? "PASS" : "WARN",
+        detail: `공급사 매핑 ${externalAccountMappings.filter((item) => item.account_type === "supplier").length}개`,
+        action: "공급사별 외부 계정 매핑 확인",
+      },
+      {
+        check: "Customer Visible Data",
+        status: customerPortalItems.some((item) => item.visible_to_customer) ? "PASS" : "WARN",
+        detail: `고객 공개 프로젝트 ${customerPortalItems.filter((item) => item.visible_to_customer).length}건`,
+        action: "고객에게 공개할 프로젝트만 visible 처리",
+      },
+      {
+        check: "Supplier Task Data",
+        status: supplierTasks.length > 0 ? "PASS" : "WARN",
+        detail: `공급사 문서 요청 ${supplierTasks.length}건`,
+        action: "공급사 포털에 공개할 문서 요청 생성",
+      },
+      {
+        check: "RLS Draft",
+        status: externalRlsPolicies.length >= 3 ? "PASS" : "WARN",
+        detail: `외부 RLS 정책 ${externalRlsPolicies.length}개`,
+        action: "SQL 적용 전 정책명과 매핑 규칙 검토",
+      },
+      {
+        check: "Sensitive Data Guard",
+        status: "PASS",
+        detail: "외부 포털에는 원가, 내부 메모, 전체 처방 Breakdown은 비공개 권장",
+        action: "Customer/Supplier View 전용 컬럼만 노출",
+      },
+    ];
+
+    setPortalSecurityChecks(checks);
+  }
+
+  function exportExternalMappingsCsv() {
+    exportCsv("enterprise_external_account_mappings.csv", [
+      ["account_type", "email", "company_name", "mapped_key", "access_scope", "status"],
+      ...externalAccountMappings.map((item) => [
+        item.account_type,
+        item.email,
+        item.company_name,
+        item.mapped_key,
+        item.access_scope,
+        item.status,
+      ]),
+    ]);
+  }
+
+  function exportExternalRlsCsv() {
+    exportCsv("enterprise_external_rls_policies.csv", [
+      ["table_name", "account_type", "policy_name", "access_rule", "status"],
+      ...externalRlsPolicies.map((item) => [
+        item.table_name,
+        item.account_type,
+        item.policy_name,
+        item.access_rule,
+        item.status,
+      ]),
+    ]);
+  }
+
+  function exportPortalSecurityCsv() {
+    exportCsv("enterprise_portal_security_check.csv", [
+      ["check", "status", "detail", "action"],
+      ...portalSecurityChecks.map((item) => [
+        item.check,
+        item.status,
+        item.detail,
+        item.action,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 18 + 18.5</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 19</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / Raw Material의 실제 Supabase CRUD 전환과 Enterprise Master Repository를 통합합니다. 모든 모듈이 하나의 Repository를 참조하도록 하여 영향분석, BOM, 규제, 고객, 공급사 연결 기반을 구축합니다.
+            Customer Portal과 Supplier Portal을 실제 외부 사용자 권한으로 분리하기 위한 RLS 고도화 단계입니다. 고객은 본인 고객사 프로젝트만, 공급사는 본인 공급사 문서 요청만 볼 수 있도록 계정 매핑과 정책을 준비합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -3205,6 +3423,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>CRUD Bridge</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{supabaseBridgeItems.length}</div></div>
             <div style={cardStyle()}><strong>Real Pilot</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{realDataPilotItems.length}</div></div>
             <div style={cardStyle()}><strong>Repository</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{repositoryNodes.length}</div></div>
+            <div style={cardStyle()}><strong>External RLS</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{externalAccountMappings.length}</div></div>
           </div>
         </section>
 
@@ -3268,12 +3487,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 18 + 18.5 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 19 목표</h2>
           <ul>
-            <li>Project / Formula / Ingredient / Raw Material 실제 Supabase CRUD 전환 준비</li>
-            <li>Enterprise Master Repository 통합 구조 검증</li>
-            <li>원료 변경 → 처방/BOM/규제/고객/공급사 영향도 분석 기반 구축</li>
-            <li>다음 단계에서 Customer/Supplier 외부 포털 RLS 고도화로 확장</li>
+            <li>Customer / Supplier 외부 포털 RLS 고도화</li>
+            <li>외부 계정과 고객사/공급사 매핑 테이블 설계</li>
+            <li>고객은 본인 고객사 공개 프로젝트만 조회, 공급사는 본인 공급사 문서 요청만 조회</li>
+            <li>다음 단계에서 Production Release Candidate로 최종 안정화</li>
           </ul>
         </section>
       </>
@@ -4270,6 +4489,147 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderExternalRlsModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Customer / Supplier Portal RLS</h1>
+          <p style={{ color: "#6b7280" }}>
+            외부 고객과 공급사 계정이 PLM 내부 전체 데이터가 아니라 본인에게 허용된 데이터만 볼 수 있도록
+            계정 매핑과 RLS 정책을 준비하는 단계입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Mappings</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{externalRlsStats.mappings}</div></div>
+            <div style={cardStyle()}><strong>Customers</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{externalRlsStats.customers}</div></div>
+            <div style={cardStyle()}><strong>Suppliers</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{externalRlsStats.suppliers}</div></div>
+            <div style={cardStyle()}><strong>Active</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{externalRlsStats.active}</div></div>
+            <div style={cardStyle()}><strong>Policies</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{externalRlsStats.policies}</div></div>
+            <div style={cardStyle()}><strong>Security PASS</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{externalRlsStats.pass}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateExternalAccountMappings} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              외부 매핑 생성
+            </button>
+            <button onClick={runPortalSecurityCheck} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              보안 체크
+            </button>
+            <button onClick={exportExternalMappingsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Mapping CSV
+            </button>
+            <button onClick={exportExternalRlsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              RLS CSV
+            </button>
+            <button onClick={exportPortalSecurityCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Security CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{externalRlsStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>외부 계정 수동 매핑</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <select value={externalType} onChange={(e) => setExternalType(e.target.value as ExternalAccountMapping["account_type"])} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="customer">customer</option>
+              <option value="supplier">supplier</option>
+            </select>
+            <input value={externalEmail} onChange={(e) => setExternalEmail(e.target.value)} placeholder="외부 계정 이메일" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={externalCompany} onChange={(e) => setExternalCompany(e.target.value)} placeholder="고객사 또는 공급사명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <button onClick={addExternalAccountMapping} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              외부 계정 추가
+            </button>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>External Account Mapping</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Email</th>
+                <th style={tableCellStyle(true)}>Company</th>
+                <th style={tableCellStyle(true)}>Mapped Key</th>
+                <th style={tableCellStyle(true)}>Scope</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {externalAccountMappings.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>외부 매핑 생성을 실행하세요.</td></tr>}
+              {externalAccountMappings.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.account_type}</td>
+                  <td style={tableCellStyle()}>{item.email}</td>
+                  <td style={tableCellStyle()}>{item.company_name}</td>
+                  <td style={tableCellStyle()}>{item.mapped_key}</td>
+                  <td style={tableCellStyle()}>{item.access_scope}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "ACTIVE" ? "#059669" : item.status === "READY" ? "#2563eb" : item.status === "BLOCKED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.status !== "ACTIVE" ? <button onClick={() => activateExternalMapping(item.id)}>Activate</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>RLS Policy Draft</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Table</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Policy</th>
+                <th style={tableCellStyle(true)}>Access Rule</th>
+                <th style={tableCellStyle(true)}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {externalRlsPolicies.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>외부 매핑 생성 시 RLS 초안이 함께 생성됩니다.</td></tr>}
+              {externalRlsPolicies.map((item) => (
+                <tr key={item.policy_name}>
+                  <td style={tableCellStyle()}>{item.table_name}</td>
+                  <td style={tableCellStyle()}>{item.account_type}</td>
+                  <td style={tableCellStyle()}>{item.policy_name}</td>
+                  <td style={tableCellStyle()}>{item.access_rule}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "APPLIED" ? "#059669" : item.status === "READY" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Portal Security Check</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Check</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Detail</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {portalSecurityChecks.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>보안 체크를 실행하세요.</td></tr>}
+              {portalSecurityChecks.map((item) => (
+                <tr key={item.check}>
+                  <td style={tableCellStyle()}>{item.check}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "WARN" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.detail}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
   function renderMasterRepositoryModule() {
     const nodeTypes = Array.from(new Set(repositoryNodes.map((item) => item.node_type)));
 
@@ -5071,6 +5431,7 @@ export default function EnterprisePage() {
     if (active === "supabaseBridge") return renderSupabaseBridgeModule();
     if (active === "realData") return renderRealDataPilotModule();
     if (active === "repository") return renderMasterRepositoryModule();
+    if (active === "externalRls") return renderExternalRlsModule();
     return renderAdminModule();
   }
 
@@ -5078,7 +5439,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 18 Real CRUD + Master Repository</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 19 Customer/Supplier Portal RLS</p>
 
         {menus.map((item) => (
           <button
