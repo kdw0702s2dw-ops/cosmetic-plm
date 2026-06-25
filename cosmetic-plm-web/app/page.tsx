@@ -246,6 +246,8 @@ type RegulationUpdateRow = {
   source_url?: string;
   update_type?: string;
   matched_existing_id?: string;
+  raw_text?: string;
+  confidence?: number;
 };
 
 type ProjectStage = {
@@ -579,6 +581,11 @@ export default function Home() {
   const [regUpdateRows, setRegUpdateRows] = useState<RegulationUpdateRow[]>([]);
   const [regUpdateStatus, setRegUpdateStatus] = useState("");
   const [regUpdateFilter, setRegUpdateFilter] = useState("ALL");
+  const [regOfficialText, setRegOfficialText] = useState("");
+  const [regAutoCountryCode, setRegAutoCountryCode] = useState("EU");
+  const [regAutoCountryName, setRegAutoCountryName] = useState("European Union");
+  const [regAutoParseStatus, setRegAutoParseStatus] = useState("");
+  const [regAutoReviewOnly, setRegAutoReviewOnly] = useState(true);
   const [packageFormulaId, setPackageFormulaId] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
@@ -4828,6 +4835,115 @@ export default function Home() {
     } as RegulationUpdateRow;
   }
 
+  function detectRegulationTypeFromText(text: string) {
+    const lower = text.toLowerCase();
+
+    if (lower.includes("prohibited") || lower.includes("banned") || lower.includes("annex ii") || lower.includes("금지")) {
+      return "Prohibited";
+    }
+
+    if (lower.includes("restricted") || lower.includes("annex iii") || lower.includes("limit") || lower.includes("제한") || lower.includes("한도")) {
+      return "Restricted";
+    }
+
+    return "Warning";
+  }
+
+  function extractMaxPercentFromText(text: string) {
+    const percentMatch = text.match(/(\d+(?:\.\d+)?)\s*%/);
+
+    if (percentMatch) {
+      return Number(percentMatch[1]);
+    }
+
+    const ppmMatch = text.match(/(\d+(?:\.\d+)?)\s*ppm/i);
+
+    if (ppmMatch) {
+      return Number(ppmMatch[1]) / 10000;
+    }
+
+    return 0;
+  }
+
+  function extractCasFromText(text: string) {
+    const match = text.match(/\b\d{2,7}-\d{2}-\d\b/);
+    return match ? match[0] : "";
+  }
+
+  function cleanExtractedInciName(value: string) {
+    return value
+      .replace(/\b\d{2,7}-\d{2}-\d\b/g, "")
+      .replace(/\d+(?:\.\d+)?\s*%/g, "")
+      .replace(/\d+(?:\.\d+)?\s*ppm/gi, "")
+      .replace(/prohibited|restricted|warning|banned|annex\s+[ivx]+|max|limit|금지|제한|한도/gi, "")
+      .replace(/[|:;]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function parseOfficialTextToRegulationRows() {
+    if (!regOfficialText.trim()) {
+      alert("공식자료 텍스트를 입력하세요.");
+      return;
+    }
+
+    const lines = regOfficialText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 2);
+
+    const parsed = lines
+      .map((line) => {
+        const regulationType = detectRegulationTypeFromText(line);
+        const casNo = extractCasFromText(line);
+        const maxPercentage = extractMaxPercentFromText(line);
+        const inciName = cleanExtractedInciName(line);
+        const confidence = (casNo ? 35 : 0) + (inciName ? 35 : 0) + (regulationType !== "Warning" ? 20 : 10) + (maxPercentage ? 10 : 0);
+
+        return {
+          country_code: regAutoCountryCode,
+          country_name: regAutoCountryName,
+          inci_name: inciName,
+          cas_no: casNo,
+          regulation_type: regulationType,
+          max_percentage: maxPercentage,
+          is_prohibited: regulationType === "Prohibited",
+          warning_message:
+            regulationType === "Prohibited"
+              ? "공식자료 텍스트 분석 결과 금지 가능성 감지"
+              : regulationType === "Restricted"
+              ? "공식자료 텍스트 분석 결과 제한/한도 가능성 감지"
+              : "공식자료 텍스트 분석 결과 검토 필요",
+          reference_note: regUpdateSourceName,
+          source_name: regUpdateSourceName,
+          source_url: regUpdateSourceUrl,
+          raw_text: line,
+          confidence,
+        } as RegulationUpdateRow;
+      })
+      .filter((row) => row.inci_name && row.confidence && row.confidence >= 45)
+      .map((row) => classifyRegulationUpdate(row));
+
+    setRegUpdateRows(parsed);
+    setRegAutoParseStatus(
+      `AI 자동 추출 완료: ${parsed.length}건 / 신규 ${parsed.filter((row) => row.update_type === "NEW").length} / 변경 ${parsed.filter((row) => row.update_type === "UPDATE").length} / 동일 ${parsed.filter((row) => row.update_type === "NO_CHANGE").length}`
+    );
+    setRegUpdateStatus("공식자료 텍스트 자동 분석 완료");
+  }
+
+  function downloadOfficialSourceWorklistCsv() {
+    const headers = ["region", "source_name", "source_url", "update_frequency", "owner", "status", "note"];
+    const rows = [
+      ["EU", "European Commission CosIng / Regulation 1223/2009", "https://single-market-economy.ec.europa.eu/sectors/cosmetics/cosmetic-ingredient-database_en", "Monthly", "RA", "Manual Check", "CosIng/Annex 변경 확인 후 CSV 또는 텍스트 분석"],
+      ["US", "FDA Prohibited & Restricted Ingredients", "https://www.fda.gov/cosmetics/cosmetics-laws-regulations/prohibited-restricted-ingredients-cosmetics", "Monthly", "RA", "Manual Check", "금지/제한 성분 업데이트 확인"],
+      ["ASEAN", "ASEAN Cosmetic Directive Annexes", "https://www.hsa.gov.sg/cosmetic-products/asean-cosmetic-directive", "Monthly", "RA", "Manual Check", "Annex II/III/VI 등 변경 확인"],
+      ["China", "NMPA IECIC / 고시", "NMPA official notice / IECIC channel", "Monthly", "RA", "Manual Check", "IECIC 여부 및 금지/제한 고시 확인"],
+      ["Japan", "일본 화장품 기준/성분 고시", "MHLW / official standards", "Monthly", "RA", "Manual Check", "기준/성분 고시 변경 확인"],
+    ];
+
+    downloadCsv("official_regulation_source_worklist.csv", headers, rows);
+  }
+
   function getExistingRegulationMatch(row: RegulationUpdateRow) {
     return countryRegulations.find((item) => {
       const sameCountry = item.country_code?.toUpperCase() === row.country_code?.toUpperCase();
@@ -8324,6 +8440,54 @@ export default function Home() {
               </tbody>
             </table>
 
+            <h2>v25.0 공식자료 Auto Update Engine</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "24px" }}>
+              <p style={{ color: "#6b7280" }}>
+                공식 사이트의 표/PDF 내용을 복사해 붙여넣으면 INCI, CAS, 금지/제한/한도 정보를 1차 자동 추출합니다.
+                추출 결과는 반드시 RA 검토 후 PLM에 반영하세요.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input
+                  placeholder="국가코드 예: EU, US, CN, JP, ASEAN"
+                  value={regAutoCountryCode || ""}
+                  onChange={(e) => setRegAutoCountryCode(e.target.value.toUpperCase())}
+                />
+                <input
+                  placeholder="국가명 예: European Union"
+                  value={regAutoCountryName || ""}
+                  onChange={(e) => setRegAutoCountryName(e.target.value)}
+                />
+              </div>
+
+              <textarea
+                placeholder={`공식자료 텍스트 붙여넣기 예:\nSalicylic Acid CAS 69-72-7 Restricted max 2% Annex III\nHydroquinone CAS 123-31-9 Prohibited Annex II`}
+                value={regOfficialText || ""}
+                onChange={(e) => setRegOfficialText(e.target.value)}
+                rows={8}
+              />
+
+              <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="checkbox"
+                  checked={regAutoReviewOnly}
+                  onChange={(e) => setRegAutoReviewOnly(e.target.checked)}
+                />
+                RA 검토용으로만 사용하고, 검토 후 신규/변경사항 PLM 반영 버튼으로 반영
+              </label>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={parseOfficialTextToRegulationRows} style={{ background: "#7c3aed" }}>
+                  공식자료 텍스트 AI 추출
+                </button>
+                <button onClick={downloadOfficialSourceWorklistCsv} style={{ background: "#0ea5e9" }}>
+                  공식자료 월간 체크리스트 다운로드
+                </button>
+              </div>
+
+              <p style={{ fontWeight: "bold", color: "#2563eb" }}>{regAutoParseStatus}</p>
+            </div>
+
             <h2>공식자료 업로드 / 변경감지</h2>
             <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
               <input
@@ -8388,6 +8552,8 @@ export default function Home() {
                   <th>금지</th>
                   <th>경고</th>
                   <th>근거</th>
+                  <th>신뢰도</th>
+                  <th>원문</th>
                 </tr>
               </thead>
               <tbody>
@@ -8409,6 +8575,8 @@ export default function Home() {
                     <td>{row.is_prohibited ? "YES" : "-"}</td>
                     <td>{row.warning_message}</td>
                     <td>{row.reference_note}</td>
+                    <td>{row.confidence ? `${row.confidence}%` : "-"}</td>
+                    <td style={{ maxWidth: "360px", whiteSpace: "pre-wrap" }}>{row.raw_text || "-"}</td>
                   </tr>
                 ))}
               </tbody>
