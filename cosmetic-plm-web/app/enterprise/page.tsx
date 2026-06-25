@@ -16,6 +16,7 @@ type ModuleKey =
   | "supplier"
   | "dataIntegration"
   | "services"
+  | "supabaseSchema"
   | "admin";
 
 type EnterpriseProject = {
@@ -242,6 +243,22 @@ type ServiceLayerItem = {
   action: string;
 };
 
+type SupabaseTablePlan = {
+  table_name: string;
+  module: string;
+  status: "CREATE" | "ALTER" | "EXISTS" | "OPTIONAL";
+  priority: number;
+  purpose: string;
+  core_columns: string;
+};
+
+type SupabaseIndexPlan = {
+  table_name: string;
+  index_name: string;
+  columns: string;
+  purpose: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -254,6 +271,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "supplier", label: "Supplier Module" },
   { key: "dataIntegration", label: "Data Integration" },
   { key: "services", label: "Service Layer" },
+  { key: "supabaseSchema", label: "Supabase Schema" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -756,6 +774,10 @@ export default function EnterprisePage() {
   const [serviceLayerItems, setServiceLayerItems] = useState<ServiceLayerItem[]>([]);
   const [serviceLayerStatus, setServiceLayerStatus] = useState("");
 
+  const [supabaseTablePlans, setSupabaseTablePlans] = useState<SupabaseTablePlan[]>([]);
+  const [supabaseIndexPlans, setSupabaseIndexPlans] = useState<SupabaseIndexPlan[]>([]);
+  const [supabaseSchemaStatus, setSupabaseSchemaStatus] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1000,6 +1022,16 @@ export default function EnterprisePage() {
       needsSupabase: serviceLayerItems.filter((item) => item.status === "NEEDS_SUPABASE").length,
     };
   }, [serviceLayerItems]);
+
+  const supabaseSchemaStats = useMemo(() => {
+    return {
+      tables: supabaseTablePlans.length,
+      create: supabaseTablePlans.filter((item) => item.status === "CREATE").length,
+      alter: supabaseTablePlans.filter((item) => item.status === "ALTER").length,
+      optional: supabaseTablePlans.filter((item) => item.status === "OPTIONAL").length,
+      indexes: supabaseIndexPlans.length,
+    };
+  }, [supabaseTablePlans, supabaseIndexPlans]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -2400,13 +2432,184 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateSupabaseSchemaPlan() {
+    const tables: SupabaseTablePlan[] = [
+      {
+        table_name: "enterprise_projects",
+        module: "Project",
+        status: "CREATE",
+        priority: 1,
+        purpose: "Enterprise 프로젝트와 고객사/상태/출시 흐름 관리",
+        core_columns: "id, project_code, customer_name, project_name, researcher, status, progress, launch_target",
+      },
+      {
+        table_name: "enterprise_formulas",
+        module: "Formula",
+        status: "CREATE",
+        priority: 2,
+        purpose: "처방 버전, 상태, Lock/Release, 원가 정보 관리",
+        core_columns: "id, formula_code, formula_name, version, project_code, status, total_percent, material_cost, is_locked",
+      },
+      {
+        table_name: "enterprise_formula_items",
+        module: "Formula",
+        status: "CREATE",
+        priority: 3,
+        purpose: "처방별 원료 투입량 상세 관리",
+        core_columns: "id, formula_id, raw_code, phase, percentage, remark",
+      },
+      {
+        table_name: "ingredient_master_global",
+        module: "Ingredient",
+        status: "ALTER",
+        priority: 4,
+        purpose: "기존 Global Ingredient Master에 검색/규제/다국어 컬럼 보강",
+        core_columns: "inci_name, korean_name, cas_no, ec_no, function_ko, function_en, eu_status, china_status",
+      },
+      {
+        table_name: "enterprise_raw_materials",
+        module: "Ingredient",
+        status: "CREATE",
+        priority: 5,
+        purpose: "원료마스터와 대표 INCI/공급사/단가 연결",
+        core_columns: "raw_code, raw_name, supplier, unit_price, main_inci, composition_total",
+      },
+      {
+        table_name: "enterprise_material_documents",
+        module: "Quality",
+        status: "CREATE",
+        priority: 6,
+        purpose: "원료문서, 만료일, Storage URL, 문서상태 관리",
+        core_columns: "raw_code, document_type, document_title, expiry_date, status, file_url",
+      },
+      {
+        table_name: "enterprise_stability_records",
+        module: "Quality",
+        status: "CREATE",
+        priority: 7,
+        purpose: "안정도 조건/시점/결과/관찰 기록",
+        core_columns: "formula_code, condition, week, result, finding",
+      },
+      {
+        table_name: "enterprise_approval_records",
+        module: "Quality",
+        status: "CREATE",
+        priority: 8,
+        purpose: "승인 요청/승인자/상태 관리",
+        core_columns: "target, type, requester, approver, status",
+      },
+      {
+        table_name: "enterprise_country_regulations",
+        module: "Regulation",
+        status: "CREATE",
+        priority: 9,
+        purpose: "국가별 규제 DB 및 사용한도/금지/주의 관리",
+        core_columns: "country_code, inci_name, cas_no, regulation_type, max_percent, note, source",
+      },
+      {
+        table_name: "enterprise_customer_portal_items",
+        module: "Customer",
+        status: "CREATE",
+        priority: 10,
+        purpose: "고객 공개용 프로젝트/샘플/제출자료 상태 관리",
+        core_columns: "customer_name, project_code, visible_to_customer, sample_status, submission_status",
+      },
+      {
+        table_name: "enterprise_sample_feedbacks",
+        module: "Customer",
+        status: "CREATE",
+        priority: 11,
+        purpose: "샘플 발송과 고객 피드백 관리",
+        core_columns: "sample_no, customer_name, project_code, formula_code, feedback, status",
+      },
+      {
+        table_name: "enterprise_supplier_tasks",
+        module: "Supplier",
+        status: "CREATE",
+        priority: 12,
+        purpose: "공급사 문서 요청과 회신 상태 관리",
+        core_columns: "supplier, raw_code, required_document, request_status, due_date, contact_email",
+      },
+      {
+        table_name: "enterprise_supplier_scorecards",
+        module: "Supplier",
+        status: "CREATE",
+        priority: 13,
+        purpose: "공급사 문서/가격/응답 평가 관리",
+        core_columns: "supplier, document_score, price_score, response_score, risk_level",
+      },
+      {
+        table_name: "audit_logs",
+        module: "Admin",
+        status: "ALTER",
+        priority: 14,
+        purpose: "Enterprise 모듈별 Audit Trail 통합",
+        core_columns: "actor, action, module, target, before_json, after_json, created_at",
+      },
+    ];
+
+    const indexes: SupabaseIndexPlan[] = [
+      { table_name: "enterprise_projects", index_name: "idx_enterprise_projects_code", columns: "project_code", purpose: "프로젝트 코드 검색" },
+      { table_name: "enterprise_projects", index_name: "idx_enterprise_projects_customer", columns: "customer_name", purpose: "고객사별 프로젝트 조회" },
+      { table_name: "enterprise_formulas", index_name: "idx_enterprise_formulas_code_version", columns: "formula_code, version", purpose: "처방 버전 조회" },
+      { table_name: "ingredient_master_global", index_name: "idx_ingredient_inci", columns: "inci_name", purpose: "INCI 검색 최적화" },
+      { table_name: "ingredient_master_global", index_name: "idx_ingredient_cas", columns: "cas_no", purpose: "CAS 검색 최적화" },
+      { table_name: "ingredient_master_global", index_name: "idx_ingredient_korean", columns: "korean_name", purpose: "국문명 검색 최적화" },
+      { table_name: "enterprise_country_regulations", index_name: "idx_reg_country_inci_cas", columns: "country_code, inci_name, cas_no", purpose: "규제 영향도 분석" },
+      { table_name: "enterprise_customer_portal_items", index_name: "idx_customer_portal_customer", columns: "customer_name, visible_to_customer", purpose: "고객 RLS 조회" },
+      { table_name: "enterprise_supplier_tasks", index_name: "idx_supplier_tasks_supplier", columns: "supplier, request_status", purpose: "공급사 RLS 조회" },
+      { table_name: "audit_logs", index_name: "idx_audit_module_created", columns: "module, created_at", purpose: "Audit 조회" },
+    ];
+
+    setSupabaseTablePlans(tables);
+    setSupabaseIndexPlans(indexes);
+    setSupabaseSchemaStatus(`Schema Plan 생성 완료: 테이블 ${tables.length}개 / 인덱스 ${indexes.length}개`);
+  }
+
+  function exportSupabaseSchemaPlanCsv() {
+    exportCsv("enterprise_supabase_schema_plan.csv", [
+      ["priority", "table_name", "module", "status", "purpose", "core_columns"],
+      ...supabaseTablePlans.map((item) => [
+        item.priority,
+        item.table_name,
+        item.module,
+        item.status,
+        item.purpose,
+        item.core_columns,
+      ]),
+    ]);
+  }
+
+  function exportSupabaseIndexPlanCsv() {
+    exportCsv("enterprise_supabase_index_plan.csv", [
+      ["table_name", "index_name", "columns", "purpose"],
+      ...supabaseIndexPlans.map((item) => [
+        item.table_name,
+        item.index_name,
+        item.columns,
+        item.purpose,
+      ]),
+    ]);
+  }
+
+  function exportSupabaseSqlChecklistCsv() {
+    exportCsv("enterprise_supabase_sql_apply_checklist.csv", [
+      ["step", "task", "status"],
+      [1, "Supabase SQL Editor에서 phase15_enterprise_schema.sql 실행", "PENDING"],
+      [2, "Table Editor에서 enterprise_* 테이블 생성 확인", "PENDING"],
+      [3, "RLS enabled 상태 확인", "PENDING"],
+      [4, "customer/supplier role 정책은 실제 계정 매핑 후 활성화", "PENDING"],
+      [5, "npm run build 후 /enterprise 정상 접속 확인", "PENDING"],
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 14</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 15</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise 1차 모듈 전환을 바탕으로 Service Layer Scaffold를 구성합니다. page.tsx 안의 업무 로직을 services/*.ts로 분리하기 위한 표준 함수 구조와 Supabase CRUD 준비 상태를 검증합니다.
+            Enterprise 1차 모듈 전환과 Service Layer Scaffold를 바탕으로 Supabase Schema & RLS Kit를 구성합니다. 실제 운영 DB 테이블, 인덱스, RLS 정책, 외부 고객/공급사 권한 분리를 위한 SQL 적용 준비 상태를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -2424,6 +2627,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Launch Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{launchGateItems.filter((item) => item.status === "PASS").length}</div></div>
             <div style={cardStyle()}><strong>Data Tables</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{dataMappings.length}</div></div>
             <div style={cardStyle()}><strong>Services</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{serviceLayerItems.length}</div></div>
+            <div style={cardStyle()}><strong>Schema Plan</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{supabaseTablePlans.length}</div></div>
           </div>
         </section>
 
@@ -2487,12 +2691,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 14 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 15 목표</h2>
           <ul>
-            <li>Service Layer Scaffold 독립 UI 검증</li>
-            <li>projectService, formulaService, ingredientService 등 표준 서비스 파일 구조 생성</li>
-            <li>향후 Supabase CRUD, Pagination, Audit Log 연결 준비</li>
-            <li>다음 단계에서 실제 Enterprise 화면의 useState 로직을 서비스 호출 구조로 교체</li>
+            <li>Supabase Schema & RLS Kit 독립 UI 검증</li>
+            <li>Enterprise 운영용 테이블/인덱스/RLS 초안 생성</li>
+            <li>customer/supplier 외부 계정의 데이터 접근 범위 분리 준비</li>
+            <li>다음 단계에서 SQL Editor 적용 후 실제 CRUD 서비스 연결</li>
           </ul>
         </section>
       </>
@@ -3489,6 +3693,109 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderSupabaseSchemaModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Supabase Schema & RLS Kit</h1>
+          <p style={{ color: "#6b7280" }}>
+            Enterprise 운영 테이블, 인덱스, RLS 정책을 적용하기 전 점검하는 화면입니다.
+            압축 파일에 포함된 SQL 파일을 Supabase SQL Editor에 적용하는 단계로 이어집니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Tables</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{supabaseSchemaStats.tables}</div></div>
+            <div style={cardStyle()}><strong>Create</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{supabaseSchemaStats.create}</div></div>
+            <div style={cardStyle()}><strong>Alter</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{supabaseSchemaStats.alter}</div></div>
+            <div style={cardStyle()}><strong>Indexes</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{supabaseSchemaStats.indexes}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateSupabaseSchemaPlan} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Schema Plan 생성
+            </button>
+            <button onClick={exportSupabaseSchemaPlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Schema CSV
+            </button>
+            <button onClick={exportSupabaseIndexPlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Index CSV
+            </button>
+            <button onClick={exportSupabaseSqlChecklistCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              SQL 적용 체크리스트
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{supabaseSchemaStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Table Plan</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Priority</th>
+                <th style={tableCellStyle(true)}>Table</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Purpose</th>
+                <th style={tableCellStyle(true)}>Core Columns</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supabaseTablePlans.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Schema Plan 생성을 실행하세요.</td></tr>}
+              {supabaseTablePlans.map((item) => (
+                <tr key={item.table_name}>
+                  <td style={tableCellStyle()}>{item.priority}</td>
+                  <td style={tableCellStyle()}>{item.table_name}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "CREATE" ? "#2563eb" : item.status === "ALTER" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.purpose}</td>
+                  <td style={tableCellStyle()}>{item.core_columns}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Index Plan</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Table</th>
+                <th style={tableCellStyle(true)}>Index</th>
+                <th style={tableCellStyle(true)}>Columns</th>
+                <th style={tableCellStyle(true)}>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supabaseIndexPlans.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Schema Plan 생성 시 Index Plan이 함께 생성됩니다.</td></tr>}
+              {supabaseIndexPlans.map((item) => (
+                <tr key={item.index_name}>
+                  <td style={tableCellStyle()}>{item.table_name}</td>
+                  <td style={tableCellStyle()}>{item.index_name}</td>
+                  <td style={tableCellStyle()}>{item.columns}</td>
+                  <td style={tableCellStyle()}>{item.purpose}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>SQL 적용 안내</h2>
+          <ol>
+            <li>압축 파일의 <strong>supabase/migrations/phase15_enterprise_schema.sql</strong> 파일을 엽니다.</li>
+            <li>Supabase Dashboard → SQL Editor에 전체 복사 후 실행합니다.</li>
+            <li>Table Editor에서 enterprise_* 테이블이 생성되었는지 확인합니다.</li>
+            <li>RLS 정책은 실제 customer/supplier 계정 매핑 전까지 내부 운영 정책 중심으로 적용합니다.</li>
+            <li>정상 적용 후 다음 Phase에서 services/*.ts를 Supabase CRUD와 연결합니다.</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
   function renderServiceLayerModule() {
     return (
       <>
@@ -3862,6 +4169,7 @@ export default function EnterprisePage() {
     if (active === "supplier") return renderSupplierModule();
     if (active === "dataIntegration") return renderDataIntegrationModule();
     if (active === "services") return renderServiceLayerModule();
+    if (active === "supabaseSchema") return renderSupabaseSchemaModule();
     return renderAdminModule();
   }
 
@@ -3869,7 +4177,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 14 Service Layer Scaffold</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 15 Supabase Schema & RLS Kit</p>
 
         {menus.map((item) => (
           <button
