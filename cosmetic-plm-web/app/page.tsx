@@ -376,6 +376,17 @@ type CustomerSubmissionIssue = {
   action: string;
 };
 
+type SupplierPortalRow = {
+  supplier: string;
+  raw_id: string;
+  raw_code: string;
+  raw_name: string;
+  required_doc: string;
+  status: "OK" | "MISSING" | "EXPIRED" | "EXPIRING";
+  expiry_date: string;
+  action: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -689,6 +700,9 @@ export default function Home() {
   const [docRemark, setDocRemark] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docUploadStatus, setDocUploadStatus] = useState("");
+  const [supplierPortalSupplier, setSupplierPortalSupplier] = useState("ALL");
+  const [supplierPortalRows, setSupplierPortalRows] = useState<SupplierPortalRow[]>([]);
+  const [supplierPortalStatus, setSupplierPortalStatus] = useState("");
   const [sheetFormulaId, setSheetFormulaId] = useState("");
   const [labelFormulaId, setLabelFormulaId] = useState("");
   const [validationFormulaId, setValidationFormulaId] = useState("");
@@ -4219,6 +4233,99 @@ export default function Home() {
     return { label: "정상", color: "green" };
   }
 
+  function getRequiredSupplierDocumentTypes() {
+    return ["COA", "MSDS", "TDS", "Specification", "Allergen Statement", "Vegan Statement", "Halal Statement", "RSPO Statement"];
+  }
+
+  function getSupplierList() {
+    return Array.from(new Set(materials.map((raw) => raw.supplier || "미지정"))).sort();
+  }
+
+  function runSupplierPortalCheck() {
+    const requiredDocs = getRequiredSupplierDocumentTypes();
+    const targetMaterials = materials.filter((raw) => {
+      if (supplierPortalSupplier === "ALL") return true;
+      return (raw.supplier || "미지정") === supplierPortalSupplier;
+    });
+
+    const rows: SupplierPortalRow[] = [];
+
+    targetMaterials.forEach((raw) => {
+      const docs = getMaterialDocumentsByRaw(raw.id);
+
+      requiredDocs.forEach((docType) => {
+        const matchedDocs = docs.filter((doc) => doc.document_type === docType);
+        const latestDoc = matchedDocs[0];
+
+        if (!latestDoc) {
+          rows.push({
+            supplier: raw.supplier || "미지정",
+            raw_id: raw.id,
+            raw_code: raw.raw_code,
+            raw_name: raw.raw_name,
+            required_doc: docType,
+            status: "MISSING",
+            expiry_date: "",
+            action: "공급사에 문서 업로드 요청",
+          });
+          return;
+        }
+
+        const expiryStatus = getMaterialDocumentExpiryStatus(latestDoc);
+        const status: SupplierPortalRow["status"] =
+          expiryStatus.label === "만료" ? "EXPIRED" :
+          expiryStatus.label === "만료임박" ? "EXPIRING" :
+          "OK";
+
+        rows.push({
+          supplier: raw.supplier || "미지정",
+          raw_id: raw.id,
+          raw_code: raw.raw_code,
+          raw_name: raw.raw_name,
+          required_doc: docType,
+          status,
+          expiry_date: latestDoc.expiry_date || "",
+          action: status === "OK" ? "정상" : status === "EXPIRED" ? "최신 문서 재요청" : "만료 전 갱신 요청",
+        });
+      });
+    });
+
+    setSupplierPortalRows(rows);
+    setSupplierPortalStatus(
+      `Supplier Portal Check 완료: 총 ${rows.length}건 / MISSING ${rows.filter((row) => row.status === "MISSING").length} / EXPIRED ${rows.filter((row) => row.status === "EXPIRED").length} / EXPIRING ${rows.filter((row) => row.status === "EXPIRING").length}`
+    );
+  }
+
+  function exportSupplierPortalRequestCsv() {
+    const requestRows = supplierPortalRows
+      .filter((row) => row.status !== "OK")
+      .map((row) => [
+        row.supplier,
+        row.raw_code,
+        row.raw_name,
+        row.required_doc,
+        row.status,
+        row.expiry_date,
+        row.action,
+      ]);
+
+    downloadCsv(
+      "supplier_document_request_list.csv",
+      ["supplier", "raw_code", "raw_name", "required_document", "status", "expiry_date", "request_action"],
+      requestRows
+    );
+  }
+
+  function exportSupplierUploadTemplateCsv() {
+    downloadCsv(
+      "supplier_document_upload_template.csv",
+      ["supplier", "raw_code", "raw_name", "document_type", "document_title", "issue_date", "expiry_date", "document_url", "remark"],
+      [
+        ["공급사명", "RAW-001", "원료명", "COA", "COA 2026", "2026-01-01", "2027-01-01", "https://", "공급사 업로드용"],
+      ]
+    );
+  }
+
   function getMaterialDocumentsByRaw(rawId: string) {
     return materialDocuments.filter((doc) => doc.raw_materials?.id === rawId);
   }
@@ -7638,6 +7745,7 @@ export default function Home() {
       raw: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       material: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       documents: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
+      supplierPortal: ["manager", "qa", "senior", "researcher"],
       ingredient: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       global: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
       composition: ["manager", "qa", "ra", "senior", "researcher", "viewer"],
@@ -7738,6 +7846,7 @@ export default function Home() {
       title: "품질 QC",
       items: [
         ["documents", "원료문서센터"],
+        ["supplierPortal", "Supplier Portal"],
         ["stability", "안정도관리"],
         ["stabilityPredict", "AI 안정성예측"],
       ],
@@ -8770,6 +8879,86 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {menu === "supplierPortal" && (
+          <>
+            <h1>v34.0 Supplier Portal Lite</h1>
+            <p style={{ color: "#6b7280" }}>
+              공급사별 필수 문서(COA/MSDS/TDS/Spec/Allergen/Vegan/Halal/RSPO) 누락, 만료, 만료임박 상태를 점검하고 요청 리스트를 생성합니다.
+            </p>
+
+            <h2>공급사 문서 현황 점검</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <select value={supplierPortalSupplier || "ALL"} onChange={(e) => setSupplierPortalSupplier(e.target.value)}>
+                <option value="ALL">전체 공급사</option>
+                {getSupplierList().map((supplier) => (
+                  <option key={supplier} value={supplier}>{supplier}</option>
+                ))}
+              </select>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={runSupplierPortalCheck} style={{ background: "#7c3aed" }}>
+                  공급사 문서 점검 실행
+                </button>
+                <button onClick={exportSupplierPortalRequestCsv} style={{ background: "#059669" }}>
+                  문서 요청 리스트 CSV
+                </button>
+                <button onClick={exportSupplierUploadTemplateCsv} style={{ background: "#0ea5e9" }}>
+                  공급사 업로드 양식 CSV
+                </button>
+              </div>
+
+              <p style={{ color: "#2563eb", fontWeight: "bold" }}>{supplierPortalStatus}</p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+              <div style={cardStyle}><strong>Total</strong><div>{supplierPortalRows.length}</div></div>
+              <div style={cardStyle}><strong>OK</strong><div style={{ color: "green", fontWeight: "bold" }}>{supplierPortalRows.filter((row) => row.status === "OK").length}</div></div>
+              <div style={cardStyle}><strong>MISSING</strong><div style={{ color: "red", fontWeight: "bold" }}>{supplierPortalRows.filter((row) => row.status === "MISSING").length}</div></div>
+              <div style={cardStyle}><strong>EXPIRED</strong><div style={{ color: "red", fontWeight: "bold" }}>{supplierPortalRows.filter((row) => row.status === "EXPIRED").length}</div></div>
+              <div style={cardStyle}><strong>EXPIRING</strong><div style={{ color: "#d97706", fontWeight: "bold" }}>{supplierPortalRows.filter((row) => row.status === "EXPIRING").length}</div></div>
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>공급사</th>
+                  <th>원료코드</th>
+                  <th>원료명</th>
+                  <th>필수문서</th>
+                  <th>상태</th>
+                  <th>만료일</th>
+                  <th>조치</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplierPortalRows.length === 0 && (
+                  <tr><td colSpan={7}>공급사 문서 점검을 실행하세요.</td></tr>
+                )}
+                {supplierPortalRows.map((row, index) => (
+                  <tr key={`${row.raw_id}-${row.required_doc}-${index}`}>
+                    <td>{row.supplier}</td>
+                    <td>{row.raw_code}</td>
+                    <td>{row.raw_name}</td>
+                    <td>{row.required_doc}</td>
+                    <td style={{ color: row.status === "OK" ? "green" : row.status === "EXPIRING" ? "#d97706" : "red", fontWeight: "bold" }}>
+                      {row.status}
+                    </td>
+                    <td>{row.expiry_date || "-"}</td>
+                    <td>{row.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h2>운영 방법</h2>
+            <ul>
+              <li>공급사별 요청 리스트 CSV를 다운로드해 메일로 전달합니다.</li>
+              <li>공급사가 회신한 문서는 원료문서센터에서 업로드합니다.</li>
+              <li>장기적으로는 공급사 전용 로그인/업로드 권한을 분리하는 Supplier Portal Full 버전으로 확장할 수 있습니다.</li>
+            </ul>
           </>
         )}
 
