@@ -368,6 +368,14 @@ type ProductionCheckItem = {
   action: string;
 };
 
+type CustomerSubmissionIssue = {
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  category: string;
+  title: string;
+  detail: string;
+  action: string;
+};
+
 type ProjectStage = {
   id: string;
   stage_name: string;
@@ -741,6 +749,11 @@ export default function Home() {
   const [productionChecks, setProductionChecks] = useState<ProductionCheckItem[]>([]);
   const [productionStatus, setProductionStatus] = useState("");
   const [packageFormulaId, setPackageFormulaId] = useState("");
+  const [submissionFormulaId, setSubmissionFormulaId] = useState("");
+  const [submissionCustomerName, setSubmissionCustomerName] = useState("");
+  const [submissionPreparedBy, setSubmissionPreparedBy] = useState("");
+  const [submissionIssues, setSubmissionIssues] = useState<CustomerSubmissionIssue[]>([]);
+  const [submissionStatus, setSubmissionStatus] = useState("");
 
   const [lockFormulaId, setLockFormulaId] = useState("");
   const [lockReason, setLockReason] = useState("승인 완료");
@@ -6554,6 +6567,234 @@ export default function Home() {
     );
   }
 
+  function getCustomerSubmissionIssues(targetFormulaId: string) {
+    const issues: CustomerSubmissionIssue[] = [];
+    const formula = getFormulaById(targetFormulaId);
+
+    if (!formula) {
+      issues.push({
+        severity: "HIGH",
+        category: "처방",
+        title: "처방 없음",
+        detail: "선택한 처방 정보를 찾을 수 없습니다.",
+        action: "처방을 다시 선택하세요.",
+      });
+      return issues;
+    }
+
+    const total = getFormulaTotal(targetFormulaId);
+
+    if (Math.abs(total - 100) > 0.0001) {
+      issues.push({
+        severity: "HIGH",
+        category: "처방",
+        title: "처방 총합 오류",
+        detail: `현재 총합 ${total.toFixed(4)}%`,
+        action: "처방 총합을 100%로 수정 후 제출하세요.",
+      });
+    }
+
+    const selectedFormulaItems = getFormulaItemsByFormula(targetFormulaId);
+
+    selectedFormulaItems.forEach((item) => {
+      const raw = item.raw_materials;
+
+      if (!raw?.id) return;
+
+      const compTotal = getCompositionTotalByRaw(raw.id);
+
+      if (Math.abs(compTotal - 100) > 0.0001) {
+        issues.push({
+          severity: "HIGH",
+          category: "원료조성표",
+          title: "원료조성 합계 오류",
+          detail: `${raw.raw_code} / ${raw.raw_name}: 조성합계 ${compTotal.toFixed(4)}%`,
+          action: "원료조성표를 100%로 보정하세요.",
+        });
+      }
+
+      const docs = getMaterialDocumentsByRaw(raw.id);
+
+      if (docs.length === 0) {
+        issues.push({
+          severity: "MEDIUM",
+          category: "원료문서",
+          title: "원료문서 누락",
+          detail: `${raw.raw_code} / ${raw.raw_name}: 문서가 없습니다.`,
+          action: "COA/MSDS/TDS/Spec 중 제출 필요 문서를 등록하세요.",
+        });
+      }
+    });
+
+    const breakdown = calculateBreakdown(targetFormulaId);
+
+    breakdown.forEach((item) => {
+      const matches = countryRegulations.filter((reg) => {
+        const sameInci = reg.inci_name && item.inci_name?.toLowerCase() === reg.inci_name.toLowerCase();
+        const sameCas = reg.cas_no && item.cas_no === reg.cas_no;
+
+        return sameInci || sameCas;
+      });
+
+      matches.forEach((reg) => {
+        if (reg.is_prohibited) {
+          issues.push({
+            severity: "HIGH",
+            category: "규제",
+            title: "금지 성분 가능성",
+            detail: `${reg.country_code}: ${item.inci_name} / ${reg.warning_message}`,
+            action: "RA 검토 후 대체 또는 제외하세요.",
+          });
+        } else if (Number(reg.max_percentage || 0) > 0 && item.final_percentage > Number(reg.max_percentage || 0)) {
+          issues.push({
+            severity: "HIGH",
+            category: "규제",
+            title: "사용한도 초과",
+            detail: `${reg.country_code}: ${item.inci_name} ${item.final_percentage.toFixed(6)}% > ${reg.max_percentage}%`,
+            action: "함량 조정 또는 판매국가 검토가 필요합니다.",
+          });
+        }
+      });
+    });
+
+    return issues;
+  }
+
+  function generateCustomerSubmissionReview() {
+    if (!submissionFormulaId) {
+      alert("고객 제출 패키지를 생성할 처방을 선택하세요.");
+      return;
+    }
+
+    const issues = getCustomerSubmissionIssues(submissionFormulaId);
+    setSubmissionIssues(issues);
+    setSubmissionStatus(
+      `고객 제출 검토 완료: 총 ${issues.length}건 / HIGH ${issues.filter((item) => item.severity === "HIGH").length} / MEDIUM ${issues.filter((item) => item.severity === "MEDIUM").length}`
+    );
+  }
+
+  function downloadCustomerSubmissionPackage() {
+    if (!submissionFormulaId) {
+      alert("처방을 선택하세요.");
+      return;
+    }
+
+    const formula = getFormulaById(submissionFormulaId);
+    const customerName = submissionCustomerName || getProjectsByFormulaId(submissionFormulaId)[0]?.customer_name || "Customer";
+    const preparedByName = submissionPreparedBy || auditUserName || "PLM User";
+    const prefix = `${customerName}_${formula?.formula_code || "Formula"}_Submission`.replace(/[\\/:*?"<>|]/g, "_");
+
+    const summaryRows = [
+      ["customer_name", customerName],
+      ["formula_code", formula?.formula_code || ""],
+      ["formula_name", formula?.formula_name || ""],
+      ["version", formula?.version || ""],
+      ["prepared_by", preparedByName],
+      ["prepared_at", new Date().toISOString()],
+      ["formula_total", getFormulaTotal(submissionFormulaId).toFixed(4)],
+      ["material_cost", getFormulaCost(submissionFormulaId).toFixed(2)],
+      ["bom_final_cost", getBomFinalCost(submissionFormulaId).toFixed(2)],
+      ["issue_count", submissionIssues.length],
+      ["high_issue_count", submissionIssues.filter((item) => item.severity === "HIGH").length],
+    ];
+
+    downloadCsv(`${prefix}_00_summary.csv`, ["item", "value"], summaryRows);
+
+    downloadCsv(
+      `${prefix}_01_formula_sheet.csv`,
+      ["phase", "raw_code", "raw_name", "input_percent", "unit_price", "cost", "remark"],
+      getFormulaSheetRows(submissionFormulaId).map((item) => [
+        item.phase || "",
+        item.raw_materials?.raw_code || "",
+        item.raw_materials?.raw_name || "",
+        Number(item.percentage || 0).toFixed(4),
+        Number(item.raw_materials?.unit_price || 0),
+        ((Number(item.raw_materials?.unit_price || 0) * Number(item.percentage || 0)) / 100).toFixed(2),
+        item.remark || "",
+      ])
+    );
+
+    downloadCsv(
+      `${prefix}_02_breakdown_il.csv`,
+      ["inci", "korean_name", "cas", "ec", "function", "final_percent", "iecic", "cosmos", "vegan", "regulation_note"],
+      calculateBreakdown(submissionFormulaId).map((item) => [
+        item.inci_name,
+        item.korean_name,
+        item.cas_no,
+        item.ec_no,
+        item.function_ko,
+        item.final_percentage.toFixed(6),
+        item.iecic_status || "",
+        item.cosmos_status || "",
+        item.vegan_status || "",
+        item.regulation_note || "",
+      ])
+    );
+
+    downloadCsv(
+      `${prefix}_03_full_il.csv`,
+      ["raw_code", "raw_name", "raw_input_percent", "inci", "composition_percent", "final_percent", "cas", "function"],
+      getFormulaItemsByFormula(submissionFormulaId).flatMap((formulaItem) => {
+        const rawId = formulaItem.raw_materials?.id;
+        const inputPercentage = Number(formulaItem.percentage || 0);
+
+        if (!rawId) return [];
+
+        return getCompositionRowsByRaw(rawId).map((composition) => [
+          formulaItem.raw_materials?.raw_code || "",
+          formulaItem.raw_materials?.raw_name || "",
+          inputPercentage.toFixed(4),
+          composition.ingredients?.inci_name || "",
+          Number(composition.percentage || 0).toFixed(4),
+          ((inputPercentage * Number(composition.percentage || 0)) / 100).toFixed(6),
+          composition.ingredients?.cas_no || "",
+          composition.ingredients?.function_ko || "",
+        ]);
+      })
+    );
+
+    downloadCsv(
+      `${prefix}_04_document_checklist.csv`,
+      ["raw_code", "raw_name", "document_type", "document_title", "expiry_date", "status"],
+      getFormulaItemsByFormula(submissionFormulaId).flatMap((formulaItem) => {
+        const raw = formulaItem.raw_materials;
+        if (!raw?.id) return [];
+        const docs = getMaterialDocumentsByRaw(raw.id);
+
+        if (docs.length === 0) {
+          return [[raw.raw_code, raw.raw_name, "", "", "", "MISSING"]];
+        }
+
+        return docs.map((doc) => [
+          raw.raw_code,
+          raw.raw_name,
+          doc.document_type,
+          doc.document_title,
+          doc.expiry_date || "",
+          doc.expiry_date && new Date(doc.expiry_date) < new Date() ? "EXPIRED" : "OK",
+        ]);
+      })
+    );
+
+    downloadCsv(
+      `${prefix}_05_risk_check.csv`,
+      ["severity", "category", "title", "detail", "action"],
+      getCustomerSubmissionIssues(submissionFormulaId).map((issue) => [
+        issue.severity,
+        issue.category,
+        issue.title,
+        issue.detail,
+        issue.action,
+      ])
+    );
+
+    logAudit("Customer Submission Package", submissionFormulaId, "고객제출패키지 생성", null, {
+      formula_code: formula?.formula_code || "",
+      customer_name: customerName,
+      issue_count: submissionIssues.length,
+    });
+  }
+
   function downloadDocumentPackage() {
     if (!packageFormulaId) {
       alert("문서 패키지를 생성할 처방을 선택하세요.");
@@ -7514,6 +7755,7 @@ export default function Home() {
         ["label", "전성분"],
         ["sheet", "Formula Sheet"],
         ["package", "문서패키지"],
+        ["customerSubmission", "고객제출패키지"],
       ],
     },
     {
@@ -12222,6 +12464,96 @@ export default function Home() {
                 </p>
               </div>
             )}
+          </>
+        )}
+
+        {menu === "customerSubmission" && (
+          <>
+            <h1>v33.0 Customer Submission Package</h1>
+            <p style={{ color: "#6b7280" }}>
+              고객 제출용 처방서, Breakdown IL, Full IL, 원료문서 체크리스트, 규제/품질 리스크 검토표를 한 번에 생성합니다.
+            </p>
+
+            <h2>제출 패키지 조건</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "760px", marginBottom: "24px" }}>
+              <select value={submissionFormulaId || ""} onChange={(e) => setSubmissionFormulaId(e.target.value)}>
+                <option value="">처방 선택</option>
+                {formulas.map((formula) => (
+                  <option key={formula.id} value={formula.id}>
+                    {formula.formula_code} - {formula.formula_name} v{formula.version}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                placeholder="고객사명 미입력 시 프로젝트 연결 고객사 사용"
+                value={submissionCustomerName || ""}
+                onChange={(e) => setSubmissionCustomerName(e.target.value)}
+              />
+
+              <input
+                placeholder="작성자 미입력 시 현재 사용자명 사용"
+                value={submissionPreparedBy || ""}
+                onChange={(e) => setSubmissionPreparedBy(e.target.value)}
+              />
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={generateCustomerSubmissionReview} style={{ background: "#7c3aed" }}>
+                  제출 전 검토 실행
+                </button>
+                <button onClick={downloadCustomerSubmissionPackage} style={{ background: "#059669" }}>
+                  고객 제출 패키지 CSV 생성
+                </button>
+              </div>
+
+              <p style={{ color: "#2563eb", fontWeight: "bold" }}>{submissionStatus}</p>
+            </div>
+
+            <h2>제출 전 리스크</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+              <div style={cardStyle}><strong>Total</strong><div>{submissionIssues.length}</div></div>
+              <div style={cardStyle}><strong>HIGH</strong><div style={{ color: "red", fontWeight: "bold" }}>{submissionIssues.filter((i) => i.severity === "HIGH").length}</div></div>
+              <div style={cardStyle}><strong>MEDIUM</strong><div style={{ color: "#d97706", fontWeight: "bold" }}>{submissionIssues.filter((i) => i.severity === "MEDIUM").length}</div></div>
+              <div style={cardStyle}><strong>LOW</strong><div style={{ color: "green", fontWeight: "bold" }}>{submissionIssues.filter((i) => i.severity === "LOW").length}</div></div>
+            </div>
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th>위험도</th>
+                  <th>카테고리</th>
+                  <th>이슈</th>
+                  <th>상세</th>
+                  <th>조치</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submissionIssues.length === 0 && (
+                  <tr><td colSpan={5}>제출 전 검토를 실행하세요.</td></tr>
+                )}
+                {submissionIssues.map((issue, index) => (
+                  <tr key={`${issue.category}-${issue.title}-${index}`}>
+                    <td style={{ color: issue.severity === "HIGH" ? "red" : issue.severity === "MEDIUM" ? "#d97706" : "green", fontWeight: "bold" }}>
+                      {issue.severity}
+                    </td>
+                    <td>{issue.category}</td>
+                    <td>{issue.title}</td>
+                    <td>{issue.detail}</td>
+                    <td>{issue.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h2>생성되는 파일</h2>
+            <ul>
+              <li>00 Summary</li>
+              <li>01 Formula Sheet</li>
+              <li>02 Breakdown IL</li>
+              <li>03 Full IL</li>
+              <li>04 Document Checklist</li>
+              <li>05 Risk Check</li>
+            </ul>
           </>
         )}
 
