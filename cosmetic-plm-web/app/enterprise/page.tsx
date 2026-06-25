@@ -41,6 +41,30 @@ type EnterpriseFormula = {
   revision_note: string;
 };
 
+type EnterpriseIngredient = {
+  id: string;
+  inci_name: string;
+  korean_name: string;
+  cas_no: string;
+  ec_no: string;
+  function_ko: string;
+  function_en: string;
+  eu_status: string;
+  china_status: string;
+  ewg_grade: string;
+  source: string;
+};
+
+type EnterpriseRawMaterial = {
+  id: string;
+  raw_code: string;
+  raw_name: string;
+  supplier: string;
+  unit_price: number;
+  main_inci: string;
+  composition_total: number;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -106,6 +130,91 @@ const initialFormulas: EnterpriseFormula[] = [
   },
 ];
 
+const initialIngredients: EnterpriseIngredient[] = [
+  {
+    id: "I-001",
+    inci_name: "Glycerin",
+    korean_name: "글리세린",
+    cas_no: "56-81-5",
+    ec_no: "200-289-5",
+    function_ko: "보습제",
+    function_en: "Humectant",
+    eu_status: "Allowed",
+    china_status: "Listed",
+    ewg_grade: "1",
+    source: "Seed DB",
+  },
+  {
+    id: "I-002",
+    inci_name: "Niacinamide",
+    korean_name: "나이아신아마이드",
+    cas_no: "98-92-0",
+    ec_no: "202-713-4",
+    function_ko: "미백/피부컨디셔닝",
+    function_en: "Skin Conditioning",
+    eu_status: "Allowed",
+    china_status: "Listed",
+    ewg_grade: "1",
+    source: "Seed DB",
+  },
+  {
+    id: "I-003",
+    inci_name: "Panthenol",
+    korean_name: "판테놀",
+    cas_no: "81-13-0",
+    ec_no: "201-327-3",
+    function_ko: "보습/진정",
+    function_en: "Humectant",
+    eu_status: "Allowed",
+    china_status: "Listed",
+    ewg_grade: "1",
+    source: "Seed DB",
+  },
+  {
+    id: "I-004",
+    inci_name: "Phenoxyethanol",
+    korean_name: "페녹시에탄올",
+    cas_no: "122-99-6",
+    ec_no: "204-589-7",
+    function_ko: "보존제",
+    function_en: "Preservative",
+    eu_status: "Restricted 1%",
+    china_status: "Listed",
+    ewg_grade: "2-4",
+    source: "Regulation DB",
+  },
+];
+
+const initialRawMaterials: EnterpriseRawMaterial[] = [
+  {
+    id: "R-001",
+    raw_code: "RM-001",
+    raw_name: "Glycerin 99.5%",
+    supplier: "A Supplier",
+    unit_price: 1800,
+    main_inci: "Glycerin",
+    composition_total: 100,
+  },
+  {
+    id: "R-002",
+    raw_code: "RM-002",
+    raw_name: "Niacinamide USP",
+    supplier: "B Supplier",
+    unit_price: 12500,
+    main_inci: "Niacinamide",
+    composition_total: 100,
+  },
+  {
+    id: "R-003",
+    raw_code: "RM-003",
+    raw_name: "Panthenol 75%",
+    supplier: "C Supplier",
+    unit_price: 22000,
+    main_inci: "Panthenol",
+    composition_total: 75,
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -145,6 +254,14 @@ function nextFormulaCode(formulas: EnterpriseFormula[]) {
   return `FC-${String(formulas.length + 1).padStart(3, "0")}`;
 }
 
+function nextIngredientId(ingredients: EnterpriseIngredient[]) {
+  return `I-${String(ingredients.length + 1).padStart(3, "0")}`;
+}
+
+function nextRawCode(rawMaterials: EnterpriseRawMaterial[]) {
+  return `RM-${String(rawMaterials.length + 1).padStart(3, "0")}`;
+}
+
 export default function EnterprisePage() {
   const [active, setActive] = useState<ModuleKey>("overview");
 
@@ -162,6 +279,22 @@ export default function EnterprisePage() {
   const [formulaName, setFormulaName] = useState("");
   const [formulaCost, setFormulaCost] = useState("");
   const [formulaNote, setFormulaNote] = useState("");
+
+  const [ingredients, setIngredients] = useState<EnterpriseIngredient[]>(initialIngredients);
+  const [rawMaterials, setRawMaterials] = useState<EnterpriseRawMaterial[]>(initialRawMaterials);
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [ingredientPage, setIngredientPage] = useState(1);
+  const [ingredientPageSize, setIngredientPageSize] = useState(10);
+  const [newInci, setNewInci] = useState("");
+  const [newKoreanName, setNewKoreanName] = useState("");
+  const [newCas, setNewCas] = useState("");
+  const [newEc, setNewEc] = useState("");
+  const [newFunctionKo, setNewFunctionKo] = useState("");
+  const [rawName, setRawName] = useState("");
+  const [rawSupplier, setRawSupplier] = useState("");
+  const [rawPrice, setRawPrice] = useState("");
+  const [rawMainInci, setRawMainInci] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -186,6 +319,32 @@ export default function EnterprisePage() {
     );
   }, [formulaSearch, formulas]);
 
+  const filteredIngredients = useMemo(() => {
+    const keyword = ingredientSearch.trim().toLowerCase();
+    if (!keyword) return ingredients;
+    return ingredients.filter((item) =>
+      [
+        item.inci_name,
+        item.korean_name,
+        item.cas_no,
+        item.ec_no,
+        item.function_ko,
+        item.function_en,
+        item.eu_status,
+        item.china_status,
+        item.ewg_grade,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [ingredientSearch, ingredients]);
+
+  const paginatedIngredients = useMemo(() => {
+    const start = (ingredientPage - 1) * ingredientPageSize;
+    return filteredIngredients.slice(start, start + ingredientPageSize);
+  }, [filteredIngredients, ingredientPage, ingredientPageSize]);
+
   const projectStats = useMemo(() => {
     return {
       total: projects.length,
@@ -199,14 +358,21 @@ export default function EnterprisePage() {
   const formulaStats = useMemo(() => {
     return {
       total: formulas.length,
-      draft: formulas.filter((item) => item.status === "Draft").length,
       review: formulas.filter((item) => item.status === "Review").length,
-      approved: formulas.filter((item) => item.status === "Approved").length,
-      released: formulas.filter((item) => item.status === "Released").length,
       locked: formulas.filter((item) => item.is_locked).length,
       avgCost: formulas.length ? formulas.reduce((sum, item) => sum + item.material_cost, 0) / formulas.length : 0,
     };
   }, [formulas]);
+
+  const ingredientStats = useMemo(() => {
+    return {
+      total: ingredients.length,
+      missingCas: ingredients.filter((item) => !item.cas_no).length,
+      restricted: ingredients.filter((item) => item.eu_status.toLowerCase().includes("restricted")).length,
+      rawTotal: rawMaterials.length,
+      invalidComposition: rawMaterials.filter((item) => Math.abs(item.composition_total - 100) > 0.0001).length,
+    };
+  }, [ingredients, rawMaterials]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -314,6 +480,88 @@ export default function EnterprisePage() {
     );
   }
 
+  function addEnterpriseIngredient() {
+    if (!newInci || !newKoreanName) {
+      alert("INCI와 국문명을 입력하세요.");
+      return;
+    }
+
+    const newIngredient: EnterpriseIngredient = {
+      id: nextIngredientId(ingredients),
+      inci_name: newInci,
+      korean_name: newKoreanName,
+      cas_no: newCas,
+      ec_no: newEc,
+      function_ko: newFunctionKo,
+      function_en: newFunctionKo === "보습제" ? "Humectant" : newFunctionKo === "보존제" ? "Preservative" : "",
+      eu_status: "Allowed",
+      china_status: "Listed",
+      ewg_grade: "",
+      source: "Manual",
+    };
+
+    setIngredients([newIngredient, ...ingredients]);
+    setNewInci("");
+    setNewKoreanName("");
+    setNewCas("");
+    setNewEc("");
+    setNewFunctionKo("");
+    setIngredientPage(1);
+  }
+
+  function addEnterpriseRawMaterial() {
+    if (!rawName) {
+      alert("원료명을 입력하세요.");
+      return;
+    }
+
+    const newRaw: EnterpriseRawMaterial = {
+      id: crypto.randomUUID(),
+      raw_code: nextRawCode(rawMaterials),
+      raw_name: rawName,
+      supplier: rawSupplier || "미지정",
+      unit_price: Number(rawPrice || 0),
+      main_inci: rawMainInci || "",
+      composition_total: 100,
+    };
+
+    setRawMaterials([newRaw, ...rawMaterials]);
+    setRawName("");
+    setRawSupplier("");
+    setRawPrice("");
+    setRawMainInci("");
+  }
+
+  function importSeedIngredients() {
+    const seedNames = [
+      ["Betaine", "베타인", "107-43-7", "203-490-6", "보습제", "Humectant"],
+      ["Allantoin", "알란토인", "97-59-6", "202-592-8", "진정", "Skin Protecting"],
+      ["Sodium Hyaluronate", "소듐하이알루로네이트", "9067-32-7", "", "보습제", "Humectant"],
+      ["Ceramide NP", "세라마이드엔피", "100403-19-8", "", "피부컨디셔닝", "Skin Conditioning"],
+      ["Caprylyl Glycol", "카프릴릴글라이콜", "1117-86-8", "214-254-7", "보습/방부보조", "Humectant"],
+    ];
+
+    const existing = new Set(ingredients.map((item) => item.inci_name.toLowerCase()));
+    const newRows = seedNames
+      .filter((row) => !existing.has(row[0].toLowerCase()))
+      .map((row, index) => ({
+        id: `I-SEED-${Date.now()}-${index}`,
+        inci_name: row[0],
+        korean_name: row[1],
+        cas_no: row[2],
+        ec_no: row[3],
+        function_ko: row[4],
+        function_en: row[5],
+        eu_status: "Allowed",
+        china_status: "Listed",
+        ewg_grade: "",
+        source: "Seed Import",
+      }));
+
+    setIngredients([...newRows, ...ingredients]);
+    setIngredientPage(1);
+  }
+
   function exportCsv(filename: string, rows: (string | number | boolean)[][]) {
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
@@ -358,31 +606,65 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function exportIngredientCsv() {
+    exportCsv("enterprise_ingredient_module.csv", [
+      ["inci_name", "korean_name", "cas_no", "ec_no", "function_ko", "function_en", "eu_status", "china_status", "ewg_grade", "source"],
+      ...filteredIngredients.map((item) => [
+        item.inci_name,
+        item.korean_name,
+        item.cas_no,
+        item.ec_no,
+        item.function_ko,
+        item.function_en,
+        item.eu_status,
+        item.china_status,
+        item.ewg_grade,
+        item.source,
+      ]),
+    ]);
+  }
+
+  function exportRawCsv() {
+    exportCsv("enterprise_raw_material_module.csv", [
+      ["raw_code", "raw_name", "supplier", "unit_price", "main_inci", "composition_total"],
+      ...rawMaterials.map((item) => [
+        item.raw_code,
+        item.raw_name,
+        item.supplier,
+        item.unit_price,
+        item.main_inci,
+        item.composition_total,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 4</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 5</h1>
           <p style={{ color: "#6b7280" }}>
-            Project Module에 이어 Formula Module을 Enterprise 구조로 분리합니다. 현재는 기존 PLM과 독립된 안전한 검증 단계입니다.
+            Project / Formula Module에 이어 Ingredient Module을 Enterprise 구조로 분리합니다.
+            성분 데이터가 1,000개 이상으로 증가해도 검색과 페이지네이션으로 안정적으로 사용할 수 있는 구조를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
             <div style={cardStyle()}><strong>프로젝트</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{projectStats.total}</div></div>
             <div style={cardStyle()}><strong>처방</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{formulaStats.total}</div></div>
-            <div style={cardStyle()}><strong>검토중</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{formulaStats.review}</div></div>
-            <div style={cardStyle()}><strong>배포/잠금</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{formulaStats.locked}</div></div>
-            <div style={cardStyle()}><strong>평균 원가</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{formulaStats.avgCost.toFixed(0)}</div></div>
+            <div style={cardStyle()}><strong>성분</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{ingredientStats.total}</div></div>
+            <div style={cardStyle()}><strong>원료</strong><div style={{ fontSize: "32px", fontWeight: "bold" }}>{ingredientStats.rawTotal}</div></div>
+            <div style={cardStyle()}><strong>규제주의</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#d97706" }}>{ingredientStats.restricted}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 4 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 5 목표</h2>
           <ul>
-            <li>Formula Module 독립 UI 검증</li>
-            <li>처방 코드 자동 생성</li>
-            <li>Version / Clone / Status / Lock 흐름 검증</li>
-            <li>다음 단계에서 실제 Supabase formulas, formula_items와 연결</li>
+            <li>Ingredient Module 독립 UI 검증</li>
+            <li>성분 검색/페이지네이션 구조 적용</li>
+            <li>원료마스터와 Global Ingredient 연결 구조 검증</li>
+            <li>Seed Import / CSV Export 흐름 검증</li>
+            <li>다음 단계에서 실제 Supabase ingredient_master_global 조회 최적화 적용</li>
           </ul>
         </section>
       </>
@@ -468,10 +750,6 @@ export default function EnterprisePage() {
       <>
         <section style={cardStyle()}>
           <h1 style={{ marginTop: 0 }}>Formula Module</h1>
-          <p style={{ color: "#6b7280" }}>
-            처방관리, Version Control, Revision Clone, Formula Lock 흐름을 Enterprise 구조로 분리하기 위한 검증 화면입니다.
-          </p>
-
           <h2>처방 등록</h2>
           <div style={{ display: "grid", gap: "10px", maxWidth: "820px" }}>
             <select value={formulaProjectCode} onChange={(e) => setFormulaProjectCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
@@ -552,6 +830,157 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderIngredientModule() {
+    const maxPage = Math.max(1, Math.ceil(filteredIngredients.length / ingredientPageSize));
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Ingredient Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            원료마스터, 성분마스터, Global Ingredient Master를 분리하기 위한 검증 화면입니다.
+            대량 성분 데이터 대응을 위해 검색 + 페이지네이션 구조를 적용했습니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>성분 수</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ingredientStats.total}</div></div>
+            <div style={cardStyle()}><strong>CAS 누락</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{ingredientStats.missingCas}</div></div>
+            <div style={cardStyle()}><strong>규제주의</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{ingredientStats.restricted}</div></div>
+            <div style={cardStyle()}><strong>원료 수</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ingredientStats.rawTotal}</div></div>
+            <div style={cardStyle()}><strong>조성 오류</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{ingredientStats.invalidComposition}</div></div>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Global Ingredient 등록</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px" }}>
+            <input value={newInci} onChange={(e) => setNewInci(e.target.value)} placeholder="INCI" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={newKoreanName} onChange={(e) => setNewKoreanName(e.target.value)} placeholder="국문명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={newCas} onChange={(e) => setNewCas(e.target.value)} placeholder="CAS No." style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={newEc} onChange={(e) => setNewEc(e.target.value)} placeholder="EC No." style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={newFunctionKo} onChange={(e) => setNewFunctionKo(e.target.value)} placeholder="기능 예: 보습제, 보존제" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addEnterpriseIngredient} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                성분 등록
+              </button>
+              <button onClick={importSeedIngredients} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                Seed 5건 추가
+              </button>
+              <button onClick={exportIngredientCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                성분 CSV Export
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>성분 검색 / 페이지네이션</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <input
+              value={ingredientSearch}
+              onChange={(e) => {
+                setIngredientSearch(e.target.value);
+                setIngredientPage(1);
+              }}
+              placeholder="INCI, 국문명, CAS, EC, 기능, 규제 검색"
+              style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px", minWidth: "360px" }}
+            />
+            <select value={ingredientPageSize} onChange={(e) => { setIngredientPageSize(Number(e.target.value)); setIngredientPage(1); }}>
+              <option value={5}>5개씩</option>
+              <option value={10}>10개씩</option>
+              <option value={20}>20개씩</option>
+              <option value={50}>50개씩</option>
+            </select>
+            <button onClick={() => setIngredientPage(Math.max(1, ingredientPage - 1))}>이전</button>
+            <button onClick={() => setIngredientPage(Math.min(maxPage, ingredientPage + 1))}>다음</button>
+            <span style={{ alignSelf: "center", color: "#6b7280" }}>Page {ingredientPage} / {maxPage} · 검색결과 {filteredIngredients.length}건</span>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>INCI</th>
+                <th style={tableCellStyle(true)}>국문명</th>
+                <th style={tableCellStyle(true)}>CAS</th>
+                <th style={tableCellStyle(true)}>EC</th>
+                <th style={tableCellStyle(true)}>기능</th>
+                <th style={tableCellStyle(true)}>Function EN</th>
+                <th style={tableCellStyle(true)}>EU</th>
+                <th style={tableCellStyle(true)}>China</th>
+                <th style={tableCellStyle(true)}>EWG</th>
+                <th style={tableCellStyle(true)}>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedIngredients.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.inci_name}</td>
+                  <td style={tableCellStyle()}>{item.korean_name}</td>
+                  <td style={tableCellStyle()}>{item.cas_no}</td>
+                  <td style={tableCellStyle()}>{item.ec_no}</td>
+                  <td style={tableCellStyle()}>{item.function_ko}</td>
+                  <td style={tableCellStyle()}>{item.function_en}</td>
+                  <td style={{ ...tableCellStyle(), color: item.eu_status.toLowerCase().includes("restricted") ? "#dc2626" : "#059669", fontWeight: "bold" }}>{item.eu_status}</td>
+                  <td style={tableCellStyle()}>{item.china_status}</td>
+                  <td style={tableCellStyle()}>{item.ewg_grade}</td>
+                  <td style={tableCellStyle()}>{item.source}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>원료마스터 등록 / 성분 연결</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <input value={rawName} onChange={(e) => setRawName(e.target.value)} placeholder="원료명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={rawSupplier} onChange={(e) => setRawSupplier(e.target.value)} placeholder="공급사" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={rawPrice} onChange={(e) => setRawPrice(e.target.value)} placeholder="단가 원/kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={rawMainInci} onChange={(e) => setRawMainInci(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="">대표 INCI 선택</option>
+              {ingredients.map((item) => (
+                <option key={item.id} value={item.inci_name}>{item.inci_name} / {item.korean_name}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addEnterpriseRawMaterial} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                원료 등록
+              </button>
+              <button onClick={exportRawCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                원료 CSV Export
+              </button>
+            </div>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>원료코드</th>
+                <th style={tableCellStyle(true)}>원료명</th>
+                <th style={tableCellStyle(true)}>공급사</th>
+                <th style={tableCellStyle(true)}>단가</th>
+                <th style={tableCellStyle(true)}>대표 INCI</th>
+                <th style={tableCellStyle(true)}>조성합계</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rawMaterials.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.raw_code}</td>
+                  <td style={tableCellStyle()}>{item.raw_name}</td>
+                  <td style={tableCellStyle()}>{item.supplier}</td>
+                  <td style={tableCellStyle()}>{item.unit_price.toLocaleString()}</td>
+                  <td style={tableCellStyle()}>{item.main_inci}</td>
+                  <td style={{ ...tableCellStyle(), color: Math.abs(item.composition_total - 100) < 0.0001 ? "green" : "red", fontWeight: "bold" }}>{item.composition_total}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -566,7 +995,7 @@ export default function EnterprisePage() {
     if (active === "overview") return renderOverview();
     if (active === "project") return renderProjectModule();
     if (active === "formula") return renderFormulaModule();
-    if (active === "ingredient") return renderSimpleModule("Ingredient Module", ["원료마스터", "성분마스터", "Global Ingredient", "원료조성표", "CSV Import"]);
+    if (active === "ingredient") return renderIngredientModule();
     if (active === "ai") return renderSimpleModule("AI Module", ["AI 처방", "AI 성분분석", "AI 규제", "AI 안정성", "AI BOM", "AI Copilot"]);
     if (active === "quality") return renderSimpleModule("Quality Module", ["원료문서센터", "Supplier Portal", "안정도관리", "AI 안정성예측"]);
     if (active === "regulation") return renderSimpleModule("Regulation Module", ["규제검증", "국가별규제", "Regulation Update", "AI 규제질의", "PIF/CPSR"]);
@@ -579,7 +1008,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 4 Formula Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 5 Ingredient Module</p>
 
         {menus.map((item) => (
           <button
