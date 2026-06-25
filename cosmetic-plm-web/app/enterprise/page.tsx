@@ -173,6 +173,31 @@ type SupplierScoreCard = {
   note: string;
 };
 
+type AdminUser = {
+  id: string;
+  email: string;
+  display_name: string;
+  role: "manager" | "senior" | "researcher" | "qa" | "ra" | "viewer" | "supplier" | "customer";
+  is_active: boolean;
+  last_login: string;
+};
+
+type AdminAudit = {
+  id: string;
+  actor: string;
+  action: string;
+  module: string;
+  target: string;
+  created_at: string;
+};
+
+type SystemHealthItem = {
+  category: string;
+  status: "PASS" | "WARN" | "FAIL";
+  detail: string;
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -494,6 +519,53 @@ const initialSupplierScores: SupplierScoreCard[] = [
   },
 ];
 
+
+const initialAdminUsers: AdminUser[] = [
+  {
+    id: "U-001",
+    email: "manager@plm.local",
+    display_name: "관리자",
+    role: "manager",
+    is_active: true,
+    last_login: "2026-06-25",
+  },
+  {
+    id: "U-002",
+    email: "researcher@plm.local",
+    display_name: "연구원",
+    role: "researcher",
+    is_active: true,
+    last_login: "2026-06-24",
+  },
+  {
+    id: "U-003",
+    email: "qa@plm.local",
+    display_name: "QA 담당",
+    role: "qa",
+    is_active: true,
+    last_login: "2026-06-23",
+  },
+];
+
+const initialAdminAudits: AdminAudit[] = [
+  {
+    id: "AUD-001",
+    actor: "관리자",
+    action: "LOGIN",
+    module: "Auth",
+    target: "manager@plm.local",
+    created_at: "2026-06-25 09:00",
+  },
+  {
+    id: "AUD-002",
+    actor: "연구원",
+    action: "CREATE",
+    module: "Formula",
+    target: "FC-001",
+    created_at: "2026-06-25 10:30",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -620,6 +692,15 @@ export default function EnterprisePage() {
   const [supplierDueDate, setSupplierDueDate] = useState("");
   const [supplierEmail, setSupplierEmail] = useState("");
   const [supplierMemo, setSupplierMemo] = useState("");
+
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
+  const [adminAudits, setAdminAudits] = useState<AdminAudit[]>(initialAdminAudits);
+  const [healthItems, setHealthItems] = useState<SystemHealthItem[]>([]);
+  const [adminUserEmail, setAdminUserEmail] = useState("");
+  const [adminUserName, setAdminUserName] = useState("");
+  const [adminUserRole, setAdminUserRole] = useState<AdminUser["role"]>("researcher");
+  const [adminFilter, setAdminFilter] = useState("ALL");
+  const [productionMode, setProductionMode] = useState("Production");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -776,6 +857,22 @@ export default function EnterprisePage() {
       highRisk: supplierScores.filter((item) => item.risk_level === "HIGH").length,
     };
   }, [rawMaterials, supplierTasks, supplierScores]);
+
+  const filteredAdminUsers = useMemo(() => {
+    if (adminFilter === "ALL") return adminUsers;
+    return adminUsers.filter((item) => item.role === adminFilter || String(item.is_active) === adminFilter);
+  }, [adminUsers, adminFilter]);
+
+  const adminStats = useMemo(() => {
+    return {
+      users: adminUsers.length,
+      active: adminUsers.filter((item) => item.is_active).length,
+      inactive: adminUsers.filter((item) => !item.is_active).length,
+      audits: adminAudits.length,
+      healthFail: healthItems.filter((item) => item.status === "FAIL").length,
+      healthWarn: healthItems.filter((item) => item.status === "WARN").length,
+    };
+  }, [adminUsers, adminAudits, healthItems]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -1598,13 +1695,179 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function addAdminUser() {
+    if (!adminUserEmail || !adminUserName) {
+      alert("이메일과 이름을 입력하세요.");
+      return;
+    }
+
+    const user: AdminUser = {
+      id: crypto.randomUUID(),
+      email: adminUserEmail,
+      display_name: adminUserName,
+      role: adminUserRole,
+      is_active: true,
+      last_login: "-",
+    };
+
+    setAdminUsers([user, ...adminUsers]);
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "CREATE_USER",
+        module: "Admin",
+        target: adminUserEmail,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setAdminUserEmail("");
+    setAdminUserName("");
+    setAdminUserRole("researcher");
+  }
+
+  function toggleAdminUserActive(id: string) {
+    setAdminUsers((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, is_active: !item.is_active } : item
+      )
+    );
+  }
+
+  function updateAdminUserRole(id: string, role: AdminUser["role"]) {
+    const user = adminUsers.find((item) => item.id === id);
+    setAdminUsers((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, role } : item
+      )
+    );
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "CHANGE_ROLE",
+        module: "Admin",
+        target: `${user?.email || id} -> ${role}`,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+  }
+
+  function runEnterpriseHealthCheck() {
+    const items: SystemHealthItem[] = [
+      {
+        category: "Project",
+        status: projects.length > 0 ? "PASS" : "FAIL",
+        detail: `프로젝트 ${projects.length}건`,
+        action: projects.length > 0 ? "정상" : "Project Module에서 프로젝트를 등록하세요.",
+      },
+      {
+        category: "Formula",
+        status: formulas.every((item) => Math.abs(item.total_percent - 100) < 0.0001) ? "PASS" : "FAIL",
+        detail: `처방 ${formulas.length}건 / 총합 100% 검증`,
+        action: "총합 오류 처방을 Formula Module에서 수정하세요.",
+      },
+      {
+        category: "Ingredient",
+        status: ingredients.length >= 5 ? "PASS" : "WARN",
+        detail: `성분 ${ingredients.length}건`,
+        action: ingredients.length >= 5 ? "정상" : "Ingredient Module에서 Seed Import를 진행하세요.",
+      },
+      {
+        category: "Quality",
+        status: qualityStats.expired > 0 ? "FAIL" : qualityStats.expiring > 0 ? "WARN" : "PASS",
+        detail: `만료 ${qualityStats.expired}건 / 만료임박 ${qualityStats.expiring}건`,
+        action: "Quality Module에서 문서 갱신 요청을 진행하세요.",
+      },
+      {
+        category: "Regulation",
+        status: regulationStats.prohibited > 0 ? "WARN" : "PASS",
+        detail: `규제 DB ${regulationStats.total}건 / 금지 예시 ${regulationStats.prohibited}건`,
+        action: "Regulation Module에서 영향도 분석을 실행하세요.",
+      },
+      {
+        category: "Supplier",
+        status: supplierStats.overdue > 0 ? "WARN" : "PASS",
+        detail: `공급사 요청 ${supplierStats.tasks}건 / 지연 ${supplierStats.overdue}건`,
+        action: "Supplier Module에서 지연 요청을 확인하세요.",
+      },
+      {
+        category: "Auth",
+        status: adminUsers.some((item) => item.role === "manager" && item.is_active) ? "PASS" : "FAIL",
+        detail: `활성 관리자 ${adminUsers.filter((item) => item.role === "manager" && item.is_active).length}명`,
+        action: "최소 1명 이상의 활성 manager가 필요합니다.",
+      },
+    ];
+
+    setHealthItems(items);
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "RUN_HEALTH_CHECK",
+        module: "Admin",
+        target: `FAIL ${items.filter((item) => item.status === "FAIL").length} / WARN ${items.filter((item) => item.status === "WARN").length}`,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+  }
+
+  function exportAdminUsersCsv() {
+    exportCsv("enterprise_admin_users.csv", [
+      ["email", "display_name", "role", "is_active", "last_login"],
+      ...filteredAdminUsers.map((item) => [
+        item.email,
+        item.display_name,
+        item.role,
+        item.is_active,
+        item.last_login,
+      ]),
+    ]);
+  }
+
+  function exportAuditCsv() {
+    exportCsv("enterprise_audit_logs.csv", [
+      ["actor", "action", "module", "target", "created_at"],
+      ...adminAudits.map((item) => [
+        item.actor,
+        item.action,
+        item.module,
+        item.target,
+        item.created_at,
+      ]),
+    ]);
+  }
+
+  function exportEnterpriseBackupSummaryCsv() {
+    exportCsv("enterprise_backup_summary.csv", [
+      ["table", "record_count"],
+      ["projects", projects.length],
+      ["formulas", formulas.length],
+      ["ingredients", ingredients.length],
+      ["raw_materials", rawMaterials.length],
+      ["quality_documents", qualityDocuments.length],
+      ["stability_records", stabilityRecords.length],
+      ["regulations", regulations.length],
+      ["customer_portal_items", customerPortalItems.length],
+      ["sample_feedbacks", sampleFeedbacks.length],
+      ["supplier_tasks", supplierTasks.length],
+      ["admin_users", adminUsers.length],
+      ["audit_logs", adminAudits.length],
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 10</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 11</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / AI / Quality / Regulation / Customer Module에 이어 Supplier Module을 Enterprise 구조로 분리합니다. 공급사 문서 요청, 업로드 양식, 만료 관리, 공급사 평가 흐름을 검증합니다.
+            Project / Formula / Ingredient / AI / Quality / Regulation / Customer / Supplier Module에 이어 Admin Module을 Enterprise 구조로 분리합니다. 사용자, 권한, Audit, System Health, Backup/Restore 운영 흐름을 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -1618,16 +1881,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>규제 DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{regulations.length}</div></div>
             <div style={cardStyle()}><strong>고객공유</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{customerPortalItems.filter((item) => item.visible_to_customer).length}</div></div>
             <div style={cardStyle()}><strong>공급사요청</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{supplierTasks.length}</div></div>
+            <div style={cardStyle()}><strong>Admin Users</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#111827" }}>{adminUsers.length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 10 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 11 목표</h2>
           <ul>
-            <li>Supplier Module 독립 UI 검증</li>
-            <li>공급사 문서 요청 / 업로드 양식 / 만료 관리 / 공급사 평가 흐름 통합</li>
-            <li>원료마스터, 원료문서센터, Supplier Portal Lite를 하나의 업무 흐름으로 연결</li>
-            <li>다음 단계에서 실제 supplier_tasks, supplier_scorecards 테이블과 연결</li>
+            <li>Admin Module 독립 UI 검증</li>
+            <li>사용자/권한, Audit Log, System Health, Production Readiness, Backup 흐름 통합</li>
+            <li>운영 전 데이터 품질과 권한 상태를 한 화면에서 확인</li>
+            <li>다음 단계에서 실제 user_profiles, audit_logs, backup 정책과 연결</li>
           </ul>
         </section>
       </>
@@ -2624,6 +2888,175 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderAdminModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Admin Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            사용자/권한, Audit Log, System Health, Production Readiness, Backup/Restore를 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Users</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{adminStats.users}</div></div>
+            <div style={cardStyle()}><strong>Active</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{adminStats.active}</div></div>
+            <div style={cardStyle()}><strong>Inactive</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{adminStats.inactive}</div></div>
+            <div style={cardStyle()}><strong>Audit</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{adminStats.audits}</div></div>
+            <div style={cardStyle()}><strong>Health Warn</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{adminStats.healthWarn}</div></div>
+            <div style={cardStyle()}><strong>Health Fail</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{adminStats.healthFail}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <select value={productionMode} onChange={(e) => setProductionMode(e.target.value)}>
+              <option value="Development">Development</option>
+              <option value="Training">Training</option>
+              <option value="Production">Production</option>
+            </select>
+            <button onClick={runEnterpriseHealthCheck} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              System Health Check
+            </button>
+            <button onClick={exportEnterpriseBackupSummaryCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Backup Summary CSV
+            </button>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>사용자 / 권한 관리</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <input value={adminUserEmail} onChange={(e) => setAdminUserEmail(e.target.value)} placeholder="사용자 이메일" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={adminUserName} onChange={(e) => setAdminUserName(e.target.value)} placeholder="사용자명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={adminUserRole} onChange={(e) => setAdminUserRole(e.target.value as AdminUser["role"])} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="manager">manager</option>
+              <option value="senior">senior</option>
+              <option value="researcher">researcher</option>
+              <option value="qa">qa</option>
+              <option value="ra">ra</option>
+              <option value="viewer">viewer</option>
+              <option value="supplier">supplier</option>
+              <option value="customer">customer</option>
+            </select>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addAdminUser} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                사용자 추가
+              </button>
+              <button onClick={exportAdminUsersCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                사용자 CSV
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: "12px" }}>
+            <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)}>
+              <option value="ALL">전체</option>
+              <option value="manager">manager</option>
+              <option value="senior">senior</option>
+              <option value="researcher">researcher</option>
+              <option value="qa">qa</option>
+              <option value="ra">ra</option>
+              <option value="viewer">viewer</option>
+              <option value="true">active</option>
+              <option value="false">inactive</option>
+            </select>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>이메일</th>
+                <th style={tableCellStyle(true)}>이름</th>
+                <th style={tableCellStyle(true)}>Role</th>
+                <th style={tableCellStyle(true)}>Active</th>
+                <th style={tableCellStyle(true)}>Last Login</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAdminUsers.map((user) => (
+                <tr key={user.id}>
+                  <td style={tableCellStyle()}>{user.email}</td>
+                  <td style={tableCellStyle()}>{user.display_name}</td>
+                  <td style={tableCellStyle()}>
+                    <select value={user.role} onChange={(e) => updateAdminUserRole(user.id, e.target.value as AdminUser["role"])}>
+                      <option value="manager">manager</option>
+                      <option value="senior">senior</option>
+                      <option value="researcher">researcher</option>
+                      <option value="qa">qa</option>
+                      <option value="ra">ra</option>
+                      <option value="viewer">viewer</option>
+                      <option value="supplier">supplier</option>
+                      <option value="customer">customer</option>
+                    </select>
+                  </td>
+                  <td style={{ ...tableCellStyle(), color: user.is_active ? "#059669" : "#dc2626", fontWeight: "bold" }}>{user.is_active ? "ACTIVE" : "INACTIVE"}</td>
+                  <td style={tableCellStyle()}>{user.last_login}</td>
+                  <td style={tableCellStyle()}><button onClick={() => toggleAdminUserActive(user.id)}>{user.is_active ? "Deactivate" : "Activate"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>System Health</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Category</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Detail</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {healthItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>System Health Check를 실행하세요.</td></tr>}
+              {healthItems.map((item) => (
+                <tr key={item.category}>
+                  <td style={tableCellStyle()}>{item.category}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "WARN" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.detail}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>Audit Log</h2>
+            <button onClick={exportAuditCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Audit CSV
+            </button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Actor</th>
+                <th style={tableCellStyle(true)}>Action</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Created At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adminAudits.map((audit) => (
+                <tr key={audit.id}>
+                  <td style={tableCellStyle()}>{audit.actor}</td>
+                  <td style={tableCellStyle()}>{audit.action}</td>
+                  <td style={tableCellStyle()}>{audit.module}</td>
+                  <td style={tableCellStyle()}>{audit.target}</td>
+                  <td style={tableCellStyle()}>{audit.created_at}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -2644,14 +3077,14 @@ export default function EnterprisePage() {
     if (active === "regulation") return renderRegulationModule();
     if (active === "customer") return renderCustomerModule();
     if (active === "supplier") return renderSupplierModule();
-    return renderSimpleModule("Admin Module", ["사용자/권한", "Audit Log", "System Health", "Production Readiness", "Backup"]);
+    return renderAdminModule();
   }
 
   return (
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 10 Supplier Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 11 Admin Module</p>
 
         {menus.map((item) => (
           <button
