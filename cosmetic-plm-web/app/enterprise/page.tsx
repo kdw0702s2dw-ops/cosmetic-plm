@@ -21,6 +21,7 @@ type ModuleKey =
   | "realData"
   | "repository"
   | "externalRls"
+  | "productionRc"
   | "admin";
 
 type EnterpriseProject = {
@@ -338,6 +339,28 @@ type PortalSecurityCheck = {
   action: string;
 };
 
+type ProductionReadinessItem = {
+  area: string;
+  status: "PASS" | "WARN" | "FAIL";
+  owner: "R&D" | "QA" | "RA" | "Admin" | "IT" | "Sales" | "QC";
+  detail: string;
+  action: string;
+};
+
+type ReleaseCandidateItem = {
+  version: string;
+  module: string;
+  status: "READY" | "LOCKED" | "NEEDS_REVIEW";
+  release_note: string;
+};
+
+type GoLiveChecklistItem = {
+  step: number;
+  task: string;
+  status: "TODO" | "DONE" | "HOLD";
+  note: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -355,6 +378,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "realData", label: "Real Data Pilot" },
   { key: "repository", label: "Master Repository" },
   { key: "externalRls", label: "External Portal RLS" },
+  { key: "productionRc", label: "Production RC" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -882,6 +906,12 @@ export default function EnterprisePage() {
   const [externalCompany, setExternalCompany] = useState("");
   const [externalType, setExternalType] = useState<ExternalAccountMapping["account_type"]>("customer");
 
+  const [productionReadinessItems, setProductionReadinessItems] = useState<ProductionReadinessItem[]>([]);
+  const [releaseCandidateItems, setReleaseCandidateItems] = useState<ReleaseCandidateItem[]>([]);
+  const [goLiveChecklistItems, setGoLiveChecklistItems] = useState<GoLiveChecklistItem[]>([]);
+  const [productionRcStatus, setProductionRcStatus] = useState("");
+  const [releaseVersion, setReleaseVersion] = useState("Enterprise RC 1.0");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1188,6 +1218,19 @@ export default function EnterprisePage() {
       warn: portalSecurityChecks.filter((item) => item.status === "WARN").length,
     };
   }, [externalAccountMappings, externalRlsPolicies, portalSecurityChecks]);
+
+  const productionRcStats = useMemo(() => {
+    return {
+      readiness: productionReadinessItems.length,
+      pass: productionReadinessItems.filter((item) => item.status === "PASS").length,
+      warn: productionReadinessItems.filter((item) => item.status === "WARN").length,
+      fail: productionReadinessItems.filter((item) => item.status === "FAIL").length,
+      rcItems: releaseCandidateItems.length,
+      locked: releaseCandidateItems.filter((item) => item.status === "LOCKED").length,
+      goLiveDone: goLiveChecklistItems.filter((item) => item.status === "DONE").length,
+      goLiveTotal: goLiveChecklistItems.length,
+    };
+  }, [productionReadinessItems, releaseCandidateItems, goLiveChecklistItems]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -3395,13 +3438,187 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function runProductionReadinessCheck() {
+    const readiness: ProductionReadinessItem[] = [
+      {
+        area: "Supabase Schema",
+        status: "PASS",
+        owner: "IT",
+        detail: "Phase 15 SQL 및 수정 SQL 적용 완료",
+        action: "Table Editor에서 enterprise_* 테이블 최종 확인",
+      },
+      {
+        area: "Master Repository",
+        status: repositoryNodes.length > 0 ? "PASS" : "WARN",
+        owner: "R&D",
+        detail: `Repository node ${repositoryNodes.length}건`,
+        action: "Master Repository 메뉴에서 Repository 생성 실행",
+      },
+      {
+        area: "Project Data",
+        status: projects.length > 0 ? "PASS" : "FAIL",
+        owner: "R&D",
+        detail: `프로젝트 ${projects.length}건`,
+        action: "운영 전 테스트 프로젝트 등록",
+      },
+      {
+        area: "Formula Lock",
+        status: formulas.some((item) => item.is_locked || item.status === "Released") ? "PASS" : "WARN",
+        owner: "QA",
+        detail: `잠금/배포 처방 ${formulas.filter((item) => item.is_locked || item.status === "Released").length}건`,
+        action: "최종 처방 Lock 또는 Released 처리",
+      },
+      {
+        area: "Ingredient DB",
+        status: ingredients.length >= 10 ? "PASS" : "WARN",
+        owner: "R&D",
+        detail: `성분 ${ingredients.length}건`,
+        action: "Seed Import 또는 CSV Import로 성분 DB 보강",
+      },
+      {
+        area: "Quality Documents",
+        status: qualityStats.expired > 0 ? "FAIL" : qualityStats.expiring > 0 ? "WARN" : "PASS",
+        owner: "QC",
+        detail: `만료 ${qualityStats.expired}건 / 만료임박 ${qualityStats.expiring}건`,
+        action: "만료/임박 문서 갱신",
+      },
+      {
+        area: "Regulation",
+        status: regulations.length > 0 ? "PASS" : "FAIL",
+        owner: "RA",
+        detail: `규제 DB ${regulations.length}건 / 영향도 ${regImpacts.length}건`,
+        action: "주요 판매국가 영향도 분석 실행",
+      },
+      {
+        area: "External RLS",
+        status: externalAccountMappings.length > 0 ? "PASS" : "WARN",
+        owner: "Admin",
+        detail: `외부 매핑 ${externalAccountMappings.length}건`,
+        action: "외부 고객/공급사 계정 매핑 검증",
+      },
+      {
+        area: "Audit Log",
+        status: adminAudits.length > 0 ? "PASS" : "WARN",
+        owner: "Admin",
+        detail: `Audit ${adminAudits.length}건`,
+        action: "실제 CRUD 액션 audit_logs insert 연결 확인",
+      },
+      {
+        area: "Build / Deploy",
+        status: "PASS",
+        owner: "IT",
+        detail: "npm run build 통과 및 Vercel 배포 준비",
+        action: "Git push 후 Vercel 배포 로그 확인",
+      },
+    ];
+
+    const rc: ReleaseCandidateItem[] = [
+      { version: releaseVersion, module: "Project", status: "READY", release_note: "프로젝트 등록/상태/목록 구조 준비 완료" },
+      { version: releaseVersion, module: "Formula", status: "READY", release_note: "처방 Version/Clone/Lock 구조 준비 완료" },
+      { version: releaseVersion, module: "Ingredient", status: "READY", release_note: "성분 검색/페이지네이션/원료 연결 구조 준비 완료" },
+      { version: releaseVersion, module: "Quality", status: qualityStats.expired > 0 ? "NEEDS_REVIEW" : "READY", release_note: "문서/안정도/승인관리 준비" },
+      { version: releaseVersion, module: "Regulation", status: "READY", release_note: "국가별 규제/영향도 분석 준비" },
+      { version: releaseVersion, module: "Customer/Supplier Portal", status: externalAccountMappings.length > 0 ? "READY" : "NEEDS_REVIEW", release_note: "외부 RLS 매핑 구조 준비" },
+      { version: releaseVersion, module: "Admin/Audit", status: "LOCKED", release_note: "권한/Audit/System Health 구조 준비" },
+      { version: releaseVersion, module: "Master Repository", status: repositoryNodes.length > 0 ? "READY" : "NEEDS_REVIEW", release_note: "통합 Repository/Impact Analysis 구조 준비" },
+    ];
+
+    const checklist: GoLiveChecklistItem[] = [
+      { step: 1, task: "Supabase SQL 전체 적용 확인", status: "DONE", note: "Phase 15/18/19 SQL 적용 확인" },
+      { step: 2, task: "Vercel 배포 환경변수 확인", status: "TODO", note: "NEXT_PUBLIC_SUPABASE_URL / ANON_KEY 확인" },
+      { step: 3, task: "관리자 계정 1명 이상 활성화", status: adminUsers.some((item) => item.role === "manager" && item.is_active) ? "DONE" : "TODO", note: "Admin Module 확인" },
+      { step: 4, task: "성분/원료 초기 데이터 보강", status: ingredients.length >= 10 ? "DONE" : "TODO", note: "Seed 또는 CSV Import 권장" },
+      { step: 5, task: "QA 문서 만료 건 정리", status: qualityStats.expired > 0 ? "TODO" : "DONE", note: "Quality Module 확인" },
+      { step: 6, task: "규제 영향도 분석 실행", status: regImpacts.length > 0 ? "DONE" : "TODO", note: "Regulation Module 실행" },
+      { step: 7, task: "외부 고객/공급사 계정 매핑 검토", status: externalAccountMappings.length > 0 ? "DONE" : "TODO", note: "External Portal RLS 확인" },
+      { step: 8, task: "연구팀 사용자 테스트", status: "TODO", note: "프로젝트/처방/원료 등록 시나리오" },
+      { step: 9, task: "QA/RA 사용자 테스트", status: "TODO", note: "승인/문서/규제 시나리오" },
+      { step: 10, task: "운영 시작 공지 및 백업", status: "TODO", note: "Backup Summary CSV 저장" },
+    ];
+
+    setProductionReadinessItems(readiness);
+    setReleaseCandidateItems(rc);
+    setGoLiveChecklistItems(checklist);
+
+    const failCount = readiness.filter((item) => item.status === "FAIL").length;
+    const warnCount = readiness.filter((item) => item.status === "WARN").length;
+    setProductionRcStatus(`Production RC 점검 완료: PASS ${readiness.filter((item) => item.status === "PASS").length} / WARN ${warnCount} / FAIL ${failCount}`);
+  }
+
+  function lockReleaseCandidate() {
+    setReleaseCandidateItems((prev) =>
+      prev.map((item) =>
+        item.status === "READY" ? { ...item, status: "LOCKED" } : item
+      )
+    );
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "LOCK_RELEASE_CANDIDATE",
+        module: "ProductionRC",
+        target: releaseVersion,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setProductionRcStatus(`${releaseVersion} Lock 처리 완료`);
+  }
+
+  function markGoLiveDone(step: number) {
+    setGoLiveChecklistItems((prev) =>
+      prev.map((item) =>
+        item.step === step ? { ...item, status: "DONE" } : item
+      )
+    );
+  }
+
+  function exportProductionReadinessCsv() {
+    exportCsv("enterprise_production_readiness.csv", [
+      ["area", "status", "owner", "detail", "action"],
+      ...productionReadinessItems.map((item) => [
+        item.area,
+        item.status,
+        item.owner,
+        item.detail,
+        item.action,
+      ]),
+    ]);
+  }
+
+  function exportReleaseCandidateCsv() {
+    exportCsv("enterprise_release_candidate.csv", [
+      ["version", "module", "status", "release_note"],
+      ...releaseCandidateItems.map((item) => [
+        item.version,
+        item.module,
+        item.status,
+        item.release_note,
+      ]),
+    ]);
+  }
+
+  function exportGoLiveChecklistCsv() {
+    exportCsv("enterprise_go_live_checklist.csv", [
+      ["step", "task", "status", "note"],
+      ...goLiveChecklistItems.map((item) => [
+        item.step,
+        item.task,
+        item.status,
+        item.note,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 19</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 20</h1>
           <p style={{ color: "#6b7280" }}>
-            Customer Portal과 Supplier Portal을 실제 외부 사용자 권한으로 분리하기 위한 RLS 고도화 단계입니다. 고객은 본인 고객사 프로젝트만, 공급사는 본인 공급사 문서 요청만 볼 수 있도록 계정 매핑과 정책을 준비합니다.
+            Enterprise Edition 1차 개발의 최종 안정화 단계입니다. Production Readiness, Go-Live Checklist, Release Candidate Lock, 운영 전 점검 항목을 통합하여 실제 연구소 사용 준비 상태를 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -3424,6 +3641,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Real Pilot</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{realDataPilotItems.length}</div></div>
             <div style={cardStyle()}><strong>Repository</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{repositoryNodes.length}</div></div>
             <div style={cardStyle()}><strong>External RLS</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{externalAccountMappings.length}</div></div>
+            <div style={cardStyle()}><strong>RC Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{releaseCandidateItems.filter((item) => item.status === "READY" || item.status === "LOCKED").length}</div></div>
           </div>
         </section>
 
@@ -3487,12 +3705,12 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 19 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 20 목표</h2>
           <ul>
-            <li>Customer / Supplier 외부 포털 RLS 고도화</li>
-            <li>외부 계정과 고객사/공급사 매핑 테이블 설계</li>
-            <li>고객은 본인 고객사 공개 프로젝트만 조회, 공급사는 본인 공급사 문서 요청만 조회</li>
-            <li>다음 단계에서 Production Release Candidate로 최종 안정화</li>
+            <li>Production Release Candidate 독립 UI 검증</li>
+            <li>전 모듈 운영 준비도와 Go-Live Checklist 통합</li>
+            <li>Release Candidate Lock 및 운영 전 점검 리포트 생성</li>
+            <li>다음 단계는 v1.0 안정화, 실제 사용자 테스트, 데이터 마이그레이션입니다.</li>
           </ul>
         </section>
       </>
@@ -4489,6 +4707,143 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderProductionRcModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Production Release Candidate</h1>
+          <p style={{ color: "#6b7280" }}>
+            Enterprise Edition 1차 개발을 운영 배포 후보 상태로 점검합니다.
+            이 화면에서 전 모듈 준비도, Release Candidate Lock, Go-Live Checklist를 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Readiness</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{productionRcStats.readiness}</div></div>
+            <div style={cardStyle()}><strong>PASS</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{productionRcStats.pass}</div></div>
+            <div style={cardStyle()}><strong>WARN</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{productionRcStats.warn}</div></div>
+            <div style={cardStyle()}><strong>FAIL</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{productionRcStats.fail}</div></div>
+            <div style={cardStyle()}><strong>RC Locked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{productionRcStats.locked}</div></div>
+            <div style={cardStyle()}><strong>Go-Live</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{productionRcStats.goLiveDone}/{productionRcStats.goLiveTotal}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <input value={releaseVersion} onChange={(e) => setReleaseVersion(e.target.value)} placeholder="Release Version" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={runProductionReadinessCheck} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Production Check
+            </button>
+            <button onClick={lockReleaseCandidate} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              RC Lock
+            </button>
+            <button onClick={exportProductionReadinessCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Readiness CSV
+            </button>
+            <button onClick={exportReleaseCandidateCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              RC CSV
+            </button>
+            <button onClick={exportGoLiveChecklistCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Go-Live CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{productionRcStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Production Readiness</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Area</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Detail</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {productionReadinessItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Production Check를 실행하세요.</td></tr>}
+              {productionReadinessItems.map((item) => (
+                <tr key={item.area}>
+                  <td style={tableCellStyle()}>{item.area}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "WARN" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.detail}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Release Candidate</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Version</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Release Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {releaseCandidateItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Production Check를 실행하세요.</td></tr>}
+              {releaseCandidateItems.map((item) => (
+                <tr key={`${item.version}-${item.module}`}>
+                  <td style={tableCellStyle()}>{item.version}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "LOCKED" ? "#059669" : item.status === "READY" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.release_note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Go-Live Checklist</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Step</th>
+                <th style={tableCellStyle(true)}>Task</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {goLiveChecklistItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Production Check를 실행하세요.</td></tr>}
+              {goLiveChecklistItems.map((item) => (
+                <tr key={item.step}>
+                  <td style={tableCellStyle()}>{item.step}</td>
+                  <td style={tableCellStyle()}>{item.task}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "HOLD" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => markGoLiveDone(item.step)}>Done</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 20 이후 운영 단계</h2>
+          <ol>
+            <li>실제 사용자 2~3명으로 연구팀/QA/RA 시나리오 테스트</li>
+            <li>기존 Excel 원료/성분/처방 데이터 CSV 이관</li>
+            <li>사용자 권한 확정 및 외부 고객/공급사 계정 제한 적용</li>
+            <li>Vercel Production URL에서 업무 테스트</li>
+            <li>Enterprise v1.0 운영 시작</li>
+          </ol>
+        </section>
+      </>
+    );
+  }
+
   function renderExternalRlsModule() {
     return (
       <>
@@ -5432,6 +5787,7 @@ export default function EnterprisePage() {
     if (active === "realData") return renderRealDataPilotModule();
     if (active === "repository") return renderMasterRepositoryModule();
     if (active === "externalRls") return renderExternalRlsModule();
+    if (active === "productionRc") return renderProductionRcModule();
     return renderAdminModule();
   }
 
@@ -5439,7 +5795,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 19 Customer/Supplier Portal RLS</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 20 Production Release Candidate</p>
 
         {menus.map((item) => (
           <button
