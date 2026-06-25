@@ -335,6 +335,18 @@ type AiFormulaResult = {
   suggestions: AiFormulaSuggestion[];
 };
 
+type AiIntelligenceResult = {
+  moisture_score: number;
+  soothing_score: number;
+  cost_score: number;
+  regulation_score: number;
+  stability_score: number;
+  phase_balance: Record<string, number>;
+  problem_notes: string[];
+  cost_saving_notes: string[];
+  regulation_summary: string[];
+};
+
 export default function Home() {
   const [menu, setMenu] = useState("dashboard");
 
@@ -505,6 +517,7 @@ export default function Home() {
   const [aiDraftCode, setAiDraftCode] = useState("");
   const [aiDraftName, setAiDraftName] = useState("");
   const [aiResult, setAiResult] = useState<AiFormulaResult | null>(null);
+  const [aiIntelligence, setAiIntelligence] = useState<AiIntelligenceResult | null>(null);
 
   const [breakdownFormulaId, setBreakdownFormulaId] = useState("");
   const [fullIlFormulaId, setFullIlFormulaId] = useState("");
@@ -2947,7 +2960,7 @@ export default function Home() {
     const total = suggestions.reduce((sum, item) => sum + Number(item.recommended_percent || 0), 0);
     const riskNotes = checkAiRegulationRisks(suggestions);
 
-    setAiResult({
+    const result = {
       formula_type: aiFormulaType,
       concept: aiConcept,
       target_ph: aiFormulaType.includes("크림") ? "5.5 ~ 6.5" : "5.0 ~ 6.5",
@@ -2956,6 +2969,86 @@ export default function Home() {
       estimated_cost: estimatedCost,
       risk_notes: riskNotes,
       suggestions,
+    };
+
+    setAiResult(result);
+    analyzeAiFormulaIntelligence(result);
+  }
+
+  function analyzeAiFormulaIntelligence(result: AiFormulaResult) {
+    const suggestions = result.suggestions;
+    const totalCost = result.estimated_cost;
+    const targetCost = Number(aiTargetCost || 0);
+
+    const hasHumectant = suggestions.some((item) => normalizeTextForAi(item.purpose).includes("humectant") || normalizeTextForAi(item.purpose).includes("moist"));
+    const humectantLevel = suggestions
+      .filter((item) => normalizeTextForAi(`${item.purpose} ${item.inci_name} ${item.korean_name}`).includes("humectant") || normalizeTextForAi(`${item.purpose} ${item.inci_name} ${item.korean_name}`).includes("보습"))
+      .reduce((sum, item) => sum + item.recommended_percent, 0);
+
+    const soothingLevel = suggestions
+      .filter((item) => normalizeTextForAi(`${item.purpose} ${item.inci_name} ${item.korean_name}`).includes("soothing") || normalizeTextForAi(`${item.purpose} ${item.inci_name} ${item.korean_name}`).includes("진정"))
+      .reduce((sum, item) => sum + item.recommended_percent, 0);
+
+    const phaseBalance = suggestions.reduce((acc, item) => {
+      acc[item.phase] = (acc[item.phase] || 0) + Number(item.recommended_percent || 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const problemNotes: string[] = [];
+    const costSavingNotes: string[] = [];
+
+    suggestions.forEach((item) => {
+      if (!item.raw_material_id) {
+        problemNotes.push(`${item.inci_name}: 원료마스터 매칭 필요`);
+      }
+
+      if (item.recommended_percent > item.max_percent) {
+        problemNotes.push(`${item.inci_name}: 추천 함량이 권장범위를 초과`);
+      }
+
+      if (normalizeTextForAi(item.inci_name).includes("panthenol") && item.recommended_percent >= 5) {
+        problemNotes.push("Panthenol 5% 이상: 끈적임/사용감 저하 가능성 검토");
+      }
+
+      if (normalizeTextForAi(item.inci_name).includes("carbomer")) {
+        const hasNeutralizer = suggestions.some((s) => normalizeTextForAi(s.inci_name).includes("tromethamine") || normalizeTextForAi(s.inci_name).includes("aminomethyl"));
+        if (!hasNeutralizer) problemNotes.push("Carbomer 사용 시 중화제/점도 형성 조건 검토 필요");
+      }
+
+      if (Number(item.unit_price || 0) > 50000 && item.recommended_percent > 1) {
+        costSavingNotes.push(`${item.inci_name}: 고가 원료 비중이 높음. 대체/함량 최적화 검토`);
+      }
+    });
+
+    if (targetCost > 0 && totalCost > targetCost) {
+      costSavingNotes.push(`예상 원가 ${totalCost.toFixed(0)}원/kg이 목표원가 ${targetCost.toFixed(0)}원/kg 초과`);
+    }
+
+    if (!hasHumectant || humectantLevel < 5) {
+      problemNotes.push("보습 컨셉 대비 Humectant 총량이 낮을 수 있음");
+    }
+
+    const moistureScore = Math.min(100, Math.round(55 + humectantLevel * 5));
+    const soothingScore = Math.min(100, Math.round(55 + soothingLevel * 12));
+    const costScore = targetCost > 0 ? Math.max(0, Math.min(100, Math.round(100 - ((totalCost - targetCost) / targetCost) * 100))) : 70;
+    const regulationScore = Math.max(0, 100 - result.risk_notes.length * 15);
+    const stabilityScore = Math.max(45, 90 - problemNotes.length * 7);
+
+    const regulationSummary =
+      result.risk_notes.length > 0
+        ? result.risk_notes
+        : aiTargetCountries.split(",").map((country) => `${country.trim().toUpperCase()}: 현재 DB 기준 주요 위험 없음`);
+
+    setAiIntelligence({
+      moisture_score: moistureScore,
+      soothing_score: soothingScore,
+      cost_score: costScore,
+      regulation_score: regulationScore,
+      stability_score: stabilityScore,
+      phase_balance: phaseBalance,
+      problem_notes: problemNotes.length ? problemNotes : ["현재 초안 기준 주요 제형 리스크 없음"],
+      cost_saving_notes: costSavingNotes.length ? costSavingNotes : ["현재 초안 기준 즉시 원가절감 경고 없음"],
+      regulation_summary: regulationSummary,
     });
   }
 
@@ -6940,6 +7033,123 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {menu === "aiFormula" && (
+          <>
+            <h1>AI Formula Assistant + Intelligence Engine</h1>
+            <p style={{ color: "#6b7280" }}>
+              연구소 실무형 AI 처방 초안 생성, 원가/규제/안정성/사용감 분석을 한 번에 수행합니다.
+            </p>
+
+            <h2>처방 조건 입력</h2>
+            <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "24px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input placeholder="제형 예: 수분크림 / 세럼 / 앰플 / 로션" value={aiFormulaType || ""} onChange={(e) => setAiFormulaType(e.target.value)} />
+                <input placeholder="컨셉 예: 고보습, 저자극, 장벽, 미백" value={aiConcept || ""} onChange={(e) => setAiConcept(e.target.value)} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input placeholder="목표 원가(원/kg)" value={aiTargetCost || ""} onChange={(e) => setAiTargetCost(e.target.value)} />
+                <input placeholder="판매 국가 예: KR,EU,CN,US,JP,ASEAN" value={aiTargetCountries || ""} onChange={(e) => setAiTargetCountries(e.target.value)} />
+              </div>
+
+              <input placeholder="필수 원료/성분 예: Niacinamide, Ceramide" value={aiRequiredIngredients || ""} onChange={(e) => setAiRequiredIngredients(e.target.value)} />
+              <input placeholder="제외 원료/성분 예: Phenoxyethanol, Retinol" value={aiAvoidIngredients || ""} onChange={(e) => setAiAvoidIngredients(e.target.value)} />
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <input placeholder="저장할 처방코드 미입력 시 자동 생성" value={aiDraftCode || ""} onChange={(e) => setAiDraftCode(e.target.value)} />
+                <input placeholder="저장할 처방명 미입력 시 자동 생성" value={aiDraftName || ""} onChange={(e) => setAiDraftName(e.target.value)} />
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={generateAiFormula}>AI 처방 초안 + Intelligence 분석</button>
+                <button onClick={createFormulaFromAiDraft} style={{ background: "#059669" }}>초안을 처방관리로 저장</button>
+              </div>
+            </div>
+
+            {aiResult && (
+              <>
+                <h2>AI 처방 초안 결과</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  <div style={cardStyle}><strong>제형</strong><div>{aiResult.formula_type}</div></div>
+                  <div style={cardStyle}><strong>컨셉</strong><div>{aiResult.concept}</div></div>
+                  <div style={cardStyle}><strong>Total</strong><div>{aiResult.total_percent.toFixed(4)}%</div></div>
+                  <div style={cardStyle}><strong>예상 원료원가</strong><div>{aiResult.estimated_cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}원/kg</div></div>
+                  <div style={cardStyle}><strong>목표 pH</strong><div>{aiResult.target_ph}</div></div>
+                  <div style={cardStyle}><strong>목표 점도</strong><div>{aiResult.target_viscosity}</div></div>
+                </div>
+
+                {aiIntelligence && (
+                  <>
+                    <h2>AI Formula Intelligence</h2>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                      <div style={cardStyle}><strong>보습력</strong><div>{aiIntelligence.moisture_score}/100</div></div>
+                      <div style={cardStyle}><strong>진정</strong><div>{aiIntelligence.soothing_score}/100</div></div>
+                      <div style={cardStyle}><strong>원가</strong><div>{aiIntelligence.cost_score}/100</div></div>
+                      <div style={cardStyle}><strong>규제</strong><div>{aiIntelligence.regulation_score}/100</div></div>
+                      <div style={cardStyle}><strong>안정성</strong><div>{aiIntelligence.stability_score}/100</div></div>
+                    </div>
+
+                    <h3>Phase Balance</h3>
+                    <table style={tableStyle}>
+                      <tbody>
+                        {Object.entries(aiIntelligence.phase_balance).map(([phase, percent]) => (
+                          <tr key={phase}>
+                            <th>{phase}</th>
+                            <td>{Number(percent).toFixed(4)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <h3>예상 문제점</h3>
+                    <ul>{aiIntelligence.problem_notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+
+                    <h3>원가 절감 검토</h3>
+                    <ul>{aiIntelligence.cost_saving_notes.map((note, index) => <li key={index}>{note}</li>)}</ul>
+
+                    <h3>국가별 규제 요약</h3>
+                    <ul>{aiIntelligence.regulation_summary.map((note, index) => <li key={index}>{note}</li>)}</ul>
+                  </>
+                )}
+
+                <h2>추천 원료 구성</h2>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th>Phase</th>
+                      <th>INCI</th>
+                      <th>국문명</th>
+                      <th>목적</th>
+                      <th>추천%</th>
+                      <th>권장범위</th>
+                      <th>매칭 원료</th>
+                      <th>단가</th>
+                      <th>원가</th>
+                      <th>Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiResult.suggestions.map((item, index) => (
+                      <tr key={`${item.inci_name}-${index}`}>
+                        <td>{item.phase}</td>
+                        <td>{item.inci_name}</td>
+                        <td>{item.korean_name}</td>
+                        <td>{item.purpose}</td>
+                        <td style={{ fontWeight: "bold" }}>{item.recommended_percent.toFixed(4)}</td>
+                        <td>{item.min_percent} ~ {item.max_percent}</td>
+                        <td style={{ color: item.raw_material_id ? "green" : "red", fontWeight: "bold" }}>{item.raw_material_name || "원료 매칭 필요"}</td>
+                        <td>{Number(item.unit_price || 0).toLocaleString()}</td>
+                        <td>{Number(item.cost || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                        <td>{item.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
           </>
         )}
 
