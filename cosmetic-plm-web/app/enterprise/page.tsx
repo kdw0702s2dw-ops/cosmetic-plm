@@ -152,6 +152,27 @@ type SampleFeedback = {
   status: "Sent" | "Feedback Received" | "Revision Needed" | "Approved";
 };
 
+type SupplierPortalTask = {
+  id: string;
+  supplier: string;
+  raw_code: string;
+  raw_name: string;
+  required_document: string;
+  request_status: "Not Requested" | "Requested" | "Received" | "Overdue";
+  due_date: string;
+  contact_email: string;
+  memo: string;
+};
+
+type SupplierScoreCard = {
+  supplier: string;
+  document_score: number;
+  price_score: number;
+  response_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  note: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -428,6 +449,51 @@ const initialSampleFeedbacks: SampleFeedback[] = [
   },
 ];
 
+
+const initialSupplierTasks: SupplierPortalTask[] = [
+  {
+    id: "SP-001",
+    supplier: "A Supplier",
+    raw_code: "RM-001",
+    raw_name: "Glycerin 99.5%",
+    required_document: "COA",
+    request_status: "Requested",
+    due_date: "2026-07-10",
+    contact_email: "qa@asupplier.com",
+    memo: "신규 Lot COA 요청",
+  },
+  {
+    id: "SP-002",
+    supplier: "B Supplier",
+    raw_code: "RM-002",
+    raw_name: "Niacinamide USP",
+    required_document: "MSDS",
+    request_status: "Received",
+    due_date: "2026-06-30",
+    contact_email: "sales@bsupplier.com",
+    memo: "2026 MSDS 수령 완료",
+  },
+];
+
+const initialSupplierScores: SupplierScoreCard[] = [
+  {
+    supplier: "A Supplier",
+    document_score: 80,
+    price_score: 75,
+    response_score: 70,
+    risk_level: "MEDIUM",
+    note: "문서 회신 속도 개선 필요",
+  },
+  {
+    supplier: "B Supplier",
+    document_score: 92,
+    price_score: 85,
+    response_score: 90,
+    risk_level: "LOW",
+    note: "우수 공급사",
+  },
+];
+
 function cardStyle(): React.CSSProperties {
   return {
     border: "1px solid #e5e7eb",
@@ -545,6 +611,15 @@ export default function EnterprisePage() {
   const [newSampleFormulaCode, setNewSampleFormulaCode] = useState("FC-001");
   const [newSampleQuantity, setNewSampleQuantity] = useState("20EA");
   const [newSampleFeedback, setNewSampleFeedback] = useState("");
+
+  const [supplierTasks, setSupplierTasks] = useState<SupplierPortalTask[]>(initialSupplierTasks);
+  const [supplierScores, setSupplierScores] = useState<SupplierScoreCard[]>(initialSupplierScores);
+  const [supplierFilter, setSupplierFilter] = useState("ALL");
+  const [supplierRawCode, setSupplierRawCode] = useState("RM-001");
+  const [supplierDocType, setSupplierDocType] = useState("COA");
+  const [supplierDueDate, setSupplierDueDate] = useState("");
+  const [supplierEmail, setSupplierEmail] = useState("");
+  const [supplierMemo, setSupplierMemo] = useState("");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -685,6 +760,22 @@ export default function EnterprisePage() {
       submissionPrepared: customerPortalItems.filter((item) => item.submission_status === "Prepared" || item.submission_status === "Sent" || item.submission_status === "Approved").length,
     };
   }, [customerPortalItems, sampleFeedbacks]);
+
+  const filteredSupplierTasks = useMemo(() => {
+    if (supplierFilter === "ALL") return supplierTasks;
+    return supplierTasks.filter((item) => item.supplier === supplierFilter);
+  }, [supplierTasks, supplierFilter]);
+
+  const supplierStats = useMemo(() => {
+    return {
+      suppliers: new Set(rawMaterials.map((item) => item.supplier)).size,
+      tasks: supplierTasks.length,
+      requested: supplierTasks.filter((item) => item.request_status === "Requested").length,
+      received: supplierTasks.filter((item) => item.request_status === "Received").length,
+      overdue: supplierTasks.filter((item) => item.request_status === "Overdue").length,
+      highRisk: supplierScores.filter((item) => item.risk_level === "HIGH").length,
+    };
+  }, [rawMaterials, supplierTasks, supplierScores]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -1408,13 +1499,112 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function addSupplierTask() {
+    const raw = rawMaterials.find((item) => item.raw_code === supplierRawCode);
+
+    if (!raw) {
+      alert("원료를 선택하세요.");
+      return;
+    }
+
+    const task: SupplierPortalTask = {
+      id: crypto.randomUUID(),
+      supplier: raw.supplier,
+      raw_code: raw.raw_code,
+      raw_name: raw.raw_name,
+      required_document: supplierDocType,
+      request_status: "Requested",
+      due_date: supplierDueDate || "",
+      contact_email: supplierEmail || "",
+      memo: supplierMemo || "공급사 문서 요청",
+    };
+
+    setSupplierTasks([task, ...supplierTasks]);
+    setSupplierMemo("");
+    setSupplierDueDate("");
+    setSupplierEmail("");
+  }
+
+  function updateSupplierTaskStatus(id: string, status: SupplierPortalTask["request_status"]) {
+    setSupplierTasks((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, request_status: status } : item
+      )
+    );
+  }
+
+  function generateSupplierScorecards() {
+    const supplierNames = Array.from(new Set(rawMaterials.map((item) => item.supplier)));
+
+    const scorecards = supplierNames.map((supplier) => {
+      const supplierTaskRows = supplierTasks.filter((item) => item.supplier === supplier);
+      const received = supplierTaskRows.filter((item) => item.request_status === "Received").length;
+      const overdue = supplierTaskRows.filter((item) => item.request_status === "Overdue").length;
+      const documentScore = supplierTaskRows.length ? Math.round((received / supplierTaskRows.length) * 100) : 70;
+      const responseScore = Math.max(40, 90 - overdue * 20);
+      const supplierRawMaterials = rawMaterials.filter((item) => item.supplier === supplier);
+      const avgPrice = supplierRawMaterials.length ? supplierRawMaterials.reduce((sum, item) => sum + item.unit_price, 0) / supplierRawMaterials.length : 0;
+      const priceScore = avgPrice > 15000 ? 65 : avgPrice > 8000 ? 78 : 90;
+      const totalScore = (documentScore + responseScore + priceScore) / 3;
+      const riskLevel: SupplierScoreCard["risk_level"] = totalScore >= 80 ? "LOW" : totalScore >= 60 ? "MEDIUM" : "HIGH";
+
+      return {
+        supplier,
+        document_score: documentScore,
+        price_score: priceScore,
+        response_score: responseScore,
+        risk_level: riskLevel,
+        note: riskLevel === "LOW" ? "우수 공급사" : riskLevel === "MEDIUM" ? "관리 필요" : "대체 공급사 검토 필요",
+      };
+    });
+
+    setSupplierScores(scorecards);
+  }
+
+  function exportSupplierTaskCsv() {
+    exportCsv("enterprise_supplier_tasks.csv", [
+      ["supplier", "raw_code", "raw_name", "required_document", "request_status", "due_date", "contact_email", "memo"],
+      ...filteredSupplierTasks.map((item) => [
+        item.supplier,
+        item.raw_code,
+        item.raw_name,
+        item.required_document,
+        item.request_status,
+        item.due_date,
+        item.contact_email,
+        item.memo,
+      ]),
+    ]);
+  }
+
+  function exportSupplierUploadTemplateCsv() {
+    exportCsv("supplier_upload_template.csv", [
+      ["supplier", "raw_code", "raw_name", "document_type", "document_title", "issue_date", "expiry_date", "document_url", "remark"],
+      ["공급사명", "RM-001", "원료명", "COA", "COA 2026", "2026-01-01", "2027-01-01", "https://", "공급사 회신용"],
+    ]);
+  }
+
+  function exportSupplierScoreCsv() {
+    exportCsv("enterprise_supplier_scorecards.csv", [
+      ["supplier", "document_score", "price_score", "response_score", "risk_level", "note"],
+      ...supplierScores.map((item) => [
+        item.supplier,
+        item.document_score,
+        item.price_score,
+        item.response_score,
+        item.risk_level,
+        item.note,
+      ]),
+    ]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 9</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 10</h1>
           <p style={{ color: "#6b7280" }}>
-            Project / Formula / Ingredient / AI / Quality / Regulation Module에 이어 Customer Module을 Enterprise 구조로 분리합니다. 고객 포털, 샘플 발송, 피드백, 고객 제출 패키지 흐름을 검증합니다.
+            Project / Formula / Ingredient / AI / Quality / Regulation / Customer Module에 이어 Supplier Module을 Enterprise 구조로 분리합니다. 공급사 문서 요청, 업로드 양식, 만료 관리, 공급사 평가 흐름을 검증합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -1427,16 +1617,17 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>품질 문서</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{qualityDocuments.length}</div></div>
             <div style={cardStyle()}><strong>규제 DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{regulations.length}</div></div>
             <div style={cardStyle()}><strong>고객공유</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{customerPortalItems.filter((item) => item.visible_to_customer).length}</div></div>
+            <div style={cardStyle()}><strong>공급사요청</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{supplierTasks.length}</div></div>
           </div>
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 9 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 10 목표</h2>
           <ul>
-            <li>Customer Module 독립 UI 검증</li>
-            <li>고객 포털 / 샘플 발송 / 피드백 / 고객 제출 패키지 흐름 통합</li>
-            <li>고객에게 공개 가능한 정보와 내부 연구정보를 분리</li>
-            <li>다음 단계에서 실제 customer_projects, sample_feedbacks, submission_packages 테이블과 연결</li>
+            <li>Supplier Module 독립 UI 검증</li>
+            <li>공급사 문서 요청 / 업로드 양식 / 만료 관리 / 공급사 평가 흐름 통합</li>
+            <li>원료마스터, 원료문서센터, Supplier Portal Lite를 하나의 업무 흐름으로 연결</li>
+            <li>다음 단계에서 실제 supplier_tasks, supplier_scorecards 테이블과 연결</li>
           </ul>
         </section>
       </>
@@ -2281,6 +2472,158 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderSupplierModule() {
+    const supplierList = Array.from(new Set(rawMaterials.map((item) => item.supplier)));
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Supplier Module</h1>
+          <p style={{ color: "#6b7280" }}>
+            Supplier Portal Lite, 원료문서 요청, 업로드 양식, 공급사 평가를 Enterprise 구조로 분리하기 위한 검증 화면입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>공급사</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{supplierStats.suppliers}</div></div>
+            <div style={cardStyle()}><strong>문서요청</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{supplierStats.tasks}</div></div>
+            <div style={cardStyle()}><strong>요청중</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{supplierStats.requested}</div></div>
+            <div style={cardStyle()}><strong>수령완료</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{supplierStats.received}</div></div>
+            <div style={cardStyle()}><strong>지연</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{supplierStats.overdue}</div></div>
+          </div>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>공급사 문서 요청</h2>
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "16px" }}>
+            <select value={supplierRawCode} onChange={(e) => setSupplierRawCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {rawMaterials.map((raw) => (
+                <option key={raw.id} value={raw.raw_code}>{raw.raw_code} / {raw.raw_name} / {raw.supplier}</option>
+              ))}
+            </select>
+            <select value={supplierDocType} onChange={(e) => setSupplierDocType(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="COA">COA</option>
+              <option value="MSDS">MSDS</option>
+              <option value="TDS">TDS</option>
+              <option value="Specification">Specification</option>
+              <option value="Allergen Statement">Allergen Statement</option>
+              <option value="Vegan Statement">Vegan Statement</option>
+              <option value="Halal Statement">Halal Statement</option>
+              <option value="RSPO Statement">RSPO Statement</option>
+            </select>
+            <input value={supplierDueDate} onChange={(e) => setSupplierDueDate(e.target.value)} placeholder="요청 마감일 예: 2026-07-30" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={supplierEmail} onChange={(e) => setSupplierEmail(e.target.value)} placeholder="공급사 담당자 이메일" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <textarea value={supplierMemo} onChange={(e) => setSupplierMemo(e.target.value)} placeholder="요청 메모" rows={3} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={addSupplierTask} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                문서 요청 생성
+              </button>
+              <button onClick={exportSupplierTaskCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                요청 리스트 CSV
+              </button>
+              <button onClick={exportSupplierUploadTemplateCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                업로드 양식 CSV
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: "12px" }}>
+            <select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
+              <option value="ALL">전체 공급사</option>
+              {supplierList.map((supplier) => (
+                <option key={supplier} value={supplier}>{supplier}</option>
+              ))}
+            </select>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>공급사</th>
+                <th style={tableCellStyle(true)}>원료</th>
+                <th style={tableCellStyle(true)}>필수문서</th>
+                <th style={tableCellStyle(true)}>상태</th>
+                <th style={tableCellStyle(true)}>마감일</th>
+                <th style={tableCellStyle(true)}>담당자</th>
+                <th style={tableCellStyle(true)}>메모</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSupplierTasks.map((task) => (
+                <tr key={task.id}>
+                  <td style={tableCellStyle()}>{task.supplier}</td>
+                  <td style={tableCellStyle()}>{task.raw_code}<br />{task.raw_name}</td>
+                  <td style={tableCellStyle()}>{task.required_document}</td>
+                  <td style={{ ...tableCellStyle(), color: task.request_status === "Received" ? "#059669" : task.request_status === "Overdue" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{task.request_status}</td>
+                  <td style={tableCellStyle()}>{task.due_date || "-"}</td>
+                  <td style={tableCellStyle()}>{task.contact_email || "-"}</td>
+                  <td style={tableCellStyle()}>{task.memo}</td>
+                  <td style={tableCellStyle()}>
+                    <select value={task.request_status} onChange={(e) => updateSupplierTaskStatus(task.id, e.target.value as SupplierPortalTask["request_status"])}>
+                      <option value="Not Requested">Not Requested</option>
+                      <option value="Requested">Requested</option>
+                      <option value="Received">Received</option>
+                      <option value="Overdue">Overdue</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <h2 style={{ marginTop: 0 }}>Supplier Scorecard</h2>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button onClick={generateSupplierScorecards} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                공급사 평가 갱신
+              </button>
+              <button onClick={exportSupplierScoreCsv} style={{ border: 0, borderRadius: "8px", padding: "9px 12px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+                평가 CSV
+              </button>
+            </div>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>공급사</th>
+                <th style={tableCellStyle(true)}>문서점수</th>
+                <th style={tableCellStyle(true)}>가격점수</th>
+                <th style={tableCellStyle(true)}>응답점수</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supplierScores.map((score) => (
+                <tr key={score.supplier}>
+                  <td style={tableCellStyle()}>{score.supplier}</td>
+                  <td style={tableCellStyle()}>{score.document_score}</td>
+                  <td style={tableCellStyle()}>{score.price_score}</td>
+                  <td style={tableCellStyle()}>{score.response_score}</td>
+                  <td style={{ ...tableCellStyle(), color: score.risk_level === "HIGH" ? "#dc2626" : score.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{score.risk_level}</td>
+                  <td style={tableCellStyle()}>{score.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>원료/문서 연결 흐름</h2>
+          <ul>
+            <li>Ingredient Module의 원료마스터에서 공급사와 원료 정보를 가져옵니다.</li>
+            <li>Quality Module의 원료문서센터와 연결해 COA/MSDS/TDS 상태를 관리합니다.</li>
+            <li>Supplier Module은 공급사별 문서 요청과 평가를 담당합니다.</li>
+            <li>다음 Phase에서 실제 공급사 전용 로그인/업로드 권한으로 확장할 수 있습니다.</li>
+          </ul>
+        </section>
+      </>
+    );
+  }
+
   function renderSimpleModule(title: string, items: string[]) {
     return (
       <section style={cardStyle()}>
@@ -2300,7 +2643,7 @@ export default function EnterprisePage() {
     if (active === "quality") return renderQualityModule();
     if (active === "regulation") return renderRegulationModule();
     if (active === "customer") return renderCustomerModule();
-    if (active === "supplier") return renderSimpleModule("Supplier Module", ["Supplier Portal Lite", "문서 요청", "만료 알림", "업로드 양식"]);
+    if (active === "supplier") return renderSupplierModule();
     return renderSimpleModule("Admin Module", ["사용자/권한", "Audit Log", "System Health", "Production Readiness", "Backup"]);
   }
 
@@ -2308,7 +2651,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 9 Customer Module</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 10 Supplier Module</p>
 
         {menus.map((item) => (
           <button
