@@ -45,6 +45,7 @@ type ModuleKey =
   | "formulaCalc"
   | "docLive"
   | "aiBrainReal"
+  | "finalSprintAB"
   | "admin";
 
 type EnterpriseProject = {
@@ -1392,6 +1393,52 @@ type AiBrainSummaryItem = {
   confidence: number;
 };
 
+type LiveCrudEndpointItem = {
+  id: string;
+  module: "Formula" | "Ingredient" | "Customer" | "Supplier" | "Product" | "Document" | "Workflow" | "Approval" | "QMS" | "Regulation";
+  table_name: string;
+  operations: string;
+  status: "READY" | "CONNECTED" | "NEEDS_TEST" | "ERROR";
+  realtime: boolean;
+  audit_enabled: boolean;
+};
+
+type LiveCrudOperationItem = {
+  id: string;
+  module: "Formula" | "Ingredient" | "Customer" | "Supplier" | "Product" | "Document" | "Workflow" | "Approval" | "QMS" | "Regulation";
+  operation: "INSERT" | "UPDATE" | "DELETE" | "UPSERT" | "LOAD" | "REALTIME";
+  target: string;
+  result: "SUCCESS" | "WARNING" | "FAILED";
+  message: string;
+};
+
+type AiCopilotCommandItem = {
+  id: string;
+  command: string;
+  intent: "CreateFormula" | "OptimizeCost" | "CheckRegulation" | "GenerateDocument" | "CreateWorkflow" | "LaunchReview";
+  output: string;
+  confidence: number;
+  execution_status: "READY" | "EXECUTED" | "NEEDS_REVIEW" | "BLOCKED";
+};
+
+type AiCopilotWorkflowItem = {
+  id: string;
+  step_order: number;
+  step_name: string;
+  module: "AI" | "Formula" | "Ingredient" | "Cost" | "Regulation" | "Document" | "Workflow";
+  status: "READY" | "RUNNING" | "DONE" | "HUMAN_REVIEW";
+  result_summary: string;
+};
+
+type EnterpriseFinalSprintMetricItem = {
+  id: string;
+  area: "LiveCRUD" | "AICopilot" | "Persistence" | "Realtime" | "Audit" | "Readiness";
+  metric: string;
+  value: string | number;
+  status: "GOOD" | "WATCH" | "RISK";
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1426,13 +1473,14 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "AI Brain Real Data Pack" },
+  { key: "realOperation", label: "Final Sprint A+B Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
   { key: "masterCrud", label: "Master Data CRUD" },
   { key: "formulaCalc", label: "Formula Calculation" },
   { key: "docLive", label: "Document Live" },
   { key: "aiBrainReal", label: "AI Brain Real Data" },
+  { key: "finalSprintAB", label: "Final Sprint A+B" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -2151,6 +2199,14 @@ export default function EnterprisePage() {
   const [aiBrainStatus, setAiBrainStatus] = useState("");
   const [aiBrainPrompt, setAiBrainPrompt] = useState("미국 수출용 저자극 세라마이드 크림의 출시 가능성과 개선사항을 분석해줘");
 
+  const [liveCrudEndpoints, setLiveCrudEndpoints] = useState<LiveCrudEndpointItem[]>([]);
+  const [liveCrudOperations, setLiveCrudOperations] = useState<LiveCrudOperationItem[]>([]);
+  const [aiCopilotCommands, setAiCopilotCommands] = useState<AiCopilotCommandItem[]>([]);
+  const [aiCopilotWorkflows, setAiCopilotWorkflows] = useState<AiCopilotWorkflowItem[]>([]);
+  const [finalSprintMetrics, setFinalSprintMetrics] = useState<EnterpriseFinalSprintMetricItem[]>([]);
+  const [finalSprintStatus, setFinalSprintStatus] = useState("");
+  const [copilotCommand, setCopilotCommand] = useState("미국 수출용 세라마이드 장벽 크림을 만들고 원가/규제/문서까지 준비해줘");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2804,6 +2860,23 @@ export default function EnterprisePage() {
       confidence: aiBrainSummaries.length ? Math.round(aiBrainSummaries.reduce((sum, item) => sum + item.confidence, 0) / aiBrainSummaries.length) : 0,
     };
   }, [aiBrainAdvisors, aiBrainActions, aiBrainSummaries]);
+
+  const finalSprintStats = useMemo(() => {
+    return {
+      endpoints: liveCrudEndpoints.length,
+      connected: liveCrudEndpoints.filter((item) => item.status === "CONNECTED").length,
+      realtime: liveCrudEndpoints.filter((item) => item.realtime).length,
+      audit: liveCrudEndpoints.filter((item) => item.audit_enabled).length,
+      operations: liveCrudOperations.length,
+      successOps: liveCrudOperations.filter((item) => item.result === "SUCCESS").length,
+      commands: aiCopilotCommands.length,
+      executedCommands: aiCopilotCommands.filter((item) => item.execution_status === "EXECUTED").length,
+      workflows: aiCopilotWorkflows.length,
+      doneSteps: aiCopilotWorkflows.filter((item) => item.status === "DONE").length,
+      risks: finalSprintMetrics.filter((item) => item.status === "RISK").length,
+      good: finalSprintMetrics.filter((item) => item.status === "GOOD").length,
+    };
+  }, [liveCrudEndpoints, liveCrudOperations, aiCopilotCommands, aiCopilotWorkflows, finalSprintMetrics]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7580,7 +7653,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`AI Brain Real Data Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Final Sprint A+B Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7692,7 +7765,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`AI Brain Real Data Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`Final Sprint A+B Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7792,7 +7865,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`AI Brain Real Data Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`Final Sprint A+B Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -8363,13 +8436,101 @@ export default function EnterprisePage() {
     exportCsv("ai_brain_real_data_summaries.csv", [["summary_type", "headline", "summary", "confidence"], ...aiBrainSummaries.map((item) => [item.summary_type, item.headline, item.summary, item.confidence])]);
   }
 
+
+  function generateFinalSprintABPack() {
+    const endpoints: LiveCrudEndpointItem[] = [
+      { id: "CRUD-END-001", module: "Formula", table_name: "enterprise_formula_master", operations: "LOAD, INSERT, UPDATE, DELETE, UPSERT", status: "CONNECTED", realtime: true, audit_enabled: true },
+      { id: "CRUD-END-002", module: "Ingredient", table_name: "enterprise_raw_material_master / enterprise_inci_master", operations: "LOAD, INSERT, UPDATE, DELETE, UPSERT", status: "CONNECTED", realtime: true, audit_enabled: true },
+      { id: "CRUD-END-003", module: "Customer", table_name: "enterprise_customers", operations: "LOAD, INSERT, UPDATE, DELETE", status: "READY", realtime: false, audit_enabled: true },
+      { id: "CRUD-END-004", module: "Supplier", table_name: "enterprise_suppliers", operations: "LOAD, INSERT, UPDATE, DELETE", status: "READY", realtime: false, audit_enabled: true },
+      { id: "CRUD-END-005", module: "Product", table_name: "enterprise_products", operations: "LOAD, INSERT, UPDATE, DELETE", status: "READY", realtime: false, audit_enabled: true },
+      { id: "CRUD-END-006", module: "Document", table_name: "enterprise_live_documents", operations: "LOAD, INSERT, UPDATE, LOCK", status: "CONNECTED", realtime: true, audit_enabled: true },
+      { id: "CRUD-END-007", module: "Workflow", table_name: "enterprise_workflow_instances", operations: "LOAD, CREATE, APPROVE, REJECT", status: "READY", realtime: true, audit_enabled: true },
+      { id: "CRUD-END-008", module: "Approval", table_name: "enterprise_approval_tasks", operations: "LOAD, APPROVE, REJECT, DELEGATE", status: "READY", realtime: true, audit_enabled: true },
+      { id: "CRUD-END-009", module: "QMS", table_name: "enterprise_qms_items", operations: "LOAD, INSERT, UPDATE, CLOSE", status: "READY", realtime: false, audit_enabled: true },
+      { id: "CRUD-END-010", module: "Regulation", table_name: "enterprise_regulation_rules", operations: "LOAD, INSERT, UPDATE, DELETE", status: "CONNECTED", realtime: false, audit_enabled: true },
+    ];
+
+    const operations: LiveCrudOperationItem[] = [
+      { id: "CRUD-OP-001", module: "Ingredient", operation: "LOAD", target: "enterprise_raw_material_master", result: "SUCCESS", message: "원료마스터 조회 준비 완료" },
+      { id: "CRUD-OP-002", module: "Formula", operation: "UPSERT", target: "FC-LIVE-001", result: "SUCCESS", message: "처방 저장/수정 흐름 준비 완료" },
+      { id: "CRUD-OP-003", module: "Document", operation: "UPDATE", target: "DOC-FS-001", result: "SUCCESS", message: "문서 승인 상태 업데이트 준비 완료" },
+      { id: "CRUD-OP-004", module: "Workflow", operation: "REALTIME", target: "approval queue", result: "WARNING", message: "Realtime은 Supabase channel 연결 후 활성화 필요" },
+      { id: "CRUD-OP-005", module: "Regulation", operation: "LOAD", target: "enterprise_regulation_rules", result: "SUCCESS", message: "규제룰 조회 준비 완료" },
+    ];
+
+    const commands: AiCopilotCommandItem[] = [
+      { id: "COP-CMD-001", command: copilotCommand, intent: "CreateFormula", output: "세라마이드 NP, 판테놀, 베타글루칸 기반 장벽 크림 후보 처방 생성", confidence: 86, execution_status: "READY" },
+      { id: "COP-CMD-002", command: "원가를 10% 낮춰줘", intent: "OptimizeCost", output: "고가 원료 공급사 이원화와 함량 최적화 제안", confidence: 78, execution_status: "READY" },
+      { id: "COP-CMD-003", command: "미국/중국 규제 위험 확인해줘", intent: "CheckRegulation", output: "US 위험 낮음, CN IECIC 확인 필요", confidence: 82, execution_status: "NEEDS_REVIEW" },
+      { id: "COP-CMD-004", command: "고객 제출용 자료 만들어줘", intent: "GenerateDocument", output: "처방서, 전성분표, 고객 요약자료 생성 플로우 실행", confidence: 84, execution_status: "READY" },
+      { id: "COP-CMD-005", command: "출시 가능성 판단해줘", intent: "LaunchReview", output: "Launch Score와 GO/WATCH/HOLD 판정 생성", confidence: 83, execution_status: "READY" },
+    ];
+
+    const workflows: AiCopilotWorkflowItem[] = [
+      { id: "COP-WF-001", step_order: 1, step_name: "자연어 요청 분석", module: "AI", status: "DONE", result_summary: "사용자 의도: 미국 수출용 장벽 크림 개발" },
+      { id: "COP-WF-002", step_order: 2, step_name: "후보 처방 생성", module: "Formula", status: "DONE", result_summary: "세라마이드/판테놀/베타글루칸 컨셉 처방 후보" },
+      { id: "COP-WF-003", step_order: 3, step_name: "원료 및 단가 참조", module: "Ingredient", status: liveRawMaterials.length > 0 ? "DONE" : "HUMAN_REVIEW", result_summary: "원료마스터 기준 단가/INCI 참조" },
+      { id: "COP-WF-004", step_order: 4, step_name: "원가 계산", module: "Cost", status: formulaCalculationLines.length > 0 ? "DONE" : "HUMAN_REVIEW", result_summary: "kg당 원가 및 배치 소요량 계산" },
+      { id: "COP-WF-005", step_order: 5, step_name: "규제 검토", module: "Regulation", status: aiBrainStats.highRisk > 0 ? "HUMAN_REVIEW" : "DONE", result_summary: "RA 검토 필요 여부 확인" },
+      { id: "COP-WF-006", step_order: 6, step_name: "문서 생성", module: "Document", status: liveDocuments.length > 0 ? "DONE" : "HUMAN_REVIEW", result_summary: "처방서/전성분표/고객요약 생성" },
+      { id: "COP-WF-007", step_order: 7, step_name: "승인 Workflow 생성", module: "Workflow", status: "READY", result_summary: "R&D → RA → QA 승인 큐 생성 준비" },
+    ];
+
+    const metrics: EnterpriseFinalSprintMetricItem[] = [
+      { id: "FSM-001", area: "LiveCRUD", metric: "Live CRUD endpoint coverage", value: `${endpoints.filter((item) => item.status === "CONNECTED").length}/${endpoints.length}`, status: "WATCH", action: "Customer/Supplier/QMS 등 남은 endpoint 실제 연결" },
+      { id: "FSM-002", area: "AICopilot", metric: "AI Copilot command readiness", value: `${commands.filter((item) => item.execution_status === "READY").length}/${commands.length}`, status: "GOOD", action: "명령 실행 버튼과 API 연결" },
+      { id: "FSM-003", area: "Persistence", metric: "Data persistence readiness", value: "Master tables created", status: "GOOD", action: "Supabase insert/update/delete 함수 연결" },
+      { id: "FSM-004", area: "Realtime", metric: "Realtime modules", value: endpoints.filter((item) => item.realtime).length, status: "WATCH", action: "Supabase channel subscription 추가" },
+      { id: "FSM-005", area: "Audit", metric: "Audit enabled modules", value: endpoints.filter((item) => item.audit_enabled).length, status: "GOOD", action: "Audit trail insert 자동화" },
+      { id: "FSM-006", area: "Readiness", metric: "Work readiness", value: "출근 후 사용 가능", status: "GOOD", action: "실제 데이터 입력 후 문제점 보완" },
+    ];
+
+    setLiveCrudEndpoints(endpoints);
+    setLiveCrudOperations(operations);
+    setAiCopilotCommands(commands);
+    setAiCopilotWorkflows(workflows);
+    setFinalSprintMetrics(metrics);
+    setFinalSprintStatus(`Final Sprint A+B 생성 완료: CRUD Endpoint ${endpoints.length}개 / Copilot Command ${commands.length}개 / Workflow ${workflows.length}개 / Metrics ${metrics.length}개`);
+  }
+
+  function executeAiCopilotCommand(id: string) {
+    setAiCopilotCommands((prev) => prev.map((item) => item.id === id && item.execution_status !== "BLOCKED" ? { ...item, execution_status: "EXECUTED" } : item));
+    setFinalSprintStatus("AI Copilot 명령을 실행 처리했습니다.");
+  }
+
+  function connectLiveCrudEndpoint(id: string) {
+    setLiveCrudEndpoints((prev) => prev.map((item) => item.id === id ? { ...item, status: "CONNECTED", realtime: true, audit_enabled: true } : item));
+    setFinalSprintStatus("Live CRUD endpoint를 연결 상태로 변경했습니다.");
+  }
+
+  function markCopilotWorkflowDone(id: string) {
+    setAiCopilotWorkflows((prev) => prev.map((item) => item.id === id ? { ...item, status: "DONE" } : item));
+  }
+
+  function exportLiveCrudEndpointsCsv() {
+    exportCsv("final_sprint_live_crud_endpoints.csv", [["module", "table_name", "operations", "status", "realtime", "audit_enabled"], ...liveCrudEndpoints.map((item) => [item.module, item.table_name, item.operations, item.status, item.realtime ? "YES" : "NO", item.audit_enabled ? "YES" : "NO"])]);
+  }
+
+  function exportAiCopilotCommandsCsv() {
+    exportCsv("final_sprint_ai_copilot_commands.csv", [["command", "intent", "output", "confidence", "execution_status"], ...aiCopilotCommands.map((item) => [item.command, item.intent, item.output, item.confidence, item.execution_status])]);
+  }
+
+  function exportAiCopilotWorkflowCsv() {
+    exportCsv("final_sprint_ai_copilot_workflow.csv", [["step_order", "step_name", "module", "status", "result_summary"], ...aiCopilotWorkflows.map((item) => [item.step_order, item.step_name, item.module, item.status, item.result_summary])]);
+  }
+
+  function exportFinalSprintMetricsCsv() {
+    exportCsv("final_sprint_metrics.csv", [["area", "metric", "value", "status", "action"], ...finalSprintMetrics.map((item) => [item.area, item.metric, item.value, item.status, item.action])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise AI Brain Real Data Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Final Sprint Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 AI Brain Real Data Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Final Sprint A+B Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -8416,6 +8577,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Formula Calc</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{formulaCalculationLines.length}</div></div>
             <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveDocuments.length}</div></div>
             <div style={cardStyle()}><strong>AI Brain</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiBrainAdvisors.length}</div></div>
+            <div style={cardStyle()}><strong>Final Sprint</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveCrudEndpoints.length + aiCopilotCommands.length}</div></div>
           </div>
         </section>
 
@@ -8479,13 +8641,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>AI Brain Real Data 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Final Sprint A+B 목표</h2>
           <ul>
-            <li>실제 원료·INCI·처방·문서 데이터를 기반으로 AI 업무 제안 생성</li>
-            <li>처방 개선, 원가 절감, 규제 위험, 안정성 시험 추천</li>
-            <li>고객 제안용 컨셉 문구와 연구원 Action Plan 자동 생성</li>
-            <li>출시 가능성 점수와 Launch Gate 위험도 산출</li>
-            <li>AI 기능을 components/services/types로 분리한 모듈형 구조로 전환</li>
+            <li>Formula, Ingredient, Customer, Supplier, Document, Workflow, QMS, Regulation Live CRUD 연결 준비</li>
+            <li>Insert/Update/Delete/Realtime/History/Audit 운영 흐름 통합</li>
+            <li>AI Copilot: 자연어 요청 → 처방 생성 → 원가 계산 → 규제 확인 → 문서 생성</li>
+            <li>새로고침 후에도 유지되는 실제 Supabase 저장형 구조 완성 준비</li>
+            <li>출근 직후 사용 가능한 최종 업무 흐름과 Readiness 점검</li>
           </ul>
         </section>
       </>
@@ -9482,11 +9644,60 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderFinalSprintABModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B: Live CRUD + AI Copilot</h1>
+          <p style={{ color: "#6b7280" }}>
+            Supabase Live CRUD와 AI Copilot을 연결하는 최종 실사용 패키지입니다.
+            저장/수정/삭제/Realtime/Audit 준비와 자연어 기반 처방·원가·규제·문서 실행 흐름을 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Endpoints</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{finalSprintStats.connected}/{finalSprintStats.endpoints}</div></div>
+            <div style={cardStyle()}><strong>Realtime</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{finalSprintStats.realtime}</div></div>
+            <div style={cardStyle()}><strong>Audit</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{finalSprintStats.audit}</div></div>
+            <div style={cardStyle()}><strong>Operations</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{finalSprintStats.successOps}/{finalSprintStats.operations}</div></div>
+            <div style={cardStyle()}><strong>Commands</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{finalSprintStats.executedCommands}/{finalSprintStats.commands}</div></div>
+            <div style={cardStyle()}><strong>Workflow</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{finalSprintStats.doneSteps}/{finalSprintStats.workflows}</div></div>
+            <div style={cardStyle()}><strong>Good</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{finalSprintStats.good}</div></div>
+            <div style={cardStyle()}><strong>Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{finalSprintStats.risks}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={copilotCommand} onChange={(e) => setCopilotCommand(e.target.value)} placeholder="AI Copilot 명령" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateFinalSprintABPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Final Sprint A+B 생성</button>
+            <button onClick={exportLiveCrudEndpointsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>CRUD CSV</button>
+            <button onClick={exportAiCopilotCommandsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Copilot CSV</button>
+            <button onClick={exportAiCopilotWorkflowCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Workflow CSV</button>
+            <button onClick={exportFinalSprintMetricsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Metrics CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{finalSprintStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. Supabase Live CRUD Endpoints</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Table</th><th style={tableCellStyle(true)}>Operations</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Realtime</th><th style={tableCellStyle(true)}>Audit</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{liveCrudEndpoints.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Final Sprint A+B 생성을 실행하세요.</td></tr>}{liveCrudEndpoints.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.module}</td><td style={tableCellStyle()}>{item.table_name}</td><td style={tableCellStyle()}>{item.operations}</td><td style={{ ...tableCellStyle(), color: item.status === "CONNECTED" ? "#059669" : item.status === "ERROR" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.realtime ? "YES" : "NO"}</td><td style={tableCellStyle()}>{item.audit_enabled ? "YES" : "NO"}</td><td style={tableCellStyle()}>{item.status !== "CONNECTED" ? <button onClick={() => connectLiveCrudEndpoint(item.id)}>Connect</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. Live CRUD Operation Log</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Operation</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Result</th><th style={tableCellStyle(true)}>Message</th></tr></thead><tbody>{liveCrudOperations.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Operation Log가 표시됩니다.</td></tr>}{liveCrudOperations.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.module}</td><td style={tableCellStyle()}>{item.operation}</td><td style={tableCellStyle()}>{item.target}</td><td style={{ ...tableCellStyle(), color: item.result === "SUCCESS" ? "#059669" : item.result === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.result}</td><td style={tableCellStyle()}>{item.message}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. AI Copilot Commands</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Command</th><th style={tableCellStyle(true)}>Intent</th><th style={tableCellStyle(true)}>Output</th><th style={tableCellStyle(true)}>Confidence</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiCopilotCommands.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>AI Copilot 명령이 표시됩니다.</td></tr>}{aiCopilotCommands.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.command}</td><td style={tableCellStyle()}>{item.intent}</td><td style={tableCellStyle()}>{item.output}</td><td style={tableCellStyle()}>{item.confidence}</td><td style={{ ...tableCellStyle(), color: item.execution_status === "EXECUTED" ? "#059669" : item.execution_status === "BLOCKED" ? "#dc2626" : item.execution_status === "NEEDS_REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.execution_status}</td><td style={tableCellStyle()}>{item.execution_status !== "EXECUTED" ? <button onClick={() => executeAiCopilotCommand(item.id)}>Execute</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. AI Copilot Workflow</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Order</th><th style={tableCellStyle(true)}>Step</th><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Result</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiCopilotWorkflows.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Workflow가 표시됩니다.</td></tr>}{aiCopilotWorkflows.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.step_order}</td><td style={tableCellStyle()}>{item.step_name}</td><td style={tableCellStyle()}>{item.module}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "HUMAN_REVIEW" ? "#d97706" : item.status === "RUNNING" ? "#2563eb" : "#6b7280", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.result_summary}</td><td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => markCopilotWorkflowDone(item.id)}>Done</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. Final Sprint Readiness Metrics</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Metric</th><th style={tableCellStyle(true)}>Value</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{finalSprintMetrics.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Readiness Metrics가 표시됩니다.</td></tr>}{finalSprintMetrics.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.area}</td><td style={tableCellStyle()}>{item.metric}</td><td style={tableCellStyle()}>{item.value}</td><td style={{ ...tableCellStyle(), color: item.status === "GOOD" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderAiBrainRealDataModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료, INCI, 처방 계산, 전성분, 문서 생성 결과를 AI가 해석해 처방 개선,
             원가 절감, 규제 위험, 안정성 시험, 출시 가능성, Action Plan을 제안합니다.
@@ -9530,7 +9741,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             Formula Calculation 결과를 바탕으로 처방서, 원료조성표, 전성분표, 제품규격서,
             시험의뢰서, 개발보고서, 고객 제출용 요약자료를 자동 생성합니다.
@@ -9576,7 +9787,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             처방을 실제 연구 업무에 맞게 자동 계산합니다. 함량 합계, kg당 원가, 배치 소요량,
             복합성분 Breakdown, 전성분, 규제 위험, 저장 전 검증을 한 화면에서 확인합니다.
@@ -9638,7 +9849,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
             다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
@@ -9699,7 +9910,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -9745,7 +9956,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -9805,7 +10016,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -9859,7 +10070,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -13144,6 +13355,7 @@ export default function EnterprisePage() {
     if (active === "formulaCalc") return renderFormulaLiveCalculationModule();
     if (active === "docLive") return renderDocumentLiveModule();
     if (active === "aiBrainReal") return renderAiBrainRealDataModule();
+    if (active === "finalSprintAB") return renderFinalSprintABModule();
     return renderAdminModule();
   }
 
@@ -13151,7 +13363,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>AI Brain Real Data Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Final Sprint A+B Pack</p>
 
         {menus.map((item) => (
           <button
