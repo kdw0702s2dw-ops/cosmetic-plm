@@ -22,6 +22,21 @@ type ModuleKey =
   | "repository"
   | "externalRls"
   | "productionRc"
+  | "uatMigration"
+  | "goLive"
+  | "monitoring"
+  | "stabilization"
+  | "workflow"
+  | "simulation"
+  | "scaleUp"
+  | "eln"
+  | "lims"
+  | "mes"
+  | "v2Package"
+  | "v3Package"
+  | "v4Package"
+  | "ultimateA"
+  | "ultimateB"
   | "admin";
 
 type EnterpriseProject = {
@@ -361,6 +376,620 @@ type GoLiveChecklistItem = {
   note: string;
 };
 
+type UatScenarioItem = {
+  id: string;
+  team: "R&D" | "QA" | "RA" | "Admin" | "Sales" | "QC";
+  scenario: string;
+  expected_result: string;
+  status: "TODO" | "PASS" | "FAIL" | "HOLD";
+  owner: string;
+};
+
+type MigrationBatchItem = {
+  id: string;
+  source: "Excel" | "CSV" | "Manual" | "Supabase";
+  target_table: string;
+  data_type: string;
+  estimated_rows: number;
+  status: "READY" | "MIGRATING" | "DONE" | "ERROR";
+  note: string;
+};
+
+type TrainingItem = {
+  role: string;
+  training_topic: string;
+  status: "TODO" | "DONE" | "NEEDS_SUPPORT";
+  material: string;
+};
+
+type GoLiveOperationItem = {
+  id: string;
+  area: "System" | "Data" | "User" | "Process" | "Support" | "Security";
+  operation: string;
+  status: "READY" | "ACTIVE" | "MONITORING" | "ISSUE";
+  owner: "Admin" | "R&D" | "QA" | "RA" | "IT" | "Sales" | "QC";
+  check_point: string;
+};
+
+type GoLiveIssueItem = {
+  id: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  module: string;
+  issue: string;
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "HOLD";
+  owner: string;
+};
+
+type DailyOperationMetric = {
+  metric: string;
+  value: string | number;
+  status: "GOOD" | "WATCH" | "RISK";
+  note: string;
+};
+
+type BackupJobItem = {
+  id: string;
+  target: string;
+  backup_type: "DB" | "CSV" | "Storage" | "Config";
+  schedule: "Daily" | "Weekly" | "Manual";
+  status: "READY" | "RUNNING" | "SUCCESS" | "FAILED";
+  last_run: string;
+  note: string;
+};
+
+type MonitoringCheckItem = {
+  id: string;
+  category: "Database" | "Auth" | "Storage" | "API" | "Build" | "DataQuality";
+  check_name: string;
+  status: "PASS" | "WARN" | "FAIL";
+  value: string | number;
+  action: string;
+};
+
+type ErrorLogItem = {
+  id: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  module: string;
+  message: string;
+  status: "OPEN" | "INVESTIGATING" | "RESOLVED";
+  created_at: string;
+};
+
+type StabilizationItem = {
+  id: string;
+  category: "Performance" | "Security" | "Data" | "UX" | "Process" | "Release";
+  item: string;
+  status: "STABLE" | "WATCH" | "FIX_REQUIRED" | "LOCKED";
+  priority: "P0" | "P1" | "P2" | "P3";
+  owner: "R&D" | "QA" | "RA" | "Admin" | "IT" | "Sales" | "QC";
+  action: string;
+};
+
+type V1ReleaseNoteItem = {
+  module: string;
+  version: string;
+  status: "INCLUDED" | "LIMITED" | "POSTPONED";
+  note: string;
+};
+
+type PostGoLiveTask = {
+  week: string;
+  task: string;
+  owner: string;
+  status: "TODO" | "IN_PROGRESS" | "DONE";
+};
+
+type WorkflowTemplateItem = {
+  id: string;
+  workflow_name: string;
+  trigger_module: "Project" | "Formula" | "Quality" | "Regulation" | "Customer" | "Supplier" | "Launch";
+  status: "DRAFT" | "ACTIVE" | "PAUSED";
+  owner_team: "R&D" | "QA" | "RA" | "QC" | "Sales" | "Admin";
+  description: string;
+};
+
+type WorkflowStepItem = {
+  id: string;
+  workflow_id: string;
+  step_no: number;
+  step_name: string;
+  owner_team: "R&D" | "QA" | "RA" | "QC" | "Sales" | "Admin";
+  action_type: "TASK" | "APPROVAL" | "CHECK" | "NOTIFICATION" | "DOCUMENT" | "SYSTEM";
+  due_days: number;
+  required: boolean;
+};
+
+type WorkflowRunItem = {
+  id: string;
+  workflow_id: string;
+  target: string;
+  current_step: string;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "WAITING_APPROVAL" | "COMPLETED" | "BLOCKED";
+  progress: number;
+  owner: string;
+};
+
+type WorkflowTaskItem = {
+  id: string;
+  run_id: string;
+  task_name: string;
+  owner_team: string;
+  status: "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED";
+  due_date: string;
+  note: string;
+};
+
+type FormulaSimulationInput = {
+  id: string;
+  formula_code: string;
+  target_batch_kg: number;
+  target_cost_per_kg: number;
+  target_ph: number;
+  target_viscosity: number;
+  market_country: string;
+};
+
+type FormulaSimulationResult = {
+  id: string;
+  formula_code: string;
+  batch_kg: number;
+  predicted_cost_per_kg: number;
+  predicted_ph: number;
+  predicted_viscosity: number;
+  stability_score: number;
+  regulation_score: number;
+  total_score: number;
+  recommendation: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type MaterialSubstitutionItem = {
+  id: string;
+  source_raw: string;
+  source_inci: string;
+  substitute_raw: string;
+  substitute_inci: string;
+  reason: string;
+  expected_effect: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type FormulaOptimizationItem = {
+  id: string;
+  area: "Cost" | "Stability" | "Regulation" | "Texture" | "Claim";
+  suggestion: string;
+  expected_impact: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+};
+
+type ScaleUpBatchItem = {
+  id: string;
+  formula_code: string;
+  batch_size_kg: number;
+  batch_type: "Lab" | "Pilot" | "Production" | "Mass";
+  status: "DRAFT" | "READY" | "APPROVED" | "BLOCKED";
+  estimated_cost: number;
+  yield_percent: number;
+  note: string;
+};
+
+type BomItem = {
+  id: string;
+  batch_id: string;
+  raw_code: string;
+  raw_name: string;
+  percentage: number;
+  required_kg: number;
+  loss_percent: number;
+  purchase_kg: number;
+  unit_price: number;
+  amount: number;
+};
+
+type ManufacturingStepItem = {
+  id: string;
+  batch_id: string;
+  step_no: number;
+  phase: string;
+  process: string;
+  temperature: string;
+  rpm: string;
+  time_min: number;
+  qc_check: string;
+};
+
+type ScaleUpRiskItem = {
+  id: string;
+  category: "Process" | "Material" | "Quality" | "Cost" | "Regulation";
+  risk: string;
+  level: "LOW" | "MEDIUM" | "HIGH";
+  action: string;
+};
+
+type ElnExperimentItem = {
+  id: string;
+  experiment_no: string;
+  project_code: string;
+  formula_code: string;
+  title: string;
+  researcher: string;
+  status: "DRAFT" | "IN_PROGRESS" | "REVIEW" | "SIGNED" | "ARCHIVED";
+  experiment_date: string;
+  objective: string;
+};
+
+type ElnObservationItem = {
+  id: string;
+  experiment_id: string;
+  time_point: string;
+  observation_type: "Appearance" | "pH" | "Viscosity" | "Odor" | "Color" | "Stability" | "Other";
+  value: string;
+  result: "PASS" | "WATCH" | "FAIL";
+  note: string;
+};
+
+type ElnAttachmentItem = {
+  id: string;
+  experiment_id: string;
+  file_name: string;
+  file_type: "Image" | "PDF" | "Excel" | "RawData" | "Other";
+  status: "UPLOADED" | "NEEDS_REVIEW" | "APPROVED";
+  note: string;
+};
+
+type ElnSignatureItem = {
+  id: string;
+  experiment_id: string;
+  signer: string;
+  role: "Researcher" | "Reviewer" | "QA" | "Manager";
+  status: "REQUESTED" | "SIGNED" | "REJECTED";
+  signed_at: string;
+};
+
+type LimsSampleItem = {
+  id: string;
+  sample_no: string;
+  project_code: string;
+  formula_code: string;
+  sample_type: "Lab" | "Pilot" | "Production" | "Stability" | "Customer";
+  status: "RECEIVED" | "TESTING" | "REVIEW" | "APPROVED" | "REJECTED";
+  received_date: string;
+  requester: string;
+};
+
+type LimsTestItem = {
+  id: string;
+  sample_id: string;
+  test_name: "pH" | "Viscosity" | "Specific Gravity" | "Appearance" | "Color" | "Odor" | "Microbial" | "Stability";
+  method: string;
+  specification: string;
+  result_value: string;
+  judgment: "PASS" | "OOS" | "OOT" | "PENDING";
+  analyst: string;
+};
+
+type LimsStabilityItem = {
+  id: string;
+  sample_id: string;
+  condition: "RT" | "5C" | "45C" | "Cycle" | "Light";
+  time_point: "T0" | "1W" | "2W" | "4W" | "8W" | "12W";
+  result: "PASS" | "WATCH" | "FAIL" | "PENDING";
+  observation: string;
+};
+
+type LimsCoaItem = {
+  id: string;
+  sample_id: string;
+  coa_no: string;
+  status: "DRAFT" | "REVIEW" | "APPROVED" | "ISSUED";
+  issued_date: string;
+  summary: string;
+};
+
+type MesWorkOrderItem = {
+  id: string;
+  work_order_no: string;
+  formula_code: string;
+  batch_id: string;
+  production_qty_kg: number;
+  status: "PLANNED" | "RELEASED" | "IN_PRODUCTION" | "QC_HOLD" | "COMPLETED" | "CANCELLED";
+  planned_date: string;
+  line: string;
+};
+
+type MesLotItem = {
+  id: string;
+  lot_no: string;
+  work_order_id: string;
+  raw_code: string;
+  raw_lot_no: string;
+  required_kg: number;
+  consumed_kg: number;
+  status: "RESERVED" | "WEIGHED" | "CONSUMED" | "RETURNED";
+};
+
+type MesProcessLogItem = {
+  id: string;
+  work_order_id: string;
+  step_no: number;
+  process_name: string;
+  start_time: string;
+  end_time: string;
+  operator: string;
+  status: "WAITING" | "RUNNING" | "DONE" | "DEVIATION";
+  note: string;
+};
+
+type MesDeviationItem = {
+  id: string;
+  work_order_id: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  deviation: string;
+  status: "OPEN" | "INVESTIGATING" | "CAPA_REQUIRED" | "CLOSED";
+  action: string;
+};
+
+type V2IntegrationFlowItem = {
+  id: string;
+  phase: "31" | "32" | "33" | "34" | "35";
+  module: string;
+  flow_name: string;
+  source: string;
+  target: string;
+  status: "READY" | "CONNECTED" | "WATCH" | "BLOCKED";
+  owner: "R&D" | "QA" | "RA" | "QC" | "Production" | "Admin" | "Sales" | "IT";
+};
+
+type DigitalTwinItem = {
+  id: string;
+  batch_size_kg: number;
+  mixer_type: "Lab Homomixer" | "Pilot Vacuum Mixer" | "Production Vacuum Mixer" | "Mass Tank";
+  predicted_rpm: string;
+  predicted_time_min: number;
+  predicted_yield_percent: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  note: string;
+};
+
+type AiFormulaExpertItem = {
+  id: string;
+  issue_type: "Viscosity" | "pH" | "Cost" | "Stability" | "Regulation" | "Claim";
+  diagnosis: string;
+  recommendation: string;
+  expected_result: string;
+  confidence: number;
+  priority: "P0" | "P1" | "P2" | "P3";
+};
+
+type GlobalRegAiItem = {
+  id: string;
+  country: "EU" | "CN" | "US" | "JP" | "ASEAN" | "KR" | "GCC";
+  formula_code: string;
+  status: "OK" | "CAUTION" | "BLOCKED" | "NEEDS_REVIEW";
+  key_issue: string;
+  action: string;
+};
+
+type EnterpriseAnalyticsItem = {
+  id: string;
+  kpi: string;
+  value: string | number;
+  trend: "UP" | "DOWN" | "FLAT";
+  status: "GOOD" | "WATCH" | "RISK";
+  insight: string;
+};
+
+type AiCopilotActionItem = {
+  id: string;
+  command: string;
+  module_chain: string;
+  status: "READY" | "RUNNING" | "DONE" | "NEEDS_REVIEW";
+  result_summary: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type QmsProcessItem = {
+  id: string;
+  process: "Deviation" | "CAPA" | "ChangeControl" | "Complaint" | "Audit" | "Training";
+  source_module: string;
+  status: "OPEN" | "IN_PROGRESS" | "EFFECTIVE" | "CLOSED";
+  owner: "QA" | "QC" | "RA" | "R&D" | "Production" | "Admin";
+  due_date: string;
+  summary: string;
+};
+
+type DmsDocumentItem = {
+  id: string;
+  document_no: string;
+  document_type: "SOP" | "Specification" | "Batch Record" | "COA" | "Validation" | "Regulatory" | "Training";
+  title: string;
+  version: string;
+  status: "DRAFT" | "REVIEW" | "APPROVED" | "EFFECTIVE" | "OBSOLETE";
+  owner: string;
+};
+
+type ValidationProtocolItem = {
+  id: string;
+  protocol_no: string;
+  validation_type: "CSV" | "IQ" | "OQ" | "PQ" | "Process" | "Cleaning";
+  target_system: string;
+  status: "PLANNED" | "EXECUTING" | "PASSED" | "FAILED" | "RETEST";
+  result: string;
+};
+
+type KnowledgeGraphItem = {
+  id: string;
+  node: string;
+  node_type: "Formula" | "Ingredient" | "RawMaterial" | "Regulation" | "Quality" | "Customer" | "Supplier" | "Production";
+  connected_to: string;
+  relationship: string;
+  confidence: number;
+};
+
+type PatentPaperInsightItem = {
+  id: string;
+  source_type: "Patent" | "Paper" | "Market" | "Competitor";
+  title: string;
+  keyword: string;
+  relevance_score: number;
+  opportunity: string;
+  action: string;
+};
+
+type RawMaterialMarketItem = {
+  id: string;
+  raw_code: string;
+  raw_name: string;
+  current_price: number;
+  forecast_price: number;
+  supply_risk: "LOW" | "MEDIUM" | "HIGH";
+  recommendation: string;
+};
+
+type CostOptimizationItem = {
+  id: string;
+  formula_code: string;
+  optimization_type: "Supplier" | "Dosage" | "Substitution" | "Scale" | "Yield";
+  current_cost: number;
+  optimized_cost: number;
+  saving_percent: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+  action: string;
+};
+
+type MultiPlantItem = {
+  id: string;
+  plant_name: string;
+  location: "KR" | "CN" | "US" | "JP" | "ASEAN" | "EU";
+  capability: string;
+  capacity_kg_day: number;
+  status: "AVAILABLE" | "BUSY" | "QUALIFICATION_REQUIRED" | "BLOCKED";
+  note: string;
+};
+
+type ApiHubItem = {
+  id: string;
+  api_name: string;
+  domain: "Ingredient" | "Formula" | "Regulation" | "Quality" | "MES" | "Customer" | "Supplier";
+  endpoint: string;
+  status: "DRAFT" | "READY" | "ACTIVE" | "DEPRECATED";
+  security_level: "Internal" | "Partner" | "External";
+};
+
+type AiResearchProjectItem = {
+  id: string;
+  request: string;
+  target_market: "KR" | "US" | "EU" | "CN" | "JP" | "ASEAN" | "GLOBAL";
+  product_type: string;
+  status: "DRAFT" | "RESEARCHING" | "CANDIDATE_READY" | "REVIEW" | "APPROVED";
+  opportunity_score: number;
+  summary: string;
+};
+
+type AiFormulaCandidateItem = {
+  id: string;
+  research_id: string;
+  candidate_name: string;
+  formula_concept: string;
+  target_cost: number;
+  predicted_stability: number;
+  predicted_regulation: number;
+  launch_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type KnowledgeEngineLinkItem = {
+  id: string;
+  source_node: string;
+  source_type: "Research" | "Formula" | "Ingredient" | "Patent" | "Paper" | "Market" | "Quality" | "Production";
+  target_node: string;
+  target_type: "Research" | "Formula" | "Ingredient" | "Regulation" | "LIMS" | "MES" | "Customer" | "QMS";
+  relationship: string;
+  confidence: number;
+};
+
+type FactorySimulationItem = {
+  id: string;
+  scenario_name: string;
+  batch_kg: number;
+  tank_type: "Lab" | "Pilot" | "Production" | "Mass";
+  mix_time_min: number;
+  filling_time_min: number;
+  expected_yield: number;
+  expected_loss_kg: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type DataLakeRecordItem = {
+  id: string;
+  source_system: "PLM" | "LIMS" | "MES" | "QMS" | "CRM" | "SCM" | "DMS" | "Validation";
+  dataset: string;
+  record_count: number;
+  freshness: "REALTIME" | "DAILY" | "WEEKLY" | "MANUAL";
+  data_quality: "GOOD" | "WATCH" | "RISK";
+  ai_ready: boolean;
+};
+
+type DecisionCenterItem = {
+  id: string;
+  decision_area: "R&D" | "Quality" | "Regulation" | "Production" | "Cost" | "Customer" | "Launch";
+  kpi: string;
+  current_value: string | number;
+  ai_risk: "LOW" | "MEDIUM" | "HIGH";
+  ai_recommendation: string;
+  decision_status: "GO" | "WATCH" | "HOLD";
+};
+
+type AutonomousAgentItem = {
+  id: string;
+  agent_name: string;
+  role: "R&D" | "QA" | "RA" | "QC" | "Production" | "Cost" | "Launch";
+  objective: string;
+  status: "IDLE" | "RUNNING" | "DONE" | "NEEDS_REVIEW" | "BLOCKED";
+  autonomy_level: 1 | 2 | 3 | 4 | 5;
+  last_result: string;
+};
+
+type AutonomousFormulaRunItem = {
+  id: string;
+  run_name: string;
+  target_brief: string;
+  generated_formula: string;
+  validation_status: "DRAFT" | "SIMULATED" | "QA_REVIEW" | "RA_REVIEW" | "READY";
+  ai_score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type SmartFactoryIotItem = {
+  id: string;
+  equipment: string;
+  sensor_type: "Temperature" | "RPM" | "Vacuum" | "Viscosity" | "Filling" | "Energy";
+  current_value: string;
+  normal_range: string;
+  status: "NORMAL" | "WARNING" | "ALARM";
+  prediction: string;
+};
+
+type AiOptimizationRunItem = {
+  id: string;
+  optimization_area: "Yield" | "Cost" | "Quality" | "Schedule" | "Energy" | "Regulation";
+  before_value: string;
+  after_value: string;
+  improvement: string;
+  confidence: number;
+  action_required: string;
+};
+
+type SelfDrivingPlmTaskItem = {
+  id: string;
+  task_chain: string;
+  trigger: string;
+  current_step: string;
+  progress: number;
+  status: "READY" | "RUNNING" | "WAITING_HUMAN" | "COMPLETED" | "FAILED";
+  human_approval_required: boolean;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -379,6 +1008,21 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "repository", label: "Master Repository" },
   { key: "externalRls", label: "External Portal RLS" },
   { key: "productionRc", label: "Production RC" },
+  { key: "uatMigration", label: "UAT & Migration" },
+  { key: "goLive", label: "Go-Live Mode" },
+  { key: "monitoring", label: "Backup / Monitoring" },
+  { key: "stabilization", label: "v1.0 Stabilization" },
+  { key: "workflow", label: "Workflow Engine" },
+  { key: "simulation", label: "Formula Simulation" },
+  { key: "scaleUp", label: "Scale-Up & BOM" },
+  { key: "eln", label: "ELN Lab Notebook" },
+  { key: "lims", label: "LIMS Test Center" },
+  { key: "mes", label: "MES Bridge" },
+  { key: "v2Package", label: "v2.0 Package" },
+  { key: "v3Package", label: "v3.0 AI/QMS Package" },
+  { key: "v4Package", label: "Knowledge/SCM Package" },
+  { key: "ultimateA", label: "Ultimate Pack A" },
+  { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -912,6 +1556,126 @@ export default function EnterprisePage() {
   const [productionRcStatus, setProductionRcStatus] = useState("");
   const [releaseVersion, setReleaseVersion] = useState("Enterprise RC 1.0");
 
+  const [uatScenarios, setUatScenarios] = useState<UatScenarioItem[]>([]);
+  const [migrationBatches, setMigrationBatches] = useState<MigrationBatchItem[]>([]);
+  const [trainingItems, setTrainingItems] = useState<TrainingItem[]>([]);
+  const [uatMigrationStatus, setUatMigrationStatus] = useState("");
+
+  const [goLiveOperations, setGoLiveOperations] = useState<GoLiveOperationItem[]>([]);
+  const [goLiveIssues, setGoLiveIssues] = useState<GoLiveIssueItem[]>([]);
+  const [dailyMetrics, setDailyMetrics] = useState<DailyOperationMetric[]>([]);
+  const [goLiveStatus, setGoLiveStatus] = useState("");
+  const [operationMode, setOperationMode] = useState<"PRE_GO_LIVE" | "LIVE" | "MAINTENANCE">("PRE_GO_LIVE");
+
+  const [backupJobs, setBackupJobs] = useState<BackupJobItem[]>([]);
+  const [monitoringChecks, setMonitoringChecks] = useState<MonitoringCheckItem[]>([]);
+  const [errorLogs, setErrorLogs] = useState<ErrorLogItem[]>([]);
+  const [monitoringStatus, setMonitoringStatus] = useState("");
+
+  const [stabilizationItems, setStabilizationItems] = useState<StabilizationItem[]>([]);
+  const [v1ReleaseNotes, setV1ReleaseNotes] = useState<V1ReleaseNoteItem[]>([]);
+  const [postGoLiveTasks, setPostGoLiveTasks] = useState<PostGoLiveTask[]>([]);
+  const [stabilizationStatus, setStabilizationStatus] = useState("");
+  const [v1Version, setV1Version] = useState("Enterprise v1.0");
+
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplateItem[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepItem[]>([]);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunItem[]>([]);
+  const [workflowTasks, setWorkflowTasks] = useState<WorkflowTaskItem[]>([]);
+  const [workflowStatus, setWorkflowStatus] = useState("");
+  const [workflowTarget, setWorkflowTarget] = useState("26A001");
+
+  const [simulationInputs, setSimulationInputs] = useState<FormulaSimulationInput[]>([]);
+  const [simulationResults, setSimulationResults] = useState<FormulaSimulationResult[]>([]);
+  const [substitutionItems, setSubstitutionItems] = useState<MaterialSubstitutionItem[]>([]);
+  const [optimizationItems, setOptimizationItems] = useState<FormulaOptimizationItem[]>([]);
+  const [simulationFormulaCode, setSimulationFormulaCode] = useState("FC-001");
+  const [simulationBatchKg, setSimulationBatchKg] = useState("1");
+  const [simulationTargetCost, setSimulationTargetCost] = useState("12000");
+  const [simulationTargetPh, setSimulationTargetPh] = useState("5.5");
+  const [simulationTargetViscosity, setSimulationTargetViscosity] = useState("3000");
+  const [simulationCountry, setSimulationCountry] = useState("EU");
+  const [simulationStatus, setSimulationStatus] = useState("");
+
+  const [scaleUpBatches, setScaleUpBatches] = useState<ScaleUpBatchItem[]>([]);
+  const [bomItems, setBomItems] = useState<BomItem[]>([]);
+  const [manufacturingSteps, setManufacturingSteps] = useState<ManufacturingStepItem[]>([]);
+  const [scaleUpRisks, setScaleUpRisks] = useState<ScaleUpRiskItem[]>([]);
+  const [scaleFormulaCode, setScaleFormulaCode] = useState("FC-001");
+  const [scaleBatchKg, setScaleBatchKg] = useState("100");
+  const [scaleYieldPercent, setScaleYieldPercent] = useState("97");
+  const [scaleLossPercent, setScaleLossPercent] = useState("2");
+  const [scaleUpStatus, setScaleUpStatus] = useState("");
+
+  const [elnExperiments, setElnExperiments] = useState<ElnExperimentItem[]>([]);
+  const [elnObservations, setElnObservations] = useState<ElnObservationItem[]>([]);
+  const [elnAttachments, setElnAttachments] = useState<ElnAttachmentItem[]>([]);
+  const [elnSignatures, setElnSignatures] = useState<ElnSignatureItem[]>([]);
+  const [elnProjectCode, setElnProjectCode] = useState("26A001");
+  const [elnFormulaCode, setElnFormulaCode] = useState("FC-001");
+  const [elnTitle, setElnTitle] = useState("수분크림 1차 랩 배치 실험");
+  const [elnResearcher, setElnResearcher] = useState("연구원");
+  const [elnStatus, setElnStatus] = useState("");
+
+  const [limsSamples, setLimsSamples] = useState<LimsSampleItem[]>([]);
+  const [limsTests, setLimsTests] = useState<LimsTestItem[]>([]);
+  const [limsStabilities, setLimsStabilities] = useState<LimsStabilityItem[]>([]);
+  const [limsCoas, setLimsCoas] = useState<LimsCoaItem[]>([]);
+  const [limsProjectCode, setLimsProjectCode] = useState("26A001");
+  const [limsFormulaCode, setLimsFormulaCode] = useState("FC-001");
+  const [limsRequester, setLimsRequester] = useState("연구팀");
+  const [limsStatus, setLimsStatus] = useState("");
+
+  const [mesWorkOrders, setMesWorkOrders] = useState<MesWorkOrderItem[]>([]);
+  const [mesLots, setMesLots] = useState<MesLotItem[]>([]);
+  const [mesProcessLogs, setMesProcessLogs] = useState<MesProcessLogItem[]>([]);
+  const [mesDeviations, setMesDeviations] = useState<MesDeviationItem[]>([]);
+  const [mesFormulaCode, setMesFormulaCode] = useState("FC-001");
+  const [mesBatchId, setMesBatchId] = useState("");
+  const [mesQtyKg, setMesQtyKg] = useState("100");
+  const [mesLine, setMesLine] = useState("Line-1");
+  const [mesStatus, setMesStatus] = useState("");
+
+  const [v2Flows, setV2Flows] = useState<V2IntegrationFlowItem[]>([]);
+  const [digitalTwinItems, setDigitalTwinItems] = useState<DigitalTwinItem[]>([]);
+  const [aiFormulaExpertItems, setAiFormulaExpertItems] = useState<AiFormulaExpertItem[]>([]);
+  const [globalRegAiItems, setGlobalRegAiItems] = useState<GlobalRegAiItem[]>([]);
+  const [enterpriseAnalyticsItems, setEnterpriseAnalyticsItems] = useState<EnterpriseAnalyticsItem[]>([]);
+  const [v2PackageStatus, setV2PackageStatus] = useState("");
+  const [v2FormulaCode, setV2FormulaCode] = useState("FC-001");
+
+  const [aiCopilotActions, setAiCopilotActions] = useState<AiCopilotActionItem[]>([]);
+  const [qmsProcesses, setQmsProcesses] = useState<QmsProcessItem[]>([]);
+  const [dmsDocuments, setDmsDocuments] = useState<DmsDocumentItem[]>([]);
+  const [validationProtocols, setValidationProtocols] = useState<ValidationProtocolItem[]>([]);
+  const [knowledgeGraphItems, setKnowledgeGraphItems] = useState<KnowledgeGraphItem[]>([]);
+  const [v3PackageStatus, setV3PackageStatus] = useState("");
+  const [copilotCommand, setCopilotCommand] = useState("수분크림 처방을 검토하고 규제, 품질, 생산 리스크를 요약해줘");
+
+  const [patentPaperInsights, setPatentPaperInsights] = useState<PatentPaperInsightItem[]>([]);
+  const [rawMaterialMarkets, setRawMaterialMarkets] = useState<RawMaterialMarketItem[]>([]);
+  const [costOptimizations, setCostOptimizations] = useState<CostOptimizationItem[]>([]);
+  const [multiPlantItems, setMultiPlantItems] = useState<MultiPlantItem[]>([]);
+  const [apiHubItems, setApiHubItems] = useState<ApiHubItem[]>([]);
+  const [v4PackageStatus, setV4PackageStatus] = useState("");
+
+  const [aiResearchProjects, setAiResearchProjects] = useState<AiResearchProjectItem[]>([]);
+  const [aiFormulaCandidates, setAiFormulaCandidates] = useState<AiFormulaCandidateItem[]>([]);
+  const [knowledgeEngineLinks, setKnowledgeEngineLinks] = useState<KnowledgeEngineLinkItem[]>([]);
+  const [factorySimulations, setFactorySimulations] = useState<FactorySimulationItem[]>([]);
+  const [dataLakeRecords, setDataLakeRecords] = useState<DataLakeRecordItem[]>([]);
+  const [decisionCenterItems, setDecisionCenterItems] = useState<DecisionCenterItem[]>([]);
+  const [ultimateAStatus, setUltimateAStatus] = useState("");
+  const [researchRequest, setResearchRequest] = useState("미국 민감성 시장용 저자극 세라마이드 크림 개발");
+
+  const [autonomousAgents, setAutonomousAgents] = useState<AutonomousAgentItem[]>([]);
+  const [autonomousFormulaRuns, setAutonomousFormulaRuns] = useState<AutonomousFormulaRunItem[]>([]);
+  const [smartFactoryIotItems, setSmartFactoryIotItems] = useState<SmartFactoryIotItem[]>([]);
+  const [aiOptimizationRuns, setAiOptimizationRuns] = useState<AiOptimizationRunItem[]>([]);
+  const [selfDrivingTasks, setSelfDrivingTasks] = useState<SelfDrivingPlmTaskItem[]>([]);
+  const [ultimateBStatus, setUltimateBStatus] = useState("");
+  const [selfDrivingGoal, setSelfDrivingGoal] = useState("미국 수출용 세라마이드 장벽 크림을 개발하고 출시 준비까지 진행해줘");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -1231,6 +1995,218 @@ export default function EnterprisePage() {
       goLiveTotal: goLiveChecklistItems.length,
     };
   }, [productionReadinessItems, releaseCandidateItems, goLiveChecklistItems]);
+
+  const uatMigrationStats = useMemo(() => {
+    return {
+      uatTotal: uatScenarios.length,
+      uatPass: uatScenarios.filter((item) => item.status === "PASS").length,
+      uatFail: uatScenarios.filter((item) => item.status === "FAIL").length,
+      batches: migrationBatches.length,
+      migrationDone: migrationBatches.filter((item) => item.status === "DONE").length,
+      migrationError: migrationBatches.filter((item) => item.status === "ERROR").length,
+      trainingDone: trainingItems.filter((item) => item.status === "DONE").length,
+      trainingTotal: trainingItems.length,
+    };
+  }, [uatScenarios, migrationBatches, trainingItems]);
+
+  const goLiveStats = useMemo(() => {
+    return {
+      operations: goLiveOperations.length,
+      active: goLiveOperations.filter((item) => item.status === "ACTIVE").length,
+      monitoring: goLiveOperations.filter((item) => item.status === "MONITORING").length,
+      issues: goLiveIssues.length,
+      openIssues: goLiveIssues.filter((item) => item.status === "OPEN" || item.status === "IN_PROGRESS").length,
+      critical: goLiveIssues.filter((item) => item.severity === "CRITICAL").length,
+      metricsGood: dailyMetrics.filter((item) => item.status === "GOOD").length,
+      metricsTotal: dailyMetrics.length,
+    };
+  }, [goLiveOperations, goLiveIssues, dailyMetrics]);
+
+  const monitoringStats = useMemo(() => {
+    return {
+      backupJobs: backupJobs.length,
+      backupSuccess: backupJobs.filter((item) => item.status === "SUCCESS").length,
+      backupFailed: backupJobs.filter((item) => item.status === "FAILED").length,
+      checks: monitoringChecks.length,
+      pass: monitoringChecks.filter((item) => item.status === "PASS").length,
+      warn: monitoringChecks.filter((item) => item.status === "WARN").length,
+      fail: monitoringChecks.filter((item) => item.status === "FAIL").length,
+      openErrors: errorLogs.filter((item) => item.status !== "RESOLVED").length,
+      criticalErrors: errorLogs.filter((item) => item.severity === "CRITICAL" && item.status !== "RESOLVED").length,
+    };
+  }, [backupJobs, monitoringChecks, errorLogs]);
+
+  const stabilizationStats = useMemo(() => {
+    return {
+      total: stabilizationItems.length,
+      stable: stabilizationItems.filter((item) => item.status === "STABLE").length,
+      locked: stabilizationItems.filter((item) => item.status === "LOCKED").length,
+      watch: stabilizationItems.filter((item) => item.status === "WATCH").length,
+      fixRequired: stabilizationItems.filter((item) => item.status === "FIX_REQUIRED").length,
+      p0: stabilizationItems.filter((item) => item.priority === "P0" && item.status !== "LOCKED").length,
+      releaseIncluded: v1ReleaseNotes.filter((item) => item.status === "INCLUDED").length,
+      postGoLiveDone: postGoLiveTasks.filter((item) => item.status === "DONE").length,
+      postGoLiveTotal: postGoLiveTasks.length,
+    };
+  }, [stabilizationItems, v1ReleaseNotes, postGoLiveTasks]);
+
+  const workflowStats = useMemo(() => {
+    return {
+      templates: workflowTemplates.length,
+      activeTemplates: workflowTemplates.filter((item) => item.status === "ACTIVE").length,
+      steps: workflowSteps.length,
+      runs: workflowRuns.length,
+      inProgress: workflowRuns.filter((item) => item.status === "IN_PROGRESS" || item.status === "WAITING_APPROVAL").length,
+      blocked: workflowRuns.filter((item) => item.status === "BLOCKED").length,
+      tasks: workflowTasks.length,
+      taskDone: workflowTasks.filter((item) => item.status === "DONE").length,
+      taskBlocked: workflowTasks.filter((item) => item.status === "BLOCKED").length,
+    };
+  }, [workflowTemplates, workflowSteps, workflowRuns, workflowTasks]);
+
+  const simulationStats = useMemo(() => {
+    return {
+      inputs: simulationInputs.length,
+      results: simulationResults.length,
+      highRisk: simulationResults.filter((item) => item.risk_level === "HIGH").length,
+      mediumRisk: simulationResults.filter((item) => item.risk_level === "MEDIUM").length,
+      substitutions: substitutionItems.length,
+      optimizations: optimizationItems.length,
+      p0: optimizationItems.filter((item) => item.priority === "P0").length,
+    };
+  }, [simulationInputs, simulationResults, substitutionItems, optimizationItems]);
+
+  const scaleUpStats = useMemo(() => {
+    return {
+      batches: scaleUpBatches.length,
+      ready: scaleUpBatches.filter((item) => item.status === "READY" || item.status === "APPROVED").length,
+      blocked: scaleUpBatches.filter((item) => item.status === "BLOCKED").length,
+      bom: bomItems.length,
+      totalRequiredKg: Math.round(bomItems.reduce((sum, item) => sum + item.required_kg, 0) * 100) / 100,
+      totalPurchaseKg: Math.round(bomItems.reduce((sum, item) => sum + item.purchase_kg, 0) * 100) / 100,
+      totalAmount: Math.round(bomItems.reduce((sum, item) => sum + item.amount, 0)),
+      highRisk: scaleUpRisks.filter((item) => item.level === "HIGH").length,
+    };
+  }, [scaleUpBatches, bomItems, scaleUpRisks]);
+
+  const elnStats = useMemo(() => {
+    return {
+      experiments: elnExperiments.length,
+      inProgress: elnExperiments.filter((item) => item.status === "IN_PROGRESS").length,
+      review: elnExperiments.filter((item) => item.status === "REVIEW").length,
+      signed: elnExperiments.filter((item) => item.status === "SIGNED").length,
+      observations: elnObservations.length,
+      fail: elnObservations.filter((item) => item.result === "FAIL").length,
+      watch: elnObservations.filter((item) => item.result === "WATCH").length,
+      attachments: elnAttachments.length,
+      signatures: elnSignatures.length,
+    };
+  }, [elnExperiments, elnObservations, elnAttachments, elnSignatures]);
+
+  const limsStats = useMemo(() => {
+    return {
+      samples: limsSamples.length,
+      testing: limsSamples.filter((item) => item.status === "TESTING").length,
+      approved: limsSamples.filter((item) => item.status === "APPROVED").length,
+      rejected: limsSamples.filter((item) => item.status === "REJECTED").length,
+      tests: limsTests.length,
+      pass: limsTests.filter((item) => item.judgment === "PASS").length,
+      oos: limsTests.filter((item) => item.judgment === "OOS").length,
+      oot: limsTests.filter((item) => item.judgment === "OOT").length,
+      stabilityFail: limsStabilities.filter((item) => item.result === "FAIL").length,
+      coas: limsCoas.length,
+      issued: limsCoas.filter((item) => item.status === "ISSUED").length,
+    };
+  }, [limsSamples, limsTests, limsStabilities, limsCoas]);
+
+  const mesStats = useMemo(() => {
+    return {
+      workOrders: mesWorkOrders.length,
+      released: mesWorkOrders.filter((item) => item.status === "RELEASED" || item.status === "IN_PRODUCTION").length,
+      completed: mesWorkOrders.filter((item) => item.status === "COMPLETED").length,
+      qcHold: mesWorkOrders.filter((item) => item.status === "QC_HOLD").length,
+      lots: mesLots.length,
+      consumedLots: mesLots.filter((item) => item.status === "CONSUMED").length,
+      processLogs: mesProcessLogs.length,
+      deviations: mesDeviations.filter((item) => item.status !== "CLOSED").length,
+      critical: mesDeviations.filter((item) => item.severity === "CRITICAL" && item.status !== "CLOSED").length,
+    };
+  }, [mesWorkOrders, mesLots, mesProcessLogs, mesDeviations]);
+
+  const v2PackageStats = useMemo(() => {
+    return {
+      flows: v2Flows.length,
+      connected: v2Flows.filter((item) => item.status === "CONNECTED").length,
+      watch: v2Flows.filter((item) => item.status === "WATCH").length,
+      blocked: v2Flows.filter((item) => item.status === "BLOCKED").length,
+      twins: digitalTwinItems.length,
+      twinHigh: digitalTwinItems.filter((item) => item.risk_level === "HIGH").length,
+      aiSuggestions: aiFormulaExpertItems.length,
+      p0: aiFormulaExpertItems.filter((item) => item.priority === "P0").length,
+      regBlocked: globalRegAiItems.filter((item) => item.status === "BLOCKED").length,
+      analyticsRisk: enterpriseAnalyticsItems.filter((item) => item.status === "RISK").length,
+    };
+  }, [v2Flows, digitalTwinItems, aiFormulaExpertItems, globalRegAiItems, enterpriseAnalyticsItems]);
+
+  const v3PackageStats = useMemo(() => {
+    return {
+      copilot: aiCopilotActions.length,
+      copilotDone: aiCopilotActions.filter((item) => item.status === "DONE").length,
+      qmsOpen: qmsProcesses.filter((item) => item.status !== "CLOSED").length,
+      capa: qmsProcesses.filter((item) => item.process === "CAPA").length,
+      dmsEffective: dmsDocuments.filter((item) => item.status === "EFFECTIVE").length,
+      dmsTotal: dmsDocuments.length,
+      validationPassed: validationProtocols.filter((item) => item.status === "PASSED").length,
+      validationTotal: validationProtocols.length,
+      graphNodes: knowledgeGraphItems.length,
+      highRisk: aiCopilotActions.filter((item) => item.risk_level === "HIGH").length,
+    };
+  }, [aiCopilotActions, qmsProcesses, dmsDocuments, validationProtocols, knowledgeGraphItems]);
+
+  const v4PackageStats = useMemo(() => {
+    return {
+      insights: patentPaperInsights.length,
+      highRelevance: patentPaperInsights.filter((item) => item.relevance_score >= 85).length,
+      rawMarkets: rawMaterialMarkets.length,
+      supplyHigh: rawMaterialMarkets.filter((item) => item.supply_risk === "HIGH").length,
+      optimizations: costOptimizations.length,
+      avgSaving: costOptimizations.length ? Math.round(costOptimizations.reduce((sum, item) => sum + item.saving_percent, 0) / costOptimizations.length) : 0,
+      plants: multiPlantItems.length,
+      availablePlants: multiPlantItems.filter((item) => item.status === "AVAILABLE").length,
+      apis: apiHubItems.length,
+      activeApis: apiHubItems.filter((item) => item.status === "ACTIVE").length,
+    };
+  }, [patentPaperInsights, rawMaterialMarkets, costOptimizations, multiPlantItems, apiHubItems]);
+
+  const ultimateAStats = useMemo(() => {
+    return {
+      research: aiResearchProjects.length,
+      candidates: aiFormulaCandidates.length,
+      highLaunch: aiFormulaCandidates.filter((item) => item.launch_score >= 85).length,
+      kgLinks: knowledgeEngineLinks.length,
+      factory: factorySimulations.length,
+      factoryHigh: factorySimulations.filter((item) => item.risk_level === "HIGH").length,
+      dataLake: dataLakeRecords.length,
+      aiReady: dataLakeRecords.filter((item) => item.ai_ready).length,
+      decisions: decisionCenterItems.length,
+      holds: decisionCenterItems.filter((item) => item.decision_status === "HOLD").length,
+    };
+  }, [aiResearchProjects, aiFormulaCandidates, knowledgeEngineLinks, factorySimulations, dataLakeRecords, decisionCenterItems]);
+
+  const ultimateBStats = useMemo(() => {
+    return {
+      agents: autonomousAgents.length,
+      runningAgents: autonomousAgents.filter((item) => item.status === "RUNNING").length,
+      agentReview: autonomousAgents.filter((item) => item.status === "NEEDS_REVIEW" || item.status === "BLOCKED").length,
+      formulaRuns: autonomousFormulaRuns.length,
+      readyFormulas: autonomousFormulaRuns.filter((item) => item.validation_status === "READY").length,
+      iotAlarms: smartFactoryIotItems.filter((item) => item.status === "ALARM").length,
+      iotWarnings: smartFactoryIotItems.filter((item) => item.status === "WARNING").length,
+      optimizations: aiOptimizationRuns.length,
+      selfDriving: selfDrivingTasks.length,
+      completedTasks: selfDrivingTasks.filter((item) => item.status === "COMPLETED").length,
+    };
+  }, [autonomousAgents, autonomousFormulaRuns, smartFactoryIotItems, aiOptimizationRuns, selfDrivingTasks]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -3612,13 +4588,2257 @@ export default function EnterprisePage() {
     ]);
   }
 
+  function generateUatMigrationPlan() {
+    const scenarios: UatScenarioItem[] = [
+      {
+        id: "UAT-RND-001",
+        team: "R&D",
+        scenario: "신규 프로젝트 등록 후 처방 생성",
+        expected_result: "프로젝트 코드와 처방 코드가 생성되고 목록에 표시됨",
+        status: "TODO",
+        owner: "연구팀",
+      },
+      {
+        id: "UAT-RND-002",
+        team: "R&D",
+        scenario: "성분 검색 1,000건 이상 환경에서 키워드 조회",
+        expected_result: "페이지네이션으로 3초 이내 조회",
+        status: "TODO",
+        owner: "연구팀",
+      },
+      {
+        id: "UAT-QA-001",
+        team: "QA",
+        scenario: "처방 승인 요청 후 Approve 처리",
+        expected_result: "승인 상태가 Approved로 변경되고 Audit 기록 생성",
+        status: "TODO",
+        owner: "QA",
+      },
+      {
+        id: "UAT-QC-001",
+        team: "QC",
+        scenario: "원료문서 만료일 등록 및 만료임박 체크",
+        expected_result: "EXPIRING/WARN 상태가 표시됨",
+        status: "TODO",
+        owner: "QC",
+      },
+      {
+        id: "UAT-RA-001",
+        team: "RA",
+        scenario: "EU 규제 영향도 분석 실행",
+        expected_result: "Restricted/Prohibited 성분 경고가 표시됨",
+        status: "TODO",
+        owner: "RA",
+      },
+      {
+        id: "UAT-SALES-001",
+        team: "Sales",
+        scenario: "고객 포털 공개 상태 변경",
+        expected_result: "visible_to_customer 상태에 따라 고객 공개 여부 변경",
+        status: "TODO",
+        owner: "영업",
+      },
+      {
+        id: "UAT-ADMIN-001",
+        team: "Admin",
+        scenario: "사용자 Role 변경 및 비활성화",
+        expected_result: "Role/Active 상태가 변경되고 Audit 기록 생성",
+        status: "TODO",
+        owner: "관리자",
+      },
+    ];
+
+    const batches: MigrationBatchItem[] = [
+      {
+        id: "MIG-001",
+        source: "Excel",
+        target_table: "ingredient_master_global",
+        data_type: "성분마스터",
+        estimated_rows: 1000,
+        status: "READY",
+        note: "INCI, 국문명, CAS, EC, 기능 컬럼 매핑 필요",
+      },
+      {
+        id: "MIG-002",
+        source: "Excel",
+        target_table: "enterprise_raw_materials",
+        data_type: "원료마스터",
+        estimated_rows: 300,
+        status: "READY",
+        note: "원료코드/원료명/공급사/대표 INCI 매핑",
+      },
+      {
+        id: "MIG-003",
+        source: "CSV",
+        target_table: "enterprise_country_regulations",
+        data_type: "국가별 규제",
+        estimated_rows: 500,
+        status: "READY",
+        note: "국가코드, INCI, CAS, 규제유형, 한도 매핑",
+      },
+      {
+        id: "MIG-004",
+        source: "Manual",
+        target_table: "enterprise_projects",
+        data_type: "진행 프로젝트",
+        estimated_rows: 20,
+        status: "READY",
+        note: "운영 시작 시점의 활성 프로젝트만 우선 이관",
+      },
+      {
+        id: "MIG-005",
+        source: "Manual",
+        target_table: "user_profiles",
+        data_type: "사용자/권한",
+        estimated_rows: 10,
+        status: "READY",
+        note: "관리자, 연구원, QA, RA 역할 확인",
+      },
+    ];
+
+    const trainings: TrainingItem[] = [
+      { role: "연구팀", training_topic: "프로젝트/처방/원료 등록", status: "TODO", material: "Enterprise Project, Formula, Ingredient Module" },
+      { role: "QA/QC", training_topic: "승인관리/문서센터/안정도", status: "TODO", material: "Quality Module" },
+      { role: "RA", training_topic: "국가별 규제/영향도 분석", status: "TODO", material: "Regulation Module" },
+      { role: "관리자", training_topic: "사용자 권한/Audit/System Health", status: "TODO", material: "Admin + Production RC" },
+      { role: "영업", training_topic: "고객 포털/샘플 피드백", status: "TODO", material: "Customer Module" },
+    ];
+
+    setUatScenarios(scenarios);
+    setMigrationBatches(batches);
+    setTrainingItems(trainings);
+    setUatMigrationStatus(`UAT/Migration Plan 생성 완료: UAT ${scenarios.length}건 / Migration ${batches.length}건 / Training ${trainings.length}건`);
+  }
+
+  function updateUatStatus(id: string, status: UatScenarioItem["status"]) {
+    setUatScenarios((prev) => prev.map((item) => item.id === id ? { ...item, status } : item));
+  }
+
+  function updateMigrationStatus(id: string, status: MigrationBatchItem["status"]) {
+    setMigrationBatches((prev) => prev.map((item) => item.id === id ? { ...item, status } : item));
+  }
+
+  function updateTrainingStatus(role: string, topic: string, status: TrainingItem["status"]) {
+    setTrainingItems((prev) => prev.map((item) => item.role === role && item.training_topic === topic ? { ...item, status } : item));
+  }
+
+  function exportUatScenariosCsv() {
+    exportCsv("enterprise_uat_scenarios.csv", [
+      ["id", "team", "scenario", "expected_result", "status", "owner"],
+      ...uatScenarios.map((item) => [item.id, item.team, item.scenario, item.expected_result, item.status, item.owner]),
+    ]);
+  }
+
+  function exportMigrationBatchesCsv() {
+    exportCsv("enterprise_data_migration_batches.csv", [
+      ["id", "source", "target_table", "data_type", "estimated_rows", "status", "note"],
+      ...migrationBatches.map((item) => [item.id, item.source, item.target_table, item.data_type, item.estimated_rows, item.status, item.note]),
+    ]);
+  }
+
+  function exportTrainingPlanCsv() {
+    exportCsv("enterprise_training_plan.csv", [
+      ["role", "training_topic", "status", "material"],
+      ...trainingItems.map((item) => [item.role, item.training_topic, item.status, item.material]),
+    ]);
+  }
+
+  function initializeGoLiveMode() {
+    const operations: GoLiveOperationItem[] = [
+      {
+        id: "GL-001",
+        area: "System",
+        operation: "Production URL 접속 확인",
+        status: "READY",
+        owner: "IT",
+        check_point: "Vercel Production URL에서 /enterprise 접속 가능",
+      },
+      {
+        id: "GL-002",
+        area: "Data",
+        operation: "초기 데이터 이관 확인",
+        status: migrationBatches.some((item) => item.status === "DONE") ? "READY" : "MONITORING",
+        owner: "Admin",
+        check_point: "성분/원료/프로젝트 기본 데이터 존재",
+      },
+      {
+        id: "GL-003",
+        area: "User",
+        operation: "사용자 권한 확인",
+        status: adminUsers.some((item) => item.role === "manager" && item.is_active) ? "READY" : "ISSUE",
+        owner: "Admin",
+        check_point: "manager 1명 이상 활성화",
+      },
+      {
+        id: "GL-004",
+        area: "Process",
+        operation: "연구팀 프로젝트/처방 등록",
+        status: "READY",
+        owner: "R&D",
+        check_point: "프로젝트 등록 → 처방 등록 → 원료 연결 시나리오",
+      },
+      {
+        id: "GL-005",
+        area: "Process",
+        operation: "QA 승인/문서 검토",
+        status: qualityStats.expired > 0 ? "ISSUE" : "READY",
+        owner: "QA",
+        check_point: "만료 문서 없이 승인 흐름 가능",
+      },
+      {
+        id: "GL-006",
+        area: "Process",
+        operation: "RA 규제 영향도 검토",
+        status: regulations.length > 0 ? "READY" : "ISSUE",
+        owner: "RA",
+        check_point: "판매국가별 규제 검토 가능",
+      },
+      {
+        id: "GL-007",
+        area: "Support",
+        operation: "운영 지원 채널",
+        status: "READY",
+        owner: "Admin",
+        check_point: "이슈 접수 및 처리 담당자 지정",
+      },
+      {
+        id: "GL-008",
+        area: "Security",
+        operation: "외부 포털 접근 제한",
+        status: externalAccountMappings.length > 0 ? "MONITORING" : "READY",
+        owner: "Admin",
+        check_point: "고객/공급사 외부 계정 매핑 확인",
+      },
+    ];
+
+    const metrics: DailyOperationMetric[] = [
+      {
+        metric: "Active Users",
+        value: adminUsers.filter((item) => item.is_active).length,
+        status: adminUsers.filter((item) => item.is_active).length > 0 ? "GOOD" : "RISK",
+        note: "활성 사용자 수",
+      },
+      {
+        metric: "Open Projects",
+        value: projects.filter((item) => item.status !== "출시" && item.status !== "보류").length,
+        status: "GOOD",
+        note: "운영 중 프로젝트",
+      },
+      {
+        metric: "Pending Approvals",
+        value: approvalRecords.filter((item) => item.status === "Requested").length,
+        status: approvalRecords.filter((item) => item.status === "Requested").length > 5 ? "WATCH" : "GOOD",
+        note: "승인 대기",
+      },
+      {
+        metric: "Expired Documents",
+        value: qualityStats.expired,
+        status: qualityStats.expired > 0 ? "RISK" : "GOOD",
+        note: "만료 문서",
+      },
+      {
+        metric: "High Regulation Risk",
+        value: regImpacts.filter((item) => item.risk === "HIGH").length,
+        status: regImpacts.filter((item) => item.risk === "HIGH").length > 0 ? "RISK" : "GOOD",
+        note: "규제 HIGH 이슈",
+      },
+      {
+        metric: "Open Issues",
+        value: goLiveIssues.filter((item) => item.status === "OPEN" || item.status === "IN_PROGRESS").length,
+        status: goLiveIssues.some((item) => item.severity === "CRITICAL") ? "RISK" : goLiveIssues.length > 0 ? "WATCH" : "GOOD",
+        note: "운영 이슈",
+      },
+    ];
+
+    setGoLiveOperations(operations);
+    setDailyMetrics(metrics);
+    setGoLiveStatus(`Go-Live 운영모드 초기화 완료: ${operations.length}개 운영 항목 / ${metrics.length}개 일일 지표`);
+  }
+
+  function activateGoLiveMode() {
+    setOperationMode("LIVE");
+    setGoLiveOperations((prev) => prev.map((item) => item.status === "READY" ? { ...item, status: "ACTIVE" } : item));
+    setGoLiveStatus("운영모드 LIVE 전환 완료");
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "ACTIVATE_GO_LIVE",
+        module: "GoLive",
+        target: "Enterprise v1.0",
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+  }
+
+  function addGoLiveIssue(severity: GoLiveIssueItem["severity"], module: string, issue: string, owner: string) {
+    const newIssue: GoLiveIssueItem = {
+      id: `ISS-${String(goLiveIssues.length + 1).padStart(3, "0")}`,
+      severity,
+      module,
+      issue,
+      status: "OPEN",
+      owner,
+    };
+    setGoLiveIssues([newIssue, ...goLiveIssues]);
+  }
+
+  function resolveGoLiveIssue(id: string) {
+    setGoLiveIssues((prev) => prev.map((item) => item.id === id ? { ...item, status: "RESOLVED" } : item));
+  }
+
+  function exportGoLiveOperationsCsv() {
+    exportCsv("enterprise_go_live_operations.csv", [
+      ["id", "area", "operation", "status", "owner", "check_point"],
+      ...goLiveOperations.map((item) => [item.id, item.area, item.operation, item.status, item.owner, item.check_point]),
+    ]);
+  }
+
+  function exportGoLiveIssuesCsv() {
+    exportCsv("enterprise_go_live_issues.csv", [
+      ["id", "severity", "module", "issue", "status", "owner"],
+      ...goLiveIssues.map((item) => [item.id, item.severity, item.module, item.issue, item.status, item.owner]),
+    ]);
+  }
+
+  function exportDailyMetricsCsv() {
+    exportCsv("enterprise_daily_operation_metrics.csv", [
+      ["metric", "value", "status", "note"],
+      ...dailyMetrics.map((item) => [item.metric, item.value, item.status, item.note]),
+    ]);
+  }
+
+  function initializeMonitoringCenter() {
+    const backups: BackupJobItem[] = [
+      {
+        id: "BKP-001",
+        target: "enterprise_projects / enterprise_formulas",
+        backup_type: "DB",
+        schedule: "Daily",
+        status: "READY",
+        last_run: "-",
+        note: "핵심 프로젝트/처방 테이블 일일 백업",
+      },
+      {
+        id: "BKP-002",
+        target: "ingredient_master_global / enterprise_raw_materials",
+        backup_type: "CSV",
+        schedule: "Weekly",
+        status: "READY",
+        last_run: "-",
+        note: "성분/원료마스터 CSV 백업",
+      },
+      {
+        id: "BKP-003",
+        target: "material_documents",
+        backup_type: "Storage",
+        schedule: "Weekly",
+        status: "READY",
+        last_run: "-",
+        note: "원료문서 Storage URL 및 문서 목록 백업",
+      },
+      {
+        id: "BKP-004",
+        target: ".env / RLS / SQL migrations",
+        backup_type: "Config",
+        schedule: "Manual",
+        status: "READY",
+        last_run: "-",
+        note: "운영 환경설정 및 SQL 파일 수동 백업",
+      },
+    ];
+
+    const checks: MonitoringCheckItem[] = [
+      {
+        id: "MON-001",
+        category: "Database",
+        check_name: "Core tables available",
+        status: projects.length > 0 || formulas.length > 0 ? "PASS" : "WARN",
+        value: `projects ${projects.length} / formulas ${formulas.length}`,
+        action: "운영 전 테스트 데이터 또는 실제 데이터 확인",
+      },
+      {
+        id: "MON-002",
+        category: "Auth",
+        check_name: "Active manager account",
+        status: adminUsers.some((item) => item.role === "manager" && item.is_active) ? "PASS" : "FAIL",
+        value: adminUsers.filter((item) => item.role === "manager" && item.is_active).length,
+        action: "관리자 계정 활성화 필요",
+      },
+      {
+        id: "MON-003",
+        category: "DataQuality",
+        check_name: "Expired documents",
+        status: qualityStats.expired > 0 ? "FAIL" : qualityStats.expiring > 0 ? "WARN" : "PASS",
+        value: qualityStats.expired,
+        action: "만료 문서 갱신",
+      },
+      {
+        id: "MON-004",
+        category: "DataQuality",
+        check_name: "Raw composition total",
+        status: ingredientStats.invalidComposition > 0 ? "FAIL" : "PASS",
+        value: ingredientStats.invalidComposition,
+        action: "원료조성 100% 오류 수정",
+      },
+      {
+        id: "MON-005",
+        category: "API",
+        check_name: "Supabase CRUD bridge",
+        status: supabaseBridgeItems.length > 0 ? "PASS" : "WARN",
+        value: supabaseBridgeItems.length,
+        action: "Supabase Bridge 메뉴에서 CRUD Bridge 생성",
+      },
+      {
+        id: "MON-006",
+        category: "Build",
+        check_name: "Next build readiness",
+        status: "PASS",
+        value: "npm run build passed",
+        action: "Vercel 배포 로그 주기 확인",
+      },
+    ];
+
+    const errors: ErrorLogItem[] = [
+      {
+        id: "ERR-001",
+        severity: "LOW",
+        module: "Monitoring",
+        message: "초기 모니터링 센터 생성",
+        status: "RESOLVED",
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+    ];
+
+    setBackupJobs(backups);
+    setMonitoringChecks(checks);
+    setErrorLogs(errors);
+    setMonitoringStatus(`Monitoring Center 초기화 완료: 백업 ${backups.length}개 / 체크 ${checks.length}개`);
+  }
+
+  function runBackupJob(id: string) {
+    setBackupJobs((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, status: "SUCCESS", last_run: new Date().toISOString().slice(0, 16).replace("T", " ") }
+          : item
+      )
+    );
+  }
+
+  function rerunMonitoringChecks() {
+    setMonitoringChecks((prev) =>
+      prev.map((item) => {
+        if (item.id === "MON-003") {
+          return {
+            ...item,
+            status: qualityStats.expired > 0 ? "FAIL" : qualityStats.expiring > 0 ? "WARN" : "PASS",
+            value: qualityStats.expired,
+          };
+        }
+
+        if (item.id === "MON-004") {
+          return {
+            ...item,
+            status: ingredientStats.invalidComposition > 0 ? "FAIL" : "PASS",
+            value: ingredientStats.invalidComposition,
+          };
+        }
+
+        return item;
+      })
+    );
+
+    setMonitoringStatus("Monitoring Check 재실행 완료");
+  }
+
+  function addErrorLog(severity: ErrorLogItem["severity"], module: string, message: string) {
+    const error: ErrorLogItem = {
+      id: `ERR-${String(errorLogs.length + 1).padStart(3, "0")}`,
+      severity,
+      module,
+      message,
+      status: "OPEN",
+      created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+    };
+
+    setErrorLogs([error, ...errorLogs]);
+  }
+
+  function resolveErrorLog(id: string) {
+    setErrorLogs((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "RESOLVED" } : item
+      )
+    );
+  }
+
+  function exportBackupJobsCsv() {
+    exportCsv("enterprise_backup_jobs.csv", [
+      ["id", "target", "backup_type", "schedule", "status", "last_run", "note"],
+      ...backupJobs.map((item) => [item.id, item.target, item.backup_type, item.schedule, item.status, item.last_run, item.note]),
+    ]);
+  }
+
+  function exportMonitoringChecksCsv() {
+    exportCsv("enterprise_monitoring_checks.csv", [
+      ["id", "category", "check_name", "status", "value", "action"],
+      ...monitoringChecks.map((item) => [item.id, item.category, item.check_name, item.status, item.value, item.action]),
+    ]);
+  }
+
+  function exportErrorLogsCsv() {
+    exportCsv("enterprise_error_logs.csv", [
+      ["id", "severity", "module", "message", "status", "created_at"],
+      ...errorLogs.map((item) => [item.id, item.severity, item.module, item.message, item.status, item.created_at]),
+    ]);
+  }
+
+  function exportEmergencyBackupCsv() {
+    exportCsv("enterprise_emergency_backup_snapshot.csv", [
+      ["table", "count", "backup_note"],
+      ["projects", projects.length, "Project master snapshot"],
+      ["formulas", formulas.length, "Formula master snapshot"],
+      ["ingredients", ingredients.length, "Ingredient sample snapshot"],
+      ["raw_materials", rawMaterials.length, "Raw material snapshot"],
+      ["quality_documents", qualityDocuments.length, "Document metadata snapshot"],
+      ["regulations", regulations.length, "Regulation DB snapshot"],
+      ["customer_portal", customerPortalItems.length, "Customer portal snapshot"],
+      ["supplier_tasks", supplierTasks.length, "Supplier task snapshot"],
+      ["audit_logs", adminAudits.length, "Audit log snapshot"],
+    ]);
+  }
+
+  function generateStabilizationPlan() {
+    const items: StabilizationItem[] = [
+      {
+        id: "STAB-001",
+        category: "Performance",
+        item: "성분관리 대량 데이터 조회",
+        status: ingredients.length >= 1000 ? "WATCH" : "STABLE",
+        priority: "P1",
+        owner: "IT",
+        action: "Supabase range pagination / 검색 인덱스 유지",
+      },
+      {
+        id: "STAB-002",
+        category: "Security",
+        item: "고객/공급사 외부 RLS",
+        status: externalAccountMappings.length > 0 ? "WATCH" : "STABLE",
+        priority: "P1",
+        owner: "Admin",
+        action: "외부 계정 매핑 실제 고객/공급사 기준으로 재검토",
+      },
+      {
+        id: "STAB-003",
+        category: "Data",
+        item: "원료조성 총합 100% 검증",
+        status: ingredientStats.invalidComposition > 0 ? "FIX_REQUIRED" : "STABLE",
+        priority: ingredientStats.invalidComposition > 0 ? "P0" : "P2",
+        owner: "R&D",
+        action: "원료조성 오류 원료 수정",
+      },
+      {
+        id: "STAB-004",
+        category: "Data",
+        item: "원료문서 만료 관리",
+        status: qualityStats.expired > 0 ? "FIX_REQUIRED" : qualityStats.expiring > 0 ? "WATCH" : "STABLE",
+        priority: qualityStats.expired > 0 ? "P0" : "P1",
+        owner: "QC",
+        action: "만료/임박 문서 갱신 요청",
+      },
+      {
+        id: "STAB-005",
+        category: "Process",
+        item: "처방 Lock/Release 운영규칙",
+        status: formulas.some((item) => item.is_locked || item.status === "Released") ? "STABLE" : "WATCH",
+        priority: "P1",
+        owner: "QA",
+        action: "최종 처방 잠금 기준 운영 교육",
+      },
+      {
+        id: "STAB-006",
+        category: "Process",
+        item: "규제 영향도 검토",
+        status: regImpacts.some((item) => item.risk === "HIGH") ? "FIX_REQUIRED" : "STABLE",
+        priority: regImpacts.some((item) => item.risk === "HIGH") ? "P0" : "P2",
+        owner: "RA",
+        action: "HIGH 규제 리스크 처방 출시 전 보류",
+      },
+      {
+        id: "STAB-007",
+        category: "UX",
+        item: "Enterprise 메뉴 구조",
+        status: "STABLE",
+        priority: "P2",
+        owner: "Admin",
+        action: "팀별 메뉴 그룹화는 v1.1에서 추가 개선",
+      },
+      {
+        id: "STAB-008",
+        category: "Release",
+        item: "v1.0 기준선 잠금",
+        status: "WATCH",
+        priority: "P1",
+        owner: "Admin",
+        action: "P0 이슈 0건 확인 후 Release Lock",
+      },
+    ];
+
+    const notes: V1ReleaseNoteItem[] = [
+      { module: "Project", version: v1Version, status: "INCLUDED", note: "프로젝트 등록/현황/상태 관리 포함" },
+      { module: "Formula", version: v1Version, status: "INCLUDED", note: "처방 Version/Clone/Lock/Approval 구조 포함" },
+      { module: "Ingredient", version: v1Version, status: "INCLUDED", note: "성분 검색/원료마스터/Seed Import 구조 포함" },
+      { module: "Quality", version: v1Version, status: "INCLUDED", note: "원료문서/안정도/승인관리 포함" },
+      { module: "Regulation", version: v1Version, status: "INCLUDED", note: "국가별 규제 DB/영향도 분석 포함" },
+      { module: "Customer/Supplier", version: v1Version, status: "LIMITED", note: "외부 포털 RLS 구조 포함, 실제 외부 운영은 계정 매핑 검증 후 확대" },
+      { module: "AI", version: v1Version, status: "LIMITED", note: "AI 분석 UI 포함, 실제 LLM/API 연동은 v1.1 이후 고도화" },
+      { module: "Monitoring", version: v1Version, status: "INCLUDED", note: "백업/모니터링/오류센터 포함" },
+    ];
+
+    const tasks: PostGoLiveTask[] = [
+      { week: "Week 1", task: "연구팀 프로젝트/처방 등록 실사용 모니터링", owner: "R&D/Admin", status: "TODO" },
+      { week: "Week 1", task: "원료/성분 데이터 누락 항목 보강", owner: "R&D", status: "TODO" },
+      { week: "Week 2", task: "QA 승인/문서 만료 흐름 실사용 점검", owner: "QA/QC", status: "TODO" },
+      { week: "Week 2", task: "RA 규제 영향도 분석 기준 보완", owner: "RA", status: "TODO" },
+      { week: "Week 3", task: "고객/공급사 외부 포털 테스트 계정 검증", owner: "Sales/Admin", status: "TODO" },
+      { week: "Week 3", task: "Audit Log 및 백업 CSV 정기 저장", owner: "Admin", status: "TODO" },
+      { week: "Week 4", task: "v1.1 개선 요구사항 정리", owner: "All", status: "TODO" },
+      { week: "Week 4", task: "Enterprise v1.0 운영 리뷰", owner: "Admin", status: "TODO" },
+    ];
+
+    setStabilizationItems(items);
+    setV1ReleaseNotes(notes);
+    setPostGoLiveTasks(tasks);
+    setStabilizationStatus(`v1.0 Stabilization Plan 생성 완료: 점검 ${items.length}건 / Release Note ${notes.length}건 / Post Go-Live ${tasks.length}건`);
+  }
+
+  function lockV1Baseline() {
+    const hasP0Fix = stabilizationItems.some((item) => item.priority === "P0" && item.status === "FIX_REQUIRED");
+    if (hasP0Fix) {
+      setStabilizationStatus("P0 FIX_REQUIRED 항목이 있어 v1.0 기준선 Lock을 보류합니다.");
+      return;
+    }
+
+    setStabilizationItems((prev) =>
+      prev.map((item) =>
+        item.category === "Release" || item.status === "STABLE" ? { ...item, status: "LOCKED" } : item
+      )
+    );
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "LOCK_V1_BASELINE",
+        module: "Stabilization",
+        target: v1Version,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setStabilizationStatus(`${v1Version} 기준선 Lock 완료`);
+  }
+
+  function updatePostGoLiveTask(week: string, task: string, status: PostGoLiveTask["status"]) {
+    setPostGoLiveTasks((prev) =>
+      prev.map((item) => item.week === week && item.task === task ? { ...item, status } : item)
+    );
+  }
+
+  function exportStabilizationCsv() {
+    exportCsv("enterprise_v1_stabilization.csv", [
+      ["id", "category", "item", "status", "priority", "owner", "action"],
+      ...stabilizationItems.map((item) => [item.id, item.category, item.item, item.status, item.priority, item.owner, item.action]),
+    ]);
+  }
+
+  function exportV1ReleaseNotesCsv() {
+    exportCsv("enterprise_v1_release_notes.csv", [
+      ["module", "version", "status", "note"],
+      ...v1ReleaseNotes.map((item) => [item.module, item.version, item.status, item.note]),
+    ]);
+  }
+
+  function exportPostGoLivePlanCsv() {
+    exportCsv("enterprise_post_go_live_4week_plan.csv", [
+      ["week", "task", "owner", "status"],
+      ...postGoLiveTasks.map((item) => [item.week, item.task, item.owner, item.status]),
+    ]);
+  }
+
+  function generateWorkflowTemplates() {
+    const templates: WorkflowTemplateItem[] = [
+      {
+        id: "WF-001",
+        workflow_name: "신제품 개발 표준 Workflow",
+        trigger_module: "Project",
+        status: "ACTIVE",
+        owner_team: "R&D",
+        description: "프로젝트 생성부터 처방, QA/RA 검토, 고객 샘플, 출시 준비까지 연결",
+      },
+      {
+        id: "WF-002",
+        workflow_name: "처방 변경 승인 Workflow",
+        trigger_module: "Formula",
+        status: "ACTIVE",
+        owner_team: "QA",
+        description: "처방 변경 시 영향도 분석, QA 승인, 고객 제출 여부 검토",
+      },
+      {
+        id: "WF-003",
+        workflow_name: "원료 문서 갱신 Workflow",
+        trigger_module: "Quality",
+        status: "ACTIVE",
+        owner_team: "QC",
+        description: "원료문서 만료/임박 시 공급사 요청과 문서 갱신",
+      },
+      {
+        id: "WF-004",
+        workflow_name: "규제 변경 영향도 Workflow",
+        trigger_module: "Regulation",
+        status: "ACTIVE",
+        owner_team: "RA",
+        description: "국가별 규제 변경 시 관련 성분/처방/고객 프로젝트 영향도 검토",
+      },
+      {
+        id: "WF-005",
+        workflow_name: "고객 샘플 피드백 Workflow",
+        trigger_module: "Customer",
+        status: "ACTIVE",
+        owner_team: "Sales",
+        description: "샘플 발송 후 고객 피드백을 처방 Revision과 승인관리로 연결",
+      },
+    ];
+
+    const steps: WorkflowStepItem[] = [
+      { id: "WFS-001", workflow_id: "WF-001", step_no: 1, step_name: "프로젝트 요구사항 등록", owner_team: "R&D", action_type: "TASK", due_days: 1, required: true },
+      { id: "WFS-002", workflow_id: "WF-001", step_no: 2, step_name: "AI/유사 처방 검토", owner_team: "R&D", action_type: "CHECK", due_days: 2, required: true },
+      { id: "WFS-003", workflow_id: "WF-001", step_no: 3, step_name: "처방 Draft 작성", owner_team: "R&D", action_type: "TASK", due_days: 3, required: true },
+      { id: "WFS-004", workflow_id: "WF-001", step_no: 4, step_name: "원가/BOM 사전 검토", owner_team: "R&D", action_type: "CHECK", due_days: 1, required: true },
+      { id: "WFS-005", workflow_id: "WF-001", step_no: 5, step_name: "QA 안정성/문서 검토", owner_team: "QA", action_type: "APPROVAL", due_days: 3, required: true },
+      { id: "WFS-006", workflow_id: "WF-001", step_no: 6, step_name: "RA 규제 영향도 검토", owner_team: "RA", action_type: "APPROVAL", due_days: 3, required: true },
+      { id: "WFS-007", workflow_id: "WF-001", step_no: 7, step_name: "샘플 발송 및 고객 피드백", owner_team: "Sales", action_type: "TASK", due_days: 5, required: true },
+      { id: "WFS-008", workflow_id: "WF-001", step_no: 8, step_name: "출시 준비 Gate", owner_team: "Admin", action_type: "SYSTEM", due_days: 1, required: true },
+
+      { id: "WFS-009", workflow_id: "WF-002", step_no: 1, step_name: "처방 변경 사유 입력", owner_team: "R&D", action_type: "TASK", due_days: 1, required: true },
+      { id: "WFS-010", workflow_id: "WF-002", step_no: 2, step_name: "Master Repository 영향도 분석", owner_team: "R&D", action_type: "CHECK", due_days: 1, required: true },
+      { id: "WFS-011", workflow_id: "WF-002", step_no: 3, step_name: "QA 변경 승인", owner_team: "QA", action_type: "APPROVAL", due_days: 2, required: true },
+      { id: "WFS-012", workflow_id: "WF-002", step_no: 4, step_name: "고객 제출자료 재생성", owner_team: "Sales", action_type: "DOCUMENT", due_days: 2, required: false },
+
+      { id: "WFS-013", workflow_id: "WF-003", step_no: 1, step_name: "만료 문서 확인", owner_team: "QC", action_type: "CHECK", due_days: 1, required: true },
+      { id: "WFS-014", workflow_id: "WF-003", step_no: 2, step_name: "공급사 문서 요청", owner_team: "QC", action_type: "NOTIFICATION", due_days: 1, required: true },
+      { id: "WFS-015", workflow_id: "WF-003", step_no: 3, step_name: "문서 수령 및 검토", owner_team: "QC", action_type: "APPROVAL", due_days: 5, required: true },
+    ];
+
+    setWorkflowTemplates(templates);
+    setWorkflowSteps(steps);
+    setWorkflowStatus(`Workflow Template 생성 완료: 템플릿 ${templates.length}개 / 단계 ${steps.length}개`);
+  }
+
+  function startWorkflowRun(workflowId: string) {
+    const template = workflowTemplates.find((item) => item.id === workflowId);
+    const templateSteps = workflowSteps.filter((item) => item.workflow_id === workflowId).sort((a, b) => a.step_no - b.step_no);
+    const firstStep = templateSteps[0];
+
+    if (!template || !firstStep) {
+      alert("워크플로우 템플릿과 단계가 필요합니다.");
+      return;
+    }
+
+    const run: WorkflowRunItem = {
+      id: `RUN-${String(workflowRuns.length + 1).padStart(3, "0")}`,
+      workflow_id: workflowId,
+      target: workflowTarget || "Target 미지정",
+      current_step: firstStep.step_name,
+      status: firstStep.action_type === "APPROVAL" ? "WAITING_APPROVAL" : "IN_PROGRESS",
+      progress: Math.round((1 / templateSteps.length) * 100),
+      owner: firstStep.owner_team,
+    };
+
+    const tasks: WorkflowTaskItem[] = templateSteps.map((step) => {
+      const due = new Date();
+      due.setDate(due.getDate() + step.due_days);
+      return {
+        id: `TASK-${workflowRuns.length + 1}-${step.step_no}`,
+        run_id: run.id,
+        task_name: step.step_name,
+        owner_team: step.owner_team,
+        status: step.step_no === 1 ? "IN_PROGRESS" : "TODO",
+        due_date: due.toISOString().slice(0, 10),
+        note: `${template.workflow_name} / ${step.action_type}`,
+      };
+    });
+
+    setWorkflowRuns([run, ...workflowRuns]);
+    setWorkflowTasks([...tasks, ...workflowTasks]);
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "관리자",
+        action: "START_WORKFLOW",
+        module: "Workflow",
+        target: `${template.workflow_name} / ${workflowTarget}`,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setWorkflowStatus(`${template.workflow_name} 실행 시작: ${run.id}`);
+  }
+
+  function completeWorkflowTask(taskId: string) {
+    const task = workflowTasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    setWorkflowTasks((prev) =>
+      prev.map((item) =>
+        item.id === taskId ? { ...item, status: "DONE" } : item
+      )
+    );
+
+    const runTasks = workflowTasks.filter((item) => item.run_id === task.run_id);
+    const completedCount = runTasks.filter((item) => item.status === "DONE").length + 1;
+    const progress = Math.round((completedCount / runTasks.length) * 100);
+    const nextTask = runTasks.find((item) => item.id !== taskId && item.status === "TODO");
+
+    setWorkflowRuns((prev) =>
+      prev.map((run) =>
+        run.id === task.run_id
+          ? {
+              ...run,
+              current_step: nextTask ? nextTask.task_name : "Completed",
+              status: progress >= 100 ? "COMPLETED" : nextTask?.task_name.includes("승인") ? "WAITING_APPROVAL" : "IN_PROGRESS",
+              progress,
+              owner: nextTask ? nextTask.owner_team : run.owner,
+            }
+          : run
+      )
+    );
+  }
+
+  function blockWorkflowRun(runId: string) {
+    setWorkflowRuns((prev) =>
+      prev.map((run) =>
+        run.id === runId ? { ...run, status: "BLOCKED" } : run
+      )
+    );
+  }
+
+  function exportWorkflowTemplatesCsv() {
+    exportCsv("enterprise_workflow_templates.csv", [
+      ["id", "workflow_name", "trigger_module", "status", "owner_team", "description"],
+      ...workflowTemplates.map((item) => [item.id, item.workflow_name, item.trigger_module, item.status, item.owner_team, item.description]),
+    ]);
+  }
+
+  function exportWorkflowRunsCsv() {
+    exportCsv("enterprise_workflow_runs.csv", [
+      ["id", "workflow_id", "target", "current_step", "status", "progress", "owner"],
+      ...workflowRuns.map((item) => [item.id, item.workflow_id, item.target, item.current_step, item.status, item.progress, item.owner]),
+    ]);
+  }
+
+  function exportWorkflowTasksCsv() {
+    exportCsv("enterprise_workflow_tasks.csv", [
+      ["id", "run_id", "task_name", "owner_team", "status", "due_date", "note"],
+      ...workflowTasks.map((item) => [item.id, item.run_id, item.task_name, item.owner_team, item.status, item.due_date, item.note]),
+    ]);
+  }
+
+  function runFormulaSimulation() {
+    const batchKg = Number(simulationBatchKg || 1);
+    const targetCost = Number(simulationTargetCost || 12000);
+    const targetPh = Number(simulationTargetPh || 5.5);
+    const targetViscosity = Number(simulationTargetViscosity || 3000);
+
+    const formula = formulas.find((item) => item.formula_code === simulationFormulaCode) || formulas[0];
+    const materialCost = formula?.material_cost || targetCost;
+    const predictedCost = Math.round(materialCost * (batchKg >= 100 ? 0.92 : batchKg >= 10 ? 0.96 : 1.0));
+    const predictedPh = Number((targetPh + (regulations.some((item) => item.regulation_type === "Restricted") ? -0.1 : 0.05)).toFixed(2));
+    const predictedViscosity = Math.round(targetViscosity * (batchKg >= 100 ? 0.95 : 1.02));
+
+    const stabilityScore = Math.max(60, 95 - stabilityRecords.filter((item) => item.result === "WATCH").length * 8 - qualityStats.expired * 12);
+    const highRegulationCount = regImpacts.filter((item) => item.risk === "HIGH").length;
+    const mediumRegulationCount = regImpacts.filter((item) => item.risk === "MEDIUM").length;
+    const regulationScore = Math.max(40, 100 - highRegulationCount * 25 - mediumRegulationCount * 10);
+    const costScore = predictedCost <= targetCost ? 100 : Math.max(50, 100 - Math.round(((predictedCost - targetCost) / targetCost) * 100));
+    const totalScore = Math.round((stabilityScore * 0.35 + regulationScore * 0.35 + costScore * 0.3));
+    const riskLevel: FormulaSimulationResult["risk_level"] = totalScore >= 85 ? "LOW" : totalScore >= 70 ? "MEDIUM" : "HIGH";
+
+    const input: FormulaSimulationInput = {
+      id: crypto.randomUUID(),
+      formula_code: simulationFormulaCode,
+      target_batch_kg: batchKg,
+      target_cost_per_kg: targetCost,
+      target_ph: targetPh,
+      target_viscosity: targetViscosity,
+      market_country: simulationCountry,
+    };
+
+    const result: FormulaSimulationResult = {
+      id: crypto.randomUUID(),
+      formula_code: simulationFormulaCode,
+      batch_kg: batchKg,
+      predicted_cost_per_kg: predictedCost,
+      predicted_ph: predictedPh,
+      predicted_viscosity: predictedViscosity,
+      stability_score: stabilityScore,
+      regulation_score: regulationScore,
+      total_score: totalScore,
+      recommendation: riskLevel === "LOW" ? "Scale-up 검토 가능" : riskLevel === "MEDIUM" ? "원가/안정성/규제 조건 추가 검토 필요" : "출시 전 처방 수정 및 RA/QA 재검토 필요",
+      risk_level: riskLevel,
+    };
+
+    const substitutions: MaterialSubstitutionItem[] = rawMaterials.slice(0, 3).map((raw, index) => ({
+      id: `SUB-${Date.now()}-${index}`,
+      source_raw: raw.raw_code,
+      source_inci: raw.main_inci,
+      substitute_raw: `ALT-${raw.raw_code}`,
+      substitute_inci: raw.main_inci,
+      reason: index === 0 ? "원가 절감 후보" : index === 1 ? "공급 안정성 후보" : "규제 리스크 저감 후보",
+      expected_effect: index === 0 ? "예상 원가 3~8% 절감" : index === 1 ? "공급사 이원화 가능" : "판매국가 확장 가능",
+      risk_level: index === 2 && regulationScore < 80 ? "MEDIUM" : "LOW",
+    }));
+
+    const optimizations: FormulaOptimizationItem[] = [
+      { id: `OPT-${Date.now()}-1`, area: "Cost", suggestion: predictedCost > targetCost ? "고가 원료 대체 또는 투입량 최적화 필요" : "원가 목표 충족", expected_impact: predictedCost > targetCost ? `목표 대비 ${predictedCost - targetCost}원/kg 초과` : "원가 안정", priority: predictedCost > targetCost ? "P1" : "P3" },
+      { id: `OPT-${Date.now()}-2`, area: "Stability", suggestion: stabilityScore < 80 ? "안정도 관찰 항목 기반 점증제/유화 안정화 검토" : "안정성 점수 양호", expected_impact: `안정성 점수 ${stabilityScore}`, priority: stabilityScore < 70 ? "P0" : stabilityScore < 80 ? "P1" : "P3" },
+      { id: `OPT-${Date.now()}-3`, area: "Regulation", suggestion: regulationScore < 85 ? `${simulationCountry} 규제 영향도 재검토 필요` : "규제 점수 양호", expected_impact: `규제 점수 ${regulationScore}`, priority: regulationScore < 70 ? "P0" : regulationScore < 85 ? "P1" : "P3" },
+      { id: `OPT-${Date.now()}-4`, area: "Texture", suggestion: predictedViscosity < targetViscosity * 0.8 ? "점도 보강 필요" : predictedViscosity > targetViscosity * 1.2 ? "사용감 개선을 위한 점도 저감 검토" : "점도 목표 범위", expected_impact: `예측 점도 ${predictedViscosity} cP`, priority: "P2" },
+    ];
+
+    setSimulationInputs([input, ...simulationInputs]);
+    setSimulationResults([result, ...simulationResults]);
+    setSubstitutionItems(substitutions);
+    setOptimizationItems(optimizations);
+    setSimulationStatus(`Simulation 완료: ${simulationFormulaCode} / ${batchKg}kg / Total Score ${totalScore}`);
+  }
+
+  function generateSimulationSeed() {
+    setSimulationFormulaCode(formulas[0]?.formula_code || "FC-001");
+    setSimulationBatchKg("10");
+    setSimulationTargetCost(String(formulas[0]?.material_cost || 12000));
+    setSimulationTargetPh("5.5");
+    setSimulationTargetViscosity("3000");
+    setSimulationCountry("EU");
+    setSimulationStatus("Simulation Seed 입력 완료");
+  }
+
+  function exportSimulationResultsCsv() {
+    exportCsv("enterprise_formula_simulation_results.csv", [
+      ["formula_code", "batch_kg", "predicted_cost_per_kg", "predicted_ph", "predicted_viscosity", "stability_score", "regulation_score", "total_score", "risk_level", "recommendation"],
+      ...simulationResults.map((item) => [item.formula_code, item.batch_kg, item.predicted_cost_per_kg, item.predicted_ph, item.predicted_viscosity, item.stability_score, item.regulation_score, item.total_score, item.risk_level, item.recommendation]),
+    ]);
+  }
+
+  function exportSubstitutionCsv() {
+    exportCsv("enterprise_material_substitution.csv", [
+      ["source_raw", "source_inci", "substitute_raw", "substitute_inci", "reason", "expected_effect", "risk_level"],
+      ...substitutionItems.map((item) => [item.source_raw, item.source_inci, item.substitute_raw, item.substitute_inci, item.reason, item.expected_effect, item.risk_level]),
+    ]);
+  }
+
+  function exportOptimizationCsv() {
+    exportCsv("enterprise_formula_optimization.csv", [
+      ["area", "suggestion", "expected_impact", "priority"],
+      ...optimizationItems.map((item) => [item.area, item.suggestion, item.expected_impact, item.priority]),
+    ]);
+  }
+
+  function getBatchType(batchKg: number): ScaleUpBatchItem["batch_type"] {
+    if (batchKg < 10) return "Lab";
+    if (batchKg < 100) return "Pilot";
+    if (batchKg < 1000) return "Production";
+    return "Mass";
+  }
+
+  function runScaleUpCalculation() {
+    const batchKg = Number(scaleBatchKg || 100);
+    const yieldPercent = Number(scaleYieldPercent || 97);
+    const lossPercent = Number(scaleLossPercent || 2);
+    const formula = formulas.find((item) => item.formula_code === scaleFormulaCode) || formulas[0];
+    const batchType = getBatchType(batchKg);
+
+    const sourceMaterials = rawMaterials.length > 0 ? rawMaterials.slice(0, Math.min(5, rawMaterials.length)) : [];
+    const equalPercent = sourceMaterials.length ? 100 / sourceMaterials.length : 0;
+
+    const batchId = `BATCH-${Date.now()}`;
+    const bom: BomItem[] = sourceMaterials.map((raw, index) => {
+      const percentage = Number((equalPercent + (index === 0 ? 0 : 0)).toFixed(4));
+      const requiredKg = Number((batchKg * (percentage / 100)).toFixed(4));
+      const purchaseKg = Number((requiredKg * (1 + lossPercent / 100) / (yieldPercent / 100)).toFixed(4));
+      const amount = Math.round(purchaseKg * raw.unit_price);
+
+      return {
+        id: `BOM-${Date.now()}-${index}`,
+        batch_id: batchId,
+        raw_code: raw.raw_code,
+        raw_name: raw.raw_name,
+        percentage,
+        required_kg: requiredKg,
+        loss_percent: lossPercent,
+        purchase_kg: purchaseKg,
+        unit_price: raw.unit_price,
+        amount,
+      };
+    });
+
+    const estimatedCost = bom.reduce((sum, item) => sum + item.amount, 0);
+    const status: ScaleUpBatchItem["status"] =
+      qualityStats.expired > 0 || regImpacts.some((item) => item.risk === "HIGH") ? "BLOCKED" : "READY";
+
+    const batch: ScaleUpBatchItem = {
+      id: batchId,
+      formula_code: scaleFormulaCode,
+      batch_size_kg: batchKg,
+      batch_type: batchType,
+      status,
+      estimated_cost: estimatedCost,
+      yield_percent: yieldPercent,
+      note: `${batchType} scale / ${formula?.formula_name || scaleFormulaCode}`,
+    };
+
+    const steps: ManufacturingStepItem[] = [
+      { id: `STEP-${batchId}-1`, batch_id: batchId, step_no: 1, phase: "A", process: "정제수/수상 원료 투입 후 교반", temperature: "25-40℃", rpm: batchKg >= 100 ? "30-60" : "200-400", time_min: 20, qc_check: "완전 용해 확인" },
+      { id: `STEP-${batchId}-2`, batch_id: batchId, step_no: 2, phase: "B", process: "오일상 또는 점증제 분산", temperature: "40-75℃", rpm: batchKg >= 100 ? "40-80" : "300-600", time_min: 30, qc_check: "덩어리/미분산 확인" },
+      { id: `STEP-${batchId}-3`, batch_id: batchId, step_no: 3, phase: "C", process: "유화 또는 본 혼합", temperature: "65-75℃", rpm: batchKg >= 100 ? "80-120" : "800-1200", time_min: 15, qc_check: "입자/분리 여부 확인" },
+      { id: `STEP-${batchId}-4`, batch_id: batchId, step_no: 4, phase: "D", process: "냉각 후 후첨 원료 투입", temperature: "35-45℃", rpm: batchKg >= 100 ? "30-60" : "200-400", time_min: 20, qc_check: "향/보존제 균일성 확인" },
+      { id: `STEP-${batchId}-5`, batch_id: batchId, step_no: 5, phase: "QC", process: "pH/점도/외관/중량 확인", temperature: "RT", rpm: "-", time_min: 10, qc_check: "기준 적합 시 충진 이관" },
+    ];
+
+    const risks: ScaleUpRiskItem[] = [
+      {
+        id: `RISK-${batchId}-1`,
+        category: "Process",
+        risk: batchKg >= 100 ? "Lab 대비 대형 탱크 교반 효율 차이" : "Lab/Pilot 조건",
+        level: batchKg >= 500 ? "HIGH" : batchKg >= 100 ? "MEDIUM" : "LOW",
+        action: "교반 RPM, 임펠러, 투입 순서 scale-up 검증",
+      },
+      {
+        id: `RISK-${batchId}-2`,
+        category: "Material",
+        risk: sourceMaterials.some((raw) => Math.abs(raw.composition_total - 100) > 0.0001) ? "원료조성 100% 오류 존재" : "원료조성 정상",
+        level: sourceMaterials.some((raw) => Math.abs(raw.composition_total - 100) > 0.0001) ? "HIGH" : "LOW",
+        action: "원료조성표와 Breakdown IL 재검증",
+      },
+      {
+        id: `RISK-${batchId}-3`,
+        category: "Quality",
+        risk: qualityStats.expired > 0 ? "만료 문서 존재" : "원료문서 상태 정상",
+        level: qualityStats.expired > 0 ? "HIGH" : qualityStats.expiring > 0 ? "MEDIUM" : "LOW",
+        action: "COA/MSDS/TDS 갱신 후 생산 이관",
+      },
+      {
+        id: `RISK-${batchId}-4`,
+        category: "Regulation",
+        risk: regImpacts.some((item) => item.risk === "HIGH") ? "규제 HIGH 리스크 존재" : "규제 리스크 낮음",
+        level: regImpacts.some((item) => item.risk === "HIGH") ? "HIGH" : regImpacts.some((item) => item.risk === "MEDIUM") ? "MEDIUM" : "LOW",
+        action: "RA 승인 전 Mass 생산 보류",
+      },
+    ];
+
+    setScaleUpBatches([batch, ...scaleUpBatches]);
+    setBomItems([...bom, ...bomItems]);
+    setManufacturingSteps([...steps, ...manufacturingSteps]);
+    setScaleUpRisks(risks);
+    setScaleUpStatus(`Scale-Up 계산 완료: ${scaleFormulaCode} / ${batchKg}kg / 예상 원가 ${estimatedCost.toLocaleString()}원`);
+  }
+
+  function approveScaleUpBatch(id: string) {
+    setScaleUpBatches((prev) =>
+      prev.map((item) =>
+        item.id === id && item.status !== "BLOCKED" ? { ...item, status: "APPROVED" } : item
+      )
+    );
+  }
+
+  function exportScaleUpBatchesCsv() {
+    exportCsv("enterprise_scale_up_batches.csv", [
+      ["id", "formula_code", "batch_size_kg", "batch_type", "status", "estimated_cost", "yield_percent", "note"],
+      ...scaleUpBatches.map((item) => [item.id, item.formula_code, item.batch_size_kg, item.batch_type, item.status, item.estimated_cost, item.yield_percent, item.note]),
+    ]);
+  }
+
+  function exportBomCsv() {
+    exportCsv("enterprise_bom_items.csv", [
+      ["batch_id", "raw_code", "raw_name", "percentage", "required_kg", "loss_percent", "purchase_kg", "unit_price", "amount"],
+      ...bomItems.map((item) => [item.batch_id, item.raw_code, item.raw_name, item.percentage, item.required_kg, item.loss_percent, item.purchase_kg, item.unit_price, item.amount]),
+    ]);
+  }
+
+  function exportManufacturingStepsCsv() {
+    exportCsv("enterprise_manufacturing_steps.csv", [
+      ["batch_id", "step_no", "phase", "process", "temperature", "rpm", "time_min", "qc_check"],
+      ...manufacturingSteps.map((item) => [item.batch_id, item.step_no, item.phase, item.process, item.temperature, item.rpm, item.time_min, item.qc_check]),
+    ]);
+  }
+
+  function exportScaleUpRisksCsv() {
+    exportCsv("enterprise_scale_up_risks.csv", [
+      ["category", "risk", "level", "action"],
+      ...scaleUpRisks.map((item) => [item.category, item.risk, item.level, item.action]),
+    ]);
+  }
+
+  function createElnExperiment() {
+    const experimentId = `ELN-${Date.now()}`;
+    const experiment: ElnExperimentItem = {
+      id: experimentId,
+      experiment_no: `EXP-${new Date().getFullYear()}-${String(elnExperiments.length + 1).padStart(3, "0")}`,
+      project_code: elnProjectCode,
+      formula_code: elnFormulaCode,
+      title: elnTitle,
+      researcher: elnResearcher,
+      status: "IN_PROGRESS",
+      experiment_date: new Date().toISOString().slice(0, 10),
+      objective: "처방의 외관, pH, 점도, 안정성 및 제조 적합성 확인",
+    };
+
+    const observations: ElnObservationItem[] = [
+      {
+        id: `OBS-${experimentId}-1`,
+        experiment_id: experimentId,
+        time_point: "T0",
+        observation_type: "Appearance",
+        value: "균일한 백색 크림상",
+        result: "PASS",
+        note: "분리/응집 없음",
+      },
+      {
+        id: `OBS-${experimentId}-2`,
+        experiment_id: experimentId,
+        time_point: "T0",
+        observation_type: "pH",
+        value: "5.5",
+        result: "PASS",
+        note: "목표 pH 범위",
+      },
+      {
+        id: `OBS-${experimentId}-3`,
+        experiment_id: experimentId,
+        time_point: "T0",
+        observation_type: "Viscosity",
+        value: "3,000 cP",
+        result: "PASS",
+        note: "초기 점도 기준",
+      },
+      {
+        id: `OBS-${experimentId}-4`,
+        experiment_id: experimentId,
+        time_point: "1W",
+        observation_type: "Stability",
+        value: "관찰 예정",
+        result: "WATCH",
+        note: "45℃/RT/5℃ 안정도 관찰 필요",
+      },
+    ];
+
+    const attachments: ElnAttachmentItem[] = [
+      {
+        id: `ATT-${experimentId}-1`,
+        experiment_id: experimentId,
+        file_name: `${experiment.experiment_no}_photo.jpg`,
+        file_type: "Image",
+        status: "NEEDS_REVIEW",
+        note: "실험 사진 첨부 예정",
+      },
+      {
+        id: `ATT-${experimentId}-2`,
+        experiment_id: experimentId,
+        file_name: `${experiment.experiment_no}_raw_data.xlsx`,
+        file_type: "Excel",
+        status: "NEEDS_REVIEW",
+        note: "pH/점도 원자료 첨부 예정",
+      },
+    ];
+
+    const signatures: ElnSignatureItem[] = [
+      {
+        id: `SIG-${experimentId}-1`,
+        experiment_id: experimentId,
+        signer: elnResearcher,
+        role: "Researcher",
+        status: "REQUESTED",
+        signed_at: "-",
+      },
+      {
+        id: `SIG-${experimentId}-2`,
+        experiment_id: experimentId,
+        signer: "QA Reviewer",
+        role: "Reviewer",
+        status: "REQUESTED",
+        signed_at: "-",
+      },
+    ];
+
+    setElnExperiments([experiment, ...elnExperiments]);
+    setElnObservations([...observations, ...elnObservations]);
+    setElnAttachments([...attachments, ...elnAttachments]);
+    setElnSignatures([...signatures, ...elnSignatures]);
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: elnResearcher,
+        action: "CREATE_ELN_EXPERIMENT",
+        module: "ELN",
+        target: experiment.experiment_no,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setElnStatus(`ELN 실험 생성 완료: ${experiment.experiment_no}`);
+  }
+
+  function addElnObservation(experimentId: string, type: ElnObservationItem["observation_type"], value: string, result: ElnObservationItem["result"]) {
+    const observation: ElnObservationItem = {
+      id: crypto.randomUUID(),
+      experiment_id: experimentId,
+      time_point: new Date().toISOString().slice(0, 10),
+      observation_type: type,
+      value,
+      result,
+      note: result === "PASS" ? "기준 적합" : result === "WATCH" ? "추가 관찰 필요" : "재시험 또는 처방 수정 필요",
+    };
+
+    setElnObservations([observation, ...elnObservations]);
+  }
+
+  function requestElnReview(experimentId: string) {
+    setElnExperiments((prev) =>
+      prev.map((item) =>
+        item.id === experimentId ? { ...item, status: "REVIEW" } : item
+      )
+    );
+    setElnStatus("ELN Review 요청 완료");
+  }
+
+  function signEln(signatureId: string) {
+    setElnSignatures((prev) =>
+      prev.map((item) =>
+        item.id === signatureId ? { ...item, status: "SIGNED", signed_at: new Date().toISOString().slice(0, 16).replace("T", " ") } : item
+      )
+    );
+
+    const signature = elnSignatures.find((item) => item.id === signatureId);
+    if (signature) {
+      const experimentSignatures = elnSignatures.filter((item) => item.experiment_id === signature.experiment_id);
+      const signedCount = experimentSignatures.filter((item) => item.status === "SIGNED").length + 1;
+      if (signedCount >= experimentSignatures.length) {
+        setElnExperiments((prev) =>
+          prev.map((item) =>
+            item.id === signature.experiment_id ? { ...item, status: "SIGNED" } : item
+          )
+        );
+      }
+    }
+  }
+
+  function exportElnExperimentsCsv() {
+    exportCsv("enterprise_eln_experiments.csv", [
+      ["experiment_no", "project_code", "formula_code", "title", "researcher", "status", "experiment_date", "objective"],
+      ...elnExperiments.map((item) => [item.experiment_no, item.project_code, item.formula_code, item.title, item.researcher, item.status, item.experiment_date, item.objective]),
+    ]);
+  }
+
+  function exportElnObservationsCsv() {
+    exportCsv("enterprise_eln_observations.csv", [
+      ["experiment_id", "time_point", "observation_type", "value", "result", "note"],
+      ...elnObservations.map((item) => [item.experiment_id, item.time_point, item.observation_type, item.value, item.result, item.note]),
+    ]);
+  }
+
+  function exportElnSignaturesCsv() {
+    exportCsv("enterprise_eln_signatures.csv", [
+      ["experiment_id", "signer", "role", "status", "signed_at"],
+      ...elnSignatures.map((item) => [item.experiment_id, item.signer, item.role, item.status, item.signed_at]),
+    ]);
+  }
+
+  function createLimsSample() {
+    const sampleId = `LIMS-${Date.now()}`;
+    const sample: LimsSampleItem = {
+      id: sampleId,
+      sample_no: `QC-${new Date().getFullYear()}-${String(limsSamples.length + 1).padStart(3, "0")}`,
+      project_code: limsProjectCode,
+      formula_code: limsFormulaCode,
+      sample_type: "Lab",
+      status: "TESTING",
+      received_date: new Date().toISOString().slice(0, 10),
+      requester: limsRequester,
+    };
+
+    const tests: LimsTestItem[] = [
+      {
+        id: `TEST-${sampleId}-1`,
+        sample_id: sampleId,
+        test_name: "Appearance",
+        method: "Visual Inspection",
+        specification: "균일, 이물/분리 없음",
+        result_value: "균일한 크림상",
+        judgment: "PASS",
+        analyst: "QC",
+      },
+      {
+        id: `TEST-${sampleId}-2`,
+        sample_id: sampleId,
+        test_name: "pH",
+        method: "pH Meter",
+        specification: "5.0 - 6.5",
+        result_value: "5.6",
+        judgment: "PASS",
+        analyst: "QC",
+      },
+      {
+        id: `TEST-${sampleId}-3`,
+        sample_id: sampleId,
+        test_name: "Viscosity",
+        method: "Brookfield",
+        specification: "2,000 - 5,000 cP",
+        result_value: "3,200 cP",
+        judgment: "PASS",
+        analyst: "QC",
+      },
+      {
+        id: `TEST-${sampleId}-4`,
+        sample_id: sampleId,
+        test_name: "Microbial",
+        method: "Plate Count",
+        specification: "기준 적합",
+        result_value: "Pending",
+        judgment: "PENDING",
+        analyst: "QC",
+      },
+    ];
+
+    const stabilities: LimsStabilityItem[] = [
+      {
+        id: `STAB-${sampleId}-1`,
+        sample_id: sampleId,
+        condition: "RT",
+        time_point: "T0",
+        result: "PASS",
+        observation: "이상 없음",
+      },
+      {
+        id: `STAB-${sampleId}-2`,
+        sample_id: sampleId,
+        condition: "45C",
+        time_point: "1W",
+        result: "PENDING",
+        observation: "관찰 예정",
+      },
+      {
+        id: `STAB-${sampleId}-3`,
+        sample_id: sampleId,
+        condition: "5C",
+        time_point: "1W",
+        result: "PENDING",
+        observation: "관찰 예정",
+      },
+    ];
+
+    setLimsSamples([sample, ...limsSamples]);
+    setLimsTests([...tests, ...limsTests]);
+    setLimsStabilities([...stabilities, ...limsStabilities]);
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: limsRequester,
+        action: "CREATE_LIMS_SAMPLE",
+        module: "LIMS",
+        target: sample.sample_no,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setLimsStatus(`LIMS Sample 접수 완료: ${sample.sample_no}`);
+  }
+
+  function updateLimsTestJudgment(testId: string, judgment: LimsTestItem["judgment"]) {
+    setLimsTests((prev) =>
+      prev.map((item) =>
+        item.id === testId ? { ...item, judgment } : item
+      )
+    );
+  }
+
+  function updateStabilityResult(id: string, result: LimsStabilityItem["result"]) {
+    setLimsStabilities((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, result, observation: result === "PASS" ? "이상 없음" : result === "WATCH" ? "추가 관찰 필요" : result === "분리/변색 등 부적합" } : item
+      )
+    );
+  }
+
+  function reviewLimsSample(sampleId: string) {
+    const sampleTests = limsTests.filter((item) => item.sample_id === sampleId);
+    const sampleStabilities = limsStabilities.filter((item) => item.sample_id === sampleId);
+    const hasFail = sampleTests.some((item) => item.judgment === "OOS") || sampleStabilities.some((item) => item.result === "FAIL");
+    const hasPending = sampleTests.some((item) => item.judgment === "PENDING") || sampleStabilities.some((item) => item.result === "PENDING");
+
+    setLimsSamples((prev) =>
+      prev.map((item) =>
+        item.id === sampleId ? { ...item, status: hasFail ? "REJECTED" : hasPending ? "REVIEW" : "APPROVED" } : item
+      )
+    );
+
+    setLimsStatus(hasFail ? "OOS/FAIL 항목이 있어 REJECTED 처리되었습니다." : hasPending ? "Pending 항목이 있어 REVIEW 상태입니다." : "모든 항목 PASS, APPROVED 처리되었습니다.");
+  }
+
+  function issueCoa(sampleId: string) {
+    const sample = limsSamples.find((item) => item.id === sampleId);
+    if (!sample) return;
+
+    const sampleTests = limsTests.filter((item) => item.sample_id === sampleId);
+    const hasOos = sampleTests.some((item) => item.judgment === "OOS");
+    const pending = sampleTests.some((item) => item.judgment === "PENDING");
+
+    const coa: LimsCoaItem = {
+      id: crypto.randomUUID(),
+      sample_id: sampleId,
+      coa_no: `COA-${new Date().getFullYear()}-${String(limsCoas.length + 1).padStart(3, "0")}`,
+      status: hasOos || pending ? "DRAFT" : "ISSUED",
+      issued_date: hasOos || pending ? "-" : new Date().toISOString().slice(0, 10),
+      summary: hasOos ? "OOS 항목 존재, COA 발행 보류" : pending ? "Pending 항목 존재, Review 필요" : "시험 기준 적합",
+    };
+
+    setLimsCoas([coa, ...limsCoas]);
+    setLimsStatus(`COA 생성 완료: ${coa.coa_no} / ${coa.status}`);
+  }
+
+  function exportLimsSamplesCsv() {
+    exportCsv("enterprise_lims_samples.csv", [
+      ["sample_no", "project_code", "formula_code", "sample_type", "status", "received_date", "requester"],
+      ...limsSamples.map((item) => [item.sample_no, item.project_code, item.formula_code, item.sample_type, item.status, item.received_date, item.requester]),
+    ]);
+  }
+
+  function exportLimsTestsCsv() {
+    exportCsv("enterprise_lims_tests.csv", [
+      ["sample_id", "test_name", "method", "specification", "result_value", "judgment", "analyst"],
+      ...limsTests.map((item) => [item.sample_id, item.test_name, item.method, item.specification, item.result_value, item.judgment, item.analyst]),
+    ]);
+  }
+
+  function exportLimsStabilityCsv() {
+    exportCsv("enterprise_lims_stability.csv", [
+      ["sample_id", "condition", "time_point", "result", "observation"],
+      ...limsStabilities.map((item) => [item.sample_id, item.condition, item.time_point, item.result, item.observation]),
+    ]);
+  }
+
+  function exportLimsCoaCsv() {
+    exportCsv("enterprise_lims_coa.csv", [
+      ["sample_id", "coa_no", "status", "issued_date", "summary"],
+      ...limsCoas.map((item) => [item.sample_id, item.coa_no, item.status, item.issued_date, item.summary]),
+    ]);
+  }
+
+  function createMesWorkOrder() {
+    const qty = Number(mesQtyKg || 100);
+    const selectedBatch = mesBatchId || scaleUpBatches[0]?.id || `BATCH-MANUAL-${Date.now()}`;
+    const woId = `WO-${Date.now()}`;
+    const workOrder: MesWorkOrderItem = {
+      id: woId,
+      work_order_no: `MO-${new Date().getFullYear()}-${String(mesWorkOrders.length + 1).padStart(3, "0")}`,
+      formula_code: mesFormulaCode,
+      batch_id: selectedBatch,
+      production_qty_kg: qty,
+      status: "PLANNED",
+      planned_date: new Date().toISOString().slice(0, 10),
+      line: mesLine,
+    };
+
+    const sourceBom = bomItems.filter((item) => item.batch_id === selectedBatch);
+    const fallbackRaw = rawMaterials.slice(0, Math.min(5, rawMaterials.length));
+    const lots: MesLotItem[] = (sourceBom.length > 0 ? sourceBom : fallbackRaw.map((raw, index) => ({
+      raw_code: raw.raw_code,
+      raw_name: raw.raw_name,
+      required_kg: Number((qty / Math.max(1, fallbackRaw.length)).toFixed(4)),
+    } as BomItem))).map((bom, index) => ({
+      id: `LOT-${woId}-${index + 1}`,
+      lot_no: `LOT-${new Date().getFullYear()}-${String(index + 1).padStart(3, "0")}`,
+      work_order_id: woId,
+      raw_code: bom.raw_code,
+      raw_lot_no: `${bom.raw_code}-L${String(index + 1).padStart(3, "0")}`,
+      required_kg: Number((bom.required_kg || qty / Math.max(1, fallbackRaw.length)).toFixed(4)),
+      consumed_kg: 0,
+      status: "RESERVED",
+    }));
+
+    const steps: MesProcessLogItem[] = [
+      {
+        id: `PROC-${woId}-1`,
+        work_order_id: woId,
+        step_no: 1,
+        process_name: "원료 칭량 확인",
+        start_time: "-",
+        end_time: "-",
+        operator: "생산",
+        status: "WAITING",
+        note: "BOM 기준 원료/LOT 확인",
+      },
+      {
+        id: `PROC-${woId}-2`,
+        work_order_id: woId,
+        step_no: 2,
+        process_name: "제조 탱크 투입 및 교반",
+        start_time: "-",
+        end_time: "-",
+        operator: "생산",
+        status: "WAITING",
+        note: "제조공정표 기준 진행",
+      },
+      {
+        id: `PROC-${woId}-3`,
+        work_order_id: woId,
+        step_no: 3,
+        process_name: "In-Process QC",
+        start_time: "-",
+        end_time: "-",
+        operator: "QC",
+        status: "WAITING",
+        note: "pH/점도/외관 확인",
+      },
+      {
+        id: `PROC-${woId}-4`,
+        work_order_id: woId,
+        step_no: 4,
+        process_name: "충진 이관",
+        start_time: "-",
+        end_time: "-",
+        operator: "생산",
+        status: "WAITING",
+        note: "QC 승인 후 충진",
+      },
+    ];
+
+    setMesWorkOrders([workOrder, ...mesWorkOrders]);
+    setMesLots([...lots, ...mesLots]);
+    setMesProcessLogs([...steps, ...mesProcessLogs]);
+
+    setAdminAudits([
+      {
+        id: crypto.randomUUID(),
+        actor: "생산관리",
+        action: "CREATE_MES_WORK_ORDER",
+        module: "MES",
+        target: workOrder.work_order_no,
+        created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+      },
+      ...adminAudits,
+    ]);
+
+    setMesStatus(`작업지시 생성 완료: ${workOrder.work_order_no}`);
+  }
+
+  function releaseWorkOrder(id: string) {
+    const hasHighRisk = scaleUpRisks.some((item) => item.level === "HIGH") || qualityStats.expired > 0;
+    setMesWorkOrders((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: hasHighRisk ? "QC_HOLD" : "RELEASED" } : item
+      )
+    );
+    setMesStatus(hasHighRisk ? "HIGH Risk 또는 만료 문서로 QC_HOLD 처리되었습니다." : "작업지시 RELEASED 처리 완료");
+  }
+
+  function startProcessStep(id: string) {
+    setMesProcessLogs((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "RUNNING", start_time: new Date().toISOString().slice(0, 16).replace("T", " ") } : item
+      )
+    );
+  }
+
+  function completeProcessStep(id: string) {
+    setMesProcessLogs((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "DONE", end_time: new Date().toISOString().slice(0, 16).replace("T", " ") } : item
+      )
+    );
+  }
+
+  function consumeLot(id: string) {
+    setMesLots((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "CONSUMED", consumed_kg: item.required_kg } : item
+      )
+    );
+  }
+
+  function addMesDeviation(workOrderId: string, severity: MesDeviationItem["severity"], message: string) {
+    const deviation: MesDeviationItem = {
+      id: `DEV-${Date.now()}`,
+      work_order_id: workOrderId,
+      severity,
+      deviation: message,
+      status: severity === "HIGH" || severity === "CRITICAL" ? "CAPA_REQUIRED" : "OPEN",
+      action: severity === "HIGH" || severity === "CRITICAL" ? "QA/CAPA 검토 후 재개" : "현장 조치 후 기록",
+    };
+    setMesDeviations([deviation, ...mesDeviations]);
+
+    if (severity === "HIGH" || severity === "CRITICAL") {
+      setMesWorkOrders((prev) =>
+        prev.map((item) =>
+          item.id === workOrderId ? { ...item, status: "QC_HOLD" } : item
+        )
+      );
+    }
+  }
+
+  function closeMesDeviation(id: string) {
+    setMesDeviations((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "CLOSED" } : item
+      )
+    );
+  }
+
+  function completeWorkOrder(id: string) {
+    const openDeviation = mesDeviations.some((item) => item.work_order_id === id && item.status !== "CLOSED");
+    if (openDeviation) {
+      setMesStatus("미종결 Deviation이 있어 완료할 수 없습니다.");
+      return;
+    }
+
+    setMesWorkOrders((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "COMPLETED" } : item
+      )
+    );
+    setMesStatus("작업지시 COMPLETED 처리 완료");
+  }
+
+  function exportMesWorkOrdersCsv() {
+    exportCsv("enterprise_mes_work_orders.csv", [
+      ["work_order_no", "formula_code", "batch_id", "production_qty_kg", "status", "planned_date", "line"],
+      ...mesWorkOrders.map((item) => [item.work_order_no, item.formula_code, item.batch_id, item.production_qty_kg, item.status, item.planned_date, item.line]),
+    ]);
+  }
+
+  function exportMesLotsCsv() {
+    exportCsv("enterprise_mes_lots.csv", [
+      ["lot_no", "work_order_id", "raw_code", "raw_lot_no", "required_kg", "consumed_kg", "status"],
+      ...mesLots.map((item) => [item.lot_no, item.work_order_id, item.raw_code, item.raw_lot_no, item.required_kg, item.consumed_kg, item.status]),
+    ]);
+  }
+
+  function exportMesProcessCsv() {
+    exportCsv("enterprise_mes_process_logs.csv", [
+      ["work_order_id", "step_no", "process_name", "start_time", "end_time", "operator", "status", "note"],
+      ...mesProcessLogs.map((item) => [item.work_order_id, item.step_no, item.process_name, item.start_time, item.end_time, item.operator, item.status, item.note]),
+    ]);
+  }
+
+  function exportMesDeviationCsv() {
+    exportCsv("enterprise_mes_deviations.csv", [
+      ["work_order_id", "severity", "deviation", "status", "action"],
+      ...mesDeviations.map((item) => [item.work_order_id, item.severity, item.deviation, item.status, item.action]),
+    ]);
+  }
+
+  function generateV2IntegratedPackage() {
+    const flows: V2IntegrationFlowItem[] = [
+      { id: "V2-031-001", phase: "31", module: "Enterprise v2.0 Stabilization", flow_name: "Project → Formula → Simulation → Scale-Up → ELN → LIMS → MES", source: "Project", target: "MES", status: "CONNECTED", owner: "Admin" },
+      { id: "V2-031-002", phase: "31", module: "Enterprise v2.0 Stabilization", flow_name: "Audit / Workflow / Approval 통합", source: "Workflow", target: "Audit", status: "READY", owner: "QA" },
+      { id: "V2-032-001", phase: "32", module: "Digital Twin Factory", flow_name: "Batch Size → Mixer/RPM/Time/Yield 예측", source: "Scale-Up", target: "MES", status: "CONNECTED", owner: "Production" },
+      { id: "V2-033-001", phase: "33", module: "AI Formula Expert", flow_name: "Simulation/LIMS/Regulation 기반 처방 개선 추천", source: "Simulation", target: "Formula", status: "READY", owner: "R&D" },
+      { id: "V2-034-001", phase: "34", module: "Global Regulatory AI", flow_name: "국가별 규제 판정 → Workflow/Launch Gate", source: "Regulation", target: "Launch", status: "READY", owner: "RA" },
+      { id: "V2-035-001", phase: "35", module: "Enterprise Analytics", flow_name: "전 모듈 KPI → Executive Dashboard", source: "Repository", target: "Dashboard", status: "CONNECTED", owner: "Admin" },
+    ];
+
+    const batchSizes = [1, 10, 100, 500, 3000];
+    const twins: DigitalTwinItem[] = batchSizes.map((size) => {
+      const mixer: DigitalTwinItem["mixer_type"] =
+        size < 10 ? "Lab Homomixer" : size < 100 ? "Pilot Vacuum Mixer" : size < 1000 ? "Production Vacuum Mixer" : "Mass Tank";
+      return {
+        id: `TWIN-${size}`,
+        batch_size_kg: size,
+        mixer_type: mixer,
+        predicted_rpm: size < 10 ? "800-1,200" : size < 100 ? "300-600" : size < 1000 ? "80-150" : "30-80",
+        predicted_time_min: size < 10 ? 60 : size < 100 ? 90 : size < 1000 ? 150 : 240,
+        predicted_yield_percent: size < 10 ? 98 : size < 100 ? 97 : size < 1000 ? 96 : 94,
+        risk_level: size >= 1000 ? "HIGH" : size >= 100 ? "MEDIUM" : "LOW",
+        note: size >= 1000 ? "Mass scale 교반/냉각/이송 검증 필요" : size >= 100 ? "Pilot 대비 생산 탱크 조건 확인" : "Lab/Pilot 검증 가능",
+      };
+    });
+
+    const aiItems: AiFormulaExpertItem[] = [
+      {
+        id: "AI-FE-001",
+        issue_type: "Viscosity",
+        diagnosis: "Scale-up 시 점도 저하 가능성",
+        recommendation: "점증제 0.05~0.15% 증량 또는 투입 순서 재검토",
+        expected_result: "예상 점도 +800~1,500 cP",
+        confidence: 82,
+        priority: "P1",
+      },
+      {
+        id: "AI-FE-002",
+        issue_type: "Cost",
+        diagnosis: "목표 원가 대비 고가 원료 영향 가능",
+        recommendation: "동일 INCI의 공급사 이원화 및 대체 원료 검토",
+        expected_result: "예상 원가 3~8% 절감",
+        confidence: 76,
+        priority: "P2",
+      },
+      {
+        id: "AI-FE-003",
+        issue_type: "Regulation",
+        diagnosis: regImpacts.some((item) => item.risk === "HIGH") ? "규제 HIGH 리스크 존재" : "규제 리스크 낮음",
+        recommendation: regImpacts.some((item) => item.risk === "HIGH") ? "RA 승인 전 출시 보류 및 성분 대체" : "판매국가 확장 검토 가능",
+        expected_result: regImpacts.some((item) => item.risk === "HIGH") ? "출시 리스크 저감" : "Global launch 가능성 증가",
+        confidence: 88,
+        priority: regImpacts.some((item) => item.risk === "HIGH") ? "P0" : "P3",
+      },
+      {
+        id: "AI-FE-004",
+        issue_type: "Stability",
+        diagnosis: limsStabilities.some((item) => item.result === "FAIL") ? "안정도 FAIL 이력 존재" : "초기 안정도 양호",
+        recommendation: limsStabilities.some((item) => item.result === "FAIL") ? "유화 안정화/보존 시스템 재검토" : "장기 안정도 관찰 지속",
+        expected_result: "분리/변색 리스크 관리",
+        confidence: 79,
+        priority: limsStabilities.some((item) => item.result === "FAIL") ? "P0" : "P2",
+      },
+    ];
+
+    const countries: GlobalRegAiItem["country"][] = ["EU", "CN", "US", "JP", "ASEAN", "KR", "GCC"];
+    const regItems: GlobalRegAiItem[] = countries.map((country) => {
+      const hasHigh = regImpacts.some((item) => item.risk === "HIGH");
+      const hasMedium = regImpacts.some((item) => item.risk === "MEDIUM");
+      return {
+        id: `REG-AI-${country}`,
+        country,
+        formula_code: v2FormulaCode,
+        status: hasHigh ? "BLOCKED" : hasMedium ? "CAUTION" : "OK",
+        key_issue: hasHigh ? "금지/고위험 성분 가능성" : hasMedium ? "사용한도/주의 성분 확인 필요" : "중대 규제 이슈 없음",
+        action: hasHigh ? "RA 검토 및 처방 변경" : hasMedium ? "최종 전성분/함량 검증" : "Launch Gate 진행 가능",
+      };
+    });
+
+    const analytics: EnterpriseAnalyticsItem[] = [
+      { id: "KPI-001", kpi: "Active Projects", value: projects.filter((item) => item.status !== "출시" && item.status !== "보류").length, trend: "UP", status: "GOOD", insight: "진행 중 프로젝트 현황" },
+      { id: "KPI-002", kpi: "Formula Success Score", value: simulationResults[0]?.total_score || 82, trend: "FLAT", status: (simulationResults[0]?.risk_level || "LOW") === "HIGH" ? "RISK" : "GOOD", insight: "최근 Simulation 기준 처방 성공 가능성" },
+      { id: "KPI-003", kpi: "Scale-Up Blocked", value: scaleUpBatches.filter((item) => item.status === "BLOCKED").length, trend: "DOWN", status: scaleUpBatches.some((item) => item.status === "BLOCKED") ? "RISK" : "GOOD", insight: "생산 이관 보류 건수" },
+      { id: "KPI-004", kpi: "LIMS OOS/OOT", value: `${limsStats.oos}/${limsStats.oot}`, trend: "FLAT", status: limsStats.oos > 0 ? "RISK" : limsStats.oot > 0 ? "WATCH" : "GOOD", insight: "품질 시험 이상 건수" },
+      { id: "KPI-005", kpi: "MES QC Hold", value: mesWorkOrders.filter((item) => item.status === "QC_HOLD").length, trend: "FLAT", status: mesWorkOrders.some((item) => item.status === "QC_HOLD") ? "RISK" : "GOOD", insight: "생산 QC Hold 관리" },
+      { id: "KPI-006", kpi: "Regulatory Block", value: regItems.filter((item) => item.status === "BLOCKED").length, trend: "DOWN", status: regItems.some((item) => item.status === "BLOCKED") ? "RISK" : "GOOD", insight: "국가별 규제 Block 수" },
+    ];
+
+    setV2Flows(flows);
+    setDigitalTwinItems(twins);
+    setAiFormulaExpertItems(aiItems);
+    setGlobalRegAiItems(regItems);
+    setEnterpriseAnalyticsItems(analytics);
+    setV2PackageStatus(`Phase 31~35 통합 패키지 생성 완료: Flow ${flows.length}개 / Twin ${twins.length}개 / AI ${aiItems.length}개 / Reg ${regItems.length}개 / KPI ${analytics.length}개`);
+  }
+
+  function lockV2Stabilization() {
+    const hasP0 = aiFormulaExpertItems.some((item) => item.priority === "P0") || globalRegAiItems.some((item) => item.status === "BLOCKED");
+    setV2Flows((prev) =>
+      prev.map((item) =>
+        item.status === "READY" ? { ...item, status: hasP0 ? "WATCH" : "CONNECTED" } : item
+      )
+    );
+    setV2PackageStatus(hasP0 ? "P0 또는 규제 BLOCK 항목이 있어 v2.0 Lock 전 검토가 필요합니다." : "Enterprise v2.0 Stabilization Lock 완료");
+  }
+
+  function exportV2FlowsCsv() {
+    exportCsv("enterprise_v2_integration_flows.csv", [
+      ["phase", "module", "flow_name", "source", "target", "status", "owner"],
+      ...v2Flows.map((item) => [item.phase, item.module, item.flow_name, item.source, item.target, item.status, item.owner]),
+    ]);
+  }
+
+  function exportDigitalTwinCsv() {
+    exportCsv("enterprise_digital_twin_factory.csv", [
+      ["batch_size_kg", "mixer_type", "predicted_rpm", "predicted_time_min", "predicted_yield_percent", "risk_level", "note"],
+      ...digitalTwinItems.map((item) => [item.batch_size_kg, item.mixer_type, item.predicted_rpm, item.predicted_time_min, item.predicted_yield_percent, item.risk_level, item.note]),
+    ]);
+  }
+
+  function exportAiFormulaExpertCsv() {
+    exportCsv("enterprise_ai_formula_expert.csv", [
+      ["issue_type", "diagnosis", "recommendation", "expected_result", "confidence", "priority"],
+      ...aiFormulaExpertItems.map((item) => [item.issue_type, item.diagnosis, item.recommendation, item.expected_result, item.confidence, item.priority]),
+    ]);
+  }
+
+  function exportGlobalRegAiCsv() {
+    exportCsv("enterprise_global_regulatory_ai.csv", [
+      ["country", "formula_code", "status", "key_issue", "action"],
+      ...globalRegAiItems.map((item) => [item.country, item.formula_code, item.status, item.key_issue, item.action]),
+    ]);
+  }
+
+  function exportEnterpriseAnalyticsCsv() {
+    exportCsv("enterprise_analytics_center.csv", [
+      ["kpi", "value", "trend", "status", "insight"],
+      ...enterpriseAnalyticsItems.map((item) => [item.kpi, item.value, item.trend, item.status, item.insight]),
+    ]);
+  }
+
+  function generateV3AiQmsPackage() {
+    const copilot: AiCopilotActionItem[] = [
+      {
+        id: "COP-001",
+        command: copilotCommand,
+        module_chain: "Formula → Simulation → Regulation → LIMS → MES → QMS",
+        status: "DONE",
+        result_summary: "처방 검토 완료. 규제/품질/생산 리스크를 QMS Action으로 전환했습니다.",
+        risk_level: regImpacts.some((item) => item.risk === "HIGH") || limsStats.oos > 0 ? "HIGH" : limsStats.oot > 0 ? "MEDIUM" : "LOW",
+      },
+      {
+        id: "COP-002",
+        command: "원료 문서 만료와 생산 이관 가능 여부를 확인해줘",
+        module_chain: "Quality Documents → Supplier → MES → QMS",
+        status: qualityStats.expired > 0 ? "NEEDS_REVIEW" : "DONE",
+        result_summary: qualityStats.expired > 0 ? "만료 문서가 있어 생산 이관 전 QC 확인 필요" : "문서 상태 양호",
+        risk_level: qualityStats.expired > 0 ? "HIGH" : qualityStats.expiring > 0 ? "MEDIUM" : "LOW",
+      },
+      {
+        id: "COP-003",
+        command: "출시 전 필요한 승인과 문서를 자동으로 만들어줘",
+        module_chain: "Workflow → Approval → DMS → Validation",
+        status: "READY",
+        result_summary: "승인/문서/검증 패키지 생성 대기",
+        risk_level: "LOW",
+      },
+    ];
+
+    const qms: QmsProcessItem[] = [
+      {
+        id: "QMS-001",
+        process: "Deviation",
+        source_module: "MES",
+        status: mesDeviations.some((item) => item.status !== "CLOSED") ? "OPEN" : "CLOSED",
+        owner: "QA",
+        due_date: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+        summary: "MES Deviation 기반 품질 이슈 추적",
+      },
+      {
+        id: "QMS-002",
+        process: "CAPA",
+        source_module: "LIMS",
+        status: limsStats.oos > 0 ? "IN_PROGRESS" : "CLOSED",
+        owner: "QC",
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        summary: "OOS 발생 시 원인조사 및 재발방지",
+      },
+      {
+        id: "QMS-003",
+        process: "ChangeControl",
+        source_module: "Formula",
+        status: workflowRuns.some((item) => item.status === "WAITING_APPROVAL") ? "OPEN" : "CLOSED",
+        owner: "QA",
+        due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        summary: "처방 변경 영향도 및 승인관리",
+      },
+      {
+        id: "QMS-004",
+        process: "Audit",
+        source_module: "Admin",
+        status: "IN_PROGRESS",
+        owner: "Admin",
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        summary: "Audit Trail 정기 검토",
+      },
+      {
+        id: "QMS-005",
+        process: "Training",
+        source_module: "DMS",
+        status: "OPEN",
+        owner: "QA",
+        due_date: new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10),
+        summary: "신규 SOP 교육 이수 확인",
+      },
+    ];
+
+    const docs: DmsDocumentItem[] = [
+      { id: "DMS-001", document_no: "SOP-PLM-001", document_type: "SOP", title: "PLM 운영 표준절차서", version: "1.0", status: "EFFECTIVE", owner: "QA" },
+      { id: "DMS-002", document_no: "SPEC-FRM-001", document_type: "Specification", title: "처방 개발 규격서", version: "1.0", status: "APPROVED", owner: "R&D" },
+      { id: "DMS-003", document_no: "BMR-MES-001", document_type: "Batch Record", title: "생산 배치 기록서", version: "1.0", status: "REVIEW", owner: "Production" },
+      { id: "DMS-004", document_no: "VAL-CSV-001", document_type: "Validation", title: "PLM Computer System Validation", version: "1.0", status: "DRAFT", owner: "QA/IT" },
+      { id: "DMS-005", document_no: "REG-GLOBAL-001", document_type: "Regulatory", title: "Global Regulatory Review Report", version: "1.0", status: "APPROVED", owner: "RA" },
+    ];
+
+    const validations: ValidationProtocolItem[] = [
+      { id: "VAL-001", protocol_no: "CSV-PLM-001", validation_type: "CSV", target_system: "Cosmetic PLM Enterprise", status: "EXECUTING", result: "User requirement / functional test 진행" },
+      { id: "VAL-002", protocol_no: "IQ-SUPA-001", validation_type: "IQ", target_system: "Supabase DB", status: "PASSED", result: "Schema / RLS / Migration 적용 확인" },
+      { id: "VAL-003", protocol_no: "OQ-FLOW-001", validation_type: "OQ", target_system: "Workflow + Approval", status: "EXECUTING", result: "주요 운영 시나리오 검증 중" },
+      { id: "VAL-004", protocol_no: "PQ-RND-001", validation_type: "PQ", target_system: "R&D Operation", status: "PLANNED", result: "실사용자 테스트 예정" },
+      { id: "VAL-005", protocol_no: "PROC-MFG-001", validation_type: "Process", target_system: "Scale-Up / MES Bridge", status: mesStats.qcHold > 0 ? "RETEST" : "PASSED", result: mesStats.qcHold > 0 ? "QC Hold 건 재검토 필요" : "생산 이관 흐름 적합" },
+    ];
+
+    const graph: KnowledgeGraphItem[] = [
+      { id: "KG-001", node: v2FormulaCode, node_type: "Formula", connected_to: "Simulation Result", relationship: "has_prediction", confidence: 88 },
+      { id: "KG-002", node: v2FormulaCode, node_type: "Formula", connected_to: "Global Regulation", relationship: "requires_review", confidence: 91 },
+      { id: "KG-003", node: "Raw Material", node_type: "RawMaterial", connected_to: "Supplier Document", relationship: "requires_document", confidence: 85 },
+      { id: "KG-004", node: "LIMS Sample", node_type: "Quality", connected_to: "COA", relationship: "generates", confidence: 93 },
+      { id: "KG-005", node: "MES Work Order", node_type: "Production", connected_to: "Deviation/CAPA", relationship: "may_trigger", confidence: 84 },
+      { id: "KG-006", node: "Customer Project", node_type: "Customer", connected_to: "Formula/Launch Gate", relationship: "owns", confidence: 87 },
+    ];
+
+    setAiCopilotActions(copilot);
+    setQmsProcesses(qms);
+    setDmsDocuments(docs);
+    setValidationProtocols(validations);
+    setKnowledgeGraphItems(graph);
+    setV3PackageStatus(`Phase 36~40 AI/QMS 통합 패키지 생성 완료: Copilot ${copilot.length}개 / QMS ${qms.length}개 / DMS ${docs.length}개 / Validation ${validations.length}개 / KG ${graph.length}개`);
+  }
+
+  function runAiCopilotCommand() {
+    const action: AiCopilotActionItem = {
+      id: `COP-${Date.now()}`,
+      command: copilotCommand,
+      module_chain: "Natural Language → Repository → Workflow → QMS",
+      status: "DONE",
+      result_summary: "명령을 분석해 관련 모듈과 Action을 생성했습니다.",
+      risk_level: "MEDIUM",
+    };
+    setAiCopilotActions([action, ...aiCopilotActions]);
+    setV3PackageStatus("AI Copilot 명령 실행 완료");
+  }
+
+  function closeQmsProcess(id: string) {
+    setQmsProcesses((prev) => prev.map((item) => item.id === id ? { ...item, status: "CLOSED" } : item));
+  }
+
+  function approveDmsDocument(id: string) {
+    setDmsDocuments((prev) => prev.map((item) => item.id === id ? { ...item, status: "EFFECTIVE" } : item));
+  }
+
+  function passValidation(id: string) {
+    setValidationProtocols((prev) => prev.map((item) => item.id === id ? { ...item, status: "PASSED", result: "검증 완료" } : item));
+  }
+
+  function exportAiCopilotCsv() {
+    exportCsv("enterprise_ai_copilot_actions.csv", [
+      ["command", "module_chain", "status", "result_summary", "risk_level"],
+      ...aiCopilotActions.map((item) => [item.command, item.module_chain, item.status, item.result_summary, item.risk_level]),
+    ]);
+  }
+
+  function exportQmsCsv() {
+    exportCsv("enterprise_qms_processes.csv", [
+      ["process", "source_module", "status", "owner", "due_date", "summary"],
+      ...qmsProcesses.map((item) => [item.process, item.source_module, item.status, item.owner, item.due_date, item.summary]),
+    ]);
+  }
+
+  function exportDmsCsv() {
+    exportCsv("enterprise_dms_documents.csv", [
+      ["document_no", "document_type", "title", "version", "status", "owner"],
+      ...dmsDocuments.map((item) => [item.document_no, item.document_type, item.title, item.version, item.status, item.owner]),
+    ]);
+  }
+
+  function exportValidationCsv() {
+    exportCsv("enterprise_validation_protocols.csv", [
+      ["protocol_no", "validation_type", "target_system", "status", "result"],
+      ...validationProtocols.map((item) => [item.protocol_no, item.validation_type, item.target_system, item.status, item.result]),
+    ]);
+  }
+
+  function exportKnowledgeGraphCsv() {
+    exportCsv("enterprise_knowledge_graph.csv", [
+      ["node", "node_type", "connected_to", "relationship", "confidence"],
+      ...knowledgeGraphItems.map((item) => [item.node, item.node_type, item.connected_to, item.relationship, item.confidence]),
+    ]);
+  }
+
+
+  function generateV4KnowledgeScmPackage() {
+    const insights: PatentPaperInsightItem[] = [
+      { id: "INS-001", source_type: "Patent", title: "고보습 라멜라 크림 조성물", keyword: "Lamellar / Ceramide / Moisturizing", relevance_score: 91, opportunity: "장벽강화 크림 컨셉 강화", action: "세라마이드/콜레스테롤/지방산 비율 검토" },
+      { id: "INS-002", source_type: "Paper", title: "Niacinamide and barrier repair study", keyword: "Niacinamide / Barrier", relevance_score: 87, opportunity: "미백+장벽 복합 클레임", action: "나이아신아마이드 2~5% 시뮬레이션" },
+      { id: "INS-003", source_type: "Market", title: "2026 Sensitive Skin Trend", keyword: "Sensitive / Low-irritation", relevance_score: 84, opportunity: "저자극/민감성 라인 확장", action: "향료/색소 Free 옵션 생성" },
+      { id: "INS-004", source_type: "Competitor", title: "Global ODM lightweight cream benchmark", keyword: "Lightweight / Gel Cream", relevance_score: 79, opportunity: "산뜻한 수분크림 제형 개선", action: "점증제/오일상 최적화" },
+    ];
+
+    const markets: RawMaterialMarketItem[] = rawMaterials.slice(0, 6).map((raw, index) => {
+      const forecast = Math.round(raw.unit_price * (index % 3 === 0 ? 1.12 : index % 3 === 1 ? 0.97 : 1.04));
+      return {
+        id: `RM-MKT-${index + 1}`,
+        raw_code: raw.raw_code,
+        raw_name: raw.raw_name,
+        current_price: raw.unit_price,
+        forecast_price: forecast,
+        supply_risk: forecast > raw.unit_price * 1.1 ? "HIGH" : forecast < raw.unit_price ? "LOW" : "MEDIUM",
+        recommendation: forecast > raw.unit_price * 1.1 ? "대체 원료/공급사 이원화 검토" : forecast < raw.unit_price ? "선구매보다 필요량 기준 구매" : "가격 추이 모니터링",
+      };
+    });
+
+    const opts: CostOptimizationItem[] = formulas.slice(0, 4).map((formula, index) => {
+      const current = formula.material_cost || 12000;
+      const saving = [6, 4, 9, 3][index] || 5;
+      return {
+        id: `COST-OPT-${index + 1}`,
+        formula_code: formula.formula_code,
+        optimization_type: index === 0 ? "Supplier" : index === 1 ? "Dosage" : index === 2 ? "Substitution" : "Yield",
+        current_cost: current,
+        optimized_cost: Math.round(current * (1 - saving / 100)),
+        saving_percent: saving,
+        risk_level: saving >= 8 ? "MEDIUM" : "LOW",
+        action: saving >= 8 ? "대체 전 안정도/규제 재검토" : "Pilot 테스트 후 적용 가능",
+      };
+    });
+
+    const plants: MultiPlantItem[] = [
+      { id: "PLANT-KR-01", plant_name: "Korea R&D Pilot Plant", location: "KR", capability: "Lab/Pilot cream, serum, gel", capacity_kg_day: 500, status: "AVAILABLE", note: "신제품 Pilot 적합" },
+      { id: "PLANT-KR-02", plant_name: "Korea Mass Production", location: "KR", capability: "Cream/Lotion mass batch", capacity_kg_day: 15000, status: "BUSY", note: "대량 생산 가능, 일정 확인 필요" },
+      { id: "PLANT-CN-01", plant_name: "China Local Plant", location: "CN", capability: "China compliance production", capacity_kg_day: 8000, status: "QUALIFICATION_REQUIRED", note: "중국 NMPA 대응 시 검토" },
+      { id: "PLANT-US-01", plant_name: "US Partner Plant", location: "US", capability: "OTC/non-OTC skincare", capacity_kg_day: 6000, status: "QUALIFICATION_REQUIRED", note: "MoCRA/US 라벨 확인 필요" },
+      { id: "PLANT-ASEAN-01", plant_name: "ASEAN Partner Plant", location: "ASEAN", capability: "Cost-effective production", capacity_kg_day: 10000, status: "AVAILABLE", note: "원가절감형 글로벌 생산 후보" },
+    ];
+
+    const apis: ApiHubItem[] = [
+      { id: "API-001", api_name: "Ingredient Search API", domain: "Ingredient", endpoint: "/api/enterprise/ingredients/search", status: "READY", security_level: "Internal" },
+      { id: "API-002", api_name: "Formula Simulation API", domain: "Formula", endpoint: "/api/enterprise/formulas/simulate", status: "READY", security_level: "Internal" },
+      { id: "API-003", api_name: "Global Regulation Check API", domain: "Regulation", endpoint: "/api/enterprise/regulation/check", status: "READY", security_level: "Partner" },
+      { id: "API-004", api_name: "LIMS Result API", domain: "Quality", endpoint: "/api/enterprise/lims/results", status: "DRAFT", security_level: "Internal" },
+      { id: "API-005", api_name: "MES Work Order API", domain: "MES", endpoint: "/api/enterprise/mes/work-orders", status: "DRAFT", security_level: "Internal" },
+      { id: "API-006", api_name: "Customer Portal API", domain: "Customer", endpoint: "/api/enterprise/customer/portal", status: "READY", security_level: "External" },
+    ];
+
+    setPatentPaperInsights(insights);
+    setRawMaterialMarkets(markets);
+    setCostOptimizations(opts);
+    setMultiPlantItems(plants);
+    setApiHubItems(apis);
+    setV4PackageStatus(`Phase 41~45 Knowledge/SCM/API 통합 패키지 생성 완료: Insight ${insights.length}개 / 원료시세 ${markets.length}개 / 원가최적화 ${opts.length}개 / Plant ${plants.length}개 / API ${apis.length}개`);
+  }
+
+  function activateApiHubItem(id: string) {
+    setApiHubItems((prev) => prev.map((item) => item.id === id ? { ...item, status: "ACTIVE" } : item));
+  }
+
+  function qualifyPlant(id: string) {
+    setMultiPlantItems((prev) => prev.map((item) => item.id === id && item.status === "QUALIFICATION_REQUIRED" ? { ...item, status: "AVAILABLE" } : item));
+  }
+
+  function exportPatentPaperInsightsCsv() {
+    exportCsv("enterprise_patent_paper_insights.csv", [["source_type", "title", "keyword", "relevance_score", "opportunity", "action"], ...patentPaperInsights.map((item) => [item.source_type, item.title, item.keyword, item.relevance_score, item.opportunity, item.action])]);
+  }
+
+  function exportRawMaterialMarketCsv() {
+    exportCsv("enterprise_raw_material_market_forecast.csv", [["raw_code", "raw_name", "current_price", "forecast_price", "supply_risk", "recommendation"], ...rawMaterialMarkets.map((item) => [item.raw_code, item.raw_name, item.current_price, item.forecast_price, item.supply_risk, item.recommendation])]);
+  }
+
+  function exportCostOptimizationCsv() {
+    exportCsv("enterprise_ai_cost_optimization.csv", [["formula_code", "optimization_type", "current_cost", "optimized_cost", "saving_percent", "risk_level", "action"], ...costOptimizations.map((item) => [item.formula_code, item.optimization_type, item.current_cost, item.optimized_cost, item.saving_percent, item.risk_level, item.action])]);
+  }
+
+  function exportMultiPlantCsv() {
+    exportCsv("enterprise_multi_plant.csv", [["plant_name", "location", "capability", "capacity_kg_day", "status", "note"], ...multiPlantItems.map((item) => [item.plant_name, item.location, item.capability, item.capacity_kg_day, item.status, item.note])]);
+  }
+
+  function exportApiHubCsv() {
+    exportCsv("enterprise_api_hub.csv", [["api_name", "domain", "endpoint", "status", "security_level"], ...apiHubItems.map((item) => [item.api_name, item.domain, item.endpoint, item.status, item.security_level])]);
+  }
+
+
+  function generateUltimatePackA() {
+    const researchId = `AIR-${Date.now()}`;
+    const research: AiResearchProjectItem = {
+      id: researchId,
+      request: researchRequest,
+      target_market: researchRequest.includes("미국") ? "US" : researchRequest.includes("중국") ? "CN" : "GLOBAL",
+      product_type: researchRequest.includes("크림") ? "Cream" : "Skincare",
+      status: "CANDIDATE_READY",
+      opportunity_score: 88,
+      summary: "민감성/장벽강화/저자극 트렌드와 세라마이드 기반 처방 기회가 높습니다.",
+    };
+
+    const candidates: AiFormulaCandidateItem[] = [
+      { id: "AIFC-001", research_id: researchId, candidate_name: "Ceramide Barrier Cream A", formula_concept: "세라마이드 NP + 판테놀 + 베타글루칸 저자극 크림", target_cost: 14500, predicted_stability: 86, predicted_regulation: 91, launch_score: 89, risk_level: "LOW" },
+      { id: "AIFC-002", research_id: researchId, candidate_name: "Sensitive Gel Cream B", formula_concept: "가벼운 젤크림, 나이아신아마이드 저함량, 무향 컨셉", target_cost: 11800, predicted_stability: 82, predicted_regulation: 88, launch_score: 84, risk_level: "MEDIUM" },
+      { id: "AIFC-003", research_id: researchId, candidate_name: "Intensive Repair Cream C", formula_concept: "고보습 라멜라 크림, 고함량 보습제 및 오일상 강화", target_cost: 16800, predicted_stability: 78, predicted_regulation: 86, launch_score: 81, risk_level: "MEDIUM" },
+    ];
+
+    const kg: KnowledgeEngineLinkItem[] = [
+      { id: "KGE-001", source_node: researchId, source_type: "Research", target_node: "Ceramide NP", target_type: "Ingredient", relationship: "recommends", confidence: 92 },
+      { id: "KGE-002", source_node: "Ceramide Barrier Cream A", source_type: "Formula", target_node: "US MoCRA Review", target_type: "Regulation", relationship: "requires", confidence: 88 },
+      { id: "KGE-003", source_node: "AIFC-001", source_type: "Formula", target_node: "LIMS Stability Plan", target_type: "LIMS", relationship: "generates", confidence: 85 },
+      { id: "KGE-004", source_node: "Raw Material Market", source_type: "Market", target_node: "Cost Optimization", target_type: "Formula", relationship: "affects", confidence: 81 },
+      { id: "KGE-005", source_node: "Pilot Batch", source_type: "Production", target_node: "MES Work Order", target_type: "MES", relationship: "transfers_to", confidence: 90 },
+    ];
+
+    const factory: FactorySimulationItem[] = [100, 500, 1000, 5000].map((kgSize) => ({
+      id: `DFS-${kgSize}`,
+      scenario_name: `${kgSize}kg Digital Factory Simulation`,
+      batch_kg: kgSize,
+      tank_type: kgSize < 200 ? "Pilot" : kgSize < 1000 ? "Production" : "Mass",
+      mix_time_min: kgSize < 200 ? 90 : kgSize < 1000 ? 150 : 260,
+      filling_time_min: Math.round(kgSize / 10),
+      expected_yield: kgSize >= 5000 ? 93 : kgSize >= 1000 ? 95 : 97,
+      expected_loss_kg: Math.round(kgSize * (kgSize >= 5000 ? 0.07 : kgSize >= 1000 ? 0.05 : 0.03)),
+      risk_level: kgSize >= 5000 ? "HIGH" : kgSize >= 1000 ? "MEDIUM" : "LOW",
+    }));
+
+    const lake: DataLakeRecordItem[] = [
+      { id: "DL-001", source_system: "PLM", dataset: "Formula / Ingredient / Project", record_count: formulas.length + rawMaterials.length + projects.length, freshness: "REALTIME", data_quality: "GOOD", ai_ready: true },
+      { id: "DL-002", source_system: "LIMS", dataset: "Samples / Tests / Stability / COA", record_count: limsSamples.length + limsTests.length + limsStabilities.length, freshness: "DAILY", data_quality: limsStats.oos > 0 ? "RISK" : "GOOD", ai_ready: limsTests.length > 0 },
+      { id: "DL-003", source_system: "MES", dataset: "Work Orders / Lots / Process / Deviations", record_count: mesWorkOrders.length + mesLots.length + mesProcessLogs.length, freshness: "REALTIME", data_quality: mesStats.critical > 0 ? "RISK" : "WATCH", ai_ready: mesWorkOrders.length > 0 },
+      { id: "DL-004", source_system: "QMS", dataset: "CAPA / Change / Audit / Training", record_count: qmsProcesses.length, freshness: "DAILY", data_quality: qmsProcesses.some((item) => item.status !== "CLOSED") ? "WATCH" : "GOOD", ai_ready: true },
+      { id: "DL-005", source_system: "SCM", dataset: "Supplier / Raw Market / Multi-Plant", record_count: supplierTasks.length + rawMaterialMarkets.length + multiPlantItems.length, freshness: "WEEKLY", data_quality: rawMaterialMarkets.some((item) => item.supply_risk === "HIGH") ? "WATCH" : "GOOD", ai_ready: true },
+    ];
+
+    const decisions: DecisionCenterItem[] = [
+      { id: "DC-001", decision_area: "R&D", kpi: "AI Candidate Launch Score", current_value: `${candidates[0].launch_score}`, ai_risk: "LOW", ai_recommendation: "A 후보를 우선 Pilot 진행", decision_status: "GO" },
+      { id: "DC-002", decision_area: "Quality", kpi: "OOS / Stability Fail", current_value: `${limsStats.oos}/${limsStats.stabilityFail}`, ai_risk: limsStats.oos > 0 ? "HIGH" : "LOW", ai_recommendation: limsStats.oos > 0 ? "CAPA 후 출시 보류" : "장기 안정도 진행", decision_status: limsStats.oos > 0 ? "HOLD" : "GO" },
+      { id: "DC-003", decision_area: "Production", kpi: "Mass Batch Risk", current_value: "5000kg HIGH", ai_risk: "HIGH", ai_recommendation: "1000kg 검증 후 5000kg 확대", decision_status: "WATCH" },
+      { id: "DC-004", decision_area: "Cost", kpi: "Avg Saving Opportunity", current_value: `${v4PackageStats.avgSaving}%`, ai_risk: "MEDIUM", ai_recommendation: "대체 원료 적용 전 안정도 재검토", decision_status: "WATCH" },
+      { id: "DC-005", decision_area: "Launch", kpi: "US Sensitive Cream Launch", current_value: "Ready", ai_risk: "LOW", ai_recommendation: "규제/라벨 최종 검토 후 고객 제안", decision_status: "GO" },
+    ];
+
+    setAiResearchProjects([research]);
+    setAiFormulaCandidates(candidates);
+    setKnowledgeEngineLinks(kg);
+    setFactorySimulations(factory);
+    setDataLakeRecords(lake);
+    setDecisionCenterItems(decisions);
+    setUltimateAStatus(`Ultimate Pack A 생성 완료: Research 1건 / Candidate ${candidates.length}건 / KG ${kg.length}건 / Factory ${factory.length}건 / Data Lake ${lake.length}건 / Decision ${decisions.length}건`);
+  }
+
+  function approveResearchProject(id: string) {
+    setAiResearchProjects((prev) => prev.map((item) => item.id === id ? { ...item, status: "APPROVED" } : item));
+  }
+
+  function exportAiResearchCsv() {
+    exportCsv("enterprise_ai_research_projects.csv", [["request", "target_market", "product_type", "status", "opportunity_score", "summary"], ...aiResearchProjects.map((item) => [item.request, item.target_market, item.product_type, item.status, item.opportunity_score, item.summary])]);
+  }
+
+  function exportAiFormulaCandidatesCsv() {
+    exportCsv("enterprise_ai_formula_candidates.csv", [["candidate_name", "formula_concept", "target_cost", "predicted_stability", "predicted_regulation", "launch_score", "risk_level"], ...aiFormulaCandidates.map((item) => [item.candidate_name, item.formula_concept, item.target_cost, item.predicted_stability, item.predicted_regulation, item.launch_score, item.risk_level])]);
+  }
+
+  function exportKnowledgeEngineCsv() {
+    exportCsv("enterprise_knowledge_engine_links.csv", [["source_node", "source_type", "target_node", "target_type", "relationship", "confidence"], ...knowledgeEngineLinks.map((item) => [item.source_node, item.source_type, item.target_node, item.target_type, item.relationship, item.confidence])]);
+  }
+
+  function exportFactorySimulationCsv() {
+    exportCsv("enterprise_digital_factory_simulation.csv", [["scenario_name", "batch_kg", "tank_type", "mix_time_min", "filling_time_min", "expected_yield", "expected_loss_kg", "risk_level"], ...factorySimulations.map((item) => [item.scenario_name, item.batch_kg, item.tank_type, item.mix_time_min, item.filling_time_min, item.expected_yield, item.expected_loss_kg, item.risk_level])]);
+  }
+
+  function exportDataLakeCsv() {
+    exportCsv("enterprise_data_lake_records.csv", [["source_system", "dataset", "record_count", "freshness", "data_quality", "ai_ready"], ...dataLakeRecords.map((item) => [item.source_system, item.dataset, item.record_count, item.freshness, item.data_quality, item.ai_ready ? "YES" : "NO"])]);
+  }
+
+  function exportDecisionCenterCsv() {
+    exportCsv("enterprise_decision_center.csv", [["decision_area", "kpi", "current_value", "ai_risk", "ai_recommendation", "decision_status"], ...decisionCenterItems.map((item) => [item.decision_area, item.kpi, item.current_value, item.ai_risk, item.ai_recommendation, item.decision_status])]);
+  }
+
+
+  function generateUltimatePackB() {
+    const agents: AutonomousAgentItem[] = [
+      { id: "AGT-001", agent_name: "AI R&D Agent", role: "R&D", objective: "후보 처방 생성 및 Simulation 실행", status: "DONE", autonomy_level: 4, last_result: "세라마이드 장벽 크림 후보 처방 3개 생성" },
+      { id: "AGT-002", agent_name: "AI QA Agent", role: "QA", objective: "QMS/Validation/문서 상태 검토", status: qmsProcesses.some((item) => item.status !== "CLOSED") ? "NEEDS_REVIEW" : "DONE", autonomy_level: 3, last_result: "미종결 QMS 항목 검토 필요" },
+      { id: "AGT-003", agent_name: "AI RA Agent", role: "RA", objective: "국가별 규제 위험 자동 검토", status: globalRegAiItems.some((item) => item.status === "BLOCKED") ? "BLOCKED" : "DONE", autonomy_level: 3, last_result: "US/EU/JP 우선 검토 완료" },
+      { id: "AGT-004", agent_name: "AI QC Agent", role: "QC", objective: "LIMS/OOS/안정도 시험계획 생성", status: limsStats.oos > 0 ? "NEEDS_REVIEW" : "DONE", autonomy_level: 3, last_result: "안정도 T0/1W/4W 시험계획 생성" },
+      { id: "AGT-005", agent_name: "AI Production Agent", role: "Production", objective: "Scale-Up/MES/IoT 생산성 검토", status: mesStats.qcHold > 0 ? "NEEDS_REVIEW" : "DONE", autonomy_level: 3, last_result: "100kg→1000kg 단계 확대 권장" },
+      { id: "AGT-006", agent_name: "AI Launch Agent", role: "Launch", objective: "출시 Gate와 고객 제출자료 준비", status: "RUNNING", autonomy_level: 2, last_result: "고객 제출용 요약자료 준비 중" },
+    ];
+
+    const formulaRuns: AutonomousFormulaRunItem[] = [
+      { id: "AUTO-FRM-001", run_name: "US Ceramide Barrier Cream", target_brief: selfDrivingGoal, generated_formula: "Ceramide NP / Panthenol / Beta-glucan / Low-irritation emulsifier", validation_status: "SIMULATED", ai_score: 89, risk_level: "LOW" },
+      { id: "AUTO-FRM-002", run_name: "Lightweight Sensitive Gel Cream", target_brief: "산뜻한 저자극 젤크림", generated_formula: "Niacinamide low dose / HA / Gel network / Fragrance-free", validation_status: "QA_REVIEW", ai_score: 83, risk_level: "MEDIUM" },
+      { id: "AUTO-FRM-003", run_name: "Cost Optimized Global Cream", target_brief: "글로벌 원가 최적화 크림", generated_formula: "Supplier dual-source raw materials / optimized humectant blend", validation_status: "RA_REVIEW", ai_score: 81, risk_level: "MEDIUM" },
+    ];
+
+    const iot: SmartFactoryIotItem[] = [
+      { id: "IOT-001", equipment: "Vacuum Mixer 1000L", sensor_type: "Temperature", current_value: "72℃", normal_range: "65-75℃", status: "NORMAL", prediction: "정상 운전" },
+      { id: "IOT-002", equipment: "Vacuum Mixer 1000L", sensor_type: "RPM", current_value: "145 rpm", normal_range: "80-150 rpm", status: "WARNING", prediction: "상한 근접, 점도 상승 가능" },
+      { id: "IOT-003", equipment: "Filling Line A", sensor_type: "Filling", current_value: "98.7%", normal_range: "99.0-100.5%", status: "WARNING", prediction: "충진량 보정 필요" },
+      { id: "IOT-004", equipment: "Cooling System", sensor_type: "Energy", current_value: "High", normal_range: "Normal", status: "ALARM", prediction: "냉각 효율 저하, 점검 필요" },
+      { id: "IOT-005", equipment: "Inline Viscometer", sensor_type: "Viscosity", current_value: "4,200 cP", normal_range: "3,000-5,000 cP", status: "NORMAL", prediction: "규격 적합" },
+    ];
+
+    const opt: AiOptimizationRunItem[] = [
+      { id: "OPT-AI-001", optimization_area: "Yield", before_value: "94%", after_value: "96.5%", improvement: "+2.5%p", confidence: 84, action_required: "충진 손실률과 이송 배관 잔량 관리" },
+      { id: "OPT-AI-002", optimization_area: "Cost", before_value: "14,500원/kg", after_value: "13,650원/kg", improvement: "5.9% 절감", confidence: 79, action_required: "공급사 이원화 및 Pilot 안정도 확인" },
+      { id: "OPT-AI-003", optimization_area: "Schedule", before_value: "21 days", after_value: "16 days", improvement: "5일 단축", confidence: 82, action_required: "QA/RA 병렬 검토 Workflow 적용" },
+      { id: "OPT-AI-004", optimization_area: "Energy", before_value: "High", after_value: "Medium", improvement: "냉각 에너지 8% 절감", confidence: 72, action_required: "냉각 프로파일 재설정" },
+      { id: "OPT-AI-005", optimization_area: "Quality", before_value: "WATCH 2건", after_value: "WATCH 0~1건", improvement: "품질 리스크 감소", confidence: 77, action_required: "점도/RPM 조건 표준화" },
+    ];
+
+    const tasks: SelfDrivingPlmTaskItem[] = [
+      { id: "SDP-001", task_chain: "Goal → Research → Candidate Formula", trigger: selfDrivingGoal, current_step: "AI 후보처방 생성", progress: 25, status: "RUNNING", human_approval_required: false },
+      { id: "SDP-002", task_chain: "Formula → Simulation → QA/RA Review", trigger: "후보처방 승인", current_step: "Simulation 결과 검토", progress: 50, status: "WAITING_HUMAN", human_approval_required: true },
+      { id: "SDP-003", task_chain: "Scale-Up → LIMS → MES", trigger: "Pilot 승인", current_step: "Scale-Up 조건 생성", progress: 65, status: "READY", human_approval_required: true },
+      { id: "SDP-004", task_chain: "DMS → Validation → Launch Gate", trigger: "출시자료 요청", current_step: "문서 패키지 준비", progress: 80, status: "READY", human_approval_required: true },
+      { id: "SDP-005", task_chain: "Customer Package → Final Decision", trigger: "고객 제출", current_step: "최종 요약 보고", progress: 100, status: "COMPLETED", human_approval_required: false },
+    ];
+
+    setAutonomousAgents(agents);
+    setAutonomousFormulaRuns(formulaRuns);
+    setSmartFactoryIotItems(iot);
+    setAiOptimizationRuns(opt);
+    setSelfDrivingTasks(tasks);
+    setUltimateBStatus(`Ultimate Pack B 생성 완료: Agent ${agents.length}개 / Autonomous Formula ${formulaRuns.length}개 / IoT ${iot.length}개 / Optimization ${opt.length}개 / Self-Driving Task ${tasks.length}개`);
+  }
+
+  function runSelfDrivingGoal() {
+    const task: SelfDrivingPlmTaskItem = {
+      id: `SDP-${Date.now()}`,
+      task_chain: "Natural Language Goal → AI Agent Team → PLM Execution",
+      trigger: selfDrivingGoal,
+      current_step: "AI Agent Team 실행",
+      progress: 15,
+      status: "RUNNING",
+      human_approval_required: true,
+    };
+    setSelfDrivingTasks([task, ...selfDrivingTasks]);
+    setUltimateBStatus("Self-Driving PLM 목표 실행을 시작했습니다.");
+  }
+
+  function approveSelfDrivingTask(id: string) {
+    setSelfDrivingTasks((prev) => prev.map((item) => item.id === id ? { ...item, status: "COMPLETED", progress: 100 } : item));
+  }
+
+  function completeAgent(id: string) {
+    setAutonomousAgents((prev) => prev.map((item) => item.id === id ? { ...item, status: "DONE", last_result: "Human approval 후 완료 처리" } : item));
+  }
+
+  function markFormulaReady(id: string) {
+    setAutonomousFormulaRuns((prev) => prev.map((item) => item.id === id ? { ...item, validation_status: "READY" } : item));
+  }
+
+  function exportAutonomousAgentsCsv() {
+    exportCsv("enterprise_autonomous_agents.csv", [["agent_name", "role", "objective", "status", "autonomy_level", "last_result"], ...autonomousAgents.map((item) => [item.agent_name, item.role, item.objective, item.status, item.autonomy_level, item.last_result])]);
+  }
+
+  function exportAutonomousFormulaCsv() {
+    exportCsv("enterprise_autonomous_formula_runs.csv", [["run_name", "target_brief", "generated_formula", "validation_status", "ai_score", "risk_level"], ...autonomousFormulaRuns.map((item) => [item.run_name, item.target_brief, item.generated_formula, item.validation_status, item.ai_score, item.risk_level])]);
+  }
+
+  function exportSmartFactoryIotCsv() {
+    exportCsv("enterprise_smart_factory_iot.csv", [["equipment", "sensor_type", "current_value", "normal_range", "status", "prediction"], ...smartFactoryIotItems.map((item) => [item.equipment, item.sensor_type, item.current_value, item.normal_range, item.status, item.prediction])]);
+  }
+
+  function exportAiOptimizationRunsCsv() {
+    exportCsv("enterprise_ai_optimization_runs.csv", [["optimization_area", "before_value", "after_value", "improvement", "confidence", "action_required"], ...aiOptimizationRuns.map((item) => [item.optimization_area, item.before_value, item.after_value, item.improvement, item.confidence, item.action_required])]);
+  }
+
+  function exportSelfDrivingTasksCsv() {
+    exportCsv("enterprise_self_driving_plm_tasks.csv", [["task_chain", "trigger", "current_step", "progress", "status", "human_approval_required"], ...selfDrivingTasks.map((item) => [item.task_chain, item.trigger, item.current_step, item.progress, item.status, item.human_approval_required ? "YES" : "NO"])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 20</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 56~60</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise Edition 1차 개발의 최종 안정화 단계입니다. Production Readiness, Go-Live Checklist, Release Candidate Lock, 운영 전 점검 항목을 통합하여 실제 연구소 사용 준비 상태를 검증합니다.
+            Enterprise v5 Ultimate Pack B입니다. AI Agent Platform, Autonomous Formula Development, Smart Factory IoT, AI Optimization, Self-Driving PLM을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -3642,6 +6862,21 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Repository</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{repositoryNodes.length}</div></div>
             <div style={cardStyle()}><strong>External RLS</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{externalAccountMappings.length}</div></div>
             <div style={cardStyle()}><strong>RC Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{releaseCandidateItems.filter((item) => item.status === "READY" || item.status === "LOCKED").length}</div></div>
+            <div style={cardStyle()}><strong>UAT</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{uatScenarios.length}</div></div>
+            <div style={cardStyle()}><strong>Go-Live</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{goLiveOperations.filter((item) => item.status === "ACTIVE" || item.status === "MONITORING").length}</div></div>
+            <div style={cardStyle()}><strong>Monitoring</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{monitoringChecks.length}</div></div>
+            <div style={cardStyle()}><strong>v1.0 Stable</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{stabilizationItems.filter((item) => item.status === "STABLE" || item.status === "LOCKED").length}</div></div>
+            <div style={cardStyle()}><strong>Workflows</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{workflowTemplates.length}</div></div>
+            <div style={cardStyle()}><strong>Simulations</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{simulationResults.length}</div></div>
+            <div style={cardStyle()}><strong>Scale-Up</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{scaleUpBatches.length}</div></div>
+            <div style={cardStyle()}><strong>ELN</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{elnExperiments.length}</div></div>
+            <div style={cardStyle()}><strong>LIMS</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{limsSamples.length}</div></div>
+            <div style={cardStyle()}><strong>MES</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{mesWorkOrders.length}</div></div>
+            <div style={cardStyle()}><strong>v2.0</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{v2Flows.length}</div></div>
+            <div style={cardStyle()}><strong>AI/QMS</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiCopilotActions.length}</div></div>
+            <div style={cardStyle()}><strong>Knowledge/SCM</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{patentPaperInsights.length}</div></div>
+            <div style={cardStyle()}><strong>Ultimate A</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiResearchProjects.length}</div></div>
+            <div style={cardStyle()}><strong>Ultimate B</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{autonomousAgents.length}</div></div>
           </div>
         </section>
 
@@ -3705,12 +6940,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 20 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Phase 56~60 목표</h2>
           <ul>
-            <li>Production Release Candidate 독립 UI 검증</li>
-            <li>전 모듈 운영 준비도와 Go-Live Checklist 통합</li>
-            <li>Release Candidate Lock 및 운영 전 점검 리포트 생성</li>
-            <li>다음 단계는 v1.0 안정화, 실제 사용자 테스트, 데이터 마이그레이션입니다.</li>
+            <li>AI Agent Platform: R&D/QA/RA/QC/생산 AI Agent 역할 분담</li>
+            <li>Autonomous Formula Development: 목표 입력 → 후보 처방 → 검증 상태 자동 생성</li>
+            <li>Smart Factory IoT: 설비 센서, 이상 경고, 예지보전 시나리오 관리</li>
+            <li>AI Optimization: 수율·원가·품질·스케줄·에너지 최적화</li>
+            <li>Self-Driving PLM: 자연어 목표 기반 PLM 업무 체인 자동 실행</li>
           </ul>
         </section>
       </>
@@ -4702,6 +7938,2142 @@ export default function EnterprisePage() {
             <li>Supplier Module은 공급사별 문서 요청과 평가를 담당합니다.</li>
             <li>다음 Phase에서 실제 공급사 전용 로그인/업로드 권한으로 확장할 수 있습니다.</li>
           </ul>
+        </section>
+      </>
+    );
+  }
+
+  function renderUltimatePackBModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Ultimate Pack B: AI Agents / Smart Factory / Self-Driving PLM</h1>
+          <p style={{ color: "#6b7280" }}>
+            Phase 56~60 통합 패키지입니다. AI Agent Platform, Autonomous Formula Development,
+            Smart Factory IoT, AI Optimization, Self-Driving PLM을 연결합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Agents</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ultimateBStats.agents}</div></div>
+            <div style={cardStyle()}><strong>Running</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{ultimateBStats.runningAgents}</div></div>
+            <div style={cardStyle()}><strong>Review</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{ultimateBStats.agentReview}</div></div>
+            <div style={cardStyle()}><strong>Auto Formula</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{ultimateBStats.readyFormulas}/{ultimateBStats.formulaRuns}</div></div>
+            <div style={cardStyle()}><strong>IoT Alarm</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{ultimateBStats.iotAlarms}</div></div>
+            <div style={cardStyle()}><strong>IoT Warning</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{ultimateBStats.iotWarnings}</div></div>
+            <div style={cardStyle()}><strong>Optimization</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{ultimateBStats.optimizations}</div></div>
+            <div style={cardStyle()}><strong>Self-Driving</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ultimateBStats.completedTasks}/{ultimateBStats.selfDriving}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={selfDrivingGoal} onChange={(e) => setSelfDrivingGoal(e.target.value)} placeholder="Self-Driving PLM Goal" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateUltimatePackB} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Ultimate Pack B 생성</button>
+            <button onClick={runSelfDrivingGoal} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Self-Driving 실행</button>
+            <button onClick={exportAutonomousAgentsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Agent CSV</button>
+            <button onClick={exportAutonomousFormulaCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Formula CSV</button>
+            <button onClick={exportSmartFactoryIotCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>IoT CSV</button>
+            <button onClick={exportAiOptimizationRunsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Optimization CSV</button>
+            <button onClick={exportSelfDrivingTasksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Self-Driving CSV</button>
+          </div>
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{ultimateBStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 56 AI Agent Platform</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Agent</th><th style={tableCellStyle(true)}>Role</th><th style={tableCellStyle(true)}>Objective</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Level</th><th style={tableCellStyle(true)}>Result</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{autonomousAgents.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Ultimate Pack B 생성을 실행하세요.</td></tr>}{autonomousAgents.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.agent_name}</td><td style={tableCellStyle()}>{item.role}</td><td style={tableCellStyle()}>{item.objective}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : item.status === "NEEDS_REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.autonomy_level}</td><td style={tableCellStyle()}>{item.last_result}</td><td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => completeAgent(item.id)}>Done</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 57 Autonomous Formula Development</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Run</th><th style={tableCellStyle(true)}>Brief</th><th style={tableCellStyle(true)}>Generated Formula</th><th style={tableCellStyle(true)}>Validation</th><th style={tableCellStyle(true)}>AI Score</th><th style={tableCellStyle(true)}>Risk</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{autonomousFormulaRuns.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>자율 처방 개발 결과가 표시됩니다.</td></tr>}{autonomousFormulaRuns.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.run_name}</td><td style={tableCellStyle()}>{item.target_brief}</td><td style={tableCellStyle()}>{item.generated_formula}</td><td style={{ ...tableCellStyle(), color: item.validation_status === "READY" ? "#059669" : "#d97706", fontWeight: "bold" }}>{item.validation_status}</td><td style={tableCellStyle()}>{item.ai_score}</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td><td style={tableCellStyle()}>{item.validation_status !== "READY" ? <button onClick={() => markFormulaReady(item.id)}>Ready</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 58 Smart Factory IoT</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Equipment</th><th style={tableCellStyle(true)}>Sensor</th><th style={tableCellStyle(true)}>Value</th><th style={tableCellStyle(true)}>Range</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Prediction</th></tr></thead><tbody>{smartFactoryIotItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>IoT 센서 상태가 표시됩니다.</td></tr>}{smartFactoryIotItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.equipment}</td><td style={tableCellStyle()}>{item.sensor_type}</td><td style={tableCellStyle()}>{item.current_value}</td><td style={tableCellStyle()}>{item.normal_range}</td><td style={{ ...tableCellStyle(), color: item.status === "NORMAL" ? "#059669" : item.status === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.prediction}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 59 AI Optimization</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Before</th><th style={tableCellStyle(true)}>After</th><th style={tableCellStyle(true)}>Improvement</th><th style={tableCellStyle(true)}>Confidence</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiOptimizationRuns.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>AI 최적화 결과가 표시됩니다.</td></tr>}{aiOptimizationRuns.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.optimization_area}</td><td style={tableCellStyle()}>{item.before_value}</td><td style={tableCellStyle()}>{item.after_value}</td><td style={tableCellStyle()}>{item.improvement}</td><td style={tableCellStyle()}>{item.confidence}%</td><td style={tableCellStyle()}>{item.action_required}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 60 Self-Driving PLM</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Task Chain</th><th style={tableCellStyle(true)}>Trigger</th><th style={tableCellStyle(true)}>Current Step</th><th style={tableCellStyle(true)}>Progress</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Human Approval</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{selfDrivingTasks.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Self-Driving PLM Task가 표시됩니다.</td></tr>}{selfDrivingTasks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.task_chain}</td><td style={tableCellStyle()}>{item.trigger}</td><td style={tableCellStyle()}>{item.current_step}</td><td style={tableCellStyle()}>{item.progress}%</td><td style={{ ...tableCellStyle(), color: item.status === "COMPLETED" ? "#059669" : item.status === "FAILED" ? "#dc2626" : item.status === "WAITING_HUMAN" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.human_approval_required ? "YES" : "NO"}</td><td style={tableCellStyle()}>{item.status !== "COMPLETED" ? <button onClick={() => approveSelfDrivingTask(item.id)}>Approve</button> : "-"}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
+  function renderUltimatePackAModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Ultimate Pack A: AI Research / Data Lake / Decision Center</h1>
+          <p style={{ color: "#6b7280" }}>
+            Phase 46~50 통합 패키지입니다. AI 연구원, 후보처방 생성, Knowledge Engine 2.0,
+            Digital Factory Simulation 2.0, Enterprise Data Lake, CEO Decision Center를 연결합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Research</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ultimateAStats.research}</div></div>
+            <div style={cardStyle()}><strong>Candidates</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{ultimateAStats.candidates}</div></div>
+            <div style={cardStyle()}><strong>High Launch</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{ultimateAStats.highLaunch}</div></div>
+            <div style={cardStyle()}><strong>KG Links</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{ultimateAStats.kgLinks}</div></div>
+            <div style={cardStyle()}><strong>Factory</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{ultimateAStats.factory}</div></div>
+            <div style={cardStyle()}><strong>Factory HIGH</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{ultimateAStats.factoryHigh}</div></div>
+            <div style={cardStyle()}><strong>Data Lake</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{ultimateAStats.aiReady}/{ultimateAStats.dataLake}</div></div>
+            <div style={cardStyle()}><strong>Decision HOLD</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{ultimateAStats.holds}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={researchRequest} onChange={(e) => setResearchRequest(e.target.value)} placeholder="AI Research Request" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateUltimatePackA} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Ultimate Pack A 생성</button>
+            <button onClick={exportAiResearchCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Research CSV</button>
+            <button onClick={exportAiFormulaCandidatesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Candidate CSV</button>
+            <button onClick={exportKnowledgeEngineCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>KG CSV</button>
+            <button onClick={exportFactorySimulationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Factory CSV</button>
+            <button onClick={exportDataLakeCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Data Lake CSV</button>
+            <button onClick={exportDecisionCenterCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Decision CSV</button>
+          </div>
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{ultimateAStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 46 AI Research Assistant</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Request</th><th style={tableCellStyle(true)}>Market</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Score</th><th style={tableCellStyle(true)}>Summary</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiResearchProjects.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Ultimate Pack A 생성을 실행하세요.</td></tr>}{aiResearchProjects.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.request}</td><td style={tableCellStyle()}>{item.target_market}</td><td style={tableCellStyle()}>{item.product_type}</td><td style={{ ...tableCellStyle(), color: item.status === "APPROVED" ? "#059669" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.opportunity_score}</td><td style={tableCellStyle()}>{item.summary}</td><td style={tableCellStyle()}>{item.status !== "APPROVED" ? <button onClick={() => approveResearchProject(item.id)}>Approve</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 46 AI Formula Candidates</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Candidate</th><th style={tableCellStyle(true)}>Concept</th><th style={tableCellStyle(true)}>Cost</th><th style={tableCellStyle(true)}>Stability</th><th style={tableCellStyle(true)}>Regulation</th><th style={tableCellStyle(true)}>Launch</th><th style={tableCellStyle(true)}>Risk</th></tr></thead><tbody>{aiFormulaCandidates.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>후보 처방이 표시됩니다.</td></tr>}{aiFormulaCandidates.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.candidate_name}</td><td style={tableCellStyle()}>{item.formula_concept}</td><td style={tableCellStyle()}>{item.target_cost}</td><td style={tableCellStyle()}>{item.predicted_stability}</td><td style={tableCellStyle()}>{item.predicted_regulation}</td><td style={tableCellStyle()}>{item.launch_score}</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 47 Knowledge Engine 2.0</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Target Type</th><th style={tableCellStyle(true)}>Relationship</th><th style={tableCellStyle(true)}>Confidence</th></tr></thead><tbody>{knowledgeEngineLinks.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Knowledge Link가 표시됩니다.</td></tr>}{knowledgeEngineLinks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.source_node}</td><td style={tableCellStyle()}>{item.source_type}</td><td style={tableCellStyle()}>{item.target_node}</td><td style={tableCellStyle()}>{item.target_type}</td><td style={tableCellStyle()}>{item.relationship}</td><td style={tableCellStyle()}>{item.confidence}%</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 48 Digital Factory Simulation 2.0</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Scenario</th><th style={tableCellStyle(true)}>Batch</th><th style={tableCellStyle(true)}>Tank</th><th style={tableCellStyle(true)}>Mix</th><th style={tableCellStyle(true)}>Filling</th><th style={tableCellStyle(true)}>Yield</th><th style={tableCellStyle(true)}>Loss</th><th style={tableCellStyle(true)}>Risk</th></tr></thead><tbody>{factorySimulations.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Factory Simulation이 표시됩니다.</td></tr>}{factorySimulations.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.scenario_name}</td><td style={tableCellStyle()}>{item.batch_kg}kg</td><td style={tableCellStyle()}>{item.tank_type}</td><td style={tableCellStyle()}>{item.mix_time_min} min</td><td style={tableCellStyle()}>{item.filling_time_min} min</td><td style={tableCellStyle()}>{item.expected_yield}%</td><td style={tableCellStyle()}>{item.expected_loss_kg}kg</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 49 Enterprise Data Lake</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Dataset</th><th style={tableCellStyle(true)}>Records</th><th style={tableCellStyle(true)}>Freshness</th><th style={tableCellStyle(true)}>Quality</th><th style={tableCellStyle(true)}>AI Ready</th></tr></thead><tbody>{dataLakeRecords.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Data Lake가 표시됩니다.</td></tr>}{dataLakeRecords.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.source_system}</td><td style={tableCellStyle()}>{item.dataset}</td><td style={tableCellStyle()}>{item.record_count}</td><td style={tableCellStyle()}>{item.freshness}</td><td style={{ ...tableCellStyle(), color: item.data_quality === "GOOD" ? "#059669" : item.data_quality === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.data_quality}</td><td style={tableCellStyle()}>{item.ai_ready ? "YES" : "NO"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 50 Enterprise Decision Center</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>KPI</th><th style={tableCellStyle(true)}>Value</th><th style={tableCellStyle(true)}>AI Risk</th><th style={tableCellStyle(true)}>Recommendation</th><th style={tableCellStyle(true)}>Decision</th></tr></thead><tbody>{decisionCenterItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Decision Center가 표시됩니다.</td></tr>}{decisionCenterItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.decision_area}</td><td style={tableCellStyle()}>{item.kpi}</td><td style={tableCellStyle()}>{item.current_value}</td><td style={{ ...tableCellStyle(), color: item.ai_risk === "HIGH" ? "#dc2626" : item.ai_risk === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.ai_risk}</td><td style={tableCellStyle()}>{item.ai_recommendation}</td><td style={{ ...tableCellStyle(), color: item.decision_status === "GO" ? "#059669" : item.decision_status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.decision_status}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
+  function renderV4PackageModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Knowledge / SCM / API Integrated Package</h1>
+          <p style={{ color: "#6b7280" }}>Phase 41~45 통합 패키지입니다. AI Knowledge Graph 확장, 특허·논문·시장 인사이트, 원료 시세 예측, 원가 최적화, Multi-Plant, Enterprise API Hub를 연결합니다.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Insights</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{v4PackageStats.insights}</div></div>
+            <div style={cardStyle()}><strong>High Relevance</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{v4PackageStats.highRelevance}</div></div>
+            <div style={cardStyle()}><strong>Raw Markets</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{v4PackageStats.rawMarkets}</div></div>
+            <div style={cardStyle()}><strong>Supply HIGH</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v4PackageStats.supplyHigh}</div></div>
+            <div style={cardStyle()}><strong>Cost Opt.</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{v4PackageStats.optimizations}</div></div>
+            <div style={cardStyle()}><strong>Avg Saving</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{v4PackageStats.avgSaving}%</div></div>
+            <div style={cardStyle()}><strong>Plants</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{v4PackageStats.availablePlants}/{v4PackageStats.plants}</div></div>
+            <div style={cardStyle()}><strong>APIs</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{v4PackageStats.activeApis}/{v4PackageStats.apis}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateV4KnowledgeScmPackage} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Knowledge/SCM Package 생성</button>
+            <button onClick={exportPatentPaperInsightsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Insight CSV</button>
+            <button onClick={exportRawMaterialMarketCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Market CSV</button>
+            <button onClick={exportCostOptimizationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Cost CSV</button>
+            <button onClick={exportMultiPlantCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Plant CSV</button>
+            <button onClick={exportApiHubCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>API CSV</button>
+          </div>
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{v4PackageStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 41 Patent / Paper / Market Insights</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Title</th><th style={tableCellStyle(true)}>Keyword</th><th style={tableCellStyle(true)}>Score</th><th style={tableCellStyle(true)}>Opportunity</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{patentPaperInsights.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Package 생성을 실행하세요.</td></tr>}{patentPaperInsights.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.source_type}</td><td style={tableCellStyle()}>{item.title}</td><td style={tableCellStyle()}>{item.keyword}</td><td style={tableCellStyle()}>{item.relevance_score}</td><td style={tableCellStyle()}>{item.opportunity}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 42 Raw Material Market Forecast</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Raw Code</th><th style={tableCellStyle(true)}>Raw Name</th><th style={tableCellStyle(true)}>Current</th><th style={tableCellStyle(true)}>Forecast</th><th style={tableCellStyle(true)}>Risk</th><th style={tableCellStyle(true)}>Recommendation</th></tr></thead><tbody>{rawMaterialMarkets.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>원료 시세 예측이 표시됩니다.</td></tr>}{rawMaterialMarkets.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.raw_code}</td><td style={tableCellStyle()}>{item.raw_name}</td><td style={tableCellStyle()}>{item.current_price}</td><td style={tableCellStyle()}>{item.forecast_price}</td><td style={{ ...tableCellStyle(), color: item.supply_risk === "HIGH" ? "#dc2626" : item.supply_risk === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.supply_risk}</td><td style={tableCellStyle()}>{item.recommendation}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 43 AI Cost Optimization</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Formula</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Current</th><th style={tableCellStyle(true)}>Optimized</th><th style={tableCellStyle(true)}>Saving</th><th style={tableCellStyle(true)}>Risk</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{costOptimizations.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>원가 최적화 결과가 표시됩니다.</td></tr>}{costOptimizations.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.formula_code}</td><td style={tableCellStyle()}>{item.optimization_type}</td><td style={tableCellStyle()}>{item.current_cost}</td><td style={tableCellStyle()}>{item.optimized_cost}</td><td style={tableCellStyle()}>{item.saving_percent}%</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 44 Multi-Plant / Multi-Company</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Plant</th><th style={tableCellStyle(true)}>Location</th><th style={tableCellStyle(true)}>Capability</th><th style={tableCellStyle(true)}>Capacity</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Note</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{multiPlantItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Plant 정보가 표시됩니다.</td></tr>}{multiPlantItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.plant_name}</td><td style={tableCellStyle()}>{item.location}</td><td style={tableCellStyle()}>{item.capability}</td><td style={tableCellStyle()}>{item.capacity_kg_day}</td><td style={{ ...tableCellStyle(), color: item.status === "AVAILABLE" ? "#059669" : item.status === "BUSY" ? "#d97706" : item.status === "BLOCKED" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.note}</td><td style={tableCellStyle()}>{item.status === "QUALIFICATION_REQUIRED" ? <button onClick={() => qualifyPlant(item.id)}>Qualify</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>Phase 45 Enterprise API Hub</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>API</th><th style={tableCellStyle(true)}>Domain</th><th style={tableCellStyle(true)}>Endpoint</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Security</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{apiHubItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>API Hub가 표시됩니다.</td></tr>}{apiHubItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.api_name}</td><td style={tableCellStyle()}>{item.domain}</td><td style={tableCellStyle()}>{item.endpoint}</td><td style={{ ...tableCellStyle(), color: item.status === "ACTIVE" ? "#059669" : item.status === "READY" ? "#2563eb" : item.status === "DEPRECATED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.security_level}</td><td style={tableCellStyle()}>{item.status !== "ACTIVE" ? <button onClick={() => activateApiHubItem(item.id)}>Activate</button> : "-"}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
+  function renderV3PackageModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Enterprise AI/QMS Integrated Package</h1>
+          <p style={{ color: "#6b7280" }}>
+            Phase 36~40 통합 패키지입니다. AI Copilot, QMS, CAPA/Change Control, DMS, Validation Center,
+            Knowledge Graph를 하나로 연결합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Copilot</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{v3PackageStats.copilot}</div></div>
+            <div style={cardStyle()}><strong>Copilot Done</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{v3PackageStats.copilotDone}</div></div>
+            <div style={cardStyle()}><strong>QMS Open</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{v3PackageStats.qmsOpen}</div></div>
+            <div style={cardStyle()}><strong>CAPA</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v3PackageStats.capa}</div></div>
+            <div style={cardStyle()}><strong>DMS</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{v3PackageStats.dmsEffective}/{v3PackageStats.dmsTotal}</div></div>
+            <div style={cardStyle()}><strong>Validation</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{v3PackageStats.validationPassed}/{v3PackageStats.validationTotal}</div></div>
+            <div style={cardStyle()}><strong>KG Nodes</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{v3PackageStats.graphNodes}</div></div>
+            <div style={cardStyle()}><strong>High Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v3PackageStats.highRisk}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={copilotCommand} onChange={(e) => setCopilotCommand(e.target.value)} placeholder="AI Copilot Command" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateV3AiQmsPackage} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              AI/QMS Package 생성
+            </button>
+            <button onClick={runAiCopilotCommand} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Copilot 실행
+            </button>
+            <button onClick={exportAiCopilotCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Copilot CSV
+            </button>
+            <button onClick={exportQmsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              QMS CSV
+            </button>
+            <button onClick={exportDmsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              DMS CSV
+            </button>
+            <button onClick={exportValidationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Validation CSV
+            </button>
+            <button onClick={exportKnowledgeGraphCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              KG CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{v3PackageStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 36 AI Copilot</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Command</th>
+                <th style={tableCellStyle(true)}>Module Chain</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Summary</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aiCopilotActions.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>AI/QMS Package 생성을 실행하세요.</td></tr>}
+              {aiCopilotActions.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.command}</td>
+                  <td style={tableCellStyle()}>{item.module_chain}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "NEEDS_REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.result_summary}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 37~38 QMS / CAPA / Change Control</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Process</th>
+                <th style={tableCellStyle(true)}>Source</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Due</th>
+                <th style={tableCellStyle(true)}>Summary</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {qmsProcesses.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>QMS 항목이 표시됩니다.</td></tr>}
+              {qmsProcesses.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.process}</td>
+                  <td style={tableCellStyle()}>{item.source_module}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "CLOSED" || item.status === "EFFECTIVE" ? "#059669" : item.status === "OPEN" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.due_date}</td>
+                  <td style={tableCellStyle()}>{item.summary}</td>
+                  <td style={tableCellStyle()}>{item.status !== "CLOSED" ? <button onClick={() => closeQmsProcess(item.id)}>Close</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 39 DMS</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Document No</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Title</th>
+                <th style={tableCellStyle(true)}>Version</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dmsDocuments.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>DMS 문서가 표시됩니다.</td></tr>}
+              {dmsDocuments.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.document_no}</td>
+                  <td style={tableCellStyle()}>{item.document_type}</td>
+                  <td style={tableCellStyle()}>{item.title}</td>
+                  <td style={tableCellStyle()}>{item.version}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "EFFECTIVE" ? "#059669" : item.status === "APPROVED" ? "#2563eb" : item.status === "OBSOLETE" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.status !== "EFFECTIVE" ? <button onClick={() => approveDmsDocument(item.id)}>Effective</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 40 Validation Center</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Protocol</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Result</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {validationProtocols.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Validation 항목이 표시됩니다.</td></tr>}
+              {validationProtocols.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.protocol_no}</td>
+                  <td style={tableCellStyle()}>{item.validation_type}</td>
+                  <td style={tableCellStyle()}>{item.target_system}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASSED" ? "#059669" : item.status === "FAILED" || item.status === "RETEST" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.result}</td>
+                  <td style={tableCellStyle()}>{item.status !== "PASSED" ? <button onClick={() => passValidation(item.id)}>Pass</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>AI Knowledge Graph</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Node</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Connected To</th>
+                <th style={tableCellStyle(true)}>Relationship</th>
+                <th style={tableCellStyle(true)}>Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {knowledgeGraphItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Knowledge Graph가 표시됩니다.</td></tr>}
+              {knowledgeGraphItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.node}</td>
+                  <td style={tableCellStyle()}>{item.node_type}</td>
+                  <td style={tableCellStyle()}>{item.connected_to}</td>
+                  <td style={tableCellStyle()}>{item.relationship}</td>
+                  <td style={tableCellStyle()}>{item.confidence}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderV2PackageModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Enterprise v2.0 Integrated Package</h1>
+          <p style={{ color: "#6b7280" }}>
+            Phase 31~35를 통합한 v2.0 패키지입니다. 전체 업무 흐름, Digital Twin, AI 처방 전문가,
+            Global Regulatory AI, Enterprise Analytics를 하나의 화면에서 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Flows</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{v2PackageStats.flows}</div></div>
+            <div style={cardStyle()}><strong>Connected</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{v2PackageStats.connected}</div></div>
+            <div style={cardStyle()}><strong>Watch</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{v2PackageStats.watch}</div></div>
+            <div style={cardStyle()}><strong>Twin</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{v2PackageStats.twins}</div></div>
+            <div style={cardStyle()}><strong>AI Suggestions</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{v2PackageStats.aiSuggestions}</div></div>
+            <div style={cardStyle()}><strong>P0</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v2PackageStats.p0}</div></div>
+            <div style={cardStyle()}><strong>Reg Blocked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v2PackageStats.regBlocked}</div></div>
+            <div style={cardStyle()}><strong>KPI Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{v2PackageStats.analyticsRisk}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <select value={v2FormulaCode} onChange={(e) => setV2FormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateV2IntegratedPackage} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              v2.0 Package 생성
+            </button>
+            <button onClick={lockV2Stabilization} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              v2.0 Lock
+            </button>
+            <button onClick={exportV2FlowsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Flow CSV
+            </button>
+            <button onClick={exportDigitalTwinCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Twin CSV
+            </button>
+            <button onClick={exportAiFormulaExpertCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              AI Expert CSV
+            </button>
+            <button onClick={exportGlobalRegAiCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Reg AI CSV
+            </button>
+            <button onClick={exportEnterpriseAnalyticsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Analytics CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{v2PackageStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 31 v2.0 Integration Flows</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Phase</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Flow</th>
+                <th style={tableCellStyle(true)}>Source</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              {v2Flows.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>v2.0 Package 생성을 실행하세요.</td></tr>}
+              {v2Flows.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.phase}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={tableCellStyle()}>{item.flow_name}</td>
+                  <td style={tableCellStyle()}>{item.source}</td>
+                  <td style={tableCellStyle()}>{item.target}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "CONNECTED" ? "#059669" : item.status === "WATCH" ? "#d97706" : item.status === "BLOCKED" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 32 Digital Twin Factory</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Batch kg</th>
+                <th style={tableCellStyle(true)}>Mixer</th>
+                <th style={tableCellStyle(true)}>RPM</th>
+                <th style={tableCellStyle(true)}>Time</th>
+                <th style={tableCellStyle(true)}>Yield</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {digitalTwinItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Digital Twin 결과가 표시됩니다.</td></tr>}
+              {digitalTwinItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.batch_size_kg}</td>
+                  <td style={tableCellStyle()}>{item.mixer_type}</td>
+                  <td style={tableCellStyle()}>{item.predicted_rpm}</td>
+                  <td style={tableCellStyle()}>{item.predicted_time_min} min</td>
+                  <td style={tableCellStyle()}>{item.predicted_yield_percent}%</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 33 AI Formula Expert</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Issue</th>
+                <th style={tableCellStyle(true)}>Diagnosis</th>
+                <th style={tableCellStyle(true)}>Recommendation</th>
+                <th style={tableCellStyle(true)}>Expected Result</th>
+                <th style={tableCellStyle(true)}>Confidence</th>
+                <th style={tableCellStyle(true)}>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aiFormulaExpertItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>AI Formula Expert 결과가 표시됩니다.</td></tr>}
+              {aiFormulaExpertItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.issue_type}</td>
+                  <td style={tableCellStyle()}>{item.diagnosis}</td>
+                  <td style={tableCellStyle()}>{item.recommendation}</td>
+                  <td style={tableCellStyle()}>{item.expected_result}</td>
+                  <td style={tableCellStyle()}>{item.confidence}%</td>
+                  <td style={{ ...tableCellStyle(), color: item.priority === "P0" ? "#dc2626" : item.priority === "P1" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 34 Global Regulatory AI</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Country</th>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Issue</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {globalRegAiItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Global Regulatory AI 결과가 표시됩니다.</td></tr>}
+              {globalRegAiItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.country}</td>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "OK" ? "#059669" : item.status === "CAUTION" ? "#d97706" : item.status === "BLOCKED" ? "#dc2626" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.key_issue}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Phase 35 Enterprise Analytics Center</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>KPI</th>
+                <th style={tableCellStyle(true)}>Value</th>
+                <th style={tableCellStyle(true)}>Trend</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Insight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {enterpriseAnalyticsItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Analytics KPI가 표시됩니다.</td></tr>}
+              {enterpriseAnalyticsItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.kpi}</td>
+                  <td style={tableCellStyle()}>{item.value}</td>
+                  <td style={tableCellStyle()}>{item.trend}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "GOOD" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.insight}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderMesModule() {
+    const latestWorkOrder = mesWorkOrders[0];
+    const latestLots = latestWorkOrder ? mesLots.filter((item) => item.work_order_id === latestWorkOrder.id) : [];
+    const latestProcesses = latestWorkOrder ? mesProcessLogs.filter((item) => item.work_order_id === latestWorkOrder.id) : [];
+    const latestDeviations = latestWorkOrder ? mesDeviations.filter((item) => item.work_order_id === latestWorkOrder.id) : [];
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>MES Bridge</h1>
+          <p style={{ color: "#6b7280" }}>
+            Scale-Up/BOM 결과를 생산 작업지시로 연결하고, 원료 LOT, 칭량/소비, 공정 로그, QC Hold, Deviation을 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Work Orders</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{mesStats.workOrders}</div></div>
+            <div style={cardStyle()}><strong>Released</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{mesStats.released}</div></div>
+            <div style={cardStyle()}><strong>Completed</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{mesStats.completed}</div></div>
+            <div style={cardStyle()}><strong>QC Hold</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{mesStats.qcHold}</div></div>
+            <div style={cardStyle()}><strong>Lots</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{mesStats.consumedLots}/{mesStats.lots}</div></div>
+            <div style={cardStyle()}><strong>Process Logs</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{mesStats.processLogs}</div></div>
+            <div style={cardStyle()}><strong>Deviations</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{mesStats.deviations}</div></div>
+            <div style={cardStyle()}><strong>Critical</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{mesStats.critical}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <select value={mesFormulaCode} onChange={(e) => setMesFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <select value={mesBatchId} onChange={(e) => setMesBatchId(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="">최근 Scale-Up Batch 또는 수동</option>
+              {scaleUpBatches.map((batch) => (
+                <option key={batch.id} value={batch.id}>{batch.id} / {batch.batch_size_kg}kg / {batch.status}</option>
+              ))}
+            </select>
+            <input value={mesQtyKg} onChange={(e) => setMesQtyKg(e.target.value)} placeholder="Production Qty kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={mesLine} onChange={(e) => setMesLine(e.target.value)} placeholder="Production Line" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={createMesWorkOrder} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              작업지시 생성
+            </button>
+            <button onClick={exportMesWorkOrdersCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Work Order CSV
+            </button>
+            <button onClick={exportMesLotsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              LOT CSV
+            </button>
+            <button onClick={exportMesProcessCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Process CSV
+            </button>
+            <button onClick={exportMesDeviationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Deviation CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{mesStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Work Orders</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>WO No</th>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Batch</th>
+                <th style={tableCellStyle(true)}>Qty kg</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Date</th>
+                <th style={tableCellStyle(true)}>Line</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mesWorkOrders.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>작업지시 생성을 클릭하세요.</td></tr>}
+              {mesWorkOrders.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.work_order_no}</td>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.batch_id}</td>
+                  <td style={tableCellStyle()}>{item.production_qty_kg}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "COMPLETED" ? "#059669" : item.status === "QC_HOLD" || item.status === "CANCELLED" ? "#dc2626" : item.status === "IN_PRODUCTION" || item.status === "RELEASED" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.planned_date}</td>
+                  <td style={tableCellStyle()}>{item.line}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => releaseWorkOrder(item.id)} style={{ marginRight: "6px" }}>Release</button>
+                    <button onClick={() => completeWorkOrder(item.id)}>Complete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Latest Work Order LOT / Weighing</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>LOT No</th>
+                <th style={tableCellStyle(true)}>Raw Code</th>
+                <th style={tableCellStyle(true)}>Raw LOT</th>
+                <th style={tableCellStyle(true)}>Required kg</th>
+                <th style={tableCellStyle(true)}>Consumed kg</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestLots.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>최근 작업지시의 LOT가 표시됩니다.</td></tr>}
+              {latestLots.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.lot_no}</td>
+                  <td style={tableCellStyle()}>{item.raw_code}</td>
+                  <td style={tableCellStyle()}>{item.raw_lot_no}</td>
+                  <td style={tableCellStyle()}>{item.required_kg}</td>
+                  <td style={tableCellStyle()}>{item.consumed_kg}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "CONSUMED" ? "#059669" : item.status === "WEIGHED" ? "#2563eb" : item.status === "RETURNED" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.status !== "CONSUMED" ? <button onClick={() => consumeLot(item.id)}>Consume</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Process Logs</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Step</th>
+                <th style={tableCellStyle(true)}>Process</th>
+                <th style={tableCellStyle(true)}>Start</th>
+                <th style={tableCellStyle(true)}>End</th>
+                <th style={tableCellStyle(true)}>Operator</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestProcesses.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>최근 작업지시의 공정 로그가 표시됩니다.</td></tr>}
+              {latestProcesses.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.step_no}</td>
+                  <td style={tableCellStyle()}>{item.process_name}</td>
+                  <td style={tableCellStyle()}>{item.start_time}</td>
+                  <td style={tableCellStyle()}>{item.end_time}</td>
+                  <td style={tableCellStyle()}>{item.operator}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "DEVIATION" ? "#dc2626" : item.status === "RUNNING" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => startProcessStep(item.id)} style={{ marginRight: "6px" }}>Start</button>
+                    <button onClick={() => completeProcessStep(item.id)}>Done</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Deviation / CAPA</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            {latestWorkOrder && <>
+              <button onClick={() => addMesDeviation(latestWorkOrder.id, "MEDIUM", "공정 시간 기준 초과")}>Deviation 추가</button>
+              <button onClick={() => addMesDeviation(latestWorkOrder.id, "HIGH", "pH 기준 이탈, QC Hold 필요")}>HIGH Deviation 추가</button>
+            </>}
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Severity</th>
+                <th style={tableCellStyle(true)}>Deviation</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Action</th>
+                <th style={tableCellStyle(true)}>Close</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestDeviations.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>최근 작업지시의 Deviation이 표시됩니다.</td></tr>}
+              {latestDeviations.map((item) => (
+                <tr key={item.id}>
+                  <td style={{ ...tableCellStyle(), color: item.severity === "CRITICAL" || item.severity === "HIGH" ? "#dc2626" : item.severity === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.severity}</td>
+                  <td style={tableCellStyle()}>{item.deviation}</td>
+                  <td style={tableCellStyle()}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                  <td style={tableCellStyle()}>{item.status !== "CLOSED" ? <button onClick={() => closeMesDeviation(item.id)}>Close</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderLimsModule() {
+    const latestSample = limsSamples[0];
+    const latestTests = latestSample ? limsTests.filter((item) => item.sample_id === latestSample.id) : [];
+    const latestStability = latestSample ? limsStabilities.filter((item) => item.sample_id === latestSample.id) : [];
+    const latestCoas = latestSample ? limsCoas.filter((item) => item.sample_id === latestSample.id) : [];
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>LIMS Test Center</h1>
+          <p style={{ color: "#6b7280" }}>
+            샘플 접수, 시험항목, 규격판정, 안정도, OOS/OOT, COA 발행을 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Samples</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{limsStats.samples}</div></div>
+            <div style={cardStyle()}><strong>Testing</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{limsStats.testing}</div></div>
+            <div style={cardStyle()}><strong>Approved</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{limsStats.approved}</div></div>
+            <div style={cardStyle()}><strong>Rejected</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{limsStats.rejected}</div></div>
+            <div style={cardStyle()}><strong>Tests</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{limsStats.tests}</div></div>
+            <div style={cardStyle()}><strong>OOS/OOT</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{limsStats.oos}/{limsStats.oot}</div></div>
+            <div style={cardStyle()}><strong>Stability Fail</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{limsStats.stabilityFail}</div></div>
+            <div style={cardStyle()}><strong>COA Issued</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{limsStats.issued}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <input value={limsProjectCode} onChange={(e) => setLimsProjectCode(e.target.value)} placeholder="Project Code" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={limsFormulaCode} onChange={(e) => setLimsFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <input value={limsRequester} onChange={(e) => setLimsRequester(e.target.value)} placeholder="Requester" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={createLimsSample} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Sample 접수
+            </button>
+            <button onClick={exportLimsSamplesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Sample CSV
+            </button>
+            <button onClick={exportLimsTestsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Test CSV
+            </button>
+            <button onClick={exportLimsStabilityCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Stability CSV
+            </button>
+            <button onClick={exportLimsCoaCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              COA CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{limsStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Samples</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Sample No</th>
+                <th style={tableCellStyle(true)}>Project</th>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Received</th>
+                <th style={tableCellStyle(true)}>Requester</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {limsSamples.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Sample 접수를 클릭하세요.</td></tr>}
+              {limsSamples.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.sample_no}</td>
+                  <td style={tableCellStyle()}>{item.project_code}</td>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.sample_type}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "APPROVED" ? "#059669" : item.status === "REJECTED" ? "#dc2626" : item.status === "REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.received_date}</td>
+                  <td style={tableCellStyle()}>{item.requester}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => reviewLimsSample(item.id)} style={{ marginRight: "6px" }}>Review</button>
+                    <button onClick={() => issueCoa(item.id)}>COA</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Latest Sample Tests</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Test</th>
+                <th style={tableCellStyle(true)}>Method</th>
+                <th style={tableCellStyle(true)}>Specification</th>
+                <th style={tableCellStyle(true)}>Result</th>
+                <th style={tableCellStyle(true)}>Judgment</th>
+                <th style={tableCellStyle(true)}>Analyst</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestTests.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>최근 Sample의 시험항목이 표시됩니다.</td></tr>}
+              {latestTests.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.test_name}</td>
+                  <td style={tableCellStyle()}>{item.method}</td>
+                  <td style={tableCellStyle()}>{item.specification}</td>
+                  <td style={tableCellStyle()}>{item.result_value}</td>
+                  <td style={{ ...tableCellStyle(), color: item.judgment === "PASS" ? "#059669" : item.judgment === "PENDING" ? "#6b7280" : "#dc2626", fontWeight: "bold" }}>{item.judgment}</td>
+                  <td style={tableCellStyle()}>{item.analyst}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updateLimsTestJudgment(item.id, "PASS")} style={{ marginRight: "6px" }}>PASS</button>
+                    <button onClick={() => updateLimsTestJudgment(item.id, "OOS")}>OOS</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Stability Test</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Condition</th>
+                <th style={tableCellStyle(true)}>Time Point</th>
+                <th style={tableCellStyle(true)}>Result</th>
+                <th style={tableCellStyle(true)}>Observation</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestStability.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>최근 Sample의 안정도 항목이 표시됩니다.</td></tr>}
+              {latestStability.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.condition}</td>
+                  <td style={tableCellStyle()}>{item.time_point}</td>
+                  <td style={{ ...tableCellStyle(), color: item.result === "PASS" ? "#059669" : item.result === "WATCH" ? "#d97706" : item.result === "FAIL" ? "#dc2626" : "#6b7280", fontWeight: "bold" }}>{item.result}</td>
+                  <td style={tableCellStyle()}>{item.observation}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updateStabilityResult(item.id, "PASS")} style={{ marginRight: "6px" }}>PASS</button>
+                    <button onClick={() => updateStabilityResult(item.id, "WATCH")} style={{ marginRight: "6px" }}>WATCH</button>
+                    <button onClick={() => updateStabilityResult(item.id, "FAIL")}>FAIL</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>COA</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>COA No</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Issued Date</th>
+                <th style={tableCellStyle(true)}>Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestCoas.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>COA 버튼을 클릭하면 생성됩니다.</td></tr>}
+              {latestCoas.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.coa_no}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "ISSUED" ? "#059669" : item.status === "APPROVED" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.issued_date}</td>
+                  <td style={tableCellStyle()}>{item.summary}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderElnModule() {
+    const latestExperiment = elnExperiments[0];
+    const latestObservations = latestExperiment ? elnObservations.filter((item) => item.experiment_id === latestExperiment.id) : [];
+    const latestAttachments = latestExperiment ? elnAttachments.filter((item) => item.experiment_id === latestExperiment.id) : [];
+    const latestSignatures = latestExperiment ? elnSignatures.filter((item) => item.experiment_id === latestExperiment.id) : [];
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Electronic Lab Notebook</h1>
+          <p style={{ color: "#6b7280" }}>
+            실험 계획, 관찰 결과, pH/점도/외관/안정성, 첨부파일, 전자서명을 하나의 연구노트로 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Experiments</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{elnStats.experiments}</div></div>
+            <div style={cardStyle()}><strong>In Progress</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{elnStats.inProgress}</div></div>
+            <div style={cardStyle()}><strong>Review</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{elnStats.review}</div></div>
+            <div style={cardStyle()}><strong>Signed</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{elnStats.signed}</div></div>
+            <div style={cardStyle()}><strong>Observations</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{elnStats.observations}</div></div>
+            <div style={cardStyle()}><strong>WATCH/FAIL</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{elnStats.watch}/{elnStats.fail}</div></div>
+            <div style={cardStyle()}><strong>Attachments</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{elnStats.attachments}</div></div>
+            <div style={cardStyle()}><strong>Signatures</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{elnStats.signatures}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <input value={elnProjectCode} onChange={(e) => setElnProjectCode(e.target.value)} placeholder="Project Code" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={elnFormulaCode} onChange={(e) => setElnFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <input value={elnTitle} onChange={(e) => setElnTitle(e.target.value)} placeholder="Experiment Title" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={elnResearcher} onChange={(e) => setElnResearcher(e.target.value)} placeholder="Researcher" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={createElnExperiment} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              ELN 실험 생성
+            </button>
+            <button onClick={exportElnExperimentsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Experiment CSV
+            </button>
+            <button onClick={exportElnObservationsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Observation CSV
+            </button>
+            <button onClick={exportElnSignaturesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Signature CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{elnStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Experiments</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>No</th>
+                <th style={tableCellStyle(true)}>Project</th>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Title</th>
+                <th style={tableCellStyle(true)}>Researcher</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Date</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {elnExperiments.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>ELN 실험 생성을 클릭하세요.</td></tr>}
+              {elnExperiments.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.experiment_no}</td>
+                  <td style={tableCellStyle()}>{item.project_code}</td>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.title}</td>
+                  <td style={tableCellStyle()}>{item.researcher}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "SIGNED" ? "#059669" : item.status === "REVIEW" ? "#d97706" : item.status === "IN_PROGRESS" ? "#2563eb" : "#6b7280", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.experiment_date}</td>
+                  <td style={tableCellStyle()}>{item.status === "IN_PROGRESS" ? <button onClick={() => requestElnReview(item.id)}>Review</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Latest Experiment Observations</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            {latestExperiment && <>
+              <button onClick={() => addElnObservation(latestExperiment.id, "pH", "5.6", "PASS")}>pH 추가</button>
+              <button onClick={() => addElnObservation(latestExperiment.id, "Viscosity", "3,250 cP", "PASS")}>점도 추가</button>
+              <button onClick={() => addElnObservation(latestExperiment.id, "Stability", "45℃ 1W 미세 분리", "WATCH")}>안정도 WATCH 추가</button>
+            </>}
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Time</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Value</th>
+                <th style={tableCellStyle(true)}>Result</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestObservations.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>최근 실험의 관찰 기록이 표시됩니다.</td></tr>}
+              {latestObservations.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.time_point}</td>
+                  <td style={tableCellStyle()}>{item.observation_type}</td>
+                  <td style={tableCellStyle()}>{item.value}</td>
+                  <td style={{ ...tableCellStyle(), color: item.result === "PASS" ? "#059669" : item.result === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.result}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Attachments</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>File</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestAttachments.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>최근 실험의 첨부파일이 표시됩니다.</td></tr>}
+              {latestAttachments.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.file_name}</td>
+                  <td style={tableCellStyle()}>{item.file_type}</td>
+                  <td style={tableCellStyle()}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>E-Signature</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Signer</th>
+                <th style={tableCellStyle(true)}>Role</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Signed At</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestSignatures.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>최근 실험의 서명 요청이 표시됩니다.</td></tr>}
+              {latestSignatures.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.signer}</td>
+                  <td style={tableCellStyle()}>{item.role}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "SIGNED" ? "#059669" : item.status === "REJECTED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.signed_at}</td>
+                  <td style={tableCellStyle()}>{item.status !== "SIGNED" ? <button onClick={() => signEln(item.id)}>Sign</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderScaleUpModule() {
+    const currentBatchBom = scaleUpBatches[0] ? bomItems.filter((item) => item.batch_id === scaleUpBatches[0].id) : [];
+    const currentSteps = scaleUpBatches[0] ? manufacturingSteps.filter((item) => item.batch_id === scaleUpBatches[0].id) : [];
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Scale-Up & BOM Engine</h1>
+          <p style={{ color: "#6b7280" }}>
+            Lab Scale 처방을 Pilot/Production/Mass 배치로 확장하고, 원료 소요량, 손실률, 구매량, 제조공정표, 생산 이관 리스크를 계산합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Batches</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{scaleUpStats.batches}</div></div>
+            <div style={cardStyle()}><strong>Ready</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{scaleUpStats.ready}</div></div>
+            <div style={cardStyle()}><strong>Blocked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{scaleUpStats.blocked}</div></div>
+            <div style={cardStyle()}><strong>BOM Items</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{scaleUpStats.bom}</div></div>
+            <div style={cardStyle()}><strong>Required kg</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{scaleUpStats.totalRequiredKg}</div></div>
+            <div style={cardStyle()}><strong>Purchase kg</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{scaleUpStats.totalPurchaseKg}</div></div>
+            <div style={cardStyle()}><strong>Amount</strong><div style={{ fontSize: "24px", fontWeight: "bold", color: "#7c3aed" }}>{scaleUpStats.totalAmount.toLocaleString()}</div></div>
+            <div style={cardStyle()}><strong>High Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{scaleUpStats.highRisk}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <select value={scaleFormulaCode} onChange={(e) => setScaleFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <input value={scaleBatchKg} onChange={(e) => setScaleBatchKg(e.target.value)} placeholder="Batch kg 예: 1, 10, 100, 500, 3000" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={scaleYieldPercent} onChange={(e) => setScaleYieldPercent(e.target.value)} placeholder="Yield % 예: 97" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={scaleLossPercent} onChange={(e) => setScaleLossPercent(e.target.value)} placeholder="Loss % 예: 2" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={runScaleUpCalculation} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Scale-Up 계산
+            </button>
+            <button onClick={exportScaleUpBatchesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Batch CSV
+            </button>
+            <button onClick={exportBomCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              BOM CSV
+            </button>
+            <button onClick={exportManufacturingStepsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              공정 CSV
+            </button>
+            <button onClick={exportScaleUpRisksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Risk CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{scaleUpStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Scale-Up Batches</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Batch ID</th>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Size kg</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Cost</th>
+                <th style={tableCellStyle(true)}>Yield</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scaleUpBatches.length === 0 && <tr><td style={tableCellStyle()} colSpan={9}>Scale-Up 계산을 실행하세요.</td></tr>}
+              {scaleUpBatches.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.batch_size_kg}</td>
+                  <td style={tableCellStyle()}>{item.batch_type}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "APPROVED" || item.status === "READY" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.estimated_cost.toLocaleString()}</td>
+                  <td style={tableCellStyle()}>{item.yield_percent}%</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>{item.status === "READY" ? <button onClick={() => approveScaleUpBatch(item.id)}>Approve</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>BOM / 원료 소요량</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Raw Code</th>
+                <th style={tableCellStyle(true)}>Raw Name</th>
+                <th style={tableCellStyle(true)}>%</th>
+                <th style={tableCellStyle(true)}>Required kg</th>
+                <th style={tableCellStyle(true)}>Loss %</th>
+                <th style={tableCellStyle(true)}>Purchase kg</th>
+                <th style={tableCellStyle(true)}>Unit Price</th>
+                <th style={tableCellStyle(true)}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentBatchBom.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>최근 Batch의 BOM이 표시됩니다.</td></tr>}
+              {currentBatchBom.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.raw_code}</td>
+                  <td style={tableCellStyle()}>{item.raw_name}</td>
+                  <td style={tableCellStyle()}>{item.percentage}</td>
+                  <td style={tableCellStyle()}>{item.required_kg}</td>
+                  <td style={tableCellStyle()}>{item.loss_percent}</td>
+                  <td style={tableCellStyle()}>{item.purchase_kg}</td>
+                  <td style={tableCellStyle()}>{item.unit_price}</td>
+                  <td style={tableCellStyle()}>{item.amount.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Manufacturing Process</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Step</th>
+                <th style={tableCellStyle(true)}>Phase</th>
+                <th style={tableCellStyle(true)}>Process</th>
+                <th style={tableCellStyle(true)}>Temp</th>
+                <th style={tableCellStyle(true)}>RPM</th>
+                <th style={tableCellStyle(true)}>Time</th>
+                <th style={tableCellStyle(true)}>QC Check</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentSteps.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>최근 Batch의 제조공정이 표시됩니다.</td></tr>}
+              {currentSteps.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.step_no}</td>
+                  <td style={tableCellStyle()}>{item.phase}</td>
+                  <td style={tableCellStyle()}>{item.process}</td>
+                  <td style={tableCellStyle()}>{item.temperature}</td>
+                  <td style={tableCellStyle()}>{item.rpm}</td>
+                  <td style={tableCellStyle()}>{item.time_min} min</td>
+                  <td style={tableCellStyle()}>{item.qc_check}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Scale-Up Risk</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Category</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Level</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scaleUpRisks.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Scale-Up 계산 시 Risk가 표시됩니다.</td></tr>}
+              {scaleUpRisks.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.category}</td>
+                  <td style={tableCellStyle()}>{item.risk}</td>
+                  <td style={{ ...tableCellStyle(), color: item.level === "HIGH" ? "#dc2626" : item.level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.level}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderFormulaSimulationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Formula Simulation Engine</h1>
+          <p style={{ color: "#6b7280" }}>
+            처방의 배치 스케일, 원가, pH, 점도, 안정성, 규제 적합성을 예측하고 원료 대체 및 최적화 제안을 생성합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Simulations</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{simulationStats.results}</div></div>
+            <div style={cardStyle()}><strong>HIGH Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{simulationStats.highRisk}</div></div>
+            <div style={cardStyle()}><strong>MEDIUM Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{simulationStats.mediumRisk}</div></div>
+            <div style={cardStyle()}><strong>Substitutions</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{simulationStats.substitutions}</div></div>
+            <div style={cardStyle()}><strong>Optimizations</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{simulationStats.optimizations}</div></div>
+            <div style={cardStyle()}><strong>P0</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{simulationStats.p0}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <select value={simulationFormulaCode} onChange={(e) => setSimulationFormulaCode(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              {formulas.map((formula) => (
+                <option key={formula.id} value={formula.formula_code}>{formula.formula_code} / {formula.formula_name}</option>
+              ))}
+            </select>
+            <input value={simulationBatchKg} onChange={(e) => setSimulationBatchKg(e.target.value)} placeholder="Batch kg 예: 1, 10, 100" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={simulationTargetCost} onChange={(e) => setSimulationTargetCost(e.target.value)} placeholder="Target Cost / kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={simulationTargetPh} onChange={(e) => setSimulationTargetPh(e.target.value)} placeholder="Target pH" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={simulationTargetViscosity} onChange={(e) => setSimulationTargetViscosity(e.target.value)} placeholder="Target Viscosity cP" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <select value={simulationCountry} onChange={(e) => setSimulationCountry(e.target.value)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="EU">EU</option>
+              <option value="CN">CN</option>
+              <option value="US">US</option>
+              <option value="JP">JP</option>
+              <option value="ASEAN">ASEAN</option>
+              <option value="KR">KR</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateSimulationSeed} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#6b7280", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Seed 입력
+            </button>
+            <button onClick={runFormulaSimulation} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Simulation 실행
+            </button>
+            <button onClick={exportSimulationResultsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Result CSV
+            </button>
+            <button onClick={exportSubstitutionCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Substitution CSV
+            </button>
+            <button onClick={exportOptimizationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Optimization CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{simulationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Simulation Results</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Formula</th>
+                <th style={tableCellStyle(true)}>Batch kg</th>
+                <th style={tableCellStyle(true)}>Cost/kg</th>
+                <th style={tableCellStyle(true)}>pH</th>
+                <th style={tableCellStyle(true)}>Viscosity</th>
+                <th style={tableCellStyle(true)}>Stability</th>
+                <th style={tableCellStyle(true)}>Regulation</th>
+                <th style={tableCellStyle(true)}>Total</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+                <th style={tableCellStyle(true)}>Recommendation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {simulationResults.length === 0 && <tr><td style={tableCellStyle()} colSpan={10}>Simulation 실행을 클릭하세요.</td></tr>}
+              {simulationResults.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.formula_code}</td>
+                  <td style={tableCellStyle()}>{item.batch_kg}</td>
+                  <td style={tableCellStyle()}>{item.predicted_cost_per_kg}</td>
+                  <td style={tableCellStyle()}>{item.predicted_ph}</td>
+                  <td style={tableCellStyle()}>{item.predicted_viscosity}</td>
+                  <td style={tableCellStyle()}>{item.stability_score}</td>
+                  <td style={tableCellStyle()}>{item.regulation_score}</td>
+                  <td style={tableCellStyle()}>{item.total_score}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td>
+                  <td style={tableCellStyle()}>{item.recommendation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Material Substitution</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Source Raw</th>
+                <th style={tableCellStyle(true)}>Source INCI</th>
+                <th style={tableCellStyle(true)}>Substitute Raw</th>
+                <th style={tableCellStyle(true)}>Substitute INCI</th>
+                <th style={tableCellStyle(true)}>Reason</th>
+                <th style={tableCellStyle(true)}>Expected Effect</th>
+                <th style={tableCellStyle(true)}>Risk</th>
+              </tr>
+            </thead>
+            <tbody>
+              {substitutionItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Simulation 실행 시 대체 후보가 생성됩니다.</td></tr>}
+              {substitutionItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.source_raw}</td>
+                  <td style={tableCellStyle()}>{item.source_inci}</td>
+                  <td style={tableCellStyle()}>{item.substitute_raw}</td>
+                  <td style={tableCellStyle()}>{item.substitute_inci}</td>
+                  <td style={tableCellStyle()}>{item.reason}</td>
+                  <td style={tableCellStyle()}>{item.expected_effect}</td>
+                  <td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Optimization Suggestions</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Area</th>
+                <th style={tableCellStyle(true)}>Suggestion</th>
+                <th style={tableCellStyle(true)}>Expected Impact</th>
+                <th style={tableCellStyle(true)}>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {optimizationItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Simulation 실행 시 최적화 제안이 생성됩니다.</td></tr>}
+              {optimizationItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.area}</td>
+                  <td style={tableCellStyle()}>{item.suggestion}</td>
+                  <td style={tableCellStyle()}>{item.expected_impact}</td>
+                  <td style={{ ...tableCellStyle(), color: item.priority === "P0" ? "#dc2626" : item.priority === "P1" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderWorkflowModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Enterprise Workflow Engine</h1>
+          <p style={{ color: "#6b7280" }}>
+            연구소의 표준 업무 흐름을 Workflow Template으로 정의하고, 프로젝트·처방·품질·규제·고객 업무를 단계별 Task로 자동 생성합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Templates</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{workflowStats.templates}</div></div>
+            <div style={cardStyle()}><strong>Active</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{workflowStats.activeTemplates}</div></div>
+            <div style={cardStyle()}><strong>Steps</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{workflowStats.steps}</div></div>
+            <div style={cardStyle()}><strong>Runs</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{workflowStats.runs}</div></div>
+            <div style={cardStyle()}><strong>In Progress</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{workflowStats.inProgress}</div></div>
+            <div style={cardStyle()}><strong>Blocked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{workflowStats.blocked}</div></div>
+            <div style={cardStyle()}><strong>Task Done</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{workflowStats.taskDone}/{workflowStats.tasks}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <input value={workflowTarget} onChange={(e) => setWorkflowTarget(e.target.value)} placeholder="Workflow Target 예: 26A001 / FC-001 v1.0 / RM-001" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateWorkflowTemplates} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Workflow Template 생성
+            </button>
+            <button onClick={exportWorkflowTemplatesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Template CSV
+            </button>
+            <button onClick={exportWorkflowRunsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Run CSV
+            </button>
+            <button onClick={exportWorkflowTasksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Task CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{workflowStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Workflow Templates</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Workflow</th>
+                <th style={tableCellStyle(true)}>Trigger</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Description</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workflowTemplates.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Workflow Template 생성을 실행하세요.</td></tr>}
+              {workflowTemplates.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.workflow_name}</td>
+                  <td style={tableCellStyle()}>{item.trigger_module}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "ACTIVE" ? "#059669" : item.status === "PAUSED" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner_team}</td>
+                  <td style={tableCellStyle()}>{item.description}</td>
+                  <td style={tableCellStyle()}><button onClick={() => startWorkflowRun(item.id)}>Start</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Workflow Runs</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Run ID</th>
+                <th style={tableCellStyle(true)}>Workflow</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Current Step</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Progress</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workflowRuns.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>실행 중인 Workflow가 없습니다.</td></tr>}
+              {workflowRuns.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.workflow_id}</td>
+                  <td style={tableCellStyle()}>{item.target}</td>
+                  <td style={tableCellStyle()}>{item.current_step}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "COMPLETED" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : item.status === "WAITING_APPROVAL" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.progress}%</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.status !== "BLOCKED" && item.status !== "COMPLETED" ? <button onClick={() => blockWorkflowRun(item.id)}>Block</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Workflow Tasks</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Task ID</th>
+                <th style={tableCellStyle(true)}>Run</th>
+                <th style={tableCellStyle(true)}>Task</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Due Date</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workflowTasks.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>생성된 Task가 없습니다.</td></tr>}
+              {workflowTasks.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.run_id}</td>
+                  <td style={tableCellStyle()}>{item.task_name}</td>
+                  <td style={tableCellStyle()}>{item.owner_team}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : item.status === "IN_PROGRESS" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.due_date}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => completeWorkflowTask(item.id)}>Done</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderStabilizationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Enterprise v1.0 Stabilization</h1>
+          <p style={{ color: "#6b7280" }}>
+            Enterprise PLM v1.0 운영 기준선을 확정하고, 안정화 항목과 4주 후속 운영계획을 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Checks</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{stabilizationStats.total}</div></div>
+            <div style={cardStyle()}><strong>Stable</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{stabilizationStats.stable}</div></div>
+            <div style={cardStyle()}><strong>Locked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{stabilizationStats.locked}</div></div>
+            <div style={cardStyle()}><strong>Watch</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{stabilizationStats.watch}</div></div>
+            <div style={cardStyle()}><strong>Fix Required</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{stabilizationStats.fixRequired}</div></div>
+            <div style={cardStyle()}><strong>P0</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{stabilizationStats.p0}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "820px", marginBottom: "12px" }}>
+            <input value={v1Version} onChange={(e) => setV1Version(e.target.value)} placeholder="Version" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateStabilizationPlan} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Stabilization Plan 생성
+            </button>
+            <button onClick={lockV1Baseline} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              v1.0 Baseline Lock
+            </button>
+            <button onClick={exportStabilizationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Stabilization CSV
+            </button>
+            <button onClick={exportV1ReleaseNotesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Release Note CSV
+            </button>
+            <button onClick={exportPostGoLivePlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              4 Week Plan CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{stabilizationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Stabilization Checklist</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Category</th>
+                <th style={tableCellStyle(true)}>Item</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Priority</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stabilizationItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>Stabilization Plan 생성을 실행하세요.</td></tr>}
+              {stabilizationItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.category}</td>
+                  <td style={tableCellStyle()}>{item.item}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "STABLE" || item.status === "LOCKED" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={{ ...tableCellStyle(), color: item.priority === "P0" ? "#dc2626" : item.priority === "P1" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>v1.0 Release Notes</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Version</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {v1ReleaseNotes.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Stabilization Plan 생성을 실행하세요.</td></tr>}
+              {v1ReleaseNotes.map((item) => (
+                <tr key={`${item.module}-${item.version}`}>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={tableCellStyle()}>{item.version}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "INCLUDED" ? "#059669" : item.status === "LIMITED" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Post Go-Live 4 Week Plan</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Week</th>
+                <th style={tableCellStyle(true)}>Task</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {postGoLiveTasks.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Stabilization Plan 생성을 실행하세요.</td></tr>}
+              {postGoLiveTasks.map((item) => (
+                <tr key={`${item.week}-${item.task}`}>
+                  <td style={tableCellStyle()}>{item.week}</td>
+                  <td style={tableCellStyle()}>{item.task}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "IN_PROGRESS" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updatePostGoLiveTask(item.week, item.task, "IN_PROGRESS")} style={{ marginRight: "6px" }}>Start</button>
+                    <button onClick={() => updatePostGoLiveTask(item.week, item.task, "DONE")}>Done</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderMonitoringModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Backup / Monitoring / Error Center</h1>
+          <p style={{ color: "#6b7280" }}>
+            Go-Live 이후 운영 안정성을 위한 백업, 모니터링, 오류 로그 센터입니다.
+            운영 중 문제가 발생하면 이 화면에서 원인과 조치 상태를 추적합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Backup Jobs</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{monitoringStats.backupJobs}</div></div>
+            <div style={cardStyle()}><strong>Backup Success</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{monitoringStats.backupSuccess}</div></div>
+            <div style={cardStyle()}><strong>Checks</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{monitoringStats.checks}</div></div>
+            <div style={cardStyle()}><strong>WARN</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{monitoringStats.warn}</div></div>
+            <div style={cardStyle()}><strong>FAIL</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{monitoringStats.fail}</div></div>
+            <div style={cardStyle()}><strong>Open Errors</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{monitoringStats.openErrors}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={initializeMonitoringCenter} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Monitoring 초기화
+            </button>
+            <button onClick={rerunMonitoringChecks} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Check 재실행
+            </button>
+            <button onClick={exportEmergencyBackupCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Emergency Backup CSV
+            </button>
+            <button onClick={exportBackupJobsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Backup CSV
+            </button>
+            <button onClick={exportMonitoringChecksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Monitoring CSV
+            </button>
+            <button onClick={exportErrorLogsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Error CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{monitoringStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Backup Jobs</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Target</th>
+                <th style={tableCellStyle(true)}>Type</th>
+                <th style={tableCellStyle(true)}>Schedule</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Last Run</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backupJobs.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Monitoring 초기화를 실행하세요.</td></tr>}
+              {backupJobs.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.target}</td>
+                  <td style={tableCellStyle()}>{item.backup_type}</td>
+                  <td style={tableCellStyle()}>{item.schedule}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "SUCCESS" ? "#059669" : item.status === "FAILED" ? "#dc2626" : item.status === "RUNNING" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.last_run}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}><button onClick={() => runBackupJob(item.id)}>Run</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Monitoring Checks</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Category</th>
+                <th style={tableCellStyle(true)}>Check</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Value</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monitoringChecks.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Monitoring 초기화를 실행하세요.</td></tr>}
+              {monitoringChecks.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.category}</td>
+                  <td style={tableCellStyle()}>{item.check_name}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "WARN" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.value}</td>
+                  <td style={tableCellStyle()}>{item.action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Error Center</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <button onClick={() => addErrorLog("MEDIUM", "Formula", "처방 저장 테스트 오류")}>Formula Error 추가</button>
+            <button onClick={() => addErrorLog("HIGH", "Supabase", "DB 연결 상태 확인 필요")}>DB Error 추가</button>
+            <button onClick={() => addErrorLog("CRITICAL", "Auth", "로그인 권한 오류")}>Critical Error 추가</button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Severity</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Message</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Created At</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {errorLogs.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>등록된 오류가 없습니다.</td></tr>}
+              {errorLogs.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={{ ...tableCellStyle(), color: item.severity === "CRITICAL" || item.severity === "HIGH" ? "#dc2626" : item.severity === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.severity}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={tableCellStyle()}>{item.message}</td>
+                  <td style={tableCellStyle()}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.created_at}</td>
+                  <td style={tableCellStyle()}>{item.status !== "RESOLVED" ? <button onClick={() => resolveErrorLog(item.id)}>Resolve</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderGoLiveModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Go-Live Operation Mode</h1>
+          <p style={{ color: "#6b7280" }}>
+            Enterprise PLM을 실제 운영모드로 전환하고, 일일 운영 지표와 이슈를 관리합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Mode</strong><div style={{ fontSize: "24px", fontWeight: "bold", color: operationMode === "LIVE" ? "#059669" : "#d97706" }}>{operationMode}</div></div>
+            <div style={cardStyle()}><strong>Operations</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{goLiveStats.operations}</div></div>
+            <div style={cardStyle()}><strong>Active</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{goLiveStats.active}</div></div>
+            <div style={cardStyle()}><strong>Monitoring</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{goLiveStats.monitoring}</div></div>
+            <div style={cardStyle()}><strong>Open Issues</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{goLiveStats.openIssues}</div></div>
+            <div style={cardStyle()}><strong>Critical</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{goLiveStats.critical}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={initializeGoLiveMode} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Go-Live 초기화
+            </button>
+            <button onClick={activateGoLiveMode} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              LIVE 전환
+            </button>
+            <button onClick={exportGoLiveOperationsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Operations CSV
+            </button>
+            <button onClick={exportGoLiveIssuesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Issues CSV
+            </button>
+            <button onClick={exportDailyMetricsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Metrics CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{goLiveStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Daily Operation Metrics</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Metric</th>
+                <th style={tableCellStyle(true)}>Value</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyMetrics.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Go-Live 초기화를 실행하세요.</td></tr>}
+              {dailyMetrics.map((item) => (
+                <tr key={item.metric}>
+                  <td style={tableCellStyle()}>{item.metric}</td>
+                  <td style={tableCellStyle()}>{item.value}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "GOOD" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Operation Checklist</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Area</th>
+                <th style={tableCellStyle(true)}>Operation</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Check Point</th>
+              </tr>
+            </thead>
+            <tbody>
+              {goLiveOperations.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Go-Live 초기화를 실행하세요.</td></tr>}
+              {goLiveOperations.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.area}</td>
+                  <td style={tableCellStyle()}>{item.operation}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "ACTIVE" ? "#059669" : item.status === "MONITORING" ? "#2563eb" : item.status === "ISSUE" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.check_point}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Issue Tracker</h2>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <button onClick={() => addGoLiveIssue("MEDIUM", "Project", "프로젝트 등록 테스트 필요", "R&D")}>샘플 이슈 추가</button>
+            <button onClick={() => addGoLiveIssue("HIGH", "Quality", "원료문서 만료 확인 필요", "QC")}>QA 이슈 추가</button>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Severity</th>
+                <th style={tableCellStyle(true)}>Module</th>
+                <th style={tableCellStyle(true)}>Issue</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {goLiveIssues.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>등록된 운영 이슈가 없습니다.</td></tr>}
+              {goLiveIssues.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={{ ...tableCellStyle(), color: item.severity === "CRITICAL" || item.severity === "HIGH" ? "#dc2626" : item.severity === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.severity}</td>
+                  <td style={tableCellStyle()}>{item.module}</td>
+                  <td style={tableCellStyle()}>{item.issue}</td>
+                  <td style={tableCellStyle()}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>{item.status !== "RESOLVED" ? <button onClick={() => resolveGoLiveIssue(item.id)}>Resolve</button> : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </>
+    );
+  }
+
+  function renderUatMigrationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>UAT & Data Migration Center</h1>
+          <p style={{ color: "#6b7280" }}>
+            운영 시작 전 사용자 테스트와 기존 Excel/CSV 데이터 이관을 관리합니다.
+            이 단계가 끝나면 Enterprise v1.0 Go-Live 준비가 완료됩니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>UAT</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{uatMigrationStats.uatTotal}</div></div>
+            <div style={cardStyle()}><strong>UAT PASS</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{uatMigrationStats.uatPass}</div></div>
+            <div style={cardStyle()}><strong>UAT FAIL</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{uatMigrationStats.uatFail}</div></div>
+            <div style={cardStyle()}><strong>Migration</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{uatMigrationStats.migrationDone}/{uatMigrationStats.batches}</div></div>
+            <div style={cardStyle()}><strong>Training</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{uatMigrationStats.trainingDone}/{uatMigrationStats.trainingTotal}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateUatMigrationPlan} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              UAT/Migration Plan 생성
+            </button>
+            <button onClick={exportUatScenariosCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              UAT CSV
+            </button>
+            <button onClick={exportMigrationBatchesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Migration CSV
+            </button>
+            <button onClick={exportTrainingPlanCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>
+              Training CSV
+            </button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{uatMigrationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>UAT Scenarios</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Team</th>
+                <th style={tableCellStyle(true)}>Scenario</th>
+                <th style={tableCellStyle(true)}>Expected Result</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Owner</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {uatScenarios.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>UAT/Migration Plan 생성을 실행하세요.</td></tr>}
+              {uatScenarios.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.team}</td>
+                  <td style={tableCellStyle()}>{item.scenario}</td>
+                  <td style={tableCellStyle()}>{item.expected_result}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "FAIL" ? "#dc2626" : item.status === "HOLD" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.owner}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updateUatStatus(item.id, "PASS")} style={{ marginRight: "6px" }}>PASS</button>
+                    <button onClick={() => updateUatStatus(item.id, "FAIL")}>FAIL</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Data Migration Batches</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>ID</th>
+                <th style={tableCellStyle(true)}>Source</th>
+                <th style={tableCellStyle(true)}>Target Table</th>
+                <th style={tableCellStyle(true)}>Data Type</th>
+                <th style={tableCellStyle(true)}>Rows</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Note</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {migrationBatches.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>UAT/Migration Plan 생성을 실행하세요.</td></tr>}
+              {migrationBatches.map((item) => (
+                <tr key={item.id}>
+                  <td style={tableCellStyle()}>{item.id}</td>
+                  <td style={tableCellStyle()}>{item.source}</td>
+                  <td style={tableCellStyle()}>{item.target_table}</td>
+                  <td style={tableCellStyle()}>{item.data_type}</td>
+                  <td style={tableCellStyle()}>{item.estimated_rows}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "ERROR" ? "#dc2626" : item.status === "MIGRATING" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.note}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updateMigrationStatus(item.id, "MIGRATING")} style={{ marginRight: "6px" }}>Start</button>
+                    <button onClick={() => updateMigrationStatus(item.id, "DONE")}>Done</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={cardStyle()}>
+          <h2 style={{ marginTop: 0 }}>Training Plan</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={tableCellStyle(true)}>Role</th>
+                <th style={tableCellStyle(true)}>Topic</th>
+                <th style={tableCellStyle(true)}>Status</th>
+                <th style={tableCellStyle(true)}>Material</th>
+                <th style={tableCellStyle(true)}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trainingItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>UAT/Migration Plan 생성을 실행하세요.</td></tr>}
+              {trainingItems.map((item) => (
+                <tr key={`${item.role}-${item.training_topic}`}>
+                  <td style={tableCellStyle()}>{item.role}</td>
+                  <td style={tableCellStyle()}>{item.training_topic}</td>
+                  <td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "NEEDS_SUPPORT" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.status}</td>
+                  <td style={tableCellStyle()}>{item.material}</td>
+                  <td style={tableCellStyle()}>
+                    <button onClick={() => updateTrainingStatus(item.role, item.training_topic, "DONE")} style={{ marginRight: "6px" }}>Done</button>
+                    <button onClick={() => updateTrainingStatus(item.role, item.training_topic, "NEEDS_SUPPORT")}>Support</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       </>
     );
@@ -5788,6 +11160,21 @@ export default function EnterprisePage() {
     if (active === "repository") return renderMasterRepositoryModule();
     if (active === "externalRls") return renderExternalRlsModule();
     if (active === "productionRc") return renderProductionRcModule();
+    if (active === "uatMigration") return renderUatMigrationModule();
+    if (active === "goLive") return renderGoLiveModule();
+    if (active === "monitoring") return renderMonitoringModule();
+    if (active === "stabilization") return renderStabilizationModule();
+    if (active === "workflow") return renderWorkflowModule();
+    if (active === "simulation") return renderFormulaSimulationModule();
+    if (active === "scaleUp") return renderScaleUpModule();
+    if (active === "eln") return renderElnModule();
+    if (active === "lims") return renderLimsModule();
+    if (active === "mes") return renderMesModule();
+    if (active === "v2Package") return renderV2PackageModule();
+    if (active === "v3Package") return renderV3PackageModule();
+    if (active === "v4Package") return renderV4PackageModule();
+    if (active === "ultimateA") return renderUltimatePackAModule();
+    if (active === "ultimateB") return renderUltimatePackBModule();
     return renderAdminModule();
   }
 
@@ -5795,7 +11182,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 20 Production Release Candidate</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 56~60 Ultimate Pack B</p>
 
         {menus.map((item) => (
           <button
