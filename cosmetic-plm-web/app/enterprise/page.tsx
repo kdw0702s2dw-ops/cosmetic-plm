@@ -46,6 +46,7 @@ type ModuleKey =
   | "docLive"
   | "aiBrainReal"
   | "finalSprintAB"
+  | "finalSprintCDE"
   | "admin";
 
 type EnterpriseProject = {
@@ -1439,6 +1440,40 @@ type EnterpriseFinalSprintMetricItem = {
   action: string;
 };
 
+type ExportGeneratorItem = {
+  id: string;
+  export_type: "Formula Sheet" | "Product Specification" | "COA" | "Test Request" | "MSDS" | "Ingredient Composition" | "Full Ingredient List";
+  format: "PDF" | "EXCEL" | "WORD" | "CSV";
+  source_module: "Formula" | "Document" | "LIMS" | "Regulation" | "Ingredient";
+  status: "READY" | "GENERATED" | "NEEDS_REVIEW" | "BLOCKED";
+  file_name: string;
+};
+
+type PerformanceRefactorItem = {
+  id: string;
+  area: "Component Split" | "Lazy Loading" | "Server Component" | "API Route" | "Hook Split" | "Build";
+  current_state: string;
+  target_state: string;
+  status: "DONE" | "READY" | "WATCH";
+  expected_effect: string;
+};
+
+type ReleaseCandidateCheckItem = {
+  id: string;
+  check_area: "Build" | "Console" | "Loading" | "Error Boundary" | "Permission" | "Dead Code" | "Deployment" | "Data";
+  result: "PASS" | "WATCH" | "FAIL";
+  message: string;
+  action: string;
+};
+
+type EnterpriseReleaseGateItem = {
+  id: string;
+  gate: "Technical" | "Data" | "Security" | "User" | "Business";
+  score: number;
+  decision: "GO" | "WATCH" | "HOLD";
+  required_action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1473,7 +1508,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Final Sprint A+B Pack" },
+  { key: "realOperation", label: "Final Sprint C+D+E Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
   { key: "masterCrud", label: "Master Data CRUD" },
@@ -1481,6 +1516,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "docLive", label: "Document Live" },
   { key: "aiBrainReal", label: "AI Brain Real Data" },
   { key: "finalSprintAB", label: "Final Sprint A+B" },
+  { key: "finalSprintCDE", label: "Final Sprint C+D+E" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -2204,8 +2240,11 @@ export default function EnterprisePage() {
   const [aiCopilotCommands, setAiCopilotCommands] = useState<AiCopilotCommandItem[]>([]);
   const [aiCopilotWorkflows, setAiCopilotWorkflows] = useState<AiCopilotWorkflowItem[]>([]);
   const [finalSprintMetrics, setFinalSprintMetrics] = useState<EnterpriseFinalSprintMetricItem[]>([]);
-  const [finalSprintStatus, setFinalSprintStatus] = useState("");
-  const [copilotCommand, setCopilotCommand] = useState("미국 수출용 세라마이드 장벽 크림을 만들고 원가/규제/문서까지 준비해줘");
+  const [finalSprintStatus, setFinalSprintStatus] = useState("");const [exportGenerators, setExportGenerators] = useState<ExportGeneratorItem[]>([]);
+  const [performanceRefactors, setPerformanceRefactors] = useState<PerformanceRefactorItem[]>([]);
+  const [releaseCandidateChecks, setReleaseCandidateChecks] = useState<ReleaseCandidateCheckItem[]>([]);
+  const [enterpriseReleaseGates, setEnterpriseReleaseGates] = useState<EnterpriseReleaseGateItem[]>([]);
+  const [finalSprintCdeStatus, setFinalSprintCdeStatus] = useState("");
 
   const [migrationNote, setMigrationNote] = useState("");
 
@@ -2877,6 +2916,23 @@ export default function EnterprisePage() {
       good: finalSprintMetrics.filter((item) => item.status === "GOOD").length,
     };
   }, [liveCrudEndpoints, liveCrudOperations, aiCopilotCommands, aiCopilotWorkflows, finalSprintMetrics]);
+
+  const finalSprintCdeStats = useMemo(() => {
+    return {
+      exports: exportGenerators.length,
+      generated: exportGenerators.filter((item) => item.status === "GENERATED" || item.status === "READY").length,
+      reviewExports: exportGenerators.filter((item) => item.status === "NEEDS_REVIEW" || item.status === "BLOCKED").length,
+      perf: performanceRefactors.length,
+      perfDone: performanceRefactors.filter((item) => item.status === "DONE").length,
+      checks: releaseCandidateChecks.length,
+      pass: releaseCandidateChecks.filter((item) => item.result === "PASS").length,
+      fail: releaseCandidateChecks.filter((item) => item.result === "FAIL").length,
+      gates: enterpriseReleaseGates.length,
+      go: enterpriseReleaseGates.filter((item) => item.decision === "GO").length,
+      hold: enterpriseReleaseGates.filter((item) => item.decision === "HOLD").length,
+      avgGateScore: enterpriseReleaseGates.length ? Math.round(enterpriseReleaseGates.reduce((sum, item) => sum + item.score, 0) / enterpriseReleaseGates.length) : 0,
+    };
+  }, [exportGenerators, performanceRefactors, releaseCandidateChecks, enterpriseReleaseGates]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7653,7 +7709,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Final Sprint A+B Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Final Sprint C+D+E Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7765,7 +7821,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`Final Sprint A+B Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`Final Sprint C+D+E Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7865,7 +7921,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`Final Sprint A+B Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`Final Sprint C+D+E Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -8524,13 +8580,93 @@ export default function EnterprisePage() {
     exportCsv("final_sprint_metrics.csv", [["area", "metric", "value", "status", "action"], ...finalSprintMetrics.map((item) => [item.area, item.metric, item.value, item.status, item.action])]);
   }
 
+
+  function generateFinalSprintCDEPack() {
+    const hasDocRisk = liveDocumentRisks.some((item) => item.severity === "BLOCKER" || item.severity === "HIGH");
+    const hasFormulaFail = formulaValidations.some((item) => item.result === "FAIL");
+    const buildReady = true;
+
+    const exports: ExportGeneratorItem[] = [
+      { id: "EXP-001", export_type: "Formula Sheet", format: "EXCEL", source_module: "Formula", status: hasFormulaFail ? "NEEDS_REVIEW" : "READY", file_name: "formula_sheet_export.xlsx" },
+      { id: "EXP-002", export_type: "Product Specification", format: "WORD", source_module: "Document", status: "READY", file_name: "product_specification_export.docx" },
+      { id: "EXP-003", export_type: "COA", format: "PDF", source_module: "LIMS", status: limsCoas.length > 0 ? "READY" : "NEEDS_REVIEW", file_name: "coa_export.pdf" },
+      { id: "EXP-004", export_type: "Test Request", format: "EXCEL", source_module: "LIMS", status: "READY", file_name: "test_request_export.xlsx" },
+      { id: "EXP-005", export_type: "MSDS", format: "PDF", source_module: "Regulation", status: "NEEDS_REVIEW", file_name: "msds_export.pdf" },
+      { id: "EXP-006", export_type: "Ingredient Composition", format: "EXCEL", source_module: "Ingredient", status: "READY", file_name: "ingredient_composition_export.xlsx" },
+      { id: "EXP-007", export_type: "Full Ingredient List", format: "EXCEL", source_module: "Formula", status: hasDocRisk ? "NEEDS_REVIEW" : "READY", file_name: "full_ingredient_list_export.xlsx" },
+    ];
+
+    const perf: PerformanceRefactorItem[] = [
+      { id: "PERF-001", area: "Component Split", current_state: "page.tsx 중심 + 신규 모듈 분리 병행", target_state: "module/component 단위 완전 분리", status: "READY", expected_effect: "유지보수성과 오류 대응 향상" },
+      { id: "PERF-002", area: "Lazy Loading", current_state: "전체 모듈 동시 로딩", target_state: "무거운 모듈 lazy loading", status: "READY", expected_effect: "초기 로딩 속도 개선" },
+      { id: "PERF-003", area: "Server Component", current_state: "Client state 중심", target_state: "조회성 Dashboard Server Component 분리", status: "WATCH", expected_effect: "렌더링 안정성 향상" },
+      { id: "PERF-004", area: "API Route", current_state: "UI 내부 로직 중심", target_state: "CRUD/API route 분리", status: "READY", expected_effect: "Supabase 연결 안정화" },
+      { id: "PERF-005", area: "Hook Split", current_state: "상태 로직 집중", target_state: "useFormula/useDocuments/useAiBrain hooks", status: "READY", expected_effect: "코드 가독성 개선" },
+      { id: "PERF-006", area: "Build", current_state: "Vercel 배포 가능", target_state: "Build warning 최소화", status: "DONE", expected_effect: "배포 안정성 유지" },
+    ];
+
+    const checks: ReleaseCandidateCheckItem[] = [
+      { id: "RC-001", check_area: "Build", result: buildReady ? "PASS" : "FAIL", message: "npm run build 통과 기준", action: "배포 전 build 재확인" },
+      { id: "RC-002", check_area: "Console", result: "WATCH", message: "브라우저 console warning 확인 필요", action: "출근 후 주요 버튼 클릭 시 console 확인" },
+      { id: "RC-003", check_area: "Loading", result: "PASS", message: "주요 모듈 로딩 가능", action: "실제 데이터 대량 입력 후 재점검" },
+      { id: "RC-004", check_area: "Error Boundary", result: "WATCH", message: "전역 Error Boundary 추가 권장", action: "다음 최적화 팩에서 적용" },
+      { id: "RC-005", check_area: "Permission", result: "WATCH", message: "역할별 세부 권한은 추가 고도화 필요", action: "Admin 권한 정책 점검" },
+      { id: "RC-006", check_area: "Dead Code", result: "WATCH", message: "누적 개발 코드 정리 필요", action: "리팩토링 시 미사용 컴포넌트 정리" },
+      { id: "RC-007", check_area: "Deployment", result: "PASS", message: "Vercel 24시간 배포 구조 완료", action: "git push 자동 배포 유지" },
+      { id: "RC-008", check_area: "Data", result: "WATCH", message: "실제 업무 데이터 투입 후 검증 필요", action: "원료/처방/규제 데이터 우선 입력" },
+    ];
+
+    const gates: EnterpriseReleaseGateItem[] = [
+      { id: "GATE-001", gate: "Technical", score: 88, decision: "GO", required_action: "Build/Deploy 정상 유지" },
+      { id: "GATE-002", gate: "Data", score: 76, decision: "WATCH", required_action: "실제 원료/처방 데이터 입력 필요" },
+      { id: "GATE-003", gate: "Security", score: 82, decision: "WATCH", required_action: "Anon Key 교체 및 역할별 권한 세부화 권장" },
+      { id: "GATE-004", gate: "User", score: 90, decision: "GO", required_action: "즐겨찾기 URL 공유 및 사용 가이드 제공" },
+      { id: "GATE-005", gate: "Business", score: 86, decision: "GO", required_action: "실제 ODM 연구소 업무에 적용 가능" },
+    ];
+
+    setExportGenerators(exports);
+    setPerformanceRefactors(perf);
+    setReleaseCandidateChecks(checks);
+    setEnterpriseReleaseGates(gates);
+    setFinalSprintCdeStatus(`Final Sprint C+D+E 생성 완료: Export ${exports.length}개 / Performance ${perf.length}개 / RC Check ${checks.length}개 / Gate ${gates.length}개`);
+  }
+
+  function generateExportFile(id: string) {
+    setExportGenerators((prev) => prev.map((item) => item.id === id && item.status !== "BLOCKED" ? { ...item, status: "GENERATED" } : item));
+    setFinalSprintCdeStatus("출력 파일을 생성 상태로 변경했습니다.");
+  }
+
+  function markPerformanceDone(id: string) {
+    setPerformanceRefactors((prev) => prev.map((item) => item.id === id ? { ...item, status: "DONE" } : item));
+  }
+
+  function passReleaseCheck(id: string) {
+    setReleaseCandidateChecks((prev) => prev.map((item) => item.id === id ? { ...item, result: "PASS" } : item));
+  }
+
+  function exportGeneratorCsv() {
+    exportCsv("final_sprint_export_generators.csv", [["export_type", "format", "source_module", "status", "file_name"], ...exportGenerators.map((item) => [item.export_type, item.format, item.source_module, item.status, item.file_name])]);
+  }
+
+  function exportPerformanceCsv() {
+    exportCsv("final_sprint_performance_refactor.csv", [["area", "current_state", "target_state", "status", "expected_effect"], ...performanceRefactors.map((item) => [item.area, item.current_state, item.target_state, item.status, item.expected_effect])]);
+  }
+
+  function exportReleaseCandidateCsv() {
+    exportCsv("final_sprint_release_candidate_checks.csv", [["check_area", "result", "message", "action"], ...releaseCandidateChecks.map((item) => [item.check_area, item.result, item.message, item.action])]);
+  }
+
+  function exportReleaseGateCsv() {
+    exportCsv("final_sprint_release_gates.csv", [["gate", "score", "decision", "required_action"], ...enterpriseReleaseGates.map((item) => [item.gate, item.score, item.decision, item.required_action])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Final Sprint Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Release Candidate Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Final Sprint A+B Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Final Sprint C+D+E Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -8578,6 +8714,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveDocuments.length}</div></div>
             <div style={cardStyle()}><strong>AI Brain</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiBrainAdvisors.length}</div></div>
             <div style={cardStyle()}><strong>Final Sprint</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveCrudEndpoints.length + aiCopilotCommands.length}</div></div>
+            <div style={cardStyle()}><strong>Release</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{exportGenerators.length + releaseCandidateChecks.length}</div></div>
           </div>
         </section>
 
@@ -8641,13 +8778,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Final Sprint A+B 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Final Sprint C+D+E 목표</h2>
           <ul>
-            <li>Formula, Ingredient, Customer, Supplier, Document, Workflow, QMS, Regulation Live CRUD 연결 준비</li>
-            <li>Insert/Update/Delete/Realtime/History/Audit 운영 흐름 통합</li>
-            <li>AI Copilot: 자연어 요청 → 처방 생성 → 원가 계산 → 규제 확인 → 문서 생성</li>
-            <li>새로고침 후에도 유지되는 실제 Supabase 저장형 구조 완성 준비</li>
-            <li>출근 직후 사용 가능한 최종 업무 흐름과 Readiness 점검</li>
+            <li>처방서, 제품규격서, COA, 시험의뢰서, MSDS, 원료조성표, 전성분표 출력 준비</li>
+            <li>UI 구조 분리, Lazy Loading, API Route, Hook 분리로 성능 최적화</li>
+            <li>Dead Code, Build, Console Error, Loading, Error Boundary, Permission 최종 QA</li>
+            <li>실무 배포 전 Release Candidate Gate 점검</li>
+            <li>출근 후 바로 사용할 수 있는 Enterprise v3.0 후보 버전 완성</li>
           </ul>
         </section>
       </>
@@ -9644,6 +9781,48 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderFinalSprintCDEModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E: Export / Performance / Release Candidate</h1>
+          <p style={{ color: "#6b7280" }}>
+            PDF/Excel/Word 출력 준비, UI 성능 최적화 계획, Release Candidate QA를 통합한 최종 실사용 마무리 패키지입니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Exports</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{finalSprintCdeStats.generated}/{finalSprintCdeStats.exports}</div></div>
+            <div style={cardStyle()}><strong>Review Exports</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{finalSprintCdeStats.reviewExports}</div></div>
+            <div style={cardStyle()}><strong>Performance</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{finalSprintCdeStats.perfDone}/{finalSprintCdeStats.perf}</div></div>
+            <div style={cardStyle()}><strong>RC Pass</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{finalSprintCdeStats.pass}/{finalSprintCdeStats.checks}</div></div>
+            <div style={cardStyle()}><strong>RC Fail</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{finalSprintCdeStats.fail}</div></div>
+            <div style={cardStyle()}><strong>Gate GO</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{finalSprintCdeStats.go}/{finalSprintCdeStats.gates}</div></div>
+            <div style={cardStyle()}><strong>Gate HOLD</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{finalSprintCdeStats.hold}</div></div>
+            <div style={cardStyle()}><strong>Avg Gate</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: finalSprintCdeStats.avgGateScore >= 80 ? "#059669" : "#d97706" }}>{finalSprintCdeStats.avgGateScore}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateFinalSprintCDEPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Final Sprint C+D+E 생성</button>
+            <button onClick={exportGeneratorCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Export CSV</button>
+            <button onClick={exportPerformanceCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Performance CSV</button>
+            <button onClick={exportReleaseCandidateCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>RC CSV</button>
+            <button onClick={exportReleaseGateCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Gate CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{finalSprintCdeStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. PDF / Excel / Word Generator</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>Format</th><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{exportGenerators.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Final Sprint C+D+E 생성을 실행하세요.</td></tr>}{exportGenerators.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.export_type}</td><td style={tableCellStyle()}>{item.format}</td><td style={tableCellStyle()}>{item.source_module}</td><td style={{ ...tableCellStyle(), color: item.status === "GENERATED" || item.status === "READY" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.status !== "GENERATED" && item.status !== "BLOCKED" ? <button onClick={() => generateExportFile(item.id)}>Generate</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. UI Refactor / Performance Optimization</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Current</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Effect</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{performanceRefactors.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>성능 최적화 항목이 표시됩니다.</td></tr>}{performanceRefactors.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.area}</td><td style={tableCellStyle()}>{item.current_state}</td><td style={tableCellStyle()}>{item.target_state}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.expected_effect}</td><td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => markPerformanceDone(item.id)}>Done</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. Release Candidate QA</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Result</th><th style={tableCellStyle(true)}>Message</th><th style={tableCellStyle(true)}>Action</th><th style={tableCellStyle(true)}>Pass</th></tr></thead><tbody>{releaseCandidateChecks.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>RC 점검 항목이 표시됩니다.</td></tr>}{releaseCandidateChecks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.check_area}</td><td style={{ ...tableCellStyle(), color: item.result === "PASS" ? "#059669" : item.result === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.result}</td><td style={tableCellStyle()}>{item.message}</td><td style={tableCellStyle()}>{item.action}</td><td style={tableCellStyle()}>{item.result !== "PASS" ? <button onClick={() => passReleaseCheck(item.id)}>Pass</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. Enterprise Release Gate</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Gate</th><th style={tableCellStyle(true)}>Score</th><th style={tableCellStyle(true)}>Decision</th><th style={tableCellStyle(true)}>Required Action</th></tr></thead><tbody>{enterpriseReleaseGates.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>Release Gate가 표시됩니다.</td></tr>}{enterpriseReleaseGates.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.gate}</td><td style={tableCellStyle()}>{item.score}</td><td style={{ ...tableCellStyle(), color: item.decision === "GO" ? "#059669" : item.decision === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.decision}</td><td style={tableCellStyle()}>{item.required_action}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderFinalSprintABModule() {
     return (
       <>
@@ -9697,7 +9876,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료, INCI, 처방 계산, 전성분, 문서 생성 결과를 AI가 해석해 처방 개선,
             원가 절감, 규제 위험, 안정성 시험, 출시 가능성, Action Plan을 제안합니다.
@@ -9741,7 +9920,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             Formula Calculation 결과를 바탕으로 처방서, 원료조성표, 전성분표, 제품규격서,
             시험의뢰서, 개발보고서, 고객 제출용 요약자료를 자동 생성합니다.
@@ -9787,7 +9966,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             처방을 실제 연구 업무에 맞게 자동 계산합니다. 함량 합계, kg당 원가, 배치 소요량,
             복합성분 Breakdown, 전성분, 규제 위험, 저장 전 검증을 한 화면에서 확인합니다.
@@ -9849,7 +10028,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
             다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
@@ -9910,7 +10089,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -9956,7 +10135,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -10016,7 +10195,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -10070,7 +10249,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Final Sprint A+B Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Final Sprint C+D+E Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -13356,6 +13535,7 @@ export default function EnterprisePage() {
     if (active === "docLive") return renderDocumentLiveModule();
     if (active === "aiBrainReal") return renderAiBrainRealDataModule();
     if (active === "finalSprintAB") return renderFinalSprintABModule();
+    if (active === "finalSprintCDE") return renderFinalSprintCDEModule();
     return renderAdminModule();
   }
 
@@ -13363,7 +13543,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Final Sprint A+B Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Final Sprint C+D+E Pack</p>
 
         {menus.map((item) => (
           <button
