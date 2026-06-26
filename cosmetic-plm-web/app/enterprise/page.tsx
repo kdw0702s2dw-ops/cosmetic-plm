@@ -44,6 +44,7 @@ type ModuleKey =
   | "masterCrud"
   | "formulaCalc"
   | "docLive"
+  | "aiBrainReal"
   | "admin";
 
 type EnterpriseProject = {
@@ -1364,6 +1365,33 @@ type LiveDocumentRiskItem = {
   action: string;
 };
 
+type AiBrainAdvisorItem = {
+  id: string;
+  advisor: "Formula" | "Regulation" | "Cost" | "Stability" | "Launch" | "Executive";
+  title: string;
+  score: number;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "BLOCKER";
+  recommendation: string;
+  action_owner: "R&D" | "QA" | "RA" | "QC" | "Sales" | "Management";
+};
+
+type AiBrainActionItem = {
+  id: string;
+  action_type: "FormulaImprove" | "CostDown" | "RegReview" | "StabilityTest" | "DocumentFix" | "LaunchGate";
+  task: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+  owner: "R&D" | "QA" | "RA" | "QC" | "Sales";
+  status: "TODO" | "IN_PROGRESS" | "DONE";
+};
+
+type AiBrainSummaryItem = {
+  id: string;
+  summary_type: "Researcher" | "QA" | "RA" | "Sales" | "Executive";
+  headline: string;
+  summary: string;
+  confidence: number;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1398,12 +1426,13 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Document Auto Generation Live Pack" },
+  { key: "realOperation", label: "AI Brain Real Data Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
   { key: "masterCrud", label: "Master Data CRUD" },
   { key: "formulaCalc", label: "Formula Calculation" },
   { key: "docLive", label: "Document Live" },
+  { key: "aiBrainReal", label: "AI Brain Real Data" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -2116,6 +2145,12 @@ export default function EnterprisePage() {
   const [liveDocumentRisks, setLiveDocumentRisks] = useState<LiveDocumentRiskItem[]>([]);
   const [docLiveStatus, setDocLiveStatus] = useState("");
 
+  const [aiBrainAdvisors, setAiBrainAdvisors] = useState<AiBrainAdvisorItem[]>([]);
+  const [aiBrainActions, setAiBrainActions] = useState<AiBrainActionItem[]>([]);
+  const [aiBrainSummaries, setAiBrainSummaries] = useState<AiBrainSummaryItem[]>([]);
+  const [aiBrainStatus, setAiBrainStatus] = useState("");
+  const [aiBrainPrompt, setAiBrainPrompt] = useState("미국 수출용 저자극 세라마이드 크림의 출시 가능성과 개선사항을 분석해줘");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2756,6 +2791,19 @@ export default function EnterprisePage() {
       blockers: liveDocumentRisks.filter((item) => item.severity === "BLOCKER").length,
     };
   }, [liveDocuments, liveDocumentSections, liveDocumentApprovals, liveDocumentDownloads, liveDocumentRisks]);
+
+  const aiBrainStats = useMemo(() => {
+    return {
+      advisors: aiBrainAdvisors.length,
+      highRisk: aiBrainAdvisors.filter((item) => item.risk_level === "HIGH" || item.risk_level === "BLOCKER").length,
+      avgScore: aiBrainAdvisors.length ? Math.round(aiBrainAdvisors.reduce((sum, item) => sum + item.score, 0) / aiBrainAdvisors.length) : 0,
+      actions: aiBrainActions.length,
+      p0: aiBrainActions.filter((item) => item.priority === "P0").length,
+      done: aiBrainActions.filter((item) => item.status === "DONE").length,
+      summaries: aiBrainSummaries.length,
+      confidence: aiBrainSummaries.length ? Math.round(aiBrainSummaries.reduce((sum, item) => sum + item.confidence, 0) / aiBrainSummaries.length) : 0,
+    };
+  }, [aiBrainAdvisors, aiBrainActions, aiBrainSummaries]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7532,7 +7580,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Document Auto Generation Live Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`AI Brain Real Data Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7644,7 +7692,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`Document Auto Generation Live Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`AI Brain Real Data Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7744,7 +7792,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`Document Auto Generation Live Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`AI Brain Real Data Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -8258,13 +8306,70 @@ export default function EnterprisePage() {
     exportCsv("document_live_risks.csv", [["document_no", "risk_type", "severity", "message", "action"], ...liveDocumentRisks.map((item) => [item.document_no, item.risk_type, item.severity, item.message, item.action])]);
   }
 
+
+  function generateAiBrainRealDataPack() {
+    const formulaTotalFail = formulaValidations.some((item) => item.result === "FAIL");
+    const hasRegRisk = formulaIngredientList.some((item) => item.regulation_status === "RESTRICTED" || item.regulation_status === "PROHIBITED");
+    const hasDocRisk = liveDocumentRisks.some((item) => item.severity === "BLOCKER" || item.severity === "HIGH");
+    const costPerKg = formulaCalcStats.totalCost || 0;
+    const launchScore = Math.max(0, Math.min(100, 92 - (formulaTotalFail ? 30 : 0) - (hasRegRisk ? 25 : 0) - (hasDocRisk ? 15 : 0) - (costPerKg > 15000 ? 8 : 0)));
+
+    const advisors: AiBrainAdvisorItem[] = [
+      { id: "AIB-ADV-001", advisor: "Formula", title: "처방 개선 Advisor", score: formulaTotalFail ? 55 : 88, risk_level: formulaTotalFail ? "HIGH" : "LOW", recommendation: formulaTotalFail ? "처방 함량 합계를 100%로 보정한 뒤 저장하세요." : "처방 합계와 Breakdown이 안정적입니다. 보습/장벽 컨셉 유지가 가능합니다.", action_owner: "R&D" },
+      { id: "AIB-ADV-002", advisor: "Regulation", title: "규제 위험 Advisor", score: hasRegRisk ? 48 : 86, risk_level: hasRegRisk ? "BLOCKER" : "LOW", recommendation: hasRegRisk ? "RESTRICTED/PROHIBITED 성분이 있으므로 RA 검토 전 고객 제출을 보류하세요." : "현재 전성분 기준 중대 규제 위험은 낮습니다.", action_owner: "RA" },
+      { id: "AIB-ADV-003", advisor: "Cost", title: "원가 절감 Advisor", score: costPerKg > 15000 ? 67 : 82, risk_level: costPerKg > 15000 ? "MEDIUM" : "LOW", recommendation: costPerKg > 15000 ? "고가 원료의 공급사 이원화와 함량 최적화를 검토하세요." : "현재 kg당 원가가 관리 가능한 수준입니다.", action_owner: "R&D" },
+      { id: "AIB-ADV-004", advisor: "Stability", title: "안정성 시험 Advisor", score: 78, risk_level: "MEDIUM", recommendation: "세라마이드/오일상/점증제 계열은 45℃, RT, Freeze-thaw, 원심 안정성 시험을 우선 권장합니다.", action_owner: "QC" },
+      { id: "AIB-ADV-005", advisor: "Launch", title: "출시 가능성 Advisor", score: launchScore, risk_level: launchScore >= 80 ? "LOW" : launchScore >= 60 ? "MEDIUM" : "HIGH", recommendation: launchScore >= 80 ? "고객 제안 가능 단계입니다. 문서 승인 후 제출하세요." : "규제/문서/처방 검증 항목을 먼저 해결해야 합니다.", action_owner: "Management" },
+      { id: "AIB-ADV-006", advisor: "Executive", title: "경영 요약 Advisor", score: Math.round((launchScore + 80) / 2), risk_level: launchScore >= 75 ? "LOW" : "MEDIUM", recommendation: "R&D·RA·QC 병렬 검토로 출시 리드타임을 단축할 수 있습니다.", action_owner: "Management" },
+    ];
+
+    const actions: AiBrainActionItem[] = [
+      ...(formulaTotalFail ? [{ id: "AIB-ACT-001", action_type: "FormulaImprove" as const, task: "처방 함량 합계 100% 보정", priority: "P0" as const, owner: "R&D" as const, status: "TODO" as const }] : []),
+      ...(hasRegRisk ? [{ id: "AIB-ACT-002", action_type: "RegReview" as const, task: "RESTRICTED/PROHIBITED 성분 RA 검토", priority: "P0" as const, owner: "RA" as const, status: "TODO" as const }] : []),
+      { id: "AIB-ACT-003", action_type: "CostDown", task: "고가 원료 공급사 이원화 및 대체 원료 검토", priority: costPerKg > 15000 ? "P1" : "P2", owner: "R&D", status: "TODO" },
+      { id: "AIB-ACT-004", action_type: "StabilityTest", task: "45℃/RT/Freeze-thaw 안정도 시험 의뢰", priority: "P1", owner: "QC", status: "TODO" },
+      { id: "AIB-ACT-005", action_type: "DocumentFix", task: "처방서/전성분표/고객요약 문서 승인", priority: hasDocRisk ? "P1" : "P2", owner: "QA", status: "TODO" },
+      { id: "AIB-ACT-006", action_type: "LaunchGate", task: "Launch Gate GO/WATCH/HOLD 판정", priority: launchScore >= 80 ? "P2" : "P1", owner: "Sales", status: "TODO" },
+    ];
+
+    const summaries: AiBrainSummaryItem[] = [
+      { id: "AIB-SUM-001", summary_type: "Researcher", headline: "연구원 Action Plan", summary: "처방 합계, 원가, 대체 원료, 안정도 시험 조건을 우선 검토하세요.", confidence: 86 },
+      { id: "AIB-SUM-002", summary_type: "QA", headline: "QA Check", summary: "문서 승인 상태, 제품규격서 초안, 시험의뢰서와 Audit Trail을 확인하세요.", confidence: 82 },
+      { id: "AIB-SUM-003", summary_type: "RA", headline: "RA Check", summary: hasRegRisk ? "규제 위험 성분이 있어 고객 제출 전 RA 검토가 필수입니다." : "현재 기준 중대 규제 위험은 낮으며 국가별 라벨 요건 확인이 필요합니다.", confidence: 84 },
+      { id: "AIB-SUM-004", summary_type: "Sales", headline: "Sales Point", summary: "세라마이드·판테놀·베타글루칸 기반 저자극 장벽강화 크림 컨셉으로 제안 가능합니다.", confidence: 80 },
+      { id: "AIB-SUM-005", summary_type: "Executive", headline: "Launch Decision", summary: `출시 가능성 점수는 ${launchScore}점입니다. ${launchScore >= 80 ? "GO 후보" : "WATCH/HOLD 검토"}로 판단됩니다.`, confidence: 83 },
+    ];
+
+    setAiBrainAdvisors(advisors);
+    setAiBrainActions(actions);
+    setAiBrainSummaries(summaries);
+    setAiBrainStatus(`AI Brain 분석 완료: Advisor ${advisors.length}개 / Action ${actions.length}개 / Summary ${summaries.length}개 / Launch Score ${launchScore}`);
+  }
+
+  function markAiBrainActionDone(id: string) {
+    setAiBrainActions((prev) => prev.map((item) => item.id === id ? { ...item, status: "DONE" } : item));
+    setAiBrainStatus("AI Brain Action을 완료 처리했습니다.");
+  }
+
+  function exportAiBrainAdvisorsCsv() {
+    exportCsv("ai_brain_real_data_advisors.csv", [["advisor", "title", "score", "risk_level", "recommendation", "action_owner"], ...aiBrainAdvisors.map((item) => [item.advisor, item.title, item.score, item.risk_level, item.recommendation, item.action_owner])]);
+  }
+
+  function exportAiBrainActionsCsv() {
+    exportCsv("ai_brain_real_data_actions.csv", [["action_type", "task", "priority", "owner", "status"], ...aiBrainActions.map((item) => [item.action_type, item.task, item.priority, item.owner, item.status])]);
+  }
+
+  function exportAiBrainSummariesCsv() {
+    exportCsv("ai_brain_real_data_summaries.csv", [["summary_type", "headline", "summary", "confidence"], ...aiBrainSummaries.map((item) => [item.summary_type, item.headline, item.summary, item.confidence])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Document Live Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise AI Brain Real Data Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Document Auto Generation Live Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 AI Brain Real Data Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -8310,6 +8415,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>CRUD</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{liveRawMaterials.length + liveInciItems.length + liveFormulaMasters.length + liveRegulationRules.length}</div></div>
             <div style={cardStyle()}><strong>Formula Calc</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{formulaCalculationLines.length}</div></div>
             <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveDocuments.length}</div></div>
+            <div style={cardStyle()}><strong>AI Brain</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiBrainAdvisors.length}</div></div>
           </div>
         </section>
 
@@ -8373,13 +8479,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Document Auto Generation Live 목표</h2>
+          <h2 style={{ marginTop: 0 }}>AI Brain Real Data 목표</h2>
           <ul>
-            <li>처방서, 원료조성표, 전성분표 자동 생성</li>
-            <li>제품규격서, 시험의뢰서, 개발보고서 초안 생성</li>
-            <li>고객 제출용 요약자료 자동 생성</li>
-            <li>문서별 승인 상태와 다운로드 준비 상태 관리</li>
-            <li>문서 생성 전 처방/규제/INCI/원가 위험 자동 점검</li>
+            <li>실제 원료·INCI·처방·문서 데이터를 기반으로 AI 업무 제안 생성</li>
+            <li>처방 개선, 원가 절감, 규제 위험, 안정성 시험 추천</li>
+            <li>고객 제안용 컨셉 문구와 연구원 Action Plan 자동 생성</li>
+            <li>출시 가능성 점수와 Launch Gate 위험도 산출</li>
+            <li>AI 기능을 components/services/types로 분리한 모듈형 구조로 전환</li>
           </ul>
         </section>
       </>
@@ -9376,11 +9482,55 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderAiBrainRealDataModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            실제 원료, INCI, 처방 계산, 전성분, 문서 생성 결과를 AI가 해석해 처방 개선,
+            원가 절감, 규제 위험, 안정성 시험, 출시 가능성, Action Plan을 제안합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Advisors</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{aiBrainStats.advisors}</div></div>
+            <div style={cardStyle()}><strong>Avg Score</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: aiBrainStats.avgScore >= 80 ? "#059669" : "#d97706" }}>{aiBrainStats.avgScore}</div></div>
+            <div style={cardStyle()}><strong>High Risk</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{aiBrainStats.highRisk}</div></div>
+            <div style={cardStyle()}><strong>Actions</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{aiBrainStats.actions}</div></div>
+            <div style={cardStyle()}><strong>P0</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{aiBrainStats.p0}</div></div>
+            <div style={cardStyle()}><strong>Done</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{aiBrainStats.done}</div></div>
+            <div style={cardStyle()}><strong>Summaries</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{aiBrainStats.summaries}</div></div>
+            <div style={cardStyle()}><strong>Confidence</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{aiBrainStats.confidence}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={aiBrainPrompt} onChange={(e) => setAiBrainPrompt(e.target.value)} placeholder="AI Brain 분석 요청" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateAiBrainRealDataPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>AI Brain 분석 실행</button>
+            <button onClick={exportAiBrainAdvisorsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Advisor CSV</button>
+            <button onClick={exportAiBrainActionsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Action CSV</button>
+            <button onClick={exportAiBrainSummariesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Summary CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{aiBrainStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. AI Advisors</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Advisor</th><th style={tableCellStyle(true)}>Title</th><th style={tableCellStyle(true)}>Score</th><th style={tableCellStyle(true)}>Risk</th><th style={tableCellStyle(true)}>Recommendation</th><th style={tableCellStyle(true)}>Owner</th></tr></thead><tbody>{aiBrainAdvisors.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>AI Brain 분석 실행을 누르세요.</td></tr>}{aiBrainAdvisors.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.advisor}</td><td style={tableCellStyle()}>{item.title}</td><td style={tableCellStyle()}>{item.score}</td><td style={{ ...tableCellStyle(), color: item.risk_level === "LOW" ? "#059669" : item.risk_level === "MEDIUM" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.risk_level}</td><td style={tableCellStyle()}>{item.recommendation}</td><td style={tableCellStyle()}>{item.action_owner}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. AI Action Plan</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Task</th><th style={tableCellStyle(true)}>Priority</th><th style={tableCellStyle(true)}>Owner</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiBrainActions.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Action Plan이 표시됩니다.</td></tr>}{aiBrainActions.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.action_type}</td><td style={tableCellStyle()}>{item.task}</td><td style={{ ...tableCellStyle(), color: item.priority === "P0" ? "#dc2626" : item.priority === "P1" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td><td style={tableCellStyle()}>{item.owner}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "IN_PROGRESS" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => markAiBrainActionDone(item.id)}>Done</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. AI Executive Summaries</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Headline</th><th style={tableCellStyle(true)}>Summary</th><th style={tableCellStyle(true)}>Confidence</th></tr></thead><tbody>{aiBrainSummaries.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>요약 결과가 표시됩니다.</td></tr>}{aiBrainSummaries.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.summary_type}</td><td style={tableCellStyle()}>{item.headline}</td><td style={tableCellStyle()}>{item.summary}</td><td style={tableCellStyle()}>{item.confidence}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderDocumentLiveModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             Formula Calculation 결과를 바탕으로 처방서, 원료조성표, 전성분표, 제품규격서,
             시험의뢰서, 개발보고서, 고객 제출용 요약자료를 자동 생성합니다.
@@ -9426,7 +9576,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             처방을 실제 연구 업무에 맞게 자동 계산합니다. 함량 합계, kg당 원가, 배치 소요량,
             복합성분 Breakdown, 전성분, 규제 위험, 저장 전 검증을 한 화면에서 확인합니다.
@@ -9488,7 +9638,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
             다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
@@ -9549,7 +9699,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -9595,7 +9745,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -9655,7 +9805,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -9709,7 +9859,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <h1 style={{ marginTop: 0 }}>AI Brain Real Data Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -12993,6 +13143,7 @@ export default function EnterprisePage() {
     if (active === "masterCrud") return renderMasterDataCrudModule();
     if (active === "formulaCalc") return renderFormulaLiveCalculationModule();
     if (active === "docLive") return renderDocumentLiveModule();
+    if (active === "aiBrainReal") return renderAiBrainRealDataModule();
     return renderAdminModule();
   }
 
@@ -13000,7 +13151,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Document Auto Generation Live Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>AI Brain Real Data Pack</p>
 
         {menus.map((item) => (
           <button
