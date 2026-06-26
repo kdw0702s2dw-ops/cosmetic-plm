@@ -42,6 +42,7 @@ type ModuleKey =
   | "importValidation"
   | "realDb"
   | "masterCrud"
+  | "formulaCalc"
   | "admin";
 
 type EnterpriseProject = {
@@ -1260,6 +1261,60 @@ type LiveCrudAuditItem = {
   created_at: string;
 };
 
+type FormulaCalculationLineItem = {
+  id: string;
+  formula_code: string;
+  raw_code: string;
+  raw_name: string;
+  percentage: number;
+  unit_price: number;
+  cost_per_kg: number;
+  batch_kg: number;
+  required_kg: number;
+  phase: string;
+  regulation_status: "OK" | "WARNING" | "RESTRICTED" | "PROHIBITED";
+};
+
+type FormulaBreakdownItem = {
+  id: string;
+  formula_code: string;
+  raw_code: string;
+  raw_name: string;
+  inci_en: string;
+  inci_kr: string;
+  raw_percentage: number;
+  composition_ratio: number;
+  final_content: number;
+  display_order: number;
+};
+
+type FormulaIngredientListItem = {
+  id: string;
+  formula_code: string;
+  inci_en: string;
+  inci_kr: string;
+  final_content: number;
+  display_order: number;
+  regulation_status: "OK" | "WARNING" | "RESTRICTED" | "PROHIBITED";
+};
+
+type FormulaValidationItem = {
+  id: string;
+  check_item: string;
+  result: "PASS" | "WARNING" | "FAIL";
+  message: string;
+  action: string;
+};
+
+type FormulaBatchCostItem = {
+  id: string;
+  batch_kg: number;
+  total_material_cost: number;
+  cost_per_kg: number;
+  estimated_loss_percent: number;
+  final_cost_per_kg: number;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1294,10 +1349,11 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Master Data Live CRUD Pack" },
+  { key: "realOperation", label: "Formula Live Calculation Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
   { key: "masterCrud", label: "Master Data CRUD" },
+  { key: "formulaCalc", label: "Formula Calculation" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -1995,6 +2051,14 @@ export default function EnterprisePage() {
   const [rawInputSupplier, setRawInputSupplier] = useState("Default Supplier");
   const [formulaInputName, setFormulaInputName] = useState("Ceramide Barrier Cream");
 
+  const [formulaCalculationLines, setFormulaCalculationLines] = useState<FormulaCalculationLineItem[]>([]);
+  const [formulaBreakdowns, setFormulaBreakdowns] = useState<FormulaBreakdownItem[]>([]);
+  const [formulaIngredientList, setFormulaIngredientList] = useState<FormulaIngredientListItem[]>([]);
+  const [formulaValidations, setFormulaValidations] = useState<FormulaValidationItem[]>([]);
+  const [formulaBatchCosts, setFormulaBatchCosts] = useState<FormulaBatchCostItem[]>([]);
+  const [formulaCalcStatus, setFormulaCalcStatus] = useState("");
+  const [formulaBatchKg, setFormulaBatchKg] = useState(100);
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2604,6 +2668,23 @@ export default function EnterprisePage() {
       warnings: liveCrudAudits.filter((item) => item.status === "WARNING" || item.status === "FAILED").length,
     };
   }, [liveRawMaterials, liveInciItems, liveFormulaMasters, liveRegulationRules, liveCrudAudits]);
+
+  const formulaCalcStats = useMemo(() => {
+    const totalPercent = formulaCalculationLines.reduce((sum, item) => sum + Number(item.percentage || 0), 0);
+    const totalCost = formulaCalculationLines.reduce((sum, item) => sum + Number(item.cost_per_kg || 0), 0);
+    return {
+      lines: formulaCalculationLines.length,
+      totalPercent: Number(totalPercent.toFixed(4)),
+      totalCost: Number(totalCost.toFixed(2)),
+      requiredKg: Number(formulaCalculationLines.reduce((sum, item) => sum + Number(item.required_kg || 0), 0).toFixed(4)),
+      breakdowns: formulaBreakdowns.length,
+      ingredients: formulaIngredientList.length,
+      warnings: formulaIngredientList.filter((item) => item.regulation_status !== "OK").length,
+      validations: formulaValidations.length,
+      fails: formulaValidations.filter((item) => item.result === "FAIL").length,
+      batchScales: formulaBatchCosts.length,
+    };
+  }, [formulaCalculationLines, formulaBreakdowns, formulaIngredientList, formulaValidations, formulaBatchCosts]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7380,7 +7461,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Master Data Live CRUD Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Formula Live Calculation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7492,7 +7573,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`Master Data Live CRUD Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`Formula Live Calculation Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7592,7 +7673,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`Master Data Live CRUD Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`Formula Live Calculation Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -7813,13 +7894,214 @@ export default function EnterprisePage() {
     exportCsv("live_crud_audit.csv", [["module", "action", "target", "status", "created_at"], ...liveCrudAudits.map((item) => [item.module, item.action, item.target, item.status, item.created_at])]);
   }
 
+
+  function getRegStatusByInci(inci: string): "OK" | "WARNING" | "RESTRICTED" | "PROHIBITED" {
+    const rule = liveRegulationRules.find((item) => item.inci_en.toLowerCase() === inci.toLowerCase());
+    if (!rule) return "OK";
+    if (rule.rule_type === "PROHIBITED") return "PROHIBITED";
+    if (rule.rule_type === "RESTRICTED") return "RESTRICTED";
+    if (rule.rule_type === "WARNING") return "WARNING";
+    return "OK";
+  }
+
+  function generateFormulaLiveCalculation() {
+    const batchKg = Number(formulaBatchKg || 100);
+    const sourceFormula = liveFormulaMasters.length > 0 ? liveFormulaMasters : [
+      { id: "TMP-001", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "RM-CER-001", percentage: 2.5, phase: "C", claim: "장벽강화" },
+      { id: "TMP-002", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "RM-PAN-001", percentage: 3, phase: "B", claim: "보습" },
+      { id: "TMP-003", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "Water", percentage: 94.5, phase: "A", claim: "Base" },
+    ];
+
+    const lines: FormulaCalculationLineItem[] = sourceFormula.map((line) => {
+      const raw = liveRawMaterials.find((item) => item.raw_code === line.raw_code);
+      const rawName = raw?.raw_name || line.raw_code;
+      const unitPrice = raw?.unit_price || (line.raw_code === "Water" ? 0 : 1000);
+      const inci = raw?.inci_en || rawName;
+      return {
+        id: `CALC-${line.id}`,
+        formula_code: line.formula_code,
+        raw_code: line.raw_code,
+        raw_name: rawName,
+        percentage: Number(line.percentage || 0),
+        unit_price: unitPrice,
+        cost_per_kg: Number((unitPrice * (Number(line.percentage || 0) / 100)).toFixed(2)),
+        batch_kg: batchKg,
+        required_kg: Number((batchKg * Number(line.percentage || 0) / 100).toFixed(4)),
+        phase: line.phase,
+        regulation_status: getRegStatusByInci(inci),
+      };
+    });
+
+    const breakdowns: FormulaBreakdownItem[] = lines.flatMap((line, index) => {
+      const raw = liveRawMaterials.find((item) => item.raw_code === line.raw_code);
+      const inci = liveInciItems.find((item) => item.inci_en === raw?.inci_en || item.inci_kr === raw?.inci_kr);
+      const isComplex = line.raw_name.toLowerCase().includes("complex") || line.raw_name.toLowerCase().includes("solution");
+      if (isComplex) {
+        const mainRatio = line.raw_name.toLowerCase().includes("solution") ? 10 : 40;
+        const waterRatio = 100 - mainRatio;
+        return [
+          {
+            id: `BD-${line.id}-MAIN`,
+            formula_code: line.formula_code,
+            raw_code: line.raw_code,
+            raw_name: line.raw_name,
+            inci_en: raw?.inci_en || inci?.inci_en || line.raw_name,
+            inci_kr: raw?.inci_kr || inci?.inci_kr || line.raw_name,
+            raw_percentage: line.percentage,
+            composition_ratio: mainRatio,
+            final_content: Number((line.percentage * mainRatio / 100).toFixed(6)),
+            display_order: index + 1,
+          },
+          {
+            id: `BD-${line.id}-WATER`,
+            formula_code: line.formula_code,
+            raw_code: line.raw_code,
+            raw_name: line.raw_name,
+            inci_en: "Water",
+            inci_kr: "정제수",
+            raw_percentage: line.percentage,
+            composition_ratio: waterRatio,
+            final_content: Number((line.percentage * waterRatio / 100).toFixed(6)),
+            display_order: 999,
+          },
+        ];
+      }
+      return [{
+        id: `BD-${line.id}`,
+        formula_code: line.formula_code,
+        raw_code: line.raw_code,
+        raw_name: line.raw_name,
+        inci_en: raw?.inci_en || inci?.inci_en || line.raw_name,
+        inci_kr: raw?.inci_kr || inci?.inci_kr || line.raw_name,
+        raw_percentage: line.percentage,
+        composition_ratio: 100,
+        final_content: line.percentage,
+        display_order: index + 1,
+      }];
+    });
+
+    const ingredientMap = new Map<string, FormulaIngredientListItem>();
+    breakdowns.forEach((bd) => {
+      const key = bd.inci_en.toLowerCase();
+      const current = ingredientMap.get(key);
+      const reg = getRegStatusByInci(bd.inci_en);
+      if (current) {
+        ingredientMap.set(key, { ...current, final_content: Number((current.final_content + bd.final_content).toFixed(6)) });
+      } else {
+        ingredientMap.set(key, {
+          id: `IL-${bd.id}`,
+          formula_code: bd.formula_code,
+          inci_en: bd.inci_en,
+          inci_kr: bd.inci_kr,
+          final_content: bd.final_content,
+          display_order: bd.display_order,
+          regulation_status: reg,
+        });
+      }
+    });
+
+    const ingredientList = Array.from(ingredientMap.values()).sort((a, b) => b.final_content - a.final_content);
+
+    const totalPercent = lines.reduce((sum, item) => sum + item.percentage, 0);
+    const totalBreakdown = breakdowns.reduce((sum, item) => sum + item.final_content, 0);
+    const totalCost = lines.reduce((sum, item) => sum + item.cost_per_kg, 0);
+    const hasRegRisk = ingredientList.some((item) => item.regulation_status === "PROHIBITED" || item.regulation_status === "RESTRICTED");
+
+    const validations: FormulaValidationItem[] = [
+      {
+        id: "FV-001",
+        check_item: "처방 함량 합계",
+        result: Math.abs(totalPercent - 100) < 0.01 ? "PASS" : "FAIL",
+        message: `현재 합계 ${totalPercent.toFixed(4)}%`,
+        action: "100%가 아닐 경우 처방 100% 보정 또는 수동 수정",
+      },
+      {
+        id: "FV-002",
+        check_item: "Breakdown 최종 함량 합계",
+        result: Math.abs(totalBreakdown - totalPercent) < 0.01 ? "PASS" : "FAIL",
+        message: `Breakdown 합계 ${totalBreakdown.toFixed(4)}%`,
+        action: "복합성분 구성비 확인",
+      },
+      {
+        id: "FV-003",
+        check_item: "원료마스터 참조",
+        result: lines.some((item) => item.raw_code !== "Water" && item.unit_price === 1000) ? "WARNING" : "PASS",
+        message: "원료마스터 단가/INCI 참조 상태 확인",
+        action: "미등록 원료는 Master Data CRUD에서 등록",
+      },
+      {
+        id: "FV-004",
+        check_item: "규제 위험",
+        result: hasRegRisk ? "FAIL" : ingredientList.some((item) => item.regulation_status === "WARNING") ? "WARNING" : "PASS",
+        message: hasRegRisk ? "RESTRICTED/PROHIBITED 성분 존재" : "중대 규제 위험 없음",
+        action: "RA 검토 후 저장",
+      },
+      {
+        id: "FV-005",
+        check_item: "kg당 원가",
+        result: totalCost > 0 ? "PASS" : "WARNING",
+        message: `kg당 원료원가 ${totalCost.toFixed(2)}`,
+        action: "단가 누락 원료 확인",
+      },
+    ];
+
+    const batchSizes = [1, 10, 100, 500, 1000].map((kg) => {
+      const loss = kg >= 1000 ? 3 : kg >= 500 ? 2 : kg >= 100 ? 1.5 : 1;
+      return {
+        id: `BATCH-${kg}`,
+        batch_kg: kg,
+        total_material_cost: Number((totalCost * kg).toFixed(2)),
+        cost_per_kg: Number(totalCost.toFixed(2)),
+        estimated_loss_percent: loss,
+        final_cost_per_kg: Number((totalCost * (1 + loss / 100)).toFixed(2)),
+      };
+    });
+
+    setFormulaCalculationLines(lines);
+    setFormulaBreakdowns(breakdowns);
+    setFormulaIngredientList(ingredientList);
+    setFormulaValidations(validations);
+    setFormulaBatchCosts(batchSizes);
+    setFormulaCalcStatus(`Formula Live Calculation 완료: 원료 ${lines.length}개 / Breakdown ${breakdowns.length}개 / 전성분 ${ingredientList.length}개 / kg당 원가 ${totalCost.toFixed(2)}`);
+  }
+
+  function setFormulaBatchSize(size: number) {
+    setFormulaBatchKg(size);
+    setFormulaCalculationLines((prev) => prev.map((item) => ({
+      ...item,
+      batch_kg: size,
+      required_kg: Number((size * item.percentage / 100).toFixed(4)),
+    })));
+    setFormulaCalcStatus(`${size}kg 배치 기준으로 소요량을 다시 계산했습니다.`);
+  }
+
+  function exportFormulaCalculationCsv() {
+    exportCsv("formula_live_calculation_lines.csv", [["formula_code", "raw_code", "raw_name", "percentage", "unit_price", "cost_per_kg", "batch_kg", "required_kg", "phase", "regulation_status"], ...formulaCalculationLines.map((item) => [item.formula_code, item.raw_code, item.raw_name, item.percentage, item.unit_price, item.cost_per_kg, item.batch_kg, item.required_kg, item.phase, item.regulation_status])]);
+  }
+
+  function exportFormulaBreakdownCsv() {
+    exportCsv("formula_live_breakdown.csv", [["formula_code", "raw_code", "raw_name", "inci_en", "inci_kr", "raw_percentage", "composition_ratio", "final_content", "display_order"], ...formulaBreakdowns.map((item) => [item.formula_code, item.raw_code, item.raw_name, item.inci_en, item.inci_kr, item.raw_percentage, item.composition_ratio, item.final_content, item.display_order])]);
+  }
+
+  function exportFormulaIngredientListCsv() {
+    exportCsv("formula_live_ingredient_list.csv", [["formula_code", "inci_en", "inci_kr", "final_content", "display_order", "regulation_status"], ...formulaIngredientList.map((item) => [item.formula_code, item.inci_en, item.inci_kr, item.final_content, item.display_order, item.regulation_status])]);
+  }
+
+  function exportFormulaValidationCsv() {
+    exportCsv("formula_live_validation.csv", [["check_item", "result", "message", "action"], ...formulaValidations.map((item) => [item.check_item, item.result, item.message, item.action])]);
+  }
+
+  function exportFormulaBatchCostCsv() {
+    exportCsv("formula_live_batch_cost.csv", [["batch_kg", "total_material_cost", "cost_per_kg", "estimated_loss_percent", "final_cost_per_kg"], ...formulaBatchCosts.map((item) => [item.batch_kg, item.total_material_cost, item.cost_per_kg, item.estimated_loss_percent, item.final_cost_per_kg])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Live CRUD Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Formula Calculation Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Master Data Live CRUD Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Formula Live Calculation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -7863,6 +8145,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Import</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{importValidationResults.length}</div></div>
             <div style={cardStyle()}><strong>Real DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{realDbConnections.length}</div></div>
             <div style={cardStyle()}><strong>CRUD</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{liveRawMaterials.length + liveInciItems.length + liveFormulaMasters.length + liveRegulationRules.length}</div></div>
+            <div style={cardStyle()}><strong>Formula Calc</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{formulaCalculationLines.length}</div></div>
           </div>
         </section>
 
@@ -7926,13 +8209,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Master Data Live CRUD 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Formula Live Calculation 목표</h2>
           <ul>
-            <li>원료마스터 실제 데이터 조회/등록/수정/삭제 흐름 구현</li>
-            <li>INCI 마스터 다국어명/CAS/EC/기능 정보 관리</li>
-            <li>처방마스터 원료/함량/Phase/Claim 관리</li>
-            <li>국가별 규제룰 검색/등록/수정/삭제 관리</li>
-            <li>검색/필터/정렬, 중복체크, 저장 결과 메시지, Audit Trail 준비</li>
+            <li>처방 함량 합계 100% 자동 검증</li>
+            <li>원료 단가 기반 kg당 원가와 배치별 소요량 자동 계산</li>
+            <li>복합성분 Breakdown 전개와 최종 함량 계산</li>
+            <li>전성분 순서 자동 생성 및 INCI 마스터 참조</li>
+            <li>규제 위험 원료 표시와 저장 전 검증 체크리스트 제공</li>
           </ul>
         </section>
       </>
@@ -8929,6 +9212,62 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderFormulaLiveCalculationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            처방을 실제 연구 업무에 맞게 자동 계산합니다. 함량 합계, kg당 원가, 배치 소요량,
+            복합성분 Breakdown, 전성분, 규제 위험, 저장 전 검증을 한 화면에서 확인합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Lines</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{formulaCalcStats.lines}</div></div>
+            <div style={cardStyle()}><strong>Total %</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: Math.abs(formulaCalcStats.totalPercent - 100) < 0.01 ? "#059669" : "#dc2626" }}>{formulaCalcStats.totalPercent}%</div></div>
+            <div style={cardStyle()}><strong>Cost/kg</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{formulaCalcStats.totalCost}</div></div>
+            <div style={cardStyle()}><strong>Required kg</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{formulaCalcStats.requiredKg}</div></div>
+            <div style={cardStyle()}><strong>Breakdown</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{formulaCalcStats.breakdowns}</div></div>
+            <div style={cardStyle()}><strong>INCI List</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{formulaCalcStats.ingredients}</div></div>
+            <div style={cardStyle()}><strong>Reg Warnings</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{formulaCalcStats.warnings}</div></div>
+            <div style={cardStyle()}><strong>Validation Fail</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{formulaCalcStats.fails}/{formulaCalcStats.validations}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "12px" }}>
+            <input type="number" value={formulaBatchKg} onChange={(e) => setFormulaBatchKg(Number(e.target.value))} placeholder="배치 kg" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateFormulaLiveCalculation} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Formula 계산 실행</button>
+            {[1, 10, 100, 500, 1000].map((size) => (
+              <button key={size} onClick={() => setFormulaBatchSize(size)} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>{size}kg</button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+            <button onClick={exportFormulaCalculationCsv}>Calculation CSV</button>
+            <button onClick={exportFormulaBreakdownCsv}>Breakdown CSV</button>
+            <button onClick={exportFormulaIngredientListCsv}>INCI List CSV</button>
+            <button onClick={exportFormulaValidationCsv}>Validation CSV</button>
+            <button onClick={exportFormulaBatchCostCsv}>Batch Cost CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{formulaCalcStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. 처방 함량 / 원가 / 배치 소요량</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Formula</th><th style={tableCellStyle(true)}>Raw</th><th style={tableCellStyle(true)}>Name</th><th style={tableCellStyle(true)}>%</th><th style={tableCellStyle(true)}>Unit Price</th><th style={tableCellStyle(true)}>Cost/kg</th><th style={tableCellStyle(true)}>Batch</th><th style={tableCellStyle(true)}>Required kg</th><th style={tableCellStyle(true)}>Reg</th></tr></thead><tbody>{formulaCalculationLines.length === 0 && <tr><td style={tableCellStyle()} colSpan={9}>Formula 계산 실행을 누르세요.</td></tr>}{formulaCalculationLines.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.formula_code}</td><td style={tableCellStyle()}>{item.raw_code}</td><td style={tableCellStyle()}>{item.raw_name}</td><td style={tableCellStyle()}>{item.percentage}</td><td style={tableCellStyle()}>{item.unit_price}</td><td style={tableCellStyle()}>{item.cost_per_kg}</td><td style={tableCellStyle()}>{item.batch_kg}kg</td><td style={tableCellStyle()}>{item.required_kg}</td><td style={{ ...tableCellStyle(), color: item.regulation_status === "OK" ? "#059669" : item.regulation_status === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.regulation_status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. 복합성분 Breakdown</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Raw</th><th style={tableCellStyle(true)}>Raw Name</th><th style={tableCellStyle(true)}>INCI EN</th><th style={tableCellStyle(true)}>INCI KR</th><th style={tableCellStyle(true)}>Raw %</th><th style={tableCellStyle(true)}>Composition %</th><th style={tableCellStyle(true)}>Final %</th><th style={tableCellStyle(true)}>Order</th></tr></thead><tbody>{formulaBreakdowns.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Breakdown 결과가 표시됩니다.</td></tr>}{formulaBreakdowns.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.raw_code}</td><td style={tableCellStyle()}>{item.raw_name}</td><td style={tableCellStyle()}>{item.inci_en}</td><td style={tableCellStyle()}>{item.inci_kr}</td><td style={tableCellStyle()}>{item.raw_percentage}</td><td style={tableCellStyle()}>{item.composition_ratio}</td><td style={tableCellStyle()}>{item.final_content}</td><td style={tableCellStyle()}>{item.display_order}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. 전성분 자동 생성</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Order</th><th style={tableCellStyle(true)}>INCI EN</th><th style={tableCellStyle(true)}>INCI KR</th><th style={tableCellStyle(true)}>Final %</th><th style={tableCellStyle(true)}>Regulation</th></tr></thead><tbody>{formulaIngredientList.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>전성분 결과가 표시됩니다.</td></tr>}{formulaIngredientList.map((item, index) => (<tr key={item.id}><td style={tableCellStyle()}>{index + 1}</td><td style={tableCellStyle()}>{item.inci_en}</td><td style={tableCellStyle()}>{item.inci_kr}</td><td style={tableCellStyle()}>{item.final_content}</td><td style={{ ...tableCellStyle(), color: item.regulation_status === "OK" ? "#059669" : item.regulation_status === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.regulation_status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. 배치별 원가 시뮬레이션</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Batch kg</th><th style={tableCellStyle(true)}>Material Cost</th><th style={tableCellStyle(true)}>Cost/kg</th><th style={tableCellStyle(true)}>Loss %</th><th style={tableCellStyle(true)}>Final Cost/kg</th></tr></thead><tbody>{formulaBatchCosts.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>배치 원가 결과가 표시됩니다.</td></tr>}{formulaBatchCosts.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.batch_kg}</td><td style={tableCellStyle()}>{item.total_material_cost}</td><td style={tableCellStyle()}>{item.cost_per_kg}</td><td style={tableCellStyle()}>{item.estimated_loss_percent}</td><td style={tableCellStyle()}>{item.final_cost_per_kg}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. 저장 전 검증 체크리스트</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Check</th><th style={tableCellStyle(true)}>Result</th><th style={tableCellStyle(true)}>Message</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{formulaValidations.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>검증 결과가 표시됩니다.</td></tr>}{formulaValidations.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.check_item}</td><td style={{ ...tableCellStyle(), color: item.result === "PASS" ? "#059669" : item.result === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.result}</td><td style={tableCellStyle()}>{item.message}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderMasterDataCrudModule() {
     const keyword = liveSearchKeyword.trim().toLowerCase();
     const filteredRaw = liveRawMaterials.filter((item) => !keyword || item.raw_name.toLowerCase().includes(keyword) || item.raw_code.toLowerCase().includes(keyword) || item.inci_en.toLowerCase().includes(keyword));
@@ -8939,7 +9278,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
             다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
@@ -9000,7 +9339,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -9046,7 +9385,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -9106,7 +9445,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -9160,7 +9499,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -12442,6 +12781,7 @@ export default function EnterprisePage() {
     if (active === "importValidation") return renderImportValidationModule();
     if (active === "realDb") return renderRealDbOperationModule();
     if (active === "masterCrud") return renderMasterDataCrudModule();
+    if (active === "formulaCalc") return renderFormulaLiveCalculationModule();
     return renderAdminModule();
   }
 
@@ -12449,7 +12789,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Master Data Live CRUD Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Formula Live Calculation Pack</p>
 
         {menus.map((item) => (
           <button
