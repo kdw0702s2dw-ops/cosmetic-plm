@@ -41,6 +41,7 @@ type ModuleKey =
   | "realOperation"
   | "importValidation"
   | "realDb"
+  | "masterCrud"
   | "admin";
 
 type EnterpriseProject = {
@@ -1204,6 +1205,61 @@ type RealDbCorrectionActionItem = {
   status: "OPEN" | "IN_PROGRESS" | "DONE";
 };
 
+type LiveRawMaterialItem = {
+  id: string;
+  raw_code: string;
+  raw_name: string;
+  supplier: string;
+  unit_price: number;
+  inci_en: string;
+  inci_kr: string;
+  cas_no: string;
+  ec_no: string;
+  document_status: "VALID" | "EXPIRING" | "EXPIRED" | "MISSING";
+};
+
+type LiveInciItem = {
+  id: string;
+  inci_en: string;
+  inci_kr: string;
+  inci_cn: string;
+  inci_jp: string;
+  cas_no: string;
+  ec_no: string;
+  function_kr: string;
+  function_en: string;
+};
+
+type LiveFormulaMasterItem = {
+  id: string;
+  formula_code: string;
+  formula_name: string;
+  revision: string;
+  raw_code: string;
+  percentage: number;
+  phase: string;
+  claim: string;
+};
+
+type LiveRegulationRuleItem = {
+  id: string;
+  country: "KR" | "EU" | "CN" | "US" | "JP" | "ASEAN" | "GCC";
+  inci_en: string;
+  rule_type: "PROHIBITED" | "RESTRICTED" | "WARNING" | "LABEL" | "ALLOWED";
+  limit_value: string;
+  warning: string;
+  reference: string;
+};
+
+type LiveCrudAuditItem = {
+  id: string;
+  module: "RawMaterial" | "INCI" | "Formula" | "Regulation";
+  action: "CREATE" | "UPDATE" | "DELETE" | "DUPLICATE_CHECK" | "LOAD";
+  target: string;
+  status: "SUCCESS" | "WARNING" | "FAILED";
+  created_at: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1238,9 +1294,10 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Real DB Operation Pack" },
+  { key: "realOperation", label: "Master Data Live CRUD Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
+  { key: "masterCrud", label: "Master Data CRUD" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -1927,6 +1984,17 @@ export default function EnterprisePage() {
   const [realDbCorrectionActions, setRealDbCorrectionActions] = useState<RealDbCorrectionActionItem[]>([]);
   const [realDbStatus, setRealDbStatus] = useState("");
 
+  const [liveRawMaterials, setLiveRawMaterials] = useState<LiveRawMaterialItem[]>([]);
+  const [liveInciItems, setLiveInciItems] = useState<LiveInciItem[]>([]);
+  const [liveFormulaMasters, setLiveFormulaMasters] = useState<LiveFormulaMasterItem[]>([]);
+  const [liveRegulationRules, setLiveRegulationRules] = useState<LiveRegulationRuleItem[]>([]);
+  const [liveCrudAudits, setLiveCrudAudits] = useState<LiveCrudAuditItem[]>([]);
+  const [liveCrudStatus, setLiveCrudStatus] = useState("");
+  const [liveSearchKeyword, setLiveSearchKeyword] = useState("세라마이드");
+  const [rawInputName, setRawInputName] = useState("Ceramide Complex");
+  const [rawInputSupplier, setRawInputSupplier] = useState("Default Supplier");
+  const [formulaInputName, setFormulaInputName] = useState("Ceramide Barrier Cream");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2520,6 +2588,22 @@ export default function EnterprisePage() {
       blockers: realDbCorrectionActions.filter((item) => item.severity === "BLOCKER" && item.status !== "DONE").length,
     };
   }, [realDbConnections, realDbImportExecutions, realDbOperationMetrics, realDbSearchIndexes, realDbCorrectionActions]);
+
+  const liveCrudStats = useMemo(() => {
+    const allFormulaTotal = liveFormulaMasters.reduce((sum, item) => sum + Number(item.percentage || 0), 0);
+    return {
+      raw: liveRawMaterials.length,
+      inci: liveInciItems.length,
+      formula: liveFormulaMasters.length,
+      regulation: liveRegulationRules.length,
+      validDocs: liveRawMaterials.filter((item) => item.document_status === "VALID").length,
+      missingDocs: liveRawMaterials.filter((item) => item.document_status === "MISSING" || item.document_status === "EXPIRED").length,
+      regulationRisk: liveRegulationRules.filter((item) => item.rule_type === "PROHIBITED" || item.rule_type === "RESTRICTED").length,
+      formulaTotal: Number(allFormulaTotal.toFixed(4)),
+      audits: liveCrudAudits.length,
+      warnings: liveCrudAudits.filter((item) => item.status === "WARNING" || item.status === "FAILED").length,
+    };
+  }, [liveRawMaterials, liveInciItems, liveFormulaMasters, liveRegulationRules, liveCrudAudits]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7296,7 +7380,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Real DB Operation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Master Data Live CRUD Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7408,7 +7492,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`Real DB Operation Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`Master Data Live CRUD Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7508,7 +7592,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`Real DB Operation Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`Master Data Live CRUD Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -7551,13 +7635,191 @@ export default function EnterprisePage() {
     exportCsv("real_db_correction_actions.csv", [["issue_type", "target_table", "target_key", "severity", "correction", "status"], ...realDbCorrectionActions.map((item) => [item.issue_type, item.target_table, item.target_key, item.severity, item.correction, item.status])]);
   }
 
+
+  function addLiveAudit(module: LiveCrudAuditItem["module"], action: LiveCrudAuditItem["action"], target: string, status: LiveCrudAuditItem["status"]) {
+    const audit: LiveCrudAuditItem = {
+      id: `AUD-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      module,
+      action,
+      target,
+      status,
+      created_at: new Date().toISOString().slice(0, 16).replace("T", " "),
+    };
+    setLiveCrudAudits((prev) => [audit, ...prev]);
+  }
+
+  function loadMasterDataCrudPack() {
+    const raw: LiveRawMaterialItem[] = [
+      { id: "RAW-LIVE-001", raw_code: "RM-CER-001", raw_name: "Ceramide Complex", supplier: "Default Supplier", unit_price: 18000, inci_en: "Ceramide NP", inci_kr: "세라마이드엔피", cas_no: "100403-19-8", ec_no: "-", document_status: "VALID" },
+      { id: "RAW-LIVE-002", raw_code: "RM-PAN-001", raw_name: "Panthenol", supplier: "Default Supplier", unit_price: 8500, inci_en: "Panthenol", inci_kr: "판테놀", cas_no: "81-13-0", ec_no: "201-327-3", document_status: "VALID" },
+      { id: "RAW-LIVE-003", raw_code: "RM-BG-001", raw_name: "Beta-Glucan Solution", supplier: "Bio Supplier", unit_price: 12000, inci_en: "Beta-Glucan", inci_kr: "베타-글루칸", cas_no: "160872-27-5", ec_no: "-", document_status: "EXPIRING" },
+      { id: "RAW-LIVE-004", raw_code: "RM-EM-001", raw_name: "Mild Emulsifier", supplier: "Emulsion Co.", unit_price: 6200, inci_en: "Cetearyl Alcohol", inci_kr: "세테아릴알코올", cas_no: "67762-27-0", ec_no: "267-008-6", document_status: "MISSING" },
+    ];
+
+    const inci: LiveInciItem[] = [
+      { id: "INCI-LIVE-001", inci_en: "Ceramide NP", inci_kr: "세라마이드엔피", inci_cn: "神经酰胺 NP", inci_jp: "セラミドNP", cas_no: "100403-19-8", ec_no: "-", function_kr: "피부컨디셔닝제", function_en: "Skin Conditioning" },
+      { id: "INCI-LIVE-002", inci_en: "Panthenol", inci_kr: "판테놀", inci_cn: "泛醇", inci_jp: "パンテノール", cas_no: "81-13-0", ec_no: "201-327-3", function_kr: "보습제", function_en: "Humectant" },
+      { id: "INCI-LIVE-003", inci_en: "Beta-Glucan", inci_kr: "베타-글루칸", inci_cn: "β-葡聚糖", inci_jp: "β-グルカン", cas_no: "160872-27-5", ec_no: "-", function_kr: "피부보호제", function_en: "Skin Protecting" },
+    ];
+
+    const formula: LiveFormulaMasterItem[] = [
+      { id: "FRM-LIVE-001", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "RM-CER-001", percentage: 2.5, phase: "C", claim: "장벽강화" },
+      { id: "FRM-LIVE-002", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "RM-PAN-001", percentage: 3.0, phase: "B", claim: "보습/진정" },
+      { id: "FRM-LIVE-003", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "RM-BG-001", percentage: 1.0, phase: "C", claim: "진정" },
+      { id: "FRM-LIVE-004", formula_code: "FC-LIVE-001", formula_name: "Ceramide Barrier Cream", revision: "R1", raw_code: "Water", percentage: 93.5, phase: "A", claim: "Base" },
+    ];
+
+    const regs: LiveRegulationRuleItem[] = [
+      { id: "REG-LIVE-001", country: "US", inci_en: "Ceramide NP", rule_type: "ALLOWED", limit_value: "-", warning: "일반 화장품 성분", reference: "Internal rule" },
+      { id: "REG-LIVE-002", country: "EU", inci_en: "Panthenol", rule_type: "ALLOWED", limit_value: "-", warning: "사용 가능", reference: "Internal rule" },
+      { id: "REG-LIVE-003", country: "CN", inci_en: "Beta-Glucan", rule_type: "WARNING", limit_value: "-", warning: "IECIC 등재 여부 확인", reference: "Internal rule" },
+      { id: "REG-LIVE-004", country: "EU", inci_en: "Restricted Example", rule_type: "RESTRICTED", limit_value: "0.1%", warning: "함량 제한 확인", reference: "Internal rule" },
+    ];
+
+    setLiveRawMaterials(raw);
+    setLiveInciItems(inci);
+    setLiveFormulaMasters(formula);
+    setLiveRegulationRules(regs);
+    setLiveCrudAudits([
+      { id: "AUD-LIVE-001", module: "RawMaterial", action: "LOAD", target: "enterprise_raw_material_master", status: "SUCCESS", created_at: new Date().toISOString().slice(0, 16).replace("T", " ") },
+      { id: "AUD-LIVE-002", module: "INCI", action: "LOAD", target: "enterprise_inci_master", status: "SUCCESS", created_at: new Date().toISOString().slice(0, 16).replace("T", " ") },
+    ]);
+    setLiveCrudStatus(`Master Data Live CRUD 로드 완료: Raw ${raw.length}개 / INCI ${inci.length}개 / Formula ${formula.length}개 / Regulation ${regs.length}개`);
+  }
+
+  function createLiveRawMaterial() {
+    const duplicate = liveRawMaterials.some((item) => item.raw_name.trim().toLowerCase() === rawInputName.trim().toLowerCase());
+    const item: LiveRawMaterialItem = {
+      id: `RAW-LIVE-${Date.now()}`,
+      raw_code: `RM-AUTO-${String(liveRawMaterials.length + 1).padStart(3, "0")}`,
+      raw_name: rawInputName,
+      supplier: rawInputSupplier,
+      unit_price: 0,
+      inci_en: "",
+      inci_kr: "",
+      cas_no: "",
+      ec_no: "",
+      document_status: "MISSING",
+    };
+    setLiveRawMaterials([item, ...liveRawMaterials]);
+    addLiveAudit("RawMaterial", duplicate ? "DUPLICATE_CHECK" : "CREATE", item.raw_name, duplicate ? "WARNING" : "SUCCESS");
+    setLiveCrudStatus(duplicate ? "중복 가능 원료명입니다. 확인 후 저장하세요." : "원료마스터 등록 완료");
+  }
+
+  function updateLiveRawMaterial(id: string) {
+    setLiveRawMaterials((prev) => prev.map((item) => item.id === id ? { ...item, document_status: "VALID", unit_price: item.unit_price || 1000 } : item));
+    addLiveAudit("RawMaterial", "UPDATE", id, "SUCCESS");
+    setLiveCrudStatus("원료마스터 수정 완료");
+  }
+
+  function deleteLiveRawMaterial(id: string) {
+    const target = liveRawMaterials.find((item) => item.id === id)?.raw_name || id;
+    setLiveRawMaterials((prev) => prev.filter((item) => item.id !== id));
+    addLiveAudit("RawMaterial", "DELETE", target, "SUCCESS");
+    setLiveCrudStatus("원료마스터 삭제 완료");
+  }
+
+  function createLiveInci() {
+    const item: LiveInciItem = {
+      id: `INCI-LIVE-${Date.now()}`,
+      inci_en: rawInputName,
+      inci_kr: rawInputName,
+      inci_cn: "",
+      inci_jp: "",
+      cas_no: "",
+      ec_no: "",
+      function_kr: "보습제",
+      function_en: "Humectant",
+    };
+    setLiveInciItems([item, ...liveInciItems]);
+    addLiveAudit("INCI", "CREATE", item.inci_en, "SUCCESS");
+    setLiveCrudStatus("INCI 마스터 등록 완료");
+  }
+
+  function deleteLiveInci(id: string) {
+    const target = liveInciItems.find((item) => item.id === id)?.inci_en || id;
+    setLiveInciItems((prev) => prev.filter((item) => item.id !== id));
+    addLiveAudit("INCI", "DELETE", target, "SUCCESS");
+  }
+
+  function createLiveFormula() {
+    const item: LiveFormulaMasterItem = {
+      id: `FRM-LIVE-${Date.now()}`,
+      formula_code: `FC-LIVE-${String(liveFormulaMasters.length + 1).padStart(3, "0")}`,
+      formula_name: formulaInputName,
+      revision: "R1",
+      raw_code: liveRawMaterials[0]?.raw_code || "RM-AUTO",
+      percentage: 1,
+      phase: "A",
+      claim: "신규",
+    };
+    setLiveFormulaMasters([item, ...liveFormulaMasters]);
+    addLiveAudit("Formula", "CREATE", item.formula_code, "SUCCESS");
+    setLiveCrudStatus("처방마스터 등록 완료");
+  }
+
+  function normalizeLiveFormula() {
+    const total = liveFormulaMasters.reduce((sum, item) => sum + Number(item.percentage || 0), 0);
+    if (!total) return;
+    setLiveFormulaMasters((prev) => prev.map((item) => ({ ...item, percentage: Number(((item.percentage / total) * 100).toFixed(4)) })));
+    addLiveAudit("Formula", "UPDATE", "normalize 100%", "SUCCESS");
+    setLiveCrudStatus("처방 함량 합계를 100%로 보정했습니다.");
+  }
+
+  function deleteLiveFormula(id: string) {
+    const target = liveFormulaMasters.find((item) => item.id === id)?.formula_code || id;
+    setLiveFormulaMasters((prev) => prev.filter((item) => item.id !== id));
+    addLiveAudit("Formula", "DELETE", target, "SUCCESS");
+  }
+
+  function createLiveRegulationRule() {
+    const item: LiveRegulationRuleItem = {
+      id: `REG-LIVE-${Date.now()}`,
+      country: "US",
+      inci_en: rawInputName,
+      rule_type: "WARNING",
+      limit_value: "-",
+      warning: "RA 검토 필요",
+      reference: "Internal rule",
+    };
+    setLiveRegulationRules([item, ...liveRegulationRules]);
+    addLiveAudit("Regulation", "CREATE", `${item.country}/${item.inci_en}`, "SUCCESS");
+    setLiveCrudStatus("규제룰 등록 완료");
+  }
+
+  function deleteLiveRegulationRule(id: string) {
+    const target = liveRegulationRules.find((item) => item.id === id)?.inci_en || id;
+    setLiveRegulationRules((prev) => prev.filter((item) => item.id !== id));
+    addLiveAudit("Regulation", "DELETE", target, "SUCCESS");
+  }
+
+  function exportLiveRawMaterialsCsv() {
+    exportCsv("live_raw_material_master.csv", [["raw_code", "raw_name", "supplier", "unit_price", "inci_en", "inci_kr", "cas_no", "ec_no", "document_status"], ...liveRawMaterials.map((item) => [item.raw_code, item.raw_name, item.supplier, item.unit_price, item.inci_en, item.inci_kr, item.cas_no, item.ec_no, item.document_status])]);
+  }
+
+  function exportLiveInciCsv() {
+    exportCsv("live_inci_master.csv", [["inci_en", "inci_kr", "inci_cn", "inci_jp", "cas_no", "ec_no", "function_kr", "function_en"], ...liveInciItems.map((item) => [item.inci_en, item.inci_kr, item.inci_cn, item.inci_jp, item.cas_no, item.ec_no, item.function_kr, item.function_en])]);
+  }
+
+  function exportLiveFormulaCsv() {
+    exportCsv("live_formula_master.csv", [["formula_code", "formula_name", "revision", "raw_code", "percentage", "phase", "claim"], ...liveFormulaMasters.map((item) => [item.formula_code, item.formula_name, item.revision, item.raw_code, item.percentage, item.phase, item.claim])]);
+  }
+
+  function exportLiveRegulationCsv() {
+    exportCsv("live_regulation_rules.csv", [["country", "inci_en", "rule_type", "limit_value", "warning", "reference"], ...liveRegulationRules.map((item) => [item.country, item.inci_en, item.rule_type, item.limit_value, item.warning, item.reference])]);
+  }
+
+  function exportLiveCrudAuditCsv() {
+    exportCsv("live_crud_audit.csv", [["module", "action", "target", "status", "created_at"], ...liveCrudAudits.map((item) => [item.module, item.action, item.target, item.status, item.created_at])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Real DB Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Live CRUD Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Real DB Operation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Master Data Live CRUD Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -7600,6 +7862,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Real Ops</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{todayTasks.length}</div></div>
             <div style={cardStyle()}><strong>Import</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{importValidationResults.length}</div></div>
             <div style={cardStyle()}><strong>Real DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{realDbConnections.length}</div></div>
+            <div style={cardStyle()}><strong>CRUD</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{liveRawMaterials.length + liveInciItems.length + liveFormulaMasters.length + liveRegulationRules.length}</div></div>
           </div>
         </section>
 
@@ -7663,13 +7926,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Real DB Operation 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Master Data Live CRUD 목표</h2>
           <ul>
-            <li>Supabase 실제 운영 테이블 연결 상태 확인</li>
-            <li>검증/승인 완료 Import 데이터를 실제 마스터 테이블로 반영</li>
-            <li>원료, INCI, 처방, 공급사, 규제, LIMS 운영 KPI 집계</li>
-            <li>통합 검색 인덱스 준비와 중복/누락/참조 오류 수정 Action 생성</li>
-            <li>샘플 UI에서 실제 업무 데이터 기반 PLM으로 전환 준비</li>
+            <li>원료마스터 실제 데이터 조회/등록/수정/삭제 흐름 구현</li>
+            <li>INCI 마스터 다국어명/CAS/EC/기능 정보 관리</li>
+            <li>처방마스터 원료/함량/Phase/Claim 관리</li>
+            <li>국가별 규제룰 검색/등록/수정/삭제 관리</li>
+            <li>검색/필터/정렬, 중복체크, 저장 결과 메시지, Audit Trail 준비</li>
           </ul>
         </section>
       </>
@@ -8666,11 +8929,78 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderMasterDataCrudModule() {
+    const keyword = liveSearchKeyword.trim().toLowerCase();
+    const filteredRaw = liveRawMaterials.filter((item) => !keyword || item.raw_name.toLowerCase().includes(keyword) || item.raw_code.toLowerCase().includes(keyword) || item.inci_en.toLowerCase().includes(keyword));
+    const filteredInci = liveInciItems.filter((item) => !keyword || item.inci_en.toLowerCase().includes(keyword) || item.inci_kr.toLowerCase().includes(keyword) || item.cas_no.toLowerCase().includes(keyword));
+    const filteredFormula = liveFormulaMasters.filter((item) => !keyword || item.formula_name.toLowerCase().includes(keyword) || item.formula_code.toLowerCase().includes(keyword) || item.raw_code.toLowerCase().includes(keyword));
+    const filteredReg = liveRegulationRules.filter((item) => !keyword || item.inci_en.toLowerCase().includes(keyword) || item.country.toLowerCase().includes(keyword));
+
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
+            다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Raw</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{liveCrudStats.raw}</div></div>
+            <div style={cardStyle()}><strong>INCI</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{liveCrudStats.inci}</div></div>
+            <div style={cardStyle()}><strong>Formula</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{liveCrudStats.formula}</div></div>
+            <div style={cardStyle()}><strong>Regulation</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{liveCrudStats.regulation}</div></div>
+            <div style={cardStyle()}><strong>Valid Docs</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{liveCrudStats.validDocs}</div></div>
+            <div style={cardStyle()}><strong>Missing Docs</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{liveCrudStats.missingDocs}</div></div>
+            <div style={cardStyle()}><strong>Formula Total</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: Math.abs(liveCrudStats.formulaTotal - 100) < 0.01 ? "#059669" : "#dc2626" }}>{liveCrudStats.formulaTotal}%</div></div>
+            <div style={cardStyle()}><strong>Audit Warn</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{liveCrudStats.warnings}/{liveCrudStats.audits}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginBottom: "12px" }}>
+            <input value={liveSearchKeyword} onChange={(e) => setLiveSearchKeyword(e.target.value)} placeholder="검색어" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={rawInputName} onChange={(e) => setRawInputName(e.target.value)} placeholder="원료/INCI명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={rawInputSupplier} onChange={(e) => setRawInputSupplier(e.target.value)} placeholder="공급사" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+            <input value={formulaInputName} onChange={(e) => setFormulaInputName(e.target.value)} placeholder="처방명" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={loadMasterDataCrudPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Live CRUD 로드</button>
+            <button onClick={createLiveRawMaterial} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>원료 등록</button>
+            <button onClick={createLiveInci} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>INCI 등록</button>
+            <button onClick={createLiveFormula} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>처방 등록</button>
+            <button onClick={normalizeLiveFormula} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>처방 100% 보정</button>
+            <button onClick={createLiveRegulationRule} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>규제룰 등록</button>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+            <button onClick={exportLiveRawMaterialsCsv}>Raw CSV</button>
+            <button onClick={exportLiveInciCsv}>INCI CSV</button>
+            <button onClick={exportLiveFormulaCsv}>Formula CSV</button>
+            <button onClick={exportLiveRegulationCsv}>Regulation CSV</button>
+            <button onClick={exportLiveCrudAuditCsv}>Audit CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{liveCrudStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. 원료마스터 Live CRUD</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Code</th><th style={tableCellStyle(true)}>Name</th><th style={tableCellStyle(true)}>Supplier</th><th style={tableCellStyle(true)}>Price</th><th style={tableCellStyle(true)}>INCI</th><th style={tableCellStyle(true)}>CAS</th><th style={tableCellStyle(true)}>Doc</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{filteredRaw.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Live CRUD 로드를 실행하세요.</td></tr>}{filteredRaw.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.raw_code}</td><td style={tableCellStyle()}>{item.raw_name}</td><td style={tableCellStyle()}>{item.supplier}</td><td style={tableCellStyle()}>{item.unit_price}</td><td style={tableCellStyle()}>{item.inci_en}</td><td style={tableCellStyle()}>{item.cas_no}</td><td style={{ ...tableCellStyle(), color: item.document_status === "VALID" ? "#059669" : item.document_status === "MISSING" || item.document_status === "EXPIRED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.document_status}</td><td style={tableCellStyle()}><button onClick={() => updateLiveRawMaterial(item.id)} style={{ marginRight: "6px" }}>Update</button><button onClick={() => deleteLiveRawMaterial(item.id)}>Delete</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. INCI 마스터 Live CRUD</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>INCI EN</th><th style={tableCellStyle(true)}>KR</th><th style={tableCellStyle(true)}>CN</th><th style={tableCellStyle(true)}>JP</th><th style={tableCellStyle(true)}>CAS</th><th style={tableCellStyle(true)}>EC</th><th style={tableCellStyle(true)}>Function</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{filteredInci.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>INCI 데이터가 표시됩니다.</td></tr>}{filteredInci.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.inci_en}</td><td style={tableCellStyle()}>{item.inci_kr}</td><td style={tableCellStyle()}>{item.inci_cn}</td><td style={tableCellStyle()}>{item.inci_jp}</td><td style={tableCellStyle()}>{item.cas_no}</td><td style={tableCellStyle()}>{item.ec_no}</td><td style={tableCellStyle()}>{item.function_en}</td><td style={tableCellStyle()}><button onClick={() => deleteLiveInci(item.id)}>Delete</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. 처방마스터 Live CRUD</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Formula</th><th style={tableCellStyle(true)}>Name</th><th style={tableCellStyle(true)}>Rev</th><th style={tableCellStyle(true)}>Raw</th><th style={tableCellStyle(true)}>%</th><th style={tableCellStyle(true)}>Phase</th><th style={tableCellStyle(true)}>Claim</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{filteredFormula.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>처방 데이터가 표시됩니다.</td></tr>}{filteredFormula.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.formula_code}</td><td style={tableCellStyle()}>{item.formula_name}</td><td style={tableCellStyle()}>{item.revision}</td><td style={tableCellStyle()}>{item.raw_code}</td><td style={tableCellStyle()}>{item.percentage}</td><td style={tableCellStyle()}>{item.phase}</td><td style={tableCellStyle()}>{item.claim}</td><td style={tableCellStyle()}><button onClick={() => deleteLiveFormula(item.id)}>Delete</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. 규제룰 Live CRUD</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Country</th><th style={tableCellStyle(true)}>INCI</th><th style={tableCellStyle(true)}>Rule</th><th style={tableCellStyle(true)}>Limit</th><th style={tableCellStyle(true)}>Warning</th><th style={tableCellStyle(true)}>Reference</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{filteredReg.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>규제룰 데이터가 표시됩니다.</td></tr>}{filteredReg.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.country}</td><td style={tableCellStyle()}>{item.inci_en}</td><td style={{ ...tableCellStyle(), color: item.rule_type === "PROHIBITED" || item.rule_type === "RESTRICTED" ? "#dc2626" : item.rule_type === "WARNING" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.rule_type}</td><td style={tableCellStyle()}>{item.limit_value}</td><td style={tableCellStyle()}>{item.warning}</td><td style={tableCellStyle()}>{item.reference}</td><td style={tableCellStyle()}><button onClick={() => deleteLiveRegulationRule(item.id)}>Delete</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. CRUD Audit Trail 준비</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Action</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Time</th></tr></thead><tbody>{liveCrudAudits.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>CRUD Audit가 표시됩니다.</td></tr>}{liveCrudAudits.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.module}</td><td style={tableCellStyle()}>{item.action}</td><td style={tableCellStyle()}>{item.target}</td><td style={{ ...tableCellStyle(), color: item.status === "SUCCESS" ? "#059669" : item.status === "WARNING" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.created_at}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderRealDbOperationModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real DB Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -8716,7 +9046,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real DB Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -8776,7 +9106,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real DB Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -8830,7 +9160,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real DB Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Master Data Live CRUD Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -12111,6 +12441,7 @@ export default function EnterprisePage() {
     if (active === "realOperation") return renderRealOperationModule();
     if (active === "importValidation") return renderImportValidationModule();
     if (active === "realDb") return renderRealDbOperationModule();
+    if (active === "masterCrud") return renderMasterDataCrudModule();
     return renderAdminModule();
   }
 
@@ -12118,7 +12449,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Real DB Operation Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Master Data Live CRUD Pack</p>
 
         {menus.map((item) => (
           <button
