@@ -39,6 +39,7 @@ type ModuleKey =
   | "ultimateB"
   | "workReady"
   | "realOperation"
+  | "importValidation"
   | "admin";
 
 type EnterpriseProject = {
@@ -1094,6 +1095,65 @@ type PerformanceCheckItem = {
   action: string;
 };
 
+type ImportTemplateItem = {
+  id: string;
+  template_name: string;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  required_columns: string;
+  optional_columns: string;
+  status: "READY" | "NEEDS_REVIEW";
+};
+
+type ColumnMappingItem = {
+  id: string;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  source_column: string;
+  target_field: string;
+  mapping_status: "MAPPED" | "MISSING" | "REVIEW";
+  rule: string;
+};
+
+type DataValidationRuleItem = {
+  id: string;
+  rule_name: string;
+  target: "RawMaterial" | "INCI" | "Formula" | "Composition" | "Supplier" | "Regulation";
+  severity: "INFO" | "WARNING" | "ERROR" | "BLOCKER";
+  check_logic: string;
+  auto_fix: string;
+};
+
+type ImportValidationResultItem = {
+  id: string;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  file_name: string;
+  total_rows: number;
+  valid_rows: number;
+  warning_rows: number;
+  error_rows: number;
+  blocker_rows: number;
+  status: "PASS" | "WARNING" | "ERROR" | "BLOCKED";
+};
+
+type ImportErrorReportItem = {
+  id: string;
+  row_no: number;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  field_name: string;
+  error_type: "Missing" | "Duplicate" | "InvalidFormat" | "CompositionTotal" | "RegulationRisk" | "ReferenceMissing";
+  message: string;
+  fix_suggestion: string;
+};
+
+type ImportApprovalItem = {
+  id: string;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  file_name: string;
+  requester: string;
+  reviewer: "R&D" | "QA" | "RA" | "QC" | "Admin";
+  approval_status: "DRAFT" | "REQUESTED" | "APPROVED" | "REJECTED";
+  summary: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1128,7 +1188,8 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Real Operation Pack" },
+  { key: "realOperation", label: "Data Import & Validation Pack" },
+  { key: "importValidation", label: "Import Validation" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -1799,6 +1860,15 @@ export default function EnterprisePage() {
   const [realOperationStatus, setRealOperationStatus] = useState("");
   const [globalSearchKeyword, setGlobalSearchKeyword] = useState("세라마이드");
 
+  const [importTemplates, setImportTemplates] = useState<ImportTemplateItem[]>([]);
+  const [columnMappings, setColumnMappings] = useState<ColumnMappingItem[]>([]);
+  const [dataValidationRules, setDataValidationRules] = useState<DataValidationRuleItem[]>([]);
+  const [importValidationResults, setImportValidationResults] = useState<ImportValidationResultItem[]>([]);
+  const [importErrorReports, setImportErrorReports] = useState<ImportErrorReportItem[]>([]);
+  const [importApprovals, setImportApprovals] = useState<ImportApprovalItem[]>([]);
+  const [importValidationStatus, setImportValidationStatus] = useState("");
+  const [selectedImportType, setSelectedImportType] = useState<"RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS">("RawMaterial");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2360,6 +2430,21 @@ export default function EnterprisePage() {
       optimize: performanceChecks.filter((item) => item.status === "OPTIMIZE").length,
     };
   }, [quickAccessItems, bulkImportJobs, globalSearchResults, recentWorks, todayTasks, performanceChecks]);
+
+  const importValidationStats = useMemo(() => {
+    return {
+      templates: importTemplates.length,
+      mappings: columnMappings.length,
+      mapped: columnMappings.filter((item) => item.mapping_status === "MAPPED").length,
+      rules: dataValidationRules.length,
+      results: importValidationResults.length,
+      pass: importValidationResults.filter((item) => item.status === "PASS").length,
+      blocked: importValidationResults.filter((item) => item.status === "BLOCKED").length,
+      errors: importErrorReports.length,
+      blockers: importErrorReports.filter((item) => item.error_type === "CompositionTotal" || item.error_type === "RegulationRisk").length,
+      approvals: importApprovals.filter((item) => item.approval_status === "APPROVED").length,
+    };
+  }, [importTemplates, columnMappings, dataValidationRules, importValidationResults, importErrorReports, importApprovals]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7136,7 +7221,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Real Operation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Data Import & Validation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7184,13 +7269,112 @@ export default function EnterprisePage() {
     exportCsv("real_operation_performance_checks.csv", [["area", "current_state", "target_state", "status", "action"], ...performanceChecks.map((item) => [item.area, item.current_state, item.target_state, item.status, item.action])]);
   }
 
+
+  function generateImportValidationPack() {
+    const templates: ImportTemplateItem[] = [
+      { id: "TPL-001", template_name: "원료마스터 업로드 템플릿", import_type: "RawMaterial", required_columns: "raw_code, raw_name, supplier, unit_price, composition_total", optional_columns: "inci_kr, inci_en, cas_no, ec_no, origin, document_status", status: "READY" },
+      { id: "TPL-002", template_name: "INCI 다국어 업로드 템플릿", import_type: "INCI", required_columns: "inci_en, inci_kr", optional_columns: "inci_cn, inci_jp, cas_no, ec_no, function_kr, function_en", status: "READY" },
+      { id: "TPL-003", template_name: "처방 업로드 템플릿", import_type: "Formula", required_columns: "formula_code, formula_name, raw_code, percentage", optional_columns: "phase, process_note, revision, claim", status: "READY" },
+      { id: "TPL-004", template_name: "공급사 업로드 템플릿", import_type: "Supplier", required_columns: "supplier_name, contact, country", optional_columns: "lead_time, moq, grade, audit_status", status: "READY" },
+      { id: "TPL-005", template_name: "규제 룰 업로드 템플릿", import_type: "Regulation", required_columns: "country, inci_en, rule_type, limit_value", optional_columns: "warning, label_requirement, reference", status: "NEEDS_REVIEW" },
+      { id: "TPL-006", template_name: "LIMS 시험항목 업로드 템플릿", import_type: "LIMS", required_columns: "test_name, method, specification", optional_columns: "unit, min, max, analyst, frequency", status: "READY" },
+    ];
+
+    const mappings: ColumnMappingItem[] = [
+      { id: "MAP-001", import_type: "RawMaterial", source_column: "원료코드", target_field: "raw_code", mapping_status: "MAPPED", rule: "필수, 중복불가" },
+      { id: "MAP-002", import_type: "RawMaterial", source_column: "원료명", target_field: "raw_name", mapping_status: "MAPPED", rule: "필수" },
+      { id: "MAP-003", import_type: "RawMaterial", source_column: "CAS No.", target_field: "cas_no", mapping_status: "REVIEW", rule: "형식 검증 필요" },
+      { id: "MAP-004", import_type: "INCI", source_column: "INCI 영문", target_field: "inci_en", mapping_status: "MAPPED", rule: "필수" },
+      { id: "MAP-005", import_type: "INCI", source_column: "중문명", target_field: "inci_cn", mapping_status: "REVIEW", rule: "공란 허용, 중국 수출 시 필요" },
+      { id: "MAP-006", import_type: "Formula", source_column: "함량", target_field: "percentage", mapping_status: "MAPPED", rule: "숫자, 처방 합계 100%" },
+      { id: "MAP-007", import_type: "Formula", source_column: "원료코드", target_field: "raw_code", mapping_status: "MAPPED", rule: "원료마스터 참조 필요" },
+      { id: "MAP-008", import_type: "Regulation", source_column: "국가", target_field: "country", mapping_status: "MAPPED", rule: "KR/EU/CN/US/JP" },
+      { id: "MAP-009", import_type: "Regulation", source_column: "제한함량", target_field: "limit_value", mapping_status: "REVIEW", rule: "단위 표준화 필요" },
+    ];
+
+    const rules: DataValidationRuleItem[] = [
+      { id: "RULE-001", rule_name: "필수 컬럼 누락 검증", target: "RawMaterial", severity: "BLOCKER", check_logic: "raw_code, raw_name, supplier 필수", auto_fix: "불가, 사용자 입력 필요" },
+      { id: "RULE-002", rule_name: "중복 원료코드 검증", target: "RawMaterial", severity: "ERROR", check_logic: "raw_code unique", auto_fix: "중복 행 표시" },
+      { id: "RULE-003", rule_name: "CAS No. 형식 검증", target: "INCI", severity: "WARNING", check_logic: "00000-00-0 패턴", auto_fix: "공백/문자 제거" },
+      { id: "RULE-004", rule_name: "처방 함량 합계 100% 검증", target: "Formula", severity: "BLOCKER", check_logic: "formula_code별 percentage 합계 = 100", auto_fix: "불가, 처방 수정 필요" },
+      { id: "RULE-005", rule_name: "복합성분 구성비 검증", target: "Composition", severity: "ERROR", check_logic: "complex raw composition_total = 100", auto_fix: "구성성분 합계 리포트" },
+      { id: "RULE-006", rule_name: "원료마스터 참조 검증", target: "Formula", severity: "ERROR", check_logic: "formula raw_code exists in raw master", auto_fix: "미등록 원료 목록 생성" },
+      { id: "RULE-007", rule_name: "공급사 누락 검증", target: "Supplier", severity: "WARNING", check_logic: "supplier exists and active", auto_fix: "공급사 후보 매칭" },
+      { id: "RULE-008", rule_name: "국가별 규제 위험 검증", target: "Regulation", severity: "BLOCKER", check_logic: "restricted/prohibited ingredient check", auto_fix: "RA 검토 필요" },
+    ];
+
+    const results: ImportValidationResultItem[] = [
+      { id: "VAL-001", import_type: "RawMaterial", file_name: "raw_material_master.xlsx", total_rows: 1200, valid_rows: 1138, warning_rows: 30, error_rows: 28, blocker_rows: 4, status: "BLOCKED" },
+      { id: "VAL-002", import_type: "INCI", file_name: "inci_master_multilingual.xlsx", total_rows: 850, valid_rows: 801, warning_rows: 39, error_rows: 10, blocker_rows: 0, status: "ERROR" },
+      { id: "VAL-003", import_type: "Formula", file_name: "formula_history.xlsx", total_rows: 96, valid_rows: 92, warning_rows: 0, error_rows: 0, blocker_rows: 4, status: "BLOCKED" },
+      { id: "VAL-004", import_type: "Supplier", file_name: "supplier_master.xlsx", total_rows: 120, valid_rows: 118, warning_rows: 2, error_rows: 0, blocker_rows: 0, status: "WARNING" },
+      { id: "VAL-005", import_type: "Regulation", file_name: "global_regulation_rules.xlsx", total_rows: 340, valid_rows: 340, warning_rows: 0, error_rows: 0, blocker_rows: 0, status: "PASS" },
+    ];
+
+    const reports: ImportErrorReportItem[] = [
+      { id: "ERR-001", row_no: 18, import_type: "RawMaterial", field_name: "cas_no", error_type: "InvalidFormat", message: "CAS No. 형식이 올바르지 않습니다.", fix_suggestion: "00000-00-0 형식으로 수정" },
+      { id: "ERR-002", row_no: 44, import_type: "RawMaterial", field_name: "raw_code", error_type: "Duplicate", message: "중복 원료코드가 존재합니다.", fix_suggestion: "원료코드 중복 제거 또는 Revision 분리" },
+      { id: "ERR-003", row_no: 71, import_type: "Formula", field_name: "percentage", error_type: "CompositionTotal", message: "처방 함량 합계가 100%가 아닙니다.", fix_suggestion: "formula_code별 합계를 100%로 조정" },
+      { id: "ERR-004", row_no: 103, import_type: "RawMaterial", field_name: "composition_total", error_type: "CompositionTotal", message: "복합성분 구성비 합계가 100%가 아닙니다.", fix_suggestion: "복합 원료 구성성분 합계 검토" },
+      { id: "ERR-005", row_no: 7, import_type: "Regulation", field_name: "inci_en", error_type: "RegulationRisk", message: "금지/제한 성분 후보입니다.", fix_suggestion: "RA 검토 후 Import 승인" },
+      { id: "ERR-006", row_no: 91, import_type: "Formula", field_name: "raw_code", error_type: "ReferenceMissing", message: "원료마스터에 없는 원료코드입니다.", fix_suggestion: "원료마스터 선등록 필요" },
+    ];
+
+    const approvals: ImportApprovalItem[] = [
+      { id: "APR-001", import_type: "RawMaterial", file_name: "raw_material_master.xlsx", requester: "R&D", reviewer: "QA", approval_status: "REQUESTED", summary: "BLOCKER 4건 해결 후 승인 가능" },
+      { id: "APR-002", import_type: "INCI", file_name: "inci_master_multilingual.xlsx", requester: "R&D", reviewer: "RA", approval_status: "DRAFT", summary: "CAS/다국어명 보강 필요" },
+      { id: "APR-003", import_type: "Formula", file_name: "formula_history.xlsx", requester: "R&D", reviewer: "R&D", approval_status: "REQUESTED", summary: "처방 합계 오류 4건 수정 필요" },
+      { id: "APR-004", import_type: "Regulation", file_name: "global_regulation_rules.xlsx", requester: "RA", reviewer: "RA", approval_status: "APPROVED", summary: "Import 가능" },
+    ];
+
+    setImportTemplates(templates);
+    setColumnMappings(mappings);
+    setDataValidationRules(rules);
+    setImportValidationResults(results);
+    setImportErrorReports(reports);
+    setImportApprovals(approvals);
+    setImportValidationStatus(`Data Import & Validation Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+  }
+
+  function approveImport(id: string) {
+    setImportApprovals((prev) => prev.map((item) => item.id === id ? { ...item, approval_status: "APPROVED" } : item));
+  }
+
+  function markMappingComplete(id: string) {
+    setColumnMappings((prev) => prev.map((item) => item.id === id ? { ...item, mapping_status: "MAPPED" } : item));
+  }
+
+  function exportImportTemplatesCsv() {
+    exportCsv("data_import_templates.csv", [["template_name", "import_type", "required_columns", "optional_columns", "status"], ...importTemplates.map((item) => [item.template_name, item.import_type, item.required_columns, item.optional_columns, item.status])]);
+  }
+
+  function exportColumnMappingsCsv() {
+    exportCsv("data_import_column_mappings.csv", [["import_type", "source_column", "target_field", "mapping_status", "rule"], ...columnMappings.map((item) => [item.import_type, item.source_column, item.target_field, item.mapping_status, item.rule])]);
+  }
+
+  function exportValidationRulesCsv() {
+    exportCsv("data_import_validation_rules.csv", [["rule_name", "target", "severity", "check_logic", "auto_fix"], ...dataValidationRules.map((item) => [item.rule_name, item.target, item.severity, item.check_logic, item.auto_fix])]);
+  }
+
+  function exportValidationResultsCsv() {
+    exportCsv("data_import_validation_results.csv", [["import_type", "file_name", "total_rows", "valid_rows", "warning_rows", "error_rows", "blocker_rows", "status"], ...importValidationResults.map((item) => [item.import_type, item.file_name, item.total_rows, item.valid_rows, item.warning_rows, item.error_rows, item.blocker_rows, item.status])]);
+  }
+
+  function exportErrorReportsCsv() {
+    exportCsv("data_import_error_reports.csv", [["row_no", "import_type", "field_name", "error_type", "message", "fix_suggestion"], ...importErrorReports.map((item) => [item.row_no, item.import_type, item.field_name, item.error_type, item.message, item.fix_suggestion])]);
+  }
+
+  function exportImportApprovalsCsv() {
+    exportCsv("data_import_approvals.csv", [["import_type", "file_name", "requester", "reviewer", "approval_status", "summary"], ...importApprovals.map((item) => [item.import_type, item.file_name, item.requester, item.reviewer, item.approval_status, item.summary])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Real Operation Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Data Import Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Real Operation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Data Import & Validation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -7231,6 +7415,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Ultimate B</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{autonomousAgents.length}</div></div>
             <div style={cardStyle()}><strong>Work Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{masterDataConnectors.length}</div></div>
             <div style={cardStyle()}><strong>Real Ops</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{todayTasks.length}</div></div>
+            <div style={cardStyle()}><strong>Import</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{importValidationResults.length}</div></div>
           </div>
         </section>
 
@@ -7294,13 +7479,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Real Operation 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Data Import & Validation 목표</h2>
           <ul>
-            <li>실사용 UX 개선: 자주 쓰는 기능을 한 화면에서 빠르게 접근</li>
-            <li>원료/처방/INCI/규제 Excel 대량등록 검증 흐름 생성</li>
-            <li>빠른 통합 검색: 원료, 처방, 프로젝트, 문서, 고객, 공급사 즉시 검색</li>
-            <li>즐겨찾기/최근작업/오늘 할 일로 연구원 업무 시작 시간 단축</li>
-            <li>대량 데이터 대비 성능 점검과 운영 안정성 관리</li>
+            <li>Excel 업로드 전 템플릿과 컬럼 매핑 기준 정의</li>
+            <li>원료마스터, INCI, CAS/EC, 처방, 공급사, 규제 데이터 검증</li>
+            <li>처방 함량 합계 100%, 복합성분 구성비, 중복 원료명 자동 점검</li>
+            <li>오류 행/필드/수정 제안 리포트 생성</li>
+            <li>Import 전 R&D/QA/RA/QC 승인 흐름 준비</li>
           </ul>
         </section>
       </>
@@ -8297,11 +8482,71 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderImportValidationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Data Import & Validation Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
+            함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Templates</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{importValidationStats.templates}</div></div>
+            <div style={cardStyle()}><strong>Mapped</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{importValidationStats.mapped}/{importValidationStats.mappings}</div></div>
+            <div style={cardStyle()}><strong>Rules</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{importValidationStats.rules}</div></div>
+            <div style={cardStyle()}><strong>Pass</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{importValidationStats.pass}/{importValidationStats.results}</div></div>
+            <div style={cardStyle()}><strong>Blocked</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{importValidationStats.blocked}</div></div>
+            <div style={cardStyle()}><strong>Errors</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{importValidationStats.errors}</div></div>
+            <div style={cardStyle()}><strong>Blocker Issues</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{importValidationStats.blockers}</div></div>
+            <div style={cardStyle()}><strong>Approvals</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{importValidationStats.approvals}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "620px", marginBottom: "12px" }}>
+            <select value={selectedImportType} onChange={(e) => setSelectedImportType(e.target.value as any)} style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }}>
+              <option value="RawMaterial">RawMaterial</option>
+              <option value="INCI">INCI</option>
+              <option value="Formula">Formula</option>
+              <option value="Supplier">Supplier</option>
+              <option value="Regulation">Regulation</option>
+              <option value="LIMS">LIMS</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateImportValidationPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Import Validation 생성</button>
+            <button onClick={exportImportTemplatesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Template CSV</button>
+            <button onClick={exportColumnMappingsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Mapping CSV</button>
+            <button onClick={exportValidationRulesCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Rule CSV</button>
+            <button onClick={exportValidationResultsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Result CSV</button>
+            <button onClick={exportErrorReportsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Error CSV</button>
+            <button onClick={exportImportApprovalsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Approval CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{importValidationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. Import Templates</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Template</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Required</th><th style={tableCellStyle(true)}>Optional</th><th style={tableCellStyle(true)}>Status</th></tr></thead><tbody>{importTemplates.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Import Validation 생성을 실행하세요.</td></tr>}{importTemplates.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.template_name}</td><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.required_columns}</td><td style={tableCellStyle()}>{item.optional_columns}</td><td style={{ ...tableCellStyle(), color: item.status === "READY" ? "#059669" : "#d97706", fontWeight: "bold" }}>{item.status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. Column Mapping</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Source Column</th><th style={tableCellStyle(true)}>Target Field</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Rule</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{columnMappings.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>컬럼 매핑 결과가 표시됩니다.</td></tr>}{columnMappings.filter((item) => item.import_type === selectedImportType || selectedImportType === "RawMaterial").map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.source_column}</td><td style={tableCellStyle()}>{item.target_field}</td><td style={{ ...tableCellStyle(), color: item.mapping_status === "MAPPED" ? "#059669" : item.mapping_status === "MISSING" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.mapping_status}</td><td style={tableCellStyle()}>{item.rule}</td><td style={tableCellStyle()}>{item.mapping_status !== "MAPPED" ? <button onClick={() => markMappingComplete(item.id)}>Map</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. Validation Rules</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Rule</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Severity</th><th style={tableCellStyle(true)}>Logic</th><th style={tableCellStyle(true)}>Auto Fix</th></tr></thead><tbody>{dataValidationRules.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>검증 규칙이 표시됩니다.</td></tr>}{dataValidationRules.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.rule_name}</td><td style={tableCellStyle()}>{item.target}</td><td style={{ ...tableCellStyle(), color: item.severity === "BLOCKER" ? "#dc2626" : item.severity === "ERROR" ? "#d97706" : item.severity === "WARNING" ? "#2563eb" : "#6b7280", fontWeight: "bold" }}>{item.severity}</td><td style={tableCellStyle()}>{item.check_logic}</td><td style={tableCellStyle()}>{item.auto_fix}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. Validation Results</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Total</th><th style={tableCellStyle(true)}>Valid</th><th style={tableCellStyle(true)}>Warning</th><th style={tableCellStyle(true)}>Error</th><th style={tableCellStyle(true)}>Blocker</th><th style={tableCellStyle(true)}>Status</th></tr></thead><tbody>{importValidationResults.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>검증 결과가 표시됩니다.</td></tr>}{importValidationResults.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.total_rows}</td><td style={tableCellStyle()}>{item.valid_rows}</td><td style={tableCellStyle()}>{item.warning_rows}</td><td style={{ ...tableCellStyle(), color: item.error_rows > 0 ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.error_rows}</td><td style={{ ...tableCellStyle(), color: item.blocker_rows > 0 ? "#dc2626" : "#059669", fontWeight: "bold" }}>{item.blocker_rows}</td><td style={{ ...tableCellStyle(), color: item.status === "PASS" ? "#059669" : item.status === "BLOCKED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. Error Report</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Row</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Field</th><th style={tableCellStyle(true)}>Error</th><th style={tableCellStyle(true)}>Message</th><th style={tableCellStyle(true)}>Fix</th></tr></thead><tbody>{importErrorReports.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>오류 리포트가 표시됩니다.</td></tr>}{importErrorReports.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.row_no}</td><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.field_name}</td><td style={{ ...tableCellStyle(), color: item.error_type === "CompositionTotal" || item.error_type === "RegulationRisk" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.error_type}</td><td style={tableCellStyle()}>{item.message}</td><td style={tableCellStyle()}>{item.fix_suggestion}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>6. Import Approval</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Requester</th><th style={tableCellStyle(true)}>Reviewer</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Summary</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{importApprovals.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>승인 요청이 표시됩니다.</td></tr>}{importApprovals.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.requester}</td><td style={tableCellStyle()}>{item.reviewer}</td><td style={{ ...tableCellStyle(), color: item.approval_status === "APPROVED" ? "#059669" : item.approval_status === "REJECTED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.approval_status}</td><td style={tableCellStyle()}>{item.summary}</td><td style={tableCellStyle()}>{item.approval_status !== "APPROVED" ? <button onClick={() => approveImport(item.id)}>Approve</button> : "-"}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderRealOperationModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Data Import & Validation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -8355,7 +8600,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Real Operation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Data Import & Validation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -11634,6 +11879,7 @@ export default function EnterprisePage() {
     if (active === "ultimateB") return renderUltimatePackBModule();
     if (active === "workReady") return renderWorkReadyModule();
     if (active === "realOperation") return renderRealOperationModule();
+    if (active === "importValidation") return renderImportValidationModule();
     return renderAdminModule();
   }
 
@@ -11641,7 +11887,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Real Operation Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Data Import & Validation Pack</p>
 
         {menus.map((item) => (
           <button
