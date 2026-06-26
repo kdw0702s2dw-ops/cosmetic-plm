@@ -38,6 +38,7 @@ type ModuleKey =
   | "ultimateA"
   | "ultimateB"
   | "workReady"
+  | "realOperation"
   | "admin";
 
 type EnterpriseProject = {
@@ -1036,6 +1037,63 @@ type CodeQualityItem = {
   action: string;
 };
 
+type QuickAccessItem = {
+  id: string;
+  label: string;
+  module: string;
+  route_key: ModuleKey;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  usage_count: number;
+};
+
+type BulkImportJobItem = {
+  id: string;
+  import_type: "RawMaterial" | "INCI" | "Formula" | "Supplier" | "Regulation" | "LIMS";
+  file_name: string;
+  rows_total: number;
+  rows_valid: number;
+  rows_error: number;
+  status: "READY" | "VALIDATED" | "ERROR" | "IMPORTED";
+  next_action: string;
+};
+
+type GlobalSearchResultItem = {
+  id: string;
+  keyword: string;
+  result_type: "Project" | "Formula" | "RawMaterial" | "INCI" | "Document" | "Customer" | "Supplier";
+  title: string;
+  summary: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type RecentWorkItem = {
+  id: string;
+  work_type: "Project" | "Formula" | "LIMS" | "QMS" | "Document" | "AI";
+  title: string;
+  last_opened: string;
+  owner: string;
+  status: "ACTIVE" | "WAITING" | "DONE" | "ISSUE";
+};
+
+type TodayTaskItem = {
+  id: string;
+  task: string;
+  source_module: string;
+  due: string;
+  owner: string;
+  status: "TODO" | "IN_PROGRESS" | "DONE" | "OVERDUE";
+  priority: "P0" | "P1" | "P2" | "P3";
+};
+
+type PerformanceCheckItem = {
+  id: string;
+  area: "Data Load" | "Search" | "CSV Export" | "Dashboard" | "Build" | "Deployment";
+  current_state: string;
+  target_state: string;
+  status: "GOOD" | "WATCH" | "OPTIMIZE";
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1070,6 +1128,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
+  { key: "realOperation", label: "Real Operation Pack" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -1731,6 +1790,15 @@ export default function EnterprisePage() {
   const [workReadyStatus, setWorkReadyStatus] = useState("");
   const [workReadyQuestion, setWorkReadyQuestion] = useState("미국 수출용 저자극 크림 처방을 추천하고 필요한 문서를 만들어줘");
 
+  const [quickAccessItems, setQuickAccessItems] = useState<QuickAccessItem[]>([]);
+  const [bulkImportJobs, setBulkImportJobs] = useState<BulkImportJobItem[]>([]);
+  const [globalSearchResults, setGlobalSearchResults] = useState<GlobalSearchResultItem[]>([]);
+  const [recentWorks, setRecentWorks] = useState<RecentWorkItem[]>([]);
+  const [todayTasks, setTodayTasks] = useState<TodayTaskItem[]>([]);
+  const [performanceChecks, setPerformanceChecks] = useState<PerformanceCheckItem[]>([]);
+  const [realOperationStatus, setRealOperationStatus] = useState("");
+  const [globalSearchKeyword, setGlobalSearchKeyword] = useState("세라마이드");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2276,6 +2344,22 @@ export default function EnterprisePage() {
       qualityWatch: codeQualityItems.filter((item) => item.status !== "GOOD").length,
     };
   }, [masterDataConnectors, aiBrainScenarios, documentAutomations, plmChatbotItems, codeQualityItems]);
+
+  const realOperationStats = useMemo(() => {
+    return {
+      quick: quickAccessItems.length,
+      highQuick: quickAccessItems.filter((item) => item.priority === "HIGH").length,
+      imports: bulkImportJobs.length,
+      importErrors: bulkImportJobs.reduce((sum, item) => sum + item.rows_error, 0),
+      search: globalSearchResults.length,
+      highRiskSearch: globalSearchResults.filter((item) => item.risk_level === "HIGH").length,
+      recent: recentWorks.length,
+      tasks: todayTasks.length,
+      overdue: todayTasks.filter((item) => item.status === "OVERDUE").length,
+      p0: todayTasks.filter((item) => item.priority === "P0").length,
+      optimize: performanceChecks.filter((item) => item.status === "OPTIMIZE").length,
+    };
+  }, [quickAccessItems, bulkImportJobs, globalSearchResults, recentWorks, todayTasks, performanceChecks]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -6994,13 +7078,119 @@ export default function EnterprisePage() {
     exportCsv("work_ready_code_quality.csv", [["area", "issue", "status", "action"], ...codeQualityItems.map((item) => [item.area, item.issue, item.status, item.action])]);
   }
 
+
+  function generateRealOperationPack() {
+    const quick: QuickAccessItem[] = [
+      { id: "QA-001", label: "새 처방 작성", module: "Formula", route_key: "formula", priority: "HIGH", usage_count: 42 },
+      { id: "QA-002", label: "원료 마스터", module: "Ingredient", route_key: "ingredient", priority: "HIGH", usage_count: 38 },
+      { id: "QA-003", label: "규제 검토", module: "Regulation", route_key: "regulation", priority: "HIGH", usage_count: 29 },
+      { id: "QA-004", label: "LIMS 시험관리", module: "LIMS", route_key: "lims", priority: "MEDIUM", usage_count: 21 },
+      { id: "QA-005", label: "문서 자동 생성", module: "Work Ready", route_key: "workReady", priority: "HIGH", usage_count: 25 },
+      { id: "QA-006", label: "AI Brain", module: "AI", route_key: "workReady", priority: "HIGH", usage_count: 31 },
+    ];
+
+    const imports: BulkImportJobItem[] = [
+      { id: "IMP-001", import_type: "RawMaterial", file_name: "raw_material_master.xlsx", rows_total: 1200, rows_valid: 1168, rows_error: 32, status: "VALIDATED", next_action: "CAS/EC 누락 32건 보정 후 Import" },
+      { id: "IMP-002", import_type: "INCI", file_name: "inci_master_multilingual.xlsx", rows_total: 850, rows_valid: 801, rows_error: 49, status: "VALIDATED", next_action: "중문/일문 공란 보강" },
+      { id: "IMP-003", import_type: "Formula", file_name: "formula_history.xlsx", rows_total: 96, rows_valid: 92, rows_error: 4, status: "VALIDATED", next_action: "함량 합계 오류 4건 수정" },
+      { id: "IMP-004", import_type: "Regulation", file_name: "global_regulation_rules.xlsx", rows_total: 340, rows_valid: 340, rows_error: 0, status: "READY", next_action: "Supabase Import 가능" },
+    ];
+
+    const searchResults: GlobalSearchResultItem[] = [
+      { id: "SR-001", keyword: globalSearchKeyword, result_type: "INCI", title: "Ceramide NP", summary: "장벽강화/보습 원료, 민감성 크림 후보", risk_level: "LOW" },
+      { id: "SR-002", keyword: globalSearchKeyword, result_type: "Formula", title: "Ceramide Barrier Cream A", summary: "AI 후보 처방, Launch Score 89", risk_level: "LOW" },
+      { id: "SR-003", keyword: globalSearchKeyword, result_type: "RawMaterial", title: "RM-CER-001", summary: "공급사 문서 갱신 필요 여부 확인", risk_level: qualityStats.expiring > 0 ? "MEDIUM" : "LOW" },
+      { id: "SR-004", keyword: globalSearchKeyword, result_type: "Document", title: "Global Regulatory Review Report", summary: "RA 검토 문서", risk_level: "LOW" },
+      { id: "SR-005", keyword: globalSearchKeyword, result_type: "Project", title: "US Sensitive Cream Project", summary: "고객 제안 가능 프로젝트", risk_level: "MEDIUM" },
+    ];
+
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const recent: RecentWorkItem[] = [
+      { id: "RW-001", work_type: "Formula", title: "Ceramide Barrier Cream A", last_opened: now, owner: "R&D", status: "ACTIVE" },
+      { id: "RW-002", work_type: "AI", title: "미국 수출용 저자극 크림 AI 검토", last_opened: now, owner: "R&D", status: "WAITING" },
+      { id: "RW-003", work_type: "Document", title: "Full Ingredient List Draft", last_opened: now, owner: "RA", status: "ACTIVE" },
+      { id: "RW-004", work_type: "LIMS", title: "45℃ 1W 안정도 관찰", last_opened: now, owner: "QC", status: "WAITING" },
+      { id: "RW-005", work_type: "QMS", title: "원료문서 만료 점검", last_opened: now, owner: "QA", status: qualityStats.expired > 0 ? "ISSUE" : "DONE" },
+    ];
+
+    const today: TodayTaskItem[] = [
+      { id: "TD-001", task: "원료마스터 CAS/EC 누락 확인", source_module: "Ingredient", due: "오늘", owner: "R&D", status: "TODO", priority: "P1" },
+      { id: "TD-002", task: "세라마이드 크림 전성분표 검토", source_module: "Formula/RA", due: "오늘", owner: "RA", status: "IN_PROGRESS", priority: "P1" },
+      { id: "TD-003", task: "LIMS 안정도 시험계획 승인", source_module: "LIMS", due: "오늘", owner: "QC", status: "TODO", priority: "P2" },
+      { id: "TD-004", task: "고객 제안용 개발 요약자료 확인", source_module: "Document", due: "오늘", owner: "R&D", status: "TODO", priority: "P2" },
+      { id: "TD-005", task: "규제 HIGH / OOS / QC Hold 여부 확인", source_module: "Dashboard", due: "즉시", owner: "QA", status: (limsStats.oos > 0 || mesStats.qcHold > 0) ? "OVERDUE" : "TODO", priority: (limsStats.oos > 0 || mesStats.qcHold > 0) ? "P0" : "P1" },
+    ];
+
+    const perf: PerformanceCheckItem[] = [
+      { id: "PF-001", area: "Data Load", current_state: "샘플/운영 데이터 혼합", target_state: "모듈별 Lazy Load", status: "WATCH", action: "대량 데이터 연결 전 모듈 분리 권장" },
+      { id: "PF-002", area: "Search", current_state: "화면 내 검색 시나리오", target_state: "Supabase Full Text Search", status: "OPTIMIZE", action: "실제 데이터 입력 후 검색 인덱스 생성" },
+      { id: "PF-003", area: "CSV Export", current_state: "정상", target_state: "모듈별 Export 유지", status: "GOOD", action: "사용자 다운로드 이력 저장 검토" },
+      { id: "PF-004", area: "Dashboard", current_state: "통합 KPI 표시", target_state: "실시간 KPI", status: "WATCH", action: "실제 DB 연결 후 useMemo → API 집계 전환" },
+      { id: "PF-005", area: "Build", current_state: "Vercel Build 가능", target_state: "빌드 안정화", status: "GOOD", action: "대형 page.tsx 단계적 분리" },
+      { id: "PF-006", area: "Deployment", current_state: "Vercel 24시간 운영", target_state: "자동 배포 유지", status: "GOOD", action: "main branch push 관리" },
+    ];
+
+    setQuickAccessItems(quick);
+    setBulkImportJobs(imports);
+    setGlobalSearchResults(searchResults);
+    setRecentWorks(recent);
+    setTodayTasks(today);
+    setPerformanceChecks(perf);
+    setRealOperationStatus(`Real Operation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+  }
+
+  function runGlobalSearch() {
+    const result: GlobalSearchResultItem = {
+      id: `SR-${Date.now()}`,
+      keyword: globalSearchKeyword,
+      result_type: "RawMaterial",
+      title: `${globalSearchKeyword} 검색 결과`,
+      summary: "원료/처방/문서/프로젝트 통합 검색 결과가 생성되었습니다.",
+      risk_level: "LOW",
+    };
+    setGlobalSearchResults([result, ...globalSearchResults]);
+    setRealOperationStatus("통합 검색 실행 완료");
+  }
+
+  function markTodayTaskDone(id: string) {
+    setTodayTasks((prev) => prev.map((item) => item.id === id ? { ...item, status: "DONE" } : item));
+  }
+
+  function validateImportJob(id: string) {
+    setBulkImportJobs((prev) => prev.map((item) => item.id === id ? { ...item, status: item.rows_error > 0 ? "ERROR" : "IMPORTED", next_action: item.rows_error > 0 ? "오류 행 수정 필요" : "Import 완료" } : item));
+  }
+
+  function exportQuickAccessCsv() {
+    exportCsv("real_operation_quick_access.csv", [["label", "module", "route_key", "priority", "usage_count"], ...quickAccessItems.map((item) => [item.label, item.module, item.route_key, item.priority, item.usage_count])]);
+  }
+
+  function exportBulkImportCsv() {
+    exportCsv("real_operation_bulk_import_jobs.csv", [["import_type", "file_name", "rows_total", "rows_valid", "rows_error", "status", "next_action"], ...bulkImportJobs.map((item) => [item.import_type, item.file_name, item.rows_total, item.rows_valid, item.rows_error, item.status, item.next_action])]);
+  }
+
+  function exportGlobalSearchCsv() {
+    exportCsv("real_operation_global_search.csv", [["keyword", "result_type", "title", "summary", "risk_level"], ...globalSearchResults.map((item) => [item.keyword, item.result_type, item.title, item.summary, item.risk_level])]);
+  }
+
+  function exportRecentWorksCsv() {
+    exportCsv("real_operation_recent_works.csv", [["work_type", "title", "last_opened", "owner", "status"], ...recentWorks.map((item) => [item.work_type, item.title, item.last_opened, item.owner, item.status])]);
+  }
+
+  function exportTodayTasksCsv() {
+    exportCsv("real_operation_today_tasks.csv", [["task", "source_module", "due", "owner", "status", "priority"], ...todayTasks.map((item) => [item.task, item.source_module, item.due, item.owner, item.status, item.priority])]);
+  }
+
+  function exportPerformanceChecksCsv() {
+    exportCsv("real_operation_performance_checks.csv", [["area", "current_state", "target_state", "status", "action"], ...performanceChecks.map((item) => [item.area, item.current_state, item.target_state, item.status, item.action])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Work Ready Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Real Operation Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성, PLM 챗봇, 코드 품질 점검을 통합한 Work Ready Pack입니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Real Operation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -7040,6 +7230,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Ultimate A</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiResearchProjects.length}</div></div>
             <div style={cardStyle()}><strong>Ultimate B</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{autonomousAgents.length}</div></div>
             <div style={cardStyle()}><strong>Work Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{masterDataConnectors.length}</div></div>
+            <div style={cardStyle()}><strong>Real Ops</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{todayTasks.length}</div></div>
           </div>
         </section>
 
@@ -7103,13 +7294,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Work Ready 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Real Operation 목표</h2>
           <ul>
-            <li>실제 데이터 연동 준비: 원료/INCI/CAS/규제/문서 데이터 매핑 점검</li>
-            <li>Cosmetic AI Brain: 처방·규제·원가·안정성 요청을 업무 시나리오로 변환</li>
-            <li>문서 자동 생성: 처방서, 원료조성표, 전성분표, 제품규격서, 개발보고서</li>
-            <li>PLM Chatbot: 업무 질문에 대한 요약 답변과 Action 생성</li>
-            <li>코드 품질 점검: 배포/보안/성능/컴포넌트 분리 준비</li>
+            <li>실사용 UX 개선: 자주 쓰는 기능을 한 화면에서 빠르게 접근</li>
+            <li>원료/처방/INCI/규제 Excel 대량등록 검증 흐름 생성</li>
+            <li>빠른 통합 검색: 원료, 처방, 프로젝트, 문서, 고객, 공급사 즉시 검색</li>
+            <li>즐겨찾기/최근작업/오늘 할 일로 연구원 업무 시작 시간 단축</li>
+            <li>대량 데이터 대비 성능 점검과 운영 안정성 관리</li>
           </ul>
         </section>
       </>
@@ -8106,11 +8297,65 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderRealOperationModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Real Operation Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
+            통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Quick Access</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{realOperationStats.highQuick}/{realOperationStats.quick}</div></div>
+            <div style={cardStyle()}><strong>Imports</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{realOperationStats.imports}</div></div>
+            <div style={cardStyle()}><strong>Import Errors</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{realOperationStats.importErrors}</div></div>
+            <div style={cardStyle()}><strong>Search</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{realOperationStats.search}</div></div>
+            <div style={cardStyle()}><strong>Recent</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{realOperationStats.recent}</div></div>
+            <div style={cardStyle()}><strong>Today</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{realOperationStats.tasks}</div></div>
+            <div style={cardStyle()}><strong>P0/Overdue</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{realOperationStats.p0}/{realOperationStats.overdue}</div></div>
+            <div style={cardStyle()}><strong>Optimize</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{realOperationStats.optimize}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={globalSearchKeyword} onChange={(e) => setGlobalSearchKeyword(e.target.value)} placeholder="통합 검색어" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateRealOperationPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Real Operation 생성</button>
+            <button onClick={runGlobalSearch} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>통합 검색</button>
+            <button onClick={exportQuickAccessCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Quick CSV</button>
+            <button onClick={exportBulkImportCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Import CSV</button>
+            <button onClick={exportGlobalSearchCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Search CSV</button>
+            <button onClick={exportRecentWorksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Recent CSV</button>
+            <button onClick={exportTodayTasksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Today CSV</button>
+            <button onClick={exportPerformanceChecksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#4b5563", color: "white", fontWeight: "bold", cursor: "pointer" }}>Performance CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{realOperationStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. Quick Access / 자주 쓰는 기능</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Label</th><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Route</th><th style={tableCellStyle(true)}>Priority</th><th style={tableCellStyle(true)}>Usage</th><th style={tableCellStyle(true)}>Open</th></tr></thead><tbody>{quickAccessItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Real Operation 생성을 실행하세요.</td></tr>}{quickAccessItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.label}</td><td style={tableCellStyle()}>{item.module}</td><td style={tableCellStyle()}>{item.route_key}</td><td style={{ ...tableCellStyle(), color: item.priority === "HIGH" ? "#dc2626" : item.priority === "MEDIUM" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td><td style={tableCellStyle()}>{item.usage_count}</td><td style={tableCellStyle()}><button onClick={() => setActive(item.route_key)}>Open</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. Excel 대량등록 검증</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Total</th><th style={tableCellStyle(true)}>Valid</th><th style={tableCellStyle(true)}>Error</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Next</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{bulkImportJobs.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>Import Job이 표시됩니다.</td></tr>}{bulkImportJobs.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.import_type}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.rows_total}</td><td style={tableCellStyle()}>{item.rows_valid}</td><td style={{ ...tableCellStyle(), color: item.rows_error > 0 ? "#dc2626" : "#059669", fontWeight: "bold" }}>{item.rows_error}</td><td style={{ ...tableCellStyle(), color: item.status === "IMPORTED" ? "#059669" : item.status === "ERROR" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.next_action}</td><td style={tableCellStyle()}><button onClick={() => validateImportJob(item.id)}>Validate</button></td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. 빠른 통합 검색</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Keyword</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Title</th><th style={tableCellStyle(true)}>Summary</th><th style={tableCellStyle(true)}>Risk</th></tr></thead><tbody>{globalSearchResults.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>검색 결과가 표시됩니다.</td></tr>}{globalSearchResults.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.keyword}</td><td style={tableCellStyle()}>{item.result_type}</td><td style={tableCellStyle()}>{item.title}</td><td style={tableCellStyle()}>{item.summary}</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. 즐겨찾기 / 최근 작업</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Title</th><th style={tableCellStyle(true)}>Last Opened</th><th style={tableCellStyle(true)}>Owner</th><th style={tableCellStyle(true)}>Status</th></tr></thead><tbody>{recentWorks.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>최근 작업이 표시됩니다.</td></tr>}{recentWorks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.work_type}</td><td style={tableCellStyle()}>{item.title}</td><td style={tableCellStyle()}>{item.last_opened}</td><td style={tableCellStyle()}>{item.owner}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "ISSUE" ? "#dc2626" : item.status === "WAITING" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. 오늘 할 일 / 업무 알림</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Task</th><th style={tableCellStyle(true)}>Module</th><th style={tableCellStyle(true)}>Due</th><th style={tableCellStyle(true)}>Owner</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Priority</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{todayTasks.length === 0 && <tr><td style={tableCellStyle()} colSpan={7}>오늘 할 일이 표시됩니다.</td></tr>}{todayTasks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.task}</td><td style={tableCellStyle()}>{item.source_module}</td><td style={tableCellStyle()}>{item.due}</td><td style={tableCellStyle()}>{item.owner}</td><td style={{ ...tableCellStyle(), color: item.status === "DONE" ? "#059669" : item.status === "OVERDUE" ? "#dc2626" : item.status === "IN_PROGRESS" ? "#2563eb" : "#d97706", fontWeight: "bold" }}>{item.status}</td><td style={{ ...tableCellStyle(), color: item.priority === "P0" ? "#dc2626" : item.priority === "P1" ? "#d97706" : "#6b7280", fontWeight: "bold" }}>{item.priority}</td><td style={tableCellStyle()}>{item.status !== "DONE" ? <button onClick={() => markTodayTaskDone(item.id)}>Done</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>6. 성능 최적화 / 운영 안정성</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Current</th><th style={tableCellStyle(true)}>Target</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{performanceChecks.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>성능 점검이 표시됩니다.</td></tr>}{performanceChecks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.area}</td><td style={tableCellStyle()}>{item.current_state}</td><td style={tableCellStyle()}>{item.target_state}</td><td style={{ ...tableCellStyle(), color: item.status === "GOOD" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderWorkReadyModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Work Ready Integrated Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Real Operation Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -11388,6 +11633,7 @@ export default function EnterprisePage() {
     if (active === "ultimateA") return renderUltimatePackAModule();
     if (active === "ultimateB") return renderUltimatePackBModule();
     if (active === "workReady") return renderWorkReadyModule();
+    if (active === "realOperation") return renderRealOperationModule();
     return renderAdminModule();
   }
 
@@ -11395,7 +11641,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Work Ready Integrated Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Real Operation Pack</p>
 
         {menus.map((item) => (
           <button
