@@ -43,6 +43,7 @@ type ModuleKey =
   | "realDb"
   | "masterCrud"
   | "formulaCalc"
+  | "docLive"
   | "admin";
 
 type EnterpriseProject = {
@@ -1315,6 +1316,54 @@ type FormulaBatchCostItem = {
   final_cost_per_kg: number;
 };
 
+type LiveDocumentItem = {
+  id: string;
+  document_no: string;
+  document_type: "Formula Sheet" | "Ingredient Composition" | "Full Ingredient List" | "Product Specification" | "Test Request" | "Development Report" | "Customer Summary";
+  title: string;
+  source_formula: string;
+  status: "DRAFT" | "GENERATED" | "REVIEW" | "APPROVED" | "LOCKED";
+  owner: "R&D" | "QA" | "RA" | "QC" | "Sales";
+  version: string;
+  file_name: string;
+};
+
+type LiveDocumentSectionItem = {
+  id: string;
+  document_no: string;
+  section_name: string;
+  section_order: number;
+  content_summary: string;
+  source_module: "Formula" | "Breakdown" | "IngredientList" | "LIMS" | "Regulation" | "Cost" | "AI";
+  status: "READY" | "NEEDS_REVIEW";
+};
+
+type LiveDocumentApprovalItem = {
+  id: string;
+  document_no: string;
+  approver: "R&D" | "QA" | "RA" | "QC" | "Sales";
+  approval_status: "PENDING" | "APPROVED" | "REJECTED";
+  comment: string;
+};
+
+type LiveDocumentDownloadItem = {
+  id: string;
+  document_no: string;
+  file_name: string;
+  format: "CSV" | "PDF_READY" | "DOCX_READY" | "XLSX_READY";
+  generated_at: string;
+  download_status: "READY" | "NEEDS_REVIEW";
+};
+
+type LiveDocumentRiskItem = {
+  id: string;
+  document_no: string;
+  risk_type: "FormulaTotal" | "Regulation" | "MissingINCI" | "MissingCost" | "Approval" | "DocumentLock";
+  severity: "LOW" | "MEDIUM" | "HIGH" | "BLOCKER";
+  message: string;
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1349,11 +1398,12 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
   { key: "workReady", label: "Work Ready Pack" },
-  { key: "realOperation", label: "Formula Live Calculation Pack" },
+  { key: "realOperation", label: "Document Auto Generation Live Pack" },
   { key: "importValidation", label: "Import Validation" },
   { key: "realDb", label: "Real DB Operation" },
   { key: "masterCrud", label: "Master Data CRUD" },
   { key: "formulaCalc", label: "Formula Calculation" },
+  { key: "docLive", label: "Document Live" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -2059,6 +2109,13 @@ export default function EnterprisePage() {
   const [formulaCalcStatus, setFormulaCalcStatus] = useState("");
   const [formulaBatchKg, setFormulaBatchKg] = useState(100);
 
+  const [liveDocuments, setLiveDocuments] = useState<LiveDocumentItem[]>([]);
+  const [liveDocumentSections, setLiveDocumentSections] = useState<LiveDocumentSectionItem[]>([]);
+  const [liveDocumentApprovals, setLiveDocumentApprovals] = useState<LiveDocumentApprovalItem[]>([]);
+  const [liveDocumentDownloads, setLiveDocumentDownloads] = useState<LiveDocumentDownloadItem[]>([]);
+  const [liveDocumentRisks, setLiveDocumentRisks] = useState<LiveDocumentRiskItem[]>([]);
+  const [docLiveStatus, setDocLiveStatus] = useState("");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2685,6 +2742,20 @@ export default function EnterprisePage() {
       batchScales: formulaBatchCosts.length,
     };
   }, [formulaCalculationLines, formulaBreakdowns, formulaIngredientList, formulaValidations, formulaBatchCosts]);
+
+  const docLiveStats = useMemo(() => {
+    return {
+      docs: liveDocuments.length,
+      generated: liveDocuments.filter((item) => item.status === "GENERATED" || item.status === "APPROVED" || item.status === "LOCKED").length,
+      approved: liveDocuments.filter((item) => item.status === "APPROVED" || item.status === "LOCKED").length,
+      sections: liveDocumentSections.length,
+      reviewSections: liveDocumentSections.filter((item) => item.status === "NEEDS_REVIEW").length,
+      approvals: liveDocumentApprovals.filter((item) => item.approval_status === "APPROVED").length,
+      downloads: liveDocumentDownloads.length,
+      risks: liveDocumentRisks.length,
+      blockers: liveDocumentRisks.filter((item) => item.severity === "BLOCKER").length,
+    };
+  }, [liveDocuments, liveDocumentSections, liveDocumentApprovals, liveDocumentDownloads, liveDocumentRisks]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -7461,7 +7532,7 @@ export default function EnterprisePage() {
     setRecentWorks(recent);
     setTodayTasks(today);
     setPerformanceChecks(perf);
-    setRealOperationStatus(`Formula Live Calculation Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
+    setRealOperationStatus(`Document Auto Generation Live Pack 생성 완료: Quick ${quick.length}개 / Import ${imports.length}개 / Search ${searchResults.length}개 / Recent ${recent.length}개 / Today ${today.length}개 / Performance ${perf.length}개`);
   }
 
   function runGlobalSearch() {
@@ -7573,7 +7644,7 @@ export default function EnterprisePage() {
     setImportValidationResults(results);
     setImportErrorReports(reports);
     setImportApprovals(approvals);
-    setImportValidationStatus(`Formula Live Calculation Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
+    setImportValidationStatus(`Document Auto Generation Live Pack 생성 완료: Template ${templates.length}개 / Mapping ${mappings.length}개 / Rule ${rules.length}개 / Result ${results.length}개 / Error ${reports.length}개`);
   }
 
   function approveImport(id: string) {
@@ -7673,7 +7744,7 @@ export default function EnterprisePage() {
     setRealDbOperationMetrics(metrics);
     setRealDbSearchIndexes(indexes);
     setRealDbCorrectionActions(corrections);
-    setRealDbStatus(`Formula Live Calculation Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
+    setRealDbStatus(`Document Auto Generation Live Pack 생성 완료: Connection ${connections.length}개 / Execution ${executions.length}개 / KPI ${metrics.length}개 / Index ${indexes.length}개 / Correction ${corrections.length}개`);
   }
 
   function executeRealDbImport(id: string) {
@@ -8095,13 +8166,105 @@ export default function EnterprisePage() {
     exportCsv("formula_live_batch_cost.csv", [["batch_kg", "total_material_cost", "cost_per_kg", "estimated_loss_percent", "final_cost_per_kg"], ...formulaBatchCosts.map((item) => [item.batch_kg, item.total_material_cost, item.cost_per_kg, item.estimated_loss_percent, item.final_cost_per_kg])]);
   }
 
+
+  function generateDocumentLivePack() {
+    const formulaCode = formulaCalculationLines[0]?.formula_code || liveFormulaMasters[0]?.formula_code || "FC-LIVE-001";
+    const formulaName = liveFormulaMasters[0]?.formula_name || "Ceramide Barrier Cream";
+    const now = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const hasFormulaFail = formulaValidations.some((item) => item.result === "FAIL");
+    const hasRegRisk = formulaIngredientList.some((item) => item.regulation_status === "RESTRICTED" || item.regulation_status === "PROHIBITED");
+    const status: LiveDocumentItem["status"] = hasFormulaFail || hasRegRisk ? "REVIEW" : "GENERATED";
+
+    const docs: LiveDocumentItem[] = [
+      { id: "DOC-LIVE-001", document_no: "DOC-FS-001", document_type: "Formula Sheet", title: `${formulaName} 처방서`, source_formula: formulaCode, status, owner: "R&D", version: "1.0", file_name: "formula_sheet_live.csv" },
+      { id: "DOC-LIVE-002", document_no: "DOC-IC-001", document_type: "Ingredient Composition", title: `${formulaName} 원료조성표`, source_formula: formulaCode, status, owner: "R&D", version: "1.0", file_name: "ingredient_composition_live.csv" },
+      { id: "DOC-LIVE-003", document_no: "DOC-FIL-001", document_type: "Full Ingredient List", title: `${formulaName} 전성분표`, source_formula: formulaCode, status: hasRegRisk ? "REVIEW" : "GENERATED", owner: "RA", version: "1.0", file_name: "full_ingredient_list_live.csv" },
+      { id: "DOC-LIVE-004", document_no: "DOC-SPEC-001", document_type: "Product Specification", title: `${formulaName} 제품규격서 초안`, source_formula: formulaCode, status: "DRAFT", owner: "QA", version: "0.1", file_name: "product_specification_draft.csv" },
+      { id: "DOC-LIVE-005", document_no: "DOC-TR-001", document_type: "Test Request", title: `${formulaName} 시험의뢰서`, source_formula: formulaCode, status: "GENERATED", owner: "QC", version: "1.0", file_name: "test_request_live.csv" },
+      { id: "DOC-LIVE-006", document_no: "DOC-DR-001", document_type: "Development Report", title: `${formulaName} 개발보고서 초안`, source_formula: formulaCode, status: "DRAFT", owner: "R&D", version: "0.1", file_name: "development_report_draft.csv" },
+      { id: "DOC-LIVE-007", document_no: "DOC-CS-001", document_type: "Customer Summary", title: `${formulaName} 고객 제출용 요약`, source_formula: formulaCode, status: hasRegRisk ? "REVIEW" : "GENERATED", owner: "Sales", version: "1.0", file_name: "customer_summary_live.csv" },
+    ];
+
+    const sections: LiveDocumentSectionItem[] = [
+      { id: "SEC-001", document_no: "DOC-FS-001", section_name: "처방 기본정보", section_order: 1, content_summary: `처방코드 ${formulaCode}, 처방명 ${formulaName}`, source_module: "Formula", status: "READY" },
+      { id: "SEC-002", document_no: "DOC-FS-001", section_name: "원료 및 함량", section_order: 2, content_summary: `원료 ${formulaCalculationLines.length}개, 함량합계 ${formulaCalcStats.totalPercent}%`, source_module: "Formula", status: Math.abs(formulaCalcStats.totalPercent - 100) < 0.01 ? "READY" : "NEEDS_REVIEW" },
+      { id: "SEC-003", document_no: "DOC-IC-001", section_name: "Breakdown", section_order: 1, content_summary: `Breakdown ${formulaBreakdowns.length}개`, source_module: "Breakdown", status: "READY" },
+      { id: "SEC-004", document_no: "DOC-FIL-001", section_name: "전성분", section_order: 1, content_summary: `INCI ${formulaIngredientList.length}개`, source_module: "IngredientList", status: hasRegRisk ? "NEEDS_REVIEW" : "READY" },
+      { id: "SEC-005", document_no: "DOC-SPEC-001", section_name: "규격/시험항목", section_order: 1, content_summary: "성상, pH, 점도, 미생물, 안정도 규격 초안", source_module: "LIMS", status: "NEEDS_REVIEW" },
+      { id: "SEC-006", document_no: "DOC-TR-001", section_name: "시험의뢰", section_order: 1, content_summary: "pH/점도/45℃/RT/Freeze-thaw 시험 의뢰", source_module: "LIMS", status: "READY" },
+      { id: "SEC-007", document_no: "DOC-CS-001", section_name: "고객 요약", section_order: 1, content_summary: `kg당 원가 ${formulaCalcStats.totalCost}, 주요 컨셉: 장벽강화/저자극`, source_module: "Cost", status: "READY" },
+    ];
+
+    const approvals: LiveDocumentApprovalItem[] = docs.map((doc) => ({
+      id: `APR-${doc.document_no}`,
+      document_no: doc.document_no,
+      approver: doc.owner,
+      approval_status: doc.status === "GENERATED" ? "PENDING" : doc.status === "APPROVED" || doc.status === "LOCKED" ? "APPROVED" : "PENDING",
+      comment: doc.status === "REVIEW" ? "검토 필요" : "승인 대기",
+    }));
+
+    const downloads: LiveDocumentDownloadItem[] = docs.map((doc) => ({
+      id: `DL-${doc.document_no}`,
+      document_no: doc.document_no,
+      file_name: doc.file_name,
+      format: doc.document_type === "Formula Sheet" || doc.document_type === "Ingredient Composition" || doc.document_type === "Full Ingredient List" ? "XLSX_READY" : doc.document_type === "Customer Summary" ? "PDF_READY" : "CSV",
+      generated_at: now,
+      download_status: doc.status === "REVIEW" ? "NEEDS_REVIEW" : "READY",
+    }));
+
+    const risks: LiveDocumentRiskItem[] = [
+      ...(Math.abs(formulaCalcStats.totalPercent - 100) >= 0.01 ? [{ id: "DOC-RISK-001", document_no: "DOC-FS-001", risk_type: "FormulaTotal" as const, severity: "BLOCKER" as const, message: "처방 함량 합계가 100%가 아닙니다.", action: "Formula Calculation에서 100% 보정" }] : []),
+      ...(hasRegRisk ? [{ id: "DOC-RISK-002", document_no: "DOC-FIL-001", risk_type: "Regulation" as const, severity: "BLOCKER" as const, message: "RESTRICTED/PROHIBITED 성분이 있습니다.", action: "RA 검토 후 문서 승인" }] : []),
+      ...(formulaIngredientList.length === 0 ? [{ id: "DOC-RISK-003", document_no: "DOC-FIL-001", risk_type: "MissingINCI" as const, severity: "HIGH" as const, message: "전성분 데이터가 없습니다.", action: "Formula Calculation 먼저 실행" }] : []),
+      ...(formulaCalcStats.totalCost <= 0 ? [{ id: "DOC-RISK-004", document_no: "DOC-CS-001", risk_type: "MissingCost" as const, severity: "MEDIUM" as const, message: "원가 데이터가 부족합니다.", action: "원료 단가 입력" }] : []),
+    ];
+
+    setLiveDocuments(docs);
+    setLiveDocumentSections(sections);
+    setLiveDocumentApprovals(approvals);
+    setLiveDocumentDownloads(downloads);
+    setLiveDocumentRisks(risks);
+    setDocLiveStatus(`Document Auto Generation 완료: 문서 ${docs.length}개 / 섹션 ${sections.length}개 / 다운로드 ${downloads.length}개 / 위험 ${risks.length}개`);
+  }
+
+  function approveLiveDocument(documentNo: string) {
+    setLiveDocuments((prev) => prev.map((item) => item.document_no === documentNo ? { ...item, status: "APPROVED" } : item));
+    setLiveDocumentApprovals((prev) => prev.map((item) => item.document_no === documentNo ? { ...item, approval_status: "APPROVED", comment: "승인 완료" } : item));
+    setDocLiveStatus(`${documentNo} 문서를 승인했습니다.`);
+  }
+
+  function lockLiveDocument(documentNo: string) {
+    setLiveDocuments((prev) => prev.map((item) => item.document_no === documentNo ? { ...item, status: "LOCKED" } : item));
+    setDocLiveStatus(`${documentNo} 문서를 잠금 처리했습니다.`);
+  }
+
+  function exportLiveDocumentsCsv() {
+    exportCsv("document_live_master.csv", [["document_no", "document_type", "title", "source_formula", "status", "owner", "version", "file_name"], ...liveDocuments.map((item) => [item.document_no, item.document_type, item.title, item.source_formula, item.status, item.owner, item.version, item.file_name])]);
+  }
+
+  function exportLiveDocumentSectionsCsv() {
+    exportCsv("document_live_sections.csv", [["document_no", "section_name", "section_order", "content_summary", "source_module", "status"], ...liveDocumentSections.map((item) => [item.document_no, item.section_name, item.section_order, item.content_summary, item.source_module, item.status])]);
+  }
+
+  function exportLiveDocumentApprovalsCsv() {
+    exportCsv("document_live_approvals.csv", [["document_no", "approver", "approval_status", "comment"], ...liveDocumentApprovals.map((item) => [item.document_no, item.approver, item.approval_status, item.comment])]);
+  }
+
+  function exportLiveDocumentDownloadsCsv() {
+    exportCsv("document_live_downloads.csv", [["document_no", "file_name", "format", "generated_at", "download_status"], ...liveDocumentDownloads.map((item) => [item.document_no, item.file_name, item.format, item.generated_at, item.download_status])]);
+  }
+
+  function exportLiveDocumentRisksCsv() {
+    exportCsv("document_live_risks.csv", [["document_no", "risk_type", "severity", "message", "action"], ...liveDocumentRisks.map((item) => [item.document_no, item.risk_type, item.severity, item.message, item.action])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Formula Calculation Edition</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Document Live Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            실제 ODM 연구소 업무 효율을 높이기 위한 Formula Live Calculation Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
+            실제 ODM 연구소 업무 효율을 높이기 위한 Document Auto Generation Live Pack입니다. 빠른 접근, Excel 대량등록, 통합검색, 최근작업, 오늘 할 일, 성능 점검을 통합합니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -8146,6 +8309,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Real DB</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{realDbConnections.length}</div></div>
             <div style={cardStyle()}><strong>CRUD</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{liveRawMaterials.length + liveInciItems.length + liveFormulaMasters.length + liveRegulationRules.length}</div></div>
             <div style={cardStyle()}><strong>Formula Calc</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#7c3aed" }}>{formulaCalculationLines.length}</div></div>
+            <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{liveDocuments.length}</div></div>
           </div>
         </section>
 
@@ -8209,13 +8373,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Formula Live Calculation 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Document Auto Generation Live 목표</h2>
           <ul>
-            <li>처방 함량 합계 100% 자동 검증</li>
-            <li>원료 단가 기반 kg당 원가와 배치별 소요량 자동 계산</li>
-            <li>복합성분 Breakdown 전개와 최종 함량 계산</li>
-            <li>전성분 순서 자동 생성 및 INCI 마스터 참조</li>
-            <li>규제 위험 원료 표시와 저장 전 검증 체크리스트 제공</li>
+            <li>처방서, 원료조성표, 전성분표 자동 생성</li>
+            <li>제품규격서, 시험의뢰서, 개발보고서 초안 생성</li>
+            <li>고객 제출용 요약자료 자동 생성</li>
+            <li>문서별 승인 상태와 다운로드 준비 상태 관리</li>
+            <li>문서 생성 전 처방/규제/INCI/원가 위험 자동 점검</li>
           </ul>
         </section>
       </>
@@ -9212,11 +9376,57 @@ export default function EnterprisePage() {
     );
   }
 
+  function renderDocumentLiveModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            Formula Calculation 결과를 바탕으로 처방서, 원료조성표, 전성분표, 제품규격서,
+            시험의뢰서, 개발보고서, 고객 제출용 요약자료를 자동 생성합니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{docLiveStats.docs}</div></div>
+            <div style={cardStyle()}><strong>Generated</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{docLiveStats.generated}</div></div>
+            <div style={cardStyle()}><strong>Approved</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{docLiveStats.approved}</div></div>
+            <div style={cardStyle()}><strong>Sections</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{docLiveStats.sections}</div></div>
+            <div style={cardStyle()}><strong>Review Sections</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{docLiveStats.reviewSections}</div></div>
+            <div style={cardStyle()}><strong>Approvals</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{docLiveStats.approvals}</div></div>
+            <div style={cardStyle()}><strong>Downloads</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#0ea5e9" }}>{docLiveStats.downloads}</div></div>
+            <div style={cardStyle()}><strong>Blockers</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{docLiveStats.blockers}/{docLiveStats.risks}</div></div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateDocumentLivePack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>문서 자동 생성</button>
+            <button onClick={exportLiveDocumentsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Document CSV</button>
+            <button onClick={exportLiveDocumentSectionsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>Section CSV</button>
+            <button onClick={exportLiveDocumentApprovalsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Approval CSV</button>
+            <button onClick={exportLiveDocumentDownloadsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Download CSV</button>
+            <button onClick={exportLiveDocumentRisksCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Risk CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{docLiveStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. 자동 생성 문서 목록</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>No</th><th style={tableCellStyle(true)}>Type</th><th style={tableCellStyle(true)}>Title</th><th style={tableCellStyle(true)}>Formula</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Owner</th><th style={tableCellStyle(true)}>Version</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{liveDocuments.length === 0 && <tr><td style={tableCellStyle()} colSpan={8}>문서 자동 생성을 실행하세요.</td></tr>}{liveDocuments.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_no}</td><td style={tableCellStyle()}>{item.document_type}</td><td style={tableCellStyle()}>{item.title}</td><td style={tableCellStyle()}>{item.source_formula}</td><td style={{ ...tableCellStyle(), color: item.status === "APPROVED" || item.status === "LOCKED" ? "#059669" : item.status === "REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.owner}</td><td style={tableCellStyle()}>{item.version}</td><td style={tableCellStyle()}>{item.status !== "APPROVED" && item.status !== "LOCKED" ? <button onClick={() => approveLiveDocument(item.document_no)} style={{ marginRight: "6px" }}>Approve</button> : null}{item.status === "APPROVED" ? <button onClick={() => lockLiveDocument(item.document_no)}>Lock</button> : null}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. 문서 섹션 구성</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>Section</th><th style={tableCellStyle(true)}>Order</th><th style={tableCellStyle(true)}>Summary</th><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Status</th></tr></thead><tbody>{liveDocumentSections.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>문서 섹션이 표시됩니다.</td></tr>}{liveDocumentSections.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_no}</td><td style={tableCellStyle()}>{item.section_name}</td><td style={tableCellStyle()}>{item.section_order}</td><td style={tableCellStyle()}>{item.content_summary}</td><td style={tableCellStyle()}>{item.source_module}</td><td style={{ ...tableCellStyle(), color: item.status === "READY" ? "#059669" : "#d97706", fontWeight: "bold" }}>{item.status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. 문서 승인 상태</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>Approver</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Comment</th></tr></thead><tbody>{liveDocumentApprovals.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>승인 상태가 표시됩니다.</td></tr>}{liveDocumentApprovals.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_no}</td><td style={tableCellStyle()}>{item.approver}</td><td style={{ ...tableCellStyle(), color: item.approval_status === "APPROVED" ? "#059669" : item.approval_status === "REJECTED" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.approval_status}</td><td style={tableCellStyle()}>{item.comment}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. 다운로드 준비</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Format</th><th style={tableCellStyle(true)}>Generated</th><th style={tableCellStyle(true)}>Status</th></tr></thead><tbody>{liveDocumentDownloads.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>다운로드 준비 상태가 표시됩니다.</td></tr>}{liveDocumentDownloads.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_no}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.format}</td><td style={tableCellStyle()}>{item.generated_at}</td><td style={{ ...tableCellStyle(), color: item.download_status === "READY" ? "#059669" : "#d97706", fontWeight: "bold" }}>{item.download_status}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. 문서 생성 위험 점검</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>Risk</th><th style={tableCellStyle(true)}>Severity</th><th style={tableCellStyle(true)}>Message</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{liveDocumentRisks.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>중대 위험이 없습니다.</td></tr>}{liveDocumentRisks.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_no}</td><td style={tableCellStyle()}>{item.risk_type}</td><td style={{ ...tableCellStyle(), color: item.severity === "BLOCKER" ? "#dc2626" : item.severity === "HIGH" ? "#d97706" : item.severity === "MEDIUM" ? "#2563eb" : "#6b7280", fontWeight: "bold" }}>{item.severity}</td><td style={tableCellStyle()}>{item.message}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
+      </>
+    );
+  }
+
   function renderFormulaLiveCalculationModule() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             처방을 실제 연구 업무에 맞게 자동 계산합니다. 함량 합계, kg당 원가, 배치 소요량,
             복합성분 Breakdown, 전성분, 규제 위험, 저장 전 검증을 한 화면에서 확인합니다.
@@ -9278,7 +9488,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             원료마스터, INCI, 처방마스터, 규제룰을 실제 업무 데이터처럼 조회/등록/수정/삭제하는 화면입니다.
             다음 단계에서 Supabase CRUD API와 직접 연결하면 실제 저장형 마스터 관리가 완성됩니다.
@@ -9339,7 +9549,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             검증 완료 데이터를 Supabase 실제 운영 테이블에 반영하기 위한 운영 화면입니다.
             Import 실행, 실제 테이블 연결 상태, 운영 KPI, 검색 인덱스, 수정 Action을 관리합니다.
@@ -9385,7 +9595,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 원료/INCI/처방/규제 데이터를 넣기 전, Excel 컬럼 매핑과 데이터 오류를 먼저 검증합니다.
             함량합계 100%, 복합성분 구성비, CAS/EC 누락, 중복 원료, 공급사 누락, 규제 위험을 Import 전에 차단합니다.
@@ -9445,7 +9655,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             실제 ODM 연구소에서 바로 쓰기 위한 운영형 패키지입니다. 빠른 접근, Excel 대량등록 검증,
             통합 검색, 최근 작업, 오늘 할 일, 성능 점검을 제공합니다.
@@ -9499,7 +9709,7 @@ export default function EnterprisePage() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>Formula Live Calculation Pack</h1>
+          <h1 style={{ marginTop: 0 }}>Document Auto Generation Live Pack</h1>
           <p style={{ color: "#6b7280" }}>
             출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
             PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
@@ -12782,6 +12992,7 @@ export default function EnterprisePage() {
     if (active === "realDb") return renderRealDbOperationModule();
     if (active === "masterCrud") return renderMasterDataCrudModule();
     if (active === "formulaCalc") return renderFormulaLiveCalculationModule();
+    if (active === "docLive") return renderDocumentLiveModule();
     return renderAdminModule();
   }
 
@@ -12789,7 +13000,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Formula Live Calculation Pack</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Document Auto Generation Live Pack</p>
 
         {menus.map((item) => (
           <button
