@@ -37,6 +37,7 @@ type ModuleKey =
   | "v4Package"
   | "ultimateA"
   | "ultimateB"
+  | "workReady"
   | "admin";
 
 type EnterpriseProject = {
@@ -990,6 +991,51 @@ type SelfDrivingPlmTaskItem = {
   human_approval_required: boolean;
 };
 
+type MasterDataConnectorItem = {
+  id: string;
+  data_domain: "RawMaterial" | "INCI" | "CAS" | "Regulation" | "Formula" | "Document";
+  source_name: string;
+  sync_status: "READY" | "SYNCED" | "NEEDS_MAPPING" | "ERROR";
+  record_count: number;
+  quality_score: number;
+  next_action: string;
+};
+
+type AiBrainScenarioItem = {
+  id: string;
+  user_request: string;
+  ai_workflow: string;
+  output_type: "Formula" | "RegulatoryReview" | "CostOptimization" | "StabilityPlan" | "ResearchSummary";
+  confidence: number;
+  review_status: "READY" | "NEEDS_REVIEW" | "APPROVED";
+};
+
+type DocumentAutomationItem = {
+  id: string;
+  document_type: "Formula Sheet" | "Ingredient Composition" | "Full Ingredient List" | "Product Specification" | "Development Report" | "COA" | "Test Request";
+  source_module: string;
+  status: "DRAFT" | "GENERATED" | "REVIEW" | "APPROVED";
+  owner: "R&D" | "QA" | "RA" | "QC" | "Production";
+  file_name: string;
+};
+
+type PlmChatbotItem = {
+  id: string;
+  question: string;
+  answer_summary: string;
+  related_modules: string;
+  action_created: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type CodeQualityItem = {
+  id: string;
+  area: "Page Structure" | "Components" | "Services" | "Security" | "Performance" | "Deployment";
+  issue: string;
+  status: "GOOD" | "WATCH" | "FIX_REQUIRED";
+  action: string;
+};
+
 const menus: { key: ModuleKey; label: string }[] = [
   { key: "overview", label: "Enterprise Overview" },
   { key: "project", label: "Project Module" },
@@ -1023,6 +1069,7 @@ const menus: { key: ModuleKey; label: string }[] = [
   { key: "v4Package", label: "Knowledge/SCM Package" },
   { key: "ultimateA", label: "Ultimate Pack A" },
   { key: "ultimateB", label: "Ultimate Pack B" },
+  { key: "workReady", label: "Work Ready Pack" },
   { key: "admin", label: "Admin Module" },
 ];
 
@@ -1676,6 +1723,14 @@ export default function EnterprisePage() {
   const [ultimateBStatus, setUltimateBStatus] = useState("");
   const [selfDrivingGoal, setSelfDrivingGoal] = useState("미국 수출용 세라마이드 장벽 크림을 개발하고 출시 준비까지 진행해줘");
 
+  const [masterDataConnectors, setMasterDataConnectors] = useState<MasterDataConnectorItem[]>([]);
+  const [aiBrainScenarios, setAiBrainScenarios] = useState<AiBrainScenarioItem[]>([]);
+  const [documentAutomations, setDocumentAutomations] = useState<DocumentAutomationItem[]>([]);
+  const [plmChatbotItems, setPlmChatbotItems] = useState<PlmChatbotItem[]>([]);
+  const [codeQualityItems, setCodeQualityItems] = useState<CodeQualityItem[]>([]);
+  const [workReadyStatus, setWorkReadyStatus] = useState("");
+  const [workReadyQuestion, setWorkReadyQuestion] = useState("미국 수출용 저자극 크림 처방을 추천하고 필요한 문서를 만들어줘");
+
   const [migrationNote, setMigrationNote] = useState("");
 
   const filteredProjects = useMemo(() => {
@@ -2207,6 +2262,20 @@ export default function EnterprisePage() {
       completedTasks: selfDrivingTasks.filter((item) => item.status === "COMPLETED").length,
     };
   }, [autonomousAgents, autonomousFormulaRuns, smartFactoryIotItems, aiOptimizationRuns, selfDrivingTasks]);
+
+  const workReadyStats = useMemo(() => {
+    return {
+      connectors: masterDataConnectors.length,
+      synced: masterDataConnectors.filter((item) => item.sync_status === "SYNCED").length,
+      mapping: masterDataConnectors.filter((item) => item.sync_status === "NEEDS_MAPPING").length,
+      aiScenarios: aiBrainScenarios.length,
+      approvedAi: aiBrainScenarios.filter((item) => item.review_status === "APPROVED").length,
+      docs: documentAutomations.length,
+      approvedDocs: documentAutomations.filter((item) => item.status === "APPROVED").length,
+      chats: plmChatbotItems.length,
+      qualityWatch: codeQualityItems.filter((item) => item.status !== "GOOD").length,
+    };
+  }, [masterDataConnectors, aiBrainScenarios, documentAutomations, plmChatbotItems, codeQualityItems]);
 
   function addEnterpriseProject() {
     if (!customerName || !projectName) {
@@ -6832,13 +6901,106 @@ export default function EnterprisePage() {
     exportCsv("enterprise_self_driving_plm_tasks.csv", [["task_chain", "trigger", "current_step", "progress", "status", "human_approval_required"], ...selfDrivingTasks.map((item) => [item.task_chain, item.trigger, item.current_step, item.progress, item.status, item.human_approval_required ? "YES" : "NO"])]);
   }
 
+
+  function generateWorkReadyPack() {
+    const connectors: MasterDataConnectorItem[] = [
+      { id: "MDC-001", data_domain: "RawMaterial", source_name: "원료마스터", sync_status: rawMaterials.length > 0 ? "SYNCED" : "NEEDS_MAPPING", record_count: rawMaterials.length, quality_score: rawMaterials.length > 0 ? 88 : 40, next_action: "원료명/공급사/단가/조성 합계 확인" },
+      { id: "MDC-002", data_domain: "INCI", source_name: "INCI 국문/영문/중문/일문", sync_status: "NEEDS_MAPPING", record_count: inciIngredients.length, quality_score: inciIngredients.length > 0 ? 72 : 35, next_action: "CAS/EC/다국어명 매핑 보강" },
+      { id: "MDC-003", data_domain: "CAS", source_name: "CAS / EC Master", sync_status: "NEEDS_MAPPING", record_count: inciIngredients.filter((item) => item.cas_no).length, quality_score: 65, next_action: "CAS 공란 및 중복 점검" },
+      { id: "MDC-004", data_domain: "Regulation", source_name: "KR/EU/CN/US/JP Regulation", sync_status: regulations.length > 0 ? "SYNCED" : "NEEDS_MAPPING", record_count: regulations.length, quality_score: regulations.length > 0 ? 80 : 30, next_action: "국가별 금지/제한/주의 성분 규칙 보강" },
+      { id: "MDC-005", data_domain: "Formula", source_name: "Formula / BOM / Simulation", sync_status: formulas.length > 0 ? "SYNCED" : "NEEDS_MAPPING", record_count: formulas.length, quality_score: formulas.length > 0 ? 86 : 40, next_action: "처방 Revision과 전성분 자동 생성 연결" },
+      { id: "MDC-006", data_domain: "Document", source_name: "DMS / COA / Specification", sync_status: dmsDocuments.length > 0 ? "SYNCED" : "NEEDS_MAPPING", record_count: dmsDocuments.length + limsCoas.length, quality_score: dmsDocuments.length > 0 ? 82 : 45, next_action: "문서 템플릿 승인 프로세스 연결" },
+    ];
+
+    const scenarios: AiBrainScenarioItem[] = [
+      { id: "AIB-001", user_request: "미국 수출용 저자극 크림 처방 추천", ai_workflow: "Market → Ingredient → Formula → US Regulation → Stability Plan", output_type: "Formula", confidence: 86, review_status: "READY" },
+      { id: "AIB-002", user_request: "원가를 15% 낮춰줘", ai_workflow: "Formula Cost → Raw Material Market → Supplier Alternative → Stability Risk", output_type: "CostOptimization", confidence: 78, review_status: "NEEDS_REVIEW" },
+      { id: "AIB-003", user_request: "중국 규제 통과 가능성 확인", ai_workflow: "Formula INCI → CN Regulation → Restricted Ingredient → Launch Gate", output_type: "RegulatoryReview", confidence: 82, review_status: "READY" },
+      { id: "AIB-004", user_request: "샘플 안정도 시험계획 생성", ai_workflow: "Formula Type → LIMS Test Plan → ELN Observation → QA Review", output_type: "StabilityPlan", confidence: 88, review_status: "READY" },
+      { id: "AIB-005", user_request: "고객 제안용 개발 요약", ai_workflow: "Project → Formula → Claims → Cost → Regulation → Document", output_type: "ResearchSummary", confidence: 84, review_status: "READY" },
+    ];
+
+    const docs: DocumentAutomationItem[] = [
+      { id: "DOC-AUTO-001", document_type: "Formula Sheet", source_module: "Formula", status: "GENERATED", owner: "R&D", file_name: "formula_sheet_auto.docx" },
+      { id: "DOC-AUTO-002", document_type: "Ingredient Composition", source_module: "Raw Material / INCI", status: "GENERATED", owner: "R&D", file_name: "ingredient_composition_auto.xlsx" },
+      { id: "DOC-AUTO-003", document_type: "Full Ingredient List", source_module: "Formula / INCI", status: "REVIEW", owner: "RA", file_name: "full_ingredient_list_auto.xlsx" },
+      { id: "DOC-AUTO-004", document_type: "Product Specification", source_module: "LIMS / QA", status: "GENERATED", owner: "QA", file_name: "product_specification_auto.docx" },
+      { id: "DOC-AUTO-005", document_type: "Development Report", source_module: "Project / ELN / Simulation", status: "DRAFT", owner: "R&D", file_name: "development_report_auto.pptx" },
+      { id: "DOC-AUTO-006", document_type: "COA", source_module: "LIMS", status: limsCoas.length > 0 ? "GENERATED" : "DRAFT", owner: "QC", file_name: "coa_auto.pdf" },
+      { id: "DOC-AUTO-007", document_type: "Test Request", source_module: "ELN / LIMS", status: "GENERATED", owner: "QC", file_name: "test_request_auto.xlsx" },
+    ];
+
+    const chats: PlmChatbotItem[] = [
+      { id: "CHAT-001", question: workReadyQuestion, answer_summary: "저자극 세라마이드 크림 후보와 미국 규제/시험/문서 Action을 생성했습니다.", related_modules: "AI Brain, Formula, Regulation, LIMS, DMS", action_created: "AI 후보처방 검토 및 문서 자동 생성", risk_level: "LOW" },
+      { id: "CHAT-002", question: "오늘 출근해서 먼저 확인할 것은?", answer_summary: "원료마스터, INCI 매핑, 규제 HIGH, LIMS OOS, MES QC Hold를 우선 확인하세요.", related_modules: "Data Quality, Regulation, LIMS, MES", action_created: "Work Ready 점검 리스트 생성", risk_level: "MEDIUM" },
+      { id: "CHAT-003", question: "고객에게 바로 보여줄 수 있는 자료는?", answer_summary: "처방 컨셉, 전성분 초안, 원가 범위, 안정도 계획, 규제 검토 요약입니다.", related_modules: "Document Automation, Decision Center", action_created: "고객 제안 자료 패키지 초안", risk_level: "LOW" },
+    ];
+
+    const quality: CodeQualityItem[] = [
+      { id: "CQ-001", area: "Page Structure", issue: "page.tsx가 매우 커져 향후 모듈 분리 필요", status: "WATCH", action: "Enterprise 화면을 components/enterprise 단위로 순차 분리" },
+      { id: "CQ-002", area: "Components", issue: "반복 테이블/카드 UI 공통화 필요", status: "WATCH", action: "Card, DataTable, ActionButton 공통 컴포넌트 생성" },
+      { id: "CQ-003", area: "Services", issue: "계산 로직과 UI 로직 분리 진행 중", status: "GOOD", action: "Service 계층 유지" },
+      { id: "CQ-004", area: "Security", issue: "Vercel/Supabase 환경변수 적용 완료", status: "GOOD", action: "공개된 Anon Key는 추후 교체 권장" },
+      { id: "CQ-005", area: "Performance", issue: "샘플 데이터 기반은 안정, 실제 대용량 데이터 연결 전 페이지 분리 권장", status: "WATCH", action: "모듈별 route 또는 lazy load 적용" },
+      { id: "CQ-006", area: "Deployment", issue: "Vercel 24시간 배포 정상", status: "GOOD", action: "git push 기반 자동배포 유지" },
+    ];
+
+    setMasterDataConnectors(connectors);
+    setAiBrainScenarios(scenarios);
+    setDocumentAutomations(docs);
+    setPlmChatbotItems(chats);
+    setCodeQualityItems(quality);
+    setWorkReadyStatus(`Work Ready Pack 생성 완료: 데이터연동 ${connectors.length}개 / AI Brain ${scenarios.length}개 / 문서자동화 ${docs.length}개 / Chatbot ${chats.length}개 / 코드점검 ${quality.length}개`);
+  }
+
+  function approveAiBrainScenario(id: string) {
+    setAiBrainScenarios((prev) => prev.map((item) => item.id === id ? { ...item, review_status: "APPROVED" } : item));
+  }
+
+  function approveDocumentAutomation(id: string) {
+    setDocumentAutomations((prev) => prev.map((item) => item.id === id ? { ...item, status: "APPROVED" } : item));
+  }
+
+  function runPlmChatbot() {
+    const item: PlmChatbotItem = {
+      id: `CHAT-${Date.now()}`,
+      question: workReadyQuestion,
+      answer_summary: "요청을 분석해 관련 PLM 모듈, 문서, 검토 Action을 생성했습니다.",
+      related_modules: "AI Brain, Formula, Regulation, Document Automation",
+      action_created: "검토 Action 생성",
+      risk_level: "MEDIUM",
+    };
+    setPlmChatbotItems([item, ...plmChatbotItems]);
+    setWorkReadyStatus("PLM Chatbot 질의 처리 완료");
+  }
+
+  function exportMasterDataConnectorsCsv() {
+    exportCsv("work_ready_master_data_connectors.csv", [["data_domain", "source_name", "sync_status", "record_count", "quality_score", "next_action"], ...masterDataConnectors.map((item) => [item.data_domain, item.source_name, item.sync_status, item.record_count, item.quality_score, item.next_action])]);
+  }
+
+  function exportAiBrainScenariosCsv() {
+    exportCsv("work_ready_ai_brain_scenarios.csv", [["user_request", "ai_workflow", "output_type", "confidence", "review_status"], ...aiBrainScenarios.map((item) => [item.user_request, item.ai_workflow, item.output_type, item.confidence, item.review_status])]);
+  }
+
+  function exportDocumentAutomationCsv() {
+    exportCsv("work_ready_document_automation.csv", [["document_type", "source_module", "status", "owner", "file_name"], ...documentAutomations.map((item) => [item.document_type, item.source_module, item.status, item.owner, item.file_name])]);
+  }
+
+  function exportPlmChatbotCsv() {
+    exportCsv("work_ready_plm_chatbot.csv", [["question", "answer_summary", "related_modules", "action_created", "risk_level"], ...plmChatbotItems.map((item) => [item.question, item.answer_summary, item.related_modules, item.action_created, item.risk_level])]);
+  }
+
+  function exportCodeQualityCsv() {
+    exportCsv("work_ready_code_quality.csv", [["area", "issue", "status", "action"], ...codeQualityItems.map((item) => [item.area, item.issue, item.status, item.action])]);
+  }
+
   function renderOverview() {
     return (
       <>
         <section style={cardStyle()}>
-          <h1 style={{ marginTop: 0 }}>PLM Enterprise Edition Phase 56~60</h1>
+          <h1 style={{ marginTop: 0 }}>PLM Enterprise Work Ready Edition</h1>
           <p style={{ color: "#6b7280" }}>
-            Enterprise v5 Ultimate Pack B입니다. AI Agent Platform, Autonomous Formula Development, Smart Factory IoT, AI Optimization, Self-Driving PLM을 통합합니다.
+            출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성, PLM 챗봇, 코드 품질 점검을 통합한 Work Ready Pack입니다.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginTop: "18px" }}>
@@ -6877,6 +7039,7 @@ export default function EnterprisePage() {
             <div style={cardStyle()}><strong>Knowledge/SCM</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#0ea5e9" }}>{patentPaperInsights.length}</div></div>
             <div style={cardStyle()}><strong>Ultimate A</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#dc2626" }}>{aiResearchProjects.length}</div></div>
             <div style={cardStyle()}><strong>Ultimate B</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#059669" }}>{autonomousAgents.length}</div></div>
+            <div style={cardStyle()}><strong>Work Ready</strong><div style={{ fontSize: "32px", fontWeight: "bold", color: "#2563eb" }}>{masterDataConnectors.length}</div></div>
           </div>
         </section>
 
@@ -6940,13 +7103,13 @@ export default function EnterprisePage() {
         </section>
 
         <section style={cardStyle()}>
-          <h2 style={{ marginTop: 0 }}>Phase 56~60 목표</h2>
+          <h2 style={{ marginTop: 0 }}>Work Ready 목표</h2>
           <ul>
-            <li>AI Agent Platform: R&D/QA/RA/QC/생산 AI Agent 역할 분담</li>
-            <li>Autonomous Formula Development: 목표 입력 → 후보 처방 → 검증 상태 자동 생성</li>
-            <li>Smart Factory IoT: 설비 센서, 이상 경고, 예지보전 시나리오 관리</li>
-            <li>AI Optimization: 수율·원가·품질·스케줄·에너지 최적화</li>
-            <li>Self-Driving PLM: 자연어 목표 기반 PLM 업무 체인 자동 실행</li>
+            <li>실제 데이터 연동 준비: 원료/INCI/CAS/규제/문서 데이터 매핑 점검</li>
+            <li>Cosmetic AI Brain: 처방·규제·원가·안정성 요청을 업무 시나리오로 변환</li>
+            <li>문서 자동 생성: 처방서, 원료조성표, 전성분표, 제품규격서, 개발보고서</li>
+            <li>PLM Chatbot: 업무 질문에 대한 요약 답변과 Action 생성</li>
+            <li>코드 품질 점검: 배포/보안/성능/컴포넌트 분리 준비</li>
           </ul>
         </section>
       </>
@@ -7939,6 +8102,55 @@ export default function EnterprisePage() {
             <li>다음 Phase에서 실제 공급사 전용 로그인/업로드 권한으로 확장할 수 있습니다.</li>
           </ul>
         </section>
+      </>
+    );
+  }
+
+  function renderWorkReadyModule() {
+    return (
+      <>
+        <section style={cardStyle()}>
+          <h1 style={{ marginTop: 0 }}>Work Ready Integrated Pack</h1>
+          <p style={{ color: "#6b7280" }}>
+            출근 직후 업무에 바로 사용할 수 있도록 실제 데이터 연동 준비, AI Brain, 문서 자동 생성,
+            PLM Chatbot, 코드 품질 점검을 하나로 묶은 통합 패키지입니다. 고객 포털 기능은 제외했습니다.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "18px" }}>
+            <div style={cardStyle()}><strong>Connectors</strong><div style={{ fontSize: "28px", fontWeight: "bold" }}>{workReadyStats.synced}/{workReadyStats.connectors}</div></div>
+            <div style={cardStyle()}><strong>Mapping</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#d97706" }}>{workReadyStats.mapping}</div></div>
+            <div style={cardStyle()}><strong>AI Brain</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#7c3aed" }}>{workReadyStats.approvedAi}/{workReadyStats.aiScenarios}</div></div>
+            <div style={cardStyle()}><strong>Documents</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#2563eb" }}>{workReadyStats.approvedDocs}/{workReadyStats.docs}</div></div>
+            <div style={cardStyle()}><strong>Chatbot</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#059669" }}>{workReadyStats.chats}</div></div>
+            <div style={cardStyle()}><strong>Quality Watch</strong><div style={{ fontSize: "28px", fontWeight: "bold", color: "#dc2626" }}>{workReadyStats.qualityWatch}</div></div>
+          </div>
+
+          <div style={{ display: "grid", gap: "10px", maxWidth: "920px", marginBottom: "12px" }}>
+            <input value={workReadyQuestion} onChange={(e) => setWorkReadyQuestion(e.target.value)} placeholder="PLM Chatbot 질문" style={{ padding: "10px", border: "1px solid #d1d5db", borderRadius: "8px" }} />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button onClick={generateWorkReadyPack} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#7c3aed", color: "white", fontWeight: "bold", cursor: "pointer" }}>Work Ready 생성</button>
+            <button onClick={runPlmChatbot} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#dc2626", color: "white", fontWeight: "bold", cursor: "pointer" }}>Chatbot 실행</button>
+            <button onClick={exportMasterDataConnectorsCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#059669", color: "white", fontWeight: "bold", cursor: "pointer" }}>Data CSV</button>
+            <button onClick={exportAiBrainScenariosCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#0ea5e9", color: "white", fontWeight: "bold", cursor: "pointer" }}>AI Brain CSV</button>
+            <button onClick={exportDocumentAutomationCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#111827", color: "white", fontWeight: "bold", cursor: "pointer" }}>Document CSV</button>
+            <button onClick={exportPlmChatbotCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#d97706", color: "white", fontWeight: "bold", cursor: "pointer" }}>Chatbot CSV</button>
+            <button onClick={exportCodeQualityCsv} style={{ border: 0, borderRadius: "8px", padding: "11px 14px", background: "#2563eb", color: "white", fontWeight: "bold", cursor: "pointer" }}>Quality CSV</button>
+          </div>
+
+          <p style={{ color: "#2563eb", fontWeight: "bold" }}>{workReadyStatus}</p>
+        </section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>1. 실제 데이터 연동 준비</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Domain</th><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Records</th><th style={tableCellStyle(true)}>Quality</th><th style={tableCellStyle(true)}>Next Action</th></tr></thead><tbody>{masterDataConnectors.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>Work Ready 생성을 실행하세요.</td></tr>}{masterDataConnectors.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.data_domain}</td><td style={tableCellStyle()}>{item.source_name}</td><td style={{ ...tableCellStyle(), color: item.sync_status === "SYNCED" ? "#059669" : item.sync_status === "ERROR" ? "#dc2626" : "#d97706", fontWeight: "bold" }}>{item.sync_status}</td><td style={tableCellStyle()}>{item.record_count}</td><td style={tableCellStyle()}>{item.quality_score}</td><td style={tableCellStyle()}>{item.next_action}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>2. Cosmetic AI Brain</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Request</th><th style={tableCellStyle(true)}>AI Workflow</th><th style={tableCellStyle(true)}>Output</th><th style={tableCellStyle(true)}>Confidence</th><th style={tableCellStyle(true)}>Review</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{aiBrainScenarios.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>AI Brain 시나리오가 표시됩니다.</td></tr>}{aiBrainScenarios.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.user_request}</td><td style={tableCellStyle()}>{item.ai_workflow}</td><td style={tableCellStyle()}>{item.output_type}</td><td style={tableCellStyle()}>{item.confidence}%</td><td style={{ ...tableCellStyle(), color: item.review_status === "APPROVED" ? "#059669" : item.review_status === "NEEDS_REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.review_status}</td><td style={tableCellStyle()}>{item.review_status !== "APPROVED" ? <button onClick={() => approveAiBrainScenario(item.id)}>Approve</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>3. 문서 자동 생성</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Document</th><th style={tableCellStyle(true)}>Source</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Owner</th><th style={tableCellStyle(true)}>File</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{documentAutomations.length === 0 && <tr><td style={tableCellStyle()} colSpan={6}>자동 문서 목록이 표시됩니다.</td></tr>}{documentAutomations.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.document_type}</td><td style={tableCellStyle()}>{item.source_module}</td><td style={{ ...tableCellStyle(), color: item.status === "APPROVED" ? "#059669" : item.status === "REVIEW" ? "#d97706" : "#2563eb", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.owner}</td><td style={tableCellStyle()}>{item.file_name}</td><td style={tableCellStyle()}>{item.status !== "APPROVED" ? <button onClick={() => approveDocumentAutomation(item.id)}>Approve</button> : "-"}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>4. PLM Chatbot</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Question</th><th style={tableCellStyle(true)}>Answer</th><th style={tableCellStyle(true)}>Modules</th><th style={tableCellStyle(true)}>Action</th><th style={tableCellStyle(true)}>Risk</th></tr></thead><tbody>{plmChatbotItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={5}>Chatbot 실행 결과가 표시됩니다.</td></tr>}{plmChatbotItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.question}</td><td style={tableCellStyle()}>{item.answer_summary}</td><td style={tableCellStyle()}>{item.related_modules}</td><td style={tableCellStyle()}>{item.action_created}</td><td style={{ ...tableCellStyle(), color: item.risk_level === "HIGH" ? "#dc2626" : item.risk_level === "MEDIUM" ? "#d97706" : "#059669", fontWeight: "bold" }}>{item.risk_level}</td></tr>))}</tbody></table></section>
+
+        <section style={cardStyle()}><h2 style={{ marginTop: 0 }}>5. 코드 품질 / 배포 안정성 점검</h2><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><tr><th style={tableCellStyle(true)}>Area</th><th style={tableCellStyle(true)}>Issue</th><th style={tableCellStyle(true)}>Status</th><th style={tableCellStyle(true)}>Action</th></tr></thead><tbody>{codeQualityItems.length === 0 && <tr><td style={tableCellStyle()} colSpan={4}>코드 품질 점검 결과가 표시됩니다.</td></tr>}{codeQualityItems.map((item) => (<tr key={item.id}><td style={tableCellStyle()}>{item.area}</td><td style={tableCellStyle()}>{item.issue}</td><td style={{ ...tableCellStyle(), color: item.status === "GOOD" ? "#059669" : item.status === "WATCH" ? "#d97706" : "#dc2626", fontWeight: "bold" }}>{item.status}</td><td style={tableCellStyle()}>{item.action}</td></tr>))}</tbody></table></section>
       </>
     );
   }
@@ -11175,6 +11387,7 @@ export default function EnterprisePage() {
     if (active === "v4Package") return renderV4PackageModule();
     if (active === "ultimateA") return renderUltimatePackAModule();
     if (active === "ultimateB") return renderUltimatePackBModule();
+    if (active === "workReady") return renderWorkReadyModule();
     return renderAdminModule();
   }
 
@@ -11182,7 +11395,7 @@ export default function EnterprisePage() {
     <main style={{ minHeight: "100vh", background: "#f9fafb", fontFamily: "Arial", display: "grid", gridTemplateColumns: "280px 1fr" }}>
       <aside style={{ background: "#111827", color: "white", padding: "22px", height: "100vh", position: "sticky", top: 0, boxSizing: "border-box", overflowY: "auto" }}>
         <h2 style={{ marginTop: 0 }}>PLM Enterprise</h2>
-        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Phase 56~60 Ultimate Pack B</p>
+        <p style={{ color: "#9ca3af", fontSize: "13px" }}>Work Ready Integrated Pack</p>
 
         {menus.map((item) => (
           <button
