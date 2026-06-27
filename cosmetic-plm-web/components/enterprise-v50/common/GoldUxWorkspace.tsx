@@ -12,6 +12,7 @@ import AiAssistantProPanel from "@/components/enterprise-v50/common/AiAssistantP
 import SmartFormulaEnginePanel from "@/components/enterprise-v50/common/SmartFormulaEnginePanel";
 import SmartDocumentBatchBridgePanel from "@/components/enterprise-v50/common/SmartDocumentBatchBridgePanel";
 import ReleaseReadinessProPanel from "@/components/enterprise-v50/common/ReleaseReadinessProPanel";
+import SystemHealthPanel from "@/components/enterprise-v50/common/SystemHealthPanel";
 
 type MenuItem = {
   key: string;
@@ -25,6 +26,7 @@ type MenuItem = {
     | "smart"
     | "smartBridge"
     | "releasePro"
+    | "health"
     | "ai"
     | "documents"
     | "manufacturing"
@@ -43,6 +45,7 @@ const menus: MenuItem[] = [
   { key: "mfg", title: "제조관리", group: "핵심업무", href: "/enterprise-v5/manufacturing", description: "제조 Batch, 원료 소요량, 제조 단계", internal: "manufacturing" },
   { key: "knowledge", title: "지식DB", group: "데이터", href: "/enterprise-v5/knowledge", description: "원료, INCI, CAS, 규제, 상용성", internal: "knowledge" },
   { key: "admin", title: "관리자", group: "관리", href: "/enterprise-v5/admin", description: "사용자, 권한, 로그, 백업, 시스템", internal: "admin" },
+  { key: "health", title: "시스템 점검", group: "관리", href: "/enterprise-v5/system-health", description: "DB와 운영 상태 점검", internal: "health" },
   { key: "workflow", title: "업무흐름", group: "확장기능", href: "/enterprise-workflow", description: "AI부터 제조까지 전체 흐름" },
 ];
 
@@ -75,6 +78,7 @@ export default function GoldUxWorkspace() {
     if (active.internal === "manufacturing") return <ManufacturingProPanel />;
     if (active.internal === "knowledge") return <KnowledgeProPanel />;
     if (active.internal === "admin") return <AdminProPanel />;
+    if (active.internal === "health") return <SystemHealthPanel />;
     if (active.internal === "ai") return <AiAssistantProPanel openFormula={() => openTab(menus.find((x) => x.key === "formula")!)} />;
     return <iframe className="v50-iframe" src={active.href} title={active.title} />;
   }
@@ -85,7 +89,7 @@ export default function GoldUxWorkspace() {
         <aside className="v50-sidebar">
           <div className="v50-brand">
             <div className="v50-brand-title">화장품 PLM</div>
-            <div className="v50-brand-sub">v5.1 Release Ready</div>
+            <div className="v50-brand-sub">v5.1 System QA</div>
           </div>
           <nav className="v50-menu">
             {groups.map((group) => (
@@ -105,7 +109,7 @@ export default function GoldUxWorkspace() {
           <header className="v50-topbar">
             <input className="v50-search" placeholder="처방명, 원료명, INCI, 문서를 검색하세요" />
             <div className="v50-top-actions">
-              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "smartBridge")!)}>스마트 문서·Batch</button>
+              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "health")!)}>시스템 점검</button>
               <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "releasePro")!)}>출시 준비도 PRO</button>
             </div>
           </header>
@@ -134,9 +138,9 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">연구원 홈</h1>
-          <p className="v50-desc">출시 준비도 PRO가 활성화되었습니다. 처방, 검증, 원가, 문서, Batch, 리스크를 종합해 Go/No-Go를 판단할 수 있습니다.</p>
+          <p className="v50-desc">시스템 점검 기능이 추가되었습니다. v5.1 운영에 필요한 DB와 릴리즈 적용 상태를 바로 확인할 수 있습니다.</p>
         </div>
-        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "releasePro")!)}>출시 준비도 확인</button>
+        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "health")!)}>시스템 점검 시작</button>
       </section>
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
       <section className="v50-grid-4" style={{ marginBottom: 18 }}>
@@ -146,7 +150,7 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
         <Kpi label="제조" value={String(d?.batch_count ?? "-")} hint="제조 Batch" />
       </section>
       <section className="v50-grid-3">
-        {["releasePro", "smartBridge", "smart", "formula", "docs", "mfg", "knowledge", "admin"].map((key) => {
+        {["health", "releasePro", "smartBridge", "smart", "formula", "docs", "mfg", "knowledge", "admin"].map((key) => {
           const item = menus.find((x) => x.key === key)!;
           return (
             <article key={item.key} className="v50-card">
