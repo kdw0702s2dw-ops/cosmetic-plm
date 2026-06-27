@@ -1,0 +1,7 @@
+﻿rule_code,country,keyword,risk_type,rule_summary,recommended_action
+REG-00001,EU,Retinol,RESTRICTED,Verify current EU vitamin A limits before launch,RA review required
+REG-00002,EU,Salicylic Acid,RESTRICTED,Use restriction depends on product type and age group,Check final concentration
+REG-00003,CN,Niacinamide,WATCH,Check IECIC/name matching and claim compliance,NMPA review
+REG-00004,JP,Quasi-drug Active,WATCH,Check quasi-drug category if efficacy claim is used,Japan launch review
+REG-00005,ASEAN,Preservative,WATCH,Check ASEAN cosmetic directive preservative list,RA review
+REG-00006,US,Sunscreen Filter,RESTRICTED,OTC sunscreen monograph review required,US launch review

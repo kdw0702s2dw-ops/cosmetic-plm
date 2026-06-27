@@ -1,0 +1,13 @@
+﻿inci_code,inci_en,inci_kr,inci_cn,inci_jp,function_en,cas_no,ec_no,category,notes
+INCI-00001,Water,정제수,水,水,Solvent,7732-18-5,231-791-2,COMMON,General solvent
+INCI-00002,Glycerin,글리세린,甘油,グリセリン,Humectant,56-81-5,200-289-5,COMMON,Humectant
+INCI-00003,Butylene Glycol,부틸렌글라이콜,丁二醇,BG,Humectant,107-88-0,203-529-7,COMMON,Humectant/Solvent
+INCI-00004,Niacinamide,나이아신아마이드,烟酰胺,ナイアシンアミド,Skin Conditioning,98-92-0,202-713-4,ACTIVE,Brightening care
+INCI-00005,Panthenol,판테놀,泛醇,パンテノール,Skin Conditioning,81-13-0,201-327-3,ACTIVE,Soothing care
+INCI-00006,Allantoin,알란토인,尿囊素,アラントイン,Skin Protecting,97-59-6,202-592-8,ACTIVE,Soothing
+INCI-00007,Ceramide NP,세라마이드엔피,神经酰胺NP,セラミドNP,Skin Conditioning,100403-19-8,,ACTIVE,Barrier
+INCI-00008,Sodium Hyaluronate,소듐하이알루로네이트,透明质酸钠,ヒアルロン酸Na,Humectant,9067-32-7,,ACTIVE,Moisturizing
+INCI-00009,Carbomer,카보머,卡波姆,カルボマー,Viscosity Increasing,9003-01-4,,POLYMER,Gel thickener
+INCI-00010,Xanthan Gum,잔탄검,黄原胶,キサンタンガム,Viscosity Increasing,11138-66-2,234-394-2,POLYMER,Natural gum
+INCI-00011,Phenoxyethanol,페녹시에탄올,苯氧乙醇,フェノキシエタノール,Preservative,122-99-6,204-589-7,PRESERVATIVE,Preservative
+INCI-00012,Ethylhexylglycerin,에틸헥실글리세린,乙基己基甘油,エチルヘキシルグリセリン,Skin Conditioning,70445-33-9,408-080-2,PRESERVATIVE BOOSTER,Preservative booster

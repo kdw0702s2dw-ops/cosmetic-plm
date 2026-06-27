@@ -1,0 +1,6 @@
+﻿compat_code,ingredient_a,ingredient_b,status,risk_summary,recommendation
+COMP-0001,Retinol,Ascorbic Acid,WATCH,pH/stability conflict risk,Separate system or stabilized derivatives recommended
+COMP-0002,Niacinamide,Low pH AHA,WATCH,Irritation and stability review,Check final pH and irritation target
+COMP-0003,Carbomer,High Electrolyte,WATCH,Viscosity loss risk,Use electrolyte tolerant polymer
+COMP-0004,Fragrance,Sensitive Skin,WATCH,Irritation/allergen risk,Use allergen review and low fragrance level
+COMP-0005,Ceramide NP,Cholesterol/Fatty Acid,GOOD,Barrier synergy,Recommended lipid system
