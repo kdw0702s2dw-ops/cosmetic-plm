@@ -1,0 +1,11 @@
+다음 Activation Pack에서 GoldUxWorkspace.tsx에 아래 import/return을 연결합니다.
+
+import SmartDocumentBatchBridgePanel from "@/components/enterprise-v50/common/SmartDocumentBatchBridgePanel";
+
+메뉴 추가:
+{ key: "smartBridge", title: "스마트 문서·Batch", group: "핵심업무", href: "/enterprise-v5/smart-bridge", description: "스마트 계산 결과를 문서와 Batch로 연결", internal: "smartBridge" }
+
+renderActive:
+if (active.internal === "smartBridge") return <SmartDocumentBatchBridgePanel />;
+
+이번 Pack은 먼저 PRO 패널을 안전하게 추가합니다.
