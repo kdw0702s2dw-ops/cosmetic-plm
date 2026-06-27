@@ -1,0 +1,10 @@
+export type V50DocumentType =
+  | "FORMULA_SHEET"
+  | "FULL_INGREDIENT_LIST"
+  | "INGREDIENT_COMPOSITION"
+  | "PRODUCT_SPEC"
+  | "COA"
+  | "BOM"
+  | "MANUFACTURING_ORDER";
+
+export type V50BatchStatus = "PLANNED" | "IN_PROGRESS" | "QC_HOLD" | "COMPLETED" | "RELEASED" | "CANCELED";

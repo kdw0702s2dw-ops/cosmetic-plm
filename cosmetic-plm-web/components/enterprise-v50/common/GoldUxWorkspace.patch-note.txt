@@ -1,0 +1,9 @@
+다음 단계에서 GoldUxWorkspace.tsx의 문서관리/제조관리 renderActive를 아래 컴포넌트로 교체합니다.
+
+import DocumentProPanel from "@/components/enterprise-v50/common/DocumentProPanel";
+import ManufacturingProPanel from "@/components/enterprise-v50/common/ManufacturingProPanel";
+
+if (active.internal === "documents") return <DocumentProPanel />;
+if (active.internal === "manufacturing") return <ManufacturingProPanel />;
+
+이번 Pack은 빌드 리스크를 줄이기 위해 PRO 패널을 먼저 추가합니다.
