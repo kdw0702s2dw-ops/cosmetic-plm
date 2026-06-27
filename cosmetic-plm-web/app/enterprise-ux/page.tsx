@@ -1,5 +1,5 @@
 import EnterpriseProfessionalUxDashboard from "@/components/enterprise-ux/EnterpriseProfessionalUxDashboard";
 
-export default function EnterprisePage() {
+export default function EnterpriseUxPage() {
   return <EnterpriseProfessionalUxDashboard />;
 }
