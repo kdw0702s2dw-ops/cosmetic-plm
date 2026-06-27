@@ -5,6 +5,7 @@ import "@/styles/enterprise-v41.css";
 
 const modules = [
   ["Dashboard", "/enterprise"],
+  ["Workflow", "/enterprise-workflow"],
   ["Projects", "/enterprise-gold-release"],
   ["Formula", "/enterprise-gold-formula-live"],
   ["Raw Materials", "/enterprise-db-live"],
