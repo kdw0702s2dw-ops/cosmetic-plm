@@ -1,74 +1,61 @@
-export type Status = "GOOD" | "WATCH" | "RISK";
-export type CrudStatus = "LIVE" | "READY" | "NEEDS_TEST";
-export type OutputFormat = "PDF" | "EXCEL" | "WORD" | "CSV";
+export type BatchStatus = "PLANNED" | "IN_PROGRESS" | "QC_HOLD" | "COMPLETED" | "RELEASED" | "CANCELED";
+export type SampleStatus = "REQUESTED" | "FORMULATING" | "SUBMITTED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+export type FinalStatus = "PASS" | "WATCH" | "BLOCK" | "RELEASED";
 
-export type ProductionModule =
-  | "Formula"
-  | "Ingredient"
-  | "Supplier"
-  | "Customer"
-  | "Workflow"
-  | "Approval"
-  | "Document"
-  | "Regulation"
-  | "QMS"
-  | "LIMS";
-
-export type ProductionCrudRow = {
-  id: string;
-  module: ProductionModule;
-  tableName: string;
-  crudStatus: CrudStatus;
-  operations: string;
-  persistence: "Supabase DB" | "Local State";
-  audit: "ON" | "OFF";
-  nextAction: string;
+export type ManufacturingBatch = {
+  id?: string;
+  batch_no: string;
+  formula_code: string;
+  revision: string;
+  batch_size_kg: number;
+  status: BatchStatus;
+  operator_name: string | null;
+  equipment: string | null;
+  note: string | null;
+  created_at?: string | null;
 };
 
-export type ProductionDocumentRow = {
-  id: string;
-  documentType:
-    | "Formula Sheet"
-    | "Ingredient Composition"
-    | "Full Ingredient List"
-    | "Product Specification"
-    | "Test Request"
-    | "COA"
-    | "MSDS"
-    | "Customer Summary";
-  format: OutputFormat;
-  source: ProductionModule;
-  status: "READY" | "GENERATED" | "NEEDS_REVIEW";
-  fileName: string;
+export type ManufacturingMaterial = {
+  id?: string;
+  batch_no: string;
+  line_no: number;
+  phase: string | null;
+  raw_code: string;
+  raw_name: string | null;
+  percentage: number;
+  required_kg: number;
+  checked: boolean;
 };
 
-export type ProductionAiRow = {
-  id: string;
-  command: string;
-  workflow: string;
-  status: "READY" | "EXECUTED" | "HUMAN_REVIEW";
-  confidence: number;
+export type ManufacturingStep = {
+  id?: string;
+  batch_no: string;
+  step_no: number;
+  step_name: string;
+  instruction: string;
+  status: "TODO" | "DONE" | "HOLD";
 };
 
-export type ProductionHealthRow = {
-  id: string;
-  area:
-    | "Build"
-    | "Deploy"
-    | "Database"
-    | "Security"
-    | "Backup"
-    | "Performance"
-    | "Permission"
-    | "User Readiness";
-  status: Status;
-  message: string;
-  action: string;
+export type SampleRequest = {
+  id?: string;
+  sample_code: string;
+  formula_code: string;
+  revision: string;
+  customer: string | null;
+  purpose: string | null;
+  due_date: string | null;
+  status: SampleStatus;
+  note: string | null;
+  created_at?: string | null;
 };
 
-export type ProductionFinalData = {
-  crud: ProductionCrudRow[];
-  documents: ProductionDocumentRow[];
-  ai: ProductionAiRow[];
-  health: ProductionHealthRow[];
+export type ExecutiveKpi = {
+  formulas: number;
+  raw_materials: number;
+  documents: number;
+  batches: number;
+  samples: number;
+  ai_runs: number;
+  open_actions: number;
+  release_ready: number;
 };
