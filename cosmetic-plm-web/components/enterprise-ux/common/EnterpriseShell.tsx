@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import "@/styles/enterprise-v41.css";
 
 const modules = [
   ["Dashboard", "/enterprise"],
@@ -21,53 +22,21 @@ const modules = [
 
 export default function EnterpriseShell({ children }: { children: ReactNode }) {
   return (
-    <div style={page()}>
-      <aside style={sidebar()}>
-        <div style={{ padding: "22px 20px" }}>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Cosmetic PLM</div>
-          <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>Enterprise v4.1</div>
-        </div>
-        <nav style={{ padding: "0 12px 18px" }}>
-          {modules.map(([title, href]) => (
-            <a key={href} href={href} style={navItem()}>
-              {title}
-            </a>
-          ))}
-        </nav>
-      </aside>
-      <section style={content()}>
-        {children}
-      </section>
+    <div className="enterprise-v41-root">
+      <div className="enterprise-v41-shell">
+        <aside className="enterprise-v41-sidebar">
+          <div className="enterprise-v41-brand">
+            <div className="enterprise-v41-brand-title">Cosmetic PLM</div>
+            <div className="enterprise-v41-brand-sub">Enterprise v4.1</div>
+          </div>
+          <nav className="enterprise-v41-nav">
+            {modules.map(([title, href]) => (
+              <a key={href} href={href}>{title}</a>
+            ))}
+          </nav>
+        </aside>
+        <main className="enterprise-v41-main">{children}</main>
+      </div>
     </div>
   );
-}
-
-function page(): React.CSSProperties {
-  return { display: "flex", minHeight: "100vh", background: "#f8fafc", color: "#0f172a" };
-}
-function sidebar(): React.CSSProperties {
-  return {
-    width: 252,
-    background: "#0f172a",
-    color: "white",
-    position: "sticky",
-    top: 0,
-    height: "100vh",
-    overflowY: "auto",
-    flexShrink: 0,
-  };
-}
-function navItem(): React.CSSProperties {
-  return {
-    display: "block",
-    padding: "12px 14px",
-    marginBottom: 6,
-    borderRadius: 12,
-    color: "white",
-    textDecoration: "none",
-    fontWeight: 700,
-  };
-}
-function content(): React.CSSProperties {
-  return { flex: 1, minWidth: 0, background: "#f8fafc" };
 }
