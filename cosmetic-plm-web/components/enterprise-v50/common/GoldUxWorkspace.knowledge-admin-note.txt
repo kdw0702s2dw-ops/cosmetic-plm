@@ -1,0 +1,9 @@
+다음 Activation Pack에서 GoldUxWorkspace.tsx에 아래 import/return을 연결합니다.
+
+import KnowledgeProPanel from "@/components/enterprise-v50/common/KnowledgeProPanel";
+import AdminProPanel from "@/components/enterprise-v50/common/AdminProPanel";
+
+if (active.internal === "knowledge") return <KnowledgeProPanel />;
+if (active.internal === "admin") return <AdminProPanel />;
+
+이번 Pack은 먼저 PRO 패널을 안전하게 추가합니다.
