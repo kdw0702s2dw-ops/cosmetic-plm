@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import "@/styles/enterprise-v50.css";
-import { useV50DashboardLive, useV50DocsLive, useV50FormulaLive, useV50ManufacturingLive } from "@/hooks/useV50LiveData";
+import { useV50DashboardLive, useV50DocsLive, useV50ManufacturingLive } from "@/hooks/useV50LiveData";
+import FormulaWorkspaceProPanel from "@/components/enterprise-v50/common/FormulaWorkspaceProPanel";
 
 type MenuItem = {
   key: string;
@@ -46,7 +47,7 @@ export default function GoldUxWorkspace() {
 
   function renderActive() {
     if (active.internal === "home") return <ResearcherHome openTab={openTab} />;
-    if (active.internal === "formula") return <FormulaLiveRedesign openTab={openTab} />;
+    if (active.internal === "formula") return <FormulaWorkspaceProPanel />;
     if (active.internal === "ai") return <AiAssistantRedesign openTab={openTab} />;
     if (active.internal === "documents") return <DocumentLiveRedesign />;
     if (active.internal === "manufacturing") return <ManufacturingLiveRedesign />;
@@ -61,7 +62,7 @@ export default function GoldUxWorkspace() {
         <aside className="v50-sidebar">
           <div className="v50-brand">
             <div className="v50-brand-title">화장품 PLM</div>
-            <div className="v50-brand-sub">v5.0 GOLD UX · 실데이터</div>
+            <div className="v50-brand-sub">v5.0 GOLD UX · PRO 활성화</div>
           </div>
           <nav className="v50-menu">
             {groups.map((group) => (
@@ -82,7 +83,7 @@ export default function GoldUxWorkspace() {
             <input className="v50-search" placeholder="처방명, 원료명, INCI, 문서를 검색하세요" />
             <div className="v50-top-actions">
               <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "docs")!)}>문서 생성</button>
-              <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "ai")!)}>AI에게 요청</button>
+              <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO</button>
             </div>
           </header>
 
@@ -110,19 +111,17 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">연구원 홈</h1>
-          <p className="v50-desc">Supabase 실제 데이터를 기반으로 오늘 업무와 전체 현황을 확인합니다.</p>
+          <p className="v50-desc">실제 데이터를 기반으로 오늘 업무와 전체 현황을 확인합니다. 처방관리 PRO에서 검증·원가·평가·문서 생성을 한 번에 실행할 수 있습니다.</p>
         </div>
-        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "ai")!)}>AI로 처방 시작</button>
+        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 시작</button>
       </section>
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
-
       <section className="v50-grid-4" style={{ marginBottom: 18 }}>
         <Kpi label="처방" value={String(d?.formula_count ?? "-")} hint="등록된 처방" />
         <Kpi label="원료" value={String(d?.raw_count ?? "-")} hint="원료 마스터" />
         <Kpi label="문서" value={String(d?.document_count ?? "-")} hint="생성 문서" />
         <Kpi label="제조" value={String(d?.batch_count ?? "-")} hint="제조 Batch" />
       </section>
-
       <section className="v50-grid-3">
         {["formula", "ai", "docs", "mfg", "knowledge", "admin"].map((key) => {
           const item = menus.find((x) => x.key === key)!;
@@ -139,112 +138,17 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
   );
 }
 
-function FormulaLiveRedesign({ openTab }: { openTab: (item: MenuItem) => void }) {
-  const s = useV50FormulaLive();
-
-  return (
-    <div className="v50-page">
-      <section className="v50-hero">
-        <div>
-          <h1 className="v50-title">처방관리</h1>
-          <p className="v50-desc">Supabase의 실제 처방과 원료 데이터를 불러와 처방을 선택하고 원료를 추가·수정합니다.</p>
-        </div>
-        <div className="v50-flow">
-          <button onClick={s.createFormula}>신규 처방</button>
-          <button onClick={() => openTab(menus.find((x) => x.key === "docs")!)}>문서 생성</button>
-        </div>
-      </section>
-      <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
-
-      <section className="v50-split">
-        <article className="v50-panel">
-          <h2>처방 목록</h2>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="v50-input" value={s.search} onChange={(e) => s.setSearch(e.target.value)} placeholder="처방명 또는 코드 검색" />
-            <button className="v50-button" onClick={() => s.loadFormulas(s.search)}>검색</button>
-          </div>
-          <div className="v50-table-wrap">
-            <table className="v50-table">
-              <thead><tr><th>처방코드</th><th>처방명</th><th>버전</th><th>상태</th><th>선택</th></tr></thead>
-              <tbody>
-                {s.formulas.map((f) => (
-                  <tr key={`${f.formula_code}-${f.revision}`}>
-                    <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.status}</td>
-                    <td><button className="v50-button-light" onClick={() => s.openFormula(f)}>열기</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article className="v50-panel">
-          <h2>원료 검색</h2>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="v50-input" value={s.rawSearch} onChange={(e) => s.setRawSearch(e.target.value)} placeholder="원료명, INCI 검색" />
-            <button className="v50-button" onClick={() => s.loadRaws(s.rawSearch)}>검색</button>
-          </div>
-          <div style={{ display: "grid", gap: 8, maxHeight: 420, overflow: "auto" }}>
-            {s.raws.map((raw) => (
-              <div key={raw.raw_code} className="v50-card" style={{ padding: 12 }}>
-                <strong>{raw.raw_name}</strong>
-                <div style={{ color: "#64748b", fontSize: 13 }}>{raw.inci_en || "-"} · {raw.raw_code}</div>
-                <button className="v50-button-light" style={{ marginTop: 8 }} onClick={() => s.addRaw(raw)}>처방에 추가</button>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      {s.selected && (
-        <section className="v50-panel">
-          <h2>{s.selected.formula_code} / {s.selected.revision} 원료 배합표</h2>
-          <div className="v50-grid-4" style={{ marginBottom: 14 }}>
-            <Kpi label="총합" value={`${s.total}%`} hint={s.total === 100 ? "정상" : "100% 확인 필요"} />
-            <Kpi label="원료수" value={String(s.lines.length)} hint="등록 원료" />
-            <Kpi label="상태" value={s.selected.status || "-"} hint="처방 상태" />
-            <Kpi label="고객" value={s.selected.customer || "-"} hint="고객/내부" />
-          </div>
-          <div className="v50-table-wrap">
-            <table className="v50-table">
-              <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>투입량(%)</th><th>기능</th><th>삭제</th></tr></thead>
-              <tbody>
-                {s.lines.map((line) => (
-                  <tr key={line.id || `${line.line_no}-${line.raw_code}`}>
-                    <td>{line.line_no}</td>
-                    <td>{line.phase}</td>
-                    <td>{line.raw_name}</td>
-                    <td>{line.inci_en}</td>
-                    <td><input className="v50-input" type="number" defaultValue={line.percentage} onBlur={(e) => s.updatePercent(line, Number(e.target.value))} /></td>
-                    <td>{line.function_en}</td>
-                    <td><button className="v50-button-light" onClick={() => s.removeLine(line)}>삭제</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
 function AiAssistantRedesign({ openTab }: { openTab: (item: MenuItem) => void }) {
   return (
     <div className="v50-page">
       <section className="v50-hero">
-        <div>
-          <h1 className="v50-title">AI 연구원</h1>
-          <p className="v50-desc">원하는 제품을 한글로 입력하고, 생성된 처방은 처방관리에서 실제 데이터로 확인합니다.</p>
-        </div>
+        <div><h1 className="v50-title">AI 연구원</h1><p className="v50-desc">AI 처방 생성 후 처방관리 PRO에서 검증·원가·문서를 이어서 처리합니다.</p></div>
       </section>
       <section className="v50-chatbox">
-        <h2>무엇을 개발할까요?</h2>
         <textarea className="v50-textarea" defaultValue="민감성 피부용 약산성 장벽 크림을 만들어줘. 세라마이드와 판테놀을 포함하고 원가는 2,500원 이하로 맞춰줘." />
         <div className="v50-flow" style={{ marginTop: 12 }}>
           <a className="v50-button" href="/enterprise-ai-autopilot">AI 처방 생성 실행</a>
-          <button onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 열기</button>
-          <a href="/enterprise-ai-recommendation">원료 추천</a>
+          <button onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 열기</button>
         </div>
       </section>
     </div>
@@ -255,27 +159,12 @@ function DocumentLiveRedesign() {
   const s = useV50DocsLive();
   return (
     <div className="v50-page">
-      <section className="v50-hero">
-        <div>
-          <h1 className="v50-title">문서관리</h1>
-          <p className="v50-desc">Supabase에 저장된 문서 생성 이력을 확인하고, 기존 문서 자동화 화면으로 연결합니다.</p>
-        </div>
-        <a className="v50-button" href="/enterprise-gold-documents">문서 생성 화면 열기</a>
-      </section>
+      <section className="v50-hero"><div><h1 className="v50-title">문서관리</h1><p className="v50-desc">생성된 문서 이력을 확인합니다.</p></div><a className="v50-button" href="/enterprise-gold-documents">문서 생성 화면 열기</a></section>
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
       <section className="v50-panel">
-        <div className="v50-table-wrap">
-          <table className="v50-table">
-            <thead><tr><th>문서코드</th><th>처방</th><th>문서종류</th><th>제목</th><th>상태</th><th>생성일</th></tr></thead>
-            <tbody>
-              {s.documents.map((doc) => (
-                <tr key={doc.document_code}>
-                  <td>{doc.document_code}</td><td>{doc.formula_code}/{doc.revision}</td><td>{doc.document_type}</td><td>{doc.title}</td><td>{doc.status}</td><td>{doc.created_at}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <div className="v50-table-wrap"><table className="v50-table"><thead><tr><th>문서코드</th><th>처방</th><th>문서종류</th><th>제목</th><th>상태</th></tr></thead><tbody>
+          {s.documents.map((doc) => <tr key={doc.document_code}><td>{doc.document_code}</td><td>{doc.formula_code}/{doc.revision}</td><td>{doc.document_type}</td><td>{doc.title}</td><td>{doc.status}</td></tr>)}
+        </tbody></table></div>
       </section>
     </div>
   );
@@ -285,66 +174,25 @@ function ManufacturingLiveRedesign() {
   const s = useV50ManufacturingLive();
   return (
     <div className="v50-page">
-      <section className="v50-hero">
-        <div>
-          <h1 className="v50-title">제조관리</h1>
-          <p className="v50-desc">실제 생성된 Batch와 제조 상태를 확인합니다.</p>
-        </div>
-        <a className="v50-button" href="/enterprise-gold-manufacturing">Batch 생성 화면 열기</a>
-      </section>
+      <section className="v50-hero"><div><h1 className="v50-title">제조관리</h1><p className="v50-desc">실제 생성된 Batch와 제조 상태를 확인합니다.</p></div><a className="v50-button" href="/enterprise-gold-manufacturing">Batch 생성 화면 열기</a></section>
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
       <section className="v50-panel">
-        <div className="v50-table-wrap">
-          <table className="v50-table">
-            <thead><tr><th>Batch</th><th>처방</th><th>수량 kg</th><th>상태</th><th>작업자</th><th>생성일</th></tr></thead>
-            <tbody>
-              {s.batches.map((b) => (
-                <tr key={b.batch_no}>
-                  <td>{b.batch_no}</td><td>{b.formula_code}/{b.revision}</td><td>{b.batch_size_kg}</td><td>{b.status}</td><td>{b.operator_name}</td><td>{b.created_at}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <div className="v50-table-wrap"><table className="v50-table"><thead><tr><th>Batch</th><th>처방</th><th>수량 kg</th><th>상태</th><th>작업자</th></tr></thead><tbody>
+          {s.batches.map((b) => <tr key={b.batch_no}><td>{b.batch_no}</td><td>{b.formula_code}/{b.revision}</td><td>{b.batch_size_kg}</td><td>{b.status}</td><td>{b.operator_name}</td></tr>)}
+        </tbody></table></div>
       </section>
     </div>
   );
 }
 
 function KnowledgeRedesign() {
-  return (
-    <div className="v50-page">
-      <section className="v50-hero">
-        <div><h1 className="v50-title">지식DB</h1><p className="v50-desc">원료, INCI, CAS, 규제, 상용성 정보를 확인합니다.</p></div>
-        <a className="v50-button" href="/enterprise-knowledge-db">지식DB 열기</a>
-      </section>
-      <section className="v50-panel"><input className="v50-input" placeholder="원료명, INCI, CAS 번호를 검색하세요" /></section>
-    </div>
-  );
+  return <div className="v50-page"><section className="v50-hero"><div><h1 className="v50-title">지식DB</h1><p className="v50-desc">원료, INCI, CAS, 규제, 상용성 정보를 확인합니다.</p></div><a className="v50-button" href="/enterprise-knowledge-db">지식DB 열기</a></section></div>;
 }
 
 function AdminRedesign() {
-  return (
-    <div className="v50-page">
-      <section className="v50-hero">
-        <div><h1 className="v50-title">관리자</h1><p className="v50-desc">전체 KPI, 시스템 상태, 감사 로그와 운영 현황을 확인합니다.</p></div>
-        <a className="v50-button" href="/enterprise-gold-command">관리자 상세 열기</a>
-      </section>
-      <section className="v50-grid-3">
-        {["사용자 관리", "권한 설정", "감사 로그", "DB 상태", "백업", "AI 사용량"].map((x) => (
-          <article key={x} className="v50-card"><h3>{x}</h3><p style={{ color: "#64748b" }}>{x} 기능을 확인하고 관리합니다.</p></article>
-        ))}
-      </section>
-    </div>
-  );
+  return <div className="v50-page"><section className="v50-hero"><div><h1 className="v50-title">관리자</h1><p className="v50-desc">전체 KPI, 시스템 상태, 감사 로그와 운영 현황을 확인합니다.</p></div><a className="v50-button" href="/enterprise-gold-command">관리자 상세 열기</a></section></div>;
 }
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <article className="v50-card">
-      <div className="v50-kpi-label">{label}</div>
-      <div className="v50-kpi-value">{value}</div>
-      <div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>{hint}</div>
-    </article>
-  );
+  return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value">{value}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>{hint}</div></article>;
 }
