@@ -8,6 +8,8 @@ import DocumentProPanel from "@/components/enterprise-v50/common/DocumentProPane
 import ManufacturingProPanel from "@/components/enterprise-v50/common/ManufacturingProPanel";
 import KnowledgeProPanel from "@/components/enterprise-v50/common/KnowledgeProPanel";
 import AdminProPanel from "@/components/enterprise-v50/common/AdminProPanel";
+import AiAssistantProPanel from "@/components/enterprise-v50/common/AiAssistantProPanel";
+import SmartFormulaEnginePanel from "@/components/enterprise-v50/common/SmartFormulaEnginePanel";
 
 type MenuItem = {
   key: string;
@@ -15,12 +17,13 @@ type MenuItem = {
   group: string;
   href: string;
   description: string;
-  internal?: "home" | "formula" | "ai" | "documents" | "manufacturing" | "knowledge" | "admin";
+  internal?: "home" | "formula" | "smart" | "ai" | "documents" | "manufacturing" | "knowledge" | "admin";
 };
 
 const menus: MenuItem[] = [
   { key: "home", title: "연구원 홈", group: "홈", href: "/enterprise", description: "오늘 할 일과 최근 업무", internal: "home" },
   { key: "formula", title: "처방관리", group: "핵심업무", href: "/enterprise-v5/formula", description: "처방 작성, 원료, 배합비, 원가, 전성분", internal: "formula" },
+  { key: "smart", title: "스마트 처방엔진", group: "핵심업무", href: "/enterprise-v5/smart-formula", description: "총합, 원가, pH, 점도, 전성분 자동 계산", internal: "smart" },
   { key: "ai", title: "AI 도우미", group: "핵심업무", href: "/enterprise-v5/ai", description: "AI 처방 생성과 원료 추천", internal: "ai" },
   { key: "docs", title: "문서관리", group: "핵심업무", href: "/enterprise-v5/documents", description: "처방서, 전성분, COA, Spec, 제조지시서", internal: "documents" },
   { key: "mfg", title: "제조관리", group: "핵심업무", href: "/enterprise-v5/manufacturing", description: "제조 Batch, 원료 소요량, 제조 단계", internal: "manufacturing" },
@@ -52,11 +55,12 @@ export default function GoldUxWorkspace() {
   function renderActive() {
     if (active.internal === "home") return <ResearcherHome openTab={openTab} />;
     if (active.internal === "formula") return <FormulaWorkspaceProPanel />;
+    if (active.internal === "smart") return <SmartFormulaEnginePanel />;
     if (active.internal === "documents") return <DocumentProPanel />;
     if (active.internal === "manufacturing") return <ManufacturingProPanel />;
     if (active.internal === "knowledge") return <KnowledgeProPanel />;
     if (active.internal === "admin") return <AdminProPanel />;
-    if (active.internal === "ai") return <AiAssistantRedesign openTab={openTab} />;
+    if (active.internal === "ai") return <AiAssistantProPanel openFormula={() => openTab(menus.find((x) => x.key === "formula")!)} />;
     return <iframe className="v50-iframe" src={active.href} title={active.title} />;
   }
 
@@ -66,7 +70,7 @@ export default function GoldUxWorkspace() {
         <aside className="v50-sidebar">
           <div className="v50-brand">
             <div className="v50-brand-title">화장품 PLM</div>
-            <div className="v50-brand-sub">v5.0 GOLD UX · 전체 PRO</div>
+            <div className="v50-brand-sub">v5.1 Smart Formula</div>
           </div>
           <nav className="v50-menu">
             {groups.map((group) => (
@@ -86,7 +90,7 @@ export default function GoldUxWorkspace() {
           <header className="v50-topbar">
             <input className="v50-search" placeholder="처방명, 원료명, INCI, 문서를 검색하세요" />
             <div className="v50-top-actions">
-              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "knowledge")!)}>지식DB PRO</button>
+              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "smart")!)}>스마트 처방엔진</button>
               <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO</button>
             </div>
           </header>
@@ -115,9 +119,9 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">연구원 홈</h1>
-          <p className="v50-desc">처방관리, 문서관리, 제조관리, 지식DB, 관리자 PRO가 모두 활성화되었습니다. 이제 주요 메뉴가 한글 업무 화면으로 통합됩니다.</p>
+          <p className="v50-desc">v5.1 Smart Formula Engine이 활성화되었습니다. 함량 변경 후 총합, 원가, pH, 점도, 전성분, Batch 소요량, 처방점수를 즉시 확인할 수 있습니다.</p>
         </div>
-        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 시작</button>
+        <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "smart")!)}>스마트 처방엔진 시작</button>
       </section>
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
       <section className="v50-grid-4" style={{ marginBottom: 18 }}>
@@ -127,7 +131,7 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
         <Kpi label="제조" value={String(d?.batch_count ?? "-")} hint="제조 Batch" />
       </section>
       <section className="v50-grid-3">
-        {["formula", "docs", "mfg", "knowledge", "admin", "ai"].map((key) => {
+        {["smart", "formula", "ai", "docs", "mfg", "knowledge", "admin"].map((key) => {
           const item = menus.find((x) => x.key === key)!;
           return (
             <article key={item.key} className="v50-card">
@@ -137,24 +141,6 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
             </article>
           );
         })}
-      </section>
-    </div>
-  );
-}
-
-function AiAssistantRedesign({ openTab }: { openTab: (item: MenuItem) => void }) {
-  return (
-    <div className="v50-page">
-      <section className="v50-hero">
-        <div><h1 className="v50-title">AI 연구원</h1><p className="v50-desc">AI 처방 생성 후 처방관리 PRO에서 검증·원가·문서·제조까지 이어서 처리합니다.</p></div>
-      </section>
-      <section className="v50-chatbox">
-        <textarea className="v50-textarea" defaultValue="민감성 피부용 약산성 장벽 크림을 만들어줘. 세라마이드와 판테놀을 포함하고 원가는 2,500원 이하로 맞춰줘." />
-        <div className="v50-flow" style={{ marginTop: 12 }}>
-          <a className="v50-button" href="/enterprise-ai-autopilot">AI 처방 생성 실행</a>
-          <button onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 열기</button>
-          <button onClick={() => openTab(menus.find((x) => x.key === "knowledge")!)}>지식DB PRO 열기</button>
-        </div>
       </section>
     </div>
   );
