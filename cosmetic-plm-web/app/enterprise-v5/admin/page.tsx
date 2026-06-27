@@ -1,5 +1,5 @@
 import GoldUxWorkspace from "@/components/enterprise-v50/common/GoldUxWorkspace";
 
-export default function EnterprisePage() {
+export default function Page() {
   return <GoldUxWorkspace />;
 }
