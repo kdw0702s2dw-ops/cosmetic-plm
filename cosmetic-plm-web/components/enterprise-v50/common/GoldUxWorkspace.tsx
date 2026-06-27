@@ -6,6 +6,8 @@ import { useV50DashboardLive } from "@/hooks/useV50LiveData";
 import FormulaWorkspaceProPanel from "@/components/enterprise-v50/common/FormulaWorkspaceProPanel";
 import DocumentProPanel from "@/components/enterprise-v50/common/DocumentProPanel";
 import ManufacturingProPanel from "@/components/enterprise-v50/common/ManufacturingProPanel";
+import KnowledgeProPanel from "@/components/enterprise-v50/common/KnowledgeProPanel";
+import AdminProPanel from "@/components/enterprise-v50/common/AdminProPanel";
 
 type MenuItem = {
   key: string;
@@ -52,9 +54,9 @@ export default function GoldUxWorkspace() {
     if (active.internal === "formula") return <FormulaWorkspaceProPanel />;
     if (active.internal === "documents") return <DocumentProPanel />;
     if (active.internal === "manufacturing") return <ManufacturingProPanel />;
+    if (active.internal === "knowledge") return <KnowledgeProPanel />;
+    if (active.internal === "admin") return <AdminProPanel />;
     if (active.internal === "ai") return <AiAssistantRedesign openTab={openTab} />;
-    if (active.internal === "knowledge") return <KnowledgeRedesign />;
-    if (active.internal === "admin") return <AdminRedesign />;
     return <iframe className="v50-iframe" src={active.href} title={active.title} />;
   }
 
@@ -64,7 +66,7 @@ export default function GoldUxWorkspace() {
         <aside className="v50-sidebar">
           <div className="v50-brand">
             <div className="v50-brand-title">화장품 PLM</div>
-            <div className="v50-brand-sub">v5.0 GOLD UX · 문서/제조 PRO</div>
+            <div className="v50-brand-sub">v5.0 GOLD UX · 전체 PRO</div>
           </div>
           <nav className="v50-menu">
             {groups.map((group) => (
@@ -84,8 +86,8 @@ export default function GoldUxWorkspace() {
           <header className="v50-topbar">
             <input className="v50-search" placeholder="처방명, 원료명, INCI, 문서를 검색하세요" />
             <div className="v50-top-actions">
-              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "docs")!)}>문서관리 PRO</button>
-              <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "mfg")!)}>제조관리 PRO</button>
+              <button className="v50-button-light" onClick={() => openTab(menus.find((x) => x.key === "knowledge")!)}>지식DB PRO</button>
+              <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO</button>
             </div>
           </header>
 
@@ -113,7 +115,7 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">연구원 홈</h1>
-          <p className="v50-desc">처방관리 PRO, 문서관리 PRO, 제조관리 PRO가 활성화되었습니다. 실제 데이터 기반으로 처방부터 문서, 제조까지 이어서 처리할 수 있습니다.</p>
+          <p className="v50-desc">처방관리, 문서관리, 제조관리, 지식DB, 관리자 PRO가 모두 활성화되었습니다. 이제 주요 메뉴가 한글 업무 화면으로 통합됩니다.</p>
         </div>
         <button className="v50-button" onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 시작</button>
       </section>
@@ -125,7 +127,7 @@ function ResearcherHome({ openTab }: { openTab: (item: MenuItem) => void }) {
         <Kpi label="제조" value={String(d?.batch_count ?? "-")} hint="제조 Batch" />
       </section>
       <section className="v50-grid-3">
-        {["formula", "docs", "mfg", "ai", "knowledge", "admin"].map((key) => {
+        {["formula", "docs", "mfg", "knowledge", "admin", "ai"].map((key) => {
           const item = menus.find((x) => x.key === key)!;
           return (
             <article key={item.key} className="v50-card">
@@ -151,19 +153,11 @@ function AiAssistantRedesign({ openTab }: { openTab: (item: MenuItem) => void })
         <div className="v50-flow" style={{ marginTop: 12 }}>
           <a className="v50-button" href="/enterprise-ai-autopilot">AI 처방 생성 실행</a>
           <button onClick={() => openTab(menus.find((x) => x.key === "formula")!)}>처방관리 PRO 열기</button>
-          <button onClick={() => openTab(menus.find((x) => x.key === "docs")!)}>문서관리 PRO 열기</button>
+          <button onClick={() => openTab(menus.find((x) => x.key === "knowledge")!)}>지식DB PRO 열기</button>
         </div>
       </section>
     </div>
   );
-}
-
-function KnowledgeRedesign() {
-  return <div className="v50-page"><section className="v50-hero"><div><h1 className="v50-title">지식DB</h1><p className="v50-desc">원료, INCI, CAS, 규제, 상용성 정보를 확인합니다.</p></div><a className="v50-button" href="/enterprise-knowledge-db">지식DB 열기</a></section></div>;
-}
-
-function AdminRedesign() {
-  return <div className="v50-page"><section className="v50-hero"><div><h1 className="v50-title">관리자</h1><p className="v50-desc">전체 KPI, 시스템 상태, 감사 로그와 운영 현황을 확인합니다.</p></div><a className="v50-button" href="/enterprise-gold-command">관리자 상세 열기</a></section></div>;
 }
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
