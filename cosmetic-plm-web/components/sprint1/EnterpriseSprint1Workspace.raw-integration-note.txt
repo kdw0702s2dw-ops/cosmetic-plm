@@ -1,0 +1,15 @@
+EnterpriseSprint1Workspace.tsx에 원료관리 연결이 필요합니다.
+
+1) import 추가:
+import RawMaterialCorePanel from "@/components/sprint2/RawMaterialCorePanel";
+
+2) TabKey에 "raw" 추가
+
+3) renderActive에 추가:
+if (active === "raw") return <RawMaterialCorePanel />;
+
+4) 메뉴에 추가:
+<button className={active === "raw" ? "active" : ""} onClick={() => setActive("raw")}><span>원료관리 Core</span></button>
+
+이번 Pack은 직접 URL도 제공합니다:
+- /sprint2/raw-material-core
