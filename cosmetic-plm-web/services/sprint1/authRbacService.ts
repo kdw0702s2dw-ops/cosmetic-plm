@@ -12,9 +12,30 @@ export type PlmUserProfile = {
   is_active: boolean;
 };
 
+function normalizeAuthError(error: any) {
+  const raw = [
+    error?.message,
+    error?.name,
+    error?.status,
+    error?.code,
+    error?.__isAuthError ? "AuthError" : "",
+  ].filter(Boolean).join(" / ");
+
+  if (!raw) return "알 수 없는 로그인 오류";
+  return raw;
+}
+
 export async function signInPlm(email: string, password: string) {
-  const { data, error } = await supabaseProductionFinal.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data, error } = await supabaseProductionFinal.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (error) {
+    throw new Error(normalizeAuthError(error));
+  }
 
   const profile = await ensureMyProfile();
   if (!profile?.is_active) {
@@ -117,4 +138,17 @@ export async function updateUserProfileRole(id: string, role: PlmRole, isActive:
 
   if (error) throw error;
   return data;
+}
+
+export async function getAuthDebugInfo() {
+  const session = await getCurrentSession();
+  const user = await getCurrentUser();
+  const profile = user ? await getMyProfile().catch((e) => ({ error: e?.message || String(e) })) : null;
+
+  return {
+    hasSession: !!session,
+    userEmail: user?.email || null,
+    userId: user?.id || null,
+    profile,
+  };
 }
