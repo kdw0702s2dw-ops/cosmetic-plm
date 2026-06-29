@@ -1,5 +1,5 @@
-import LoginPanel from "@/components/enterprise-v60/operational/LoginPanel";
+import LoginPageClient from "@/components/sprint1/LoginPageClient";
 
 export default function LoginPage() {
-  return <LoginPanel />;
+  return <LoginPageClient />;
 }
