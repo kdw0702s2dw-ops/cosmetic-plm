@@ -5,7 +5,7 @@ import {
   canManageUsers,
   canView,
   canWriteFormula,
-  getOrCreateMyProfile,
+  ensureMyProfile,
   getCurrentSession,
   signOutPlm,
   type PlmUserProfile,
@@ -26,8 +26,7 @@ export function useSprint1Auth() {
         setMessage("로그인이 필요합니다.");
         return;
       }
-
-      const p = await getOrCreateMyProfile();
+      const p = await ensureMyProfile();
       setProfile(p);
       setMessage(p?.is_active ? `${p.email || ""} / ${p.role}` : "비활성 계정입니다.");
     } catch (error) {

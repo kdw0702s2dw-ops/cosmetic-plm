@@ -37,19 +37,5 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (auth.profile && !auth.profile.is_active) {
-    return (
-      <div className="v50-root">
-        <div className="v50-page" style={{ maxWidth: 680, margin: "0 auto", paddingTop: 80 }}>
-          <section className="v50-panel">
-            <h1 className="v50-title">비활성 계정입니다</h1>
-            <p className="v50-desc">관리자에게 계정 활성화를 요청하세요.</p>
-            <button className="v50-button-light" onClick={auth.logout}>로그아웃</button>
-          </section>
-        </div>
-      </div>
-    );
-  }
-
   return <>{children}</>;
 }
