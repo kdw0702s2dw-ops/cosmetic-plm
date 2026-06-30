@@ -120,45 +120,51 @@ ${body}
 </html>`;
 }
 
-function formulaTitle(f: any) {
-  return `${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}`;
-}
-
-type ExpandedComponentRow = {
-  inci_kr: string;
+type ExpandedRow = {
+  formula_code?: string;
+  formula_name?: string;
+  raw_code?: string;
+  raw_name?: string;
+  raw_percent?: number;
   inci_en: string;
+  inci_kr: string;
+  component_percent?: number;
+  final_percent: number;
   cas_no: string;
   ec_no: string;
-  function_kr: string;
-  function_en: string;
-  final_percent: number;
+  function_text: string;
 };
 
-function expandComplexRows(lines: any[], components: any[]): ExpandedComponentRow[] {
-  const byRaw = new Map<string, any[]>();
-
+function byRawComponents(components: any[]) {
+  const map = new Map<string, any[]>();
   for (const c of components) {
-    const arr = byRaw.get(c.raw_code) || [];
+    const arr = map.get(c.raw_code) || [];
     arr.push(c);
-    byRaw.set(c.raw_code, arr);
+    map.set(c.raw_code, arr);
   }
+  return map;
+}
 
-  const rows: ExpandedComponentRow[] = [];
+function complexRows(lines: any[], components: any[]): ExpandedRow[] {
+  const map = byRawComponents(components);
+  const rows: ExpandedRow[] = [];
 
   for (const line of lines) {
-    const comps = byRaw.get(line.raw_code) || [];
-    if (comps.length === 0) continue;
-
+    const comps = map.get(line.raw_code) || [];
     for (const comp of comps) {
-      const finalPercent = n(line.percentage) * n(comp.composition_percent) / 100;
       rows.push({
-        inci_kr: comp.inci_kr || comp.component_name_kr || "",
+        formula_code: line.formula_code,
+        formula_name: line.formula_name,
+        raw_code: line.raw_code,
+        raw_name: line.raw_name,
+        raw_percent: n(line.percentage),
         inci_en: comp.inci_en || comp.component_name_en || "",
+        inci_kr: comp.inci_kr || comp.component_name_kr || "",
+        component_percent: n(comp.composition_percent),
+        final_percent: Number((n(line.percentage) * n(comp.composition_percent) / 100).toFixed(8)),
         cas_no: comp.cas_no || "",
         ec_no: comp.ec_no || "",
-        function_kr: comp.function_kr || "",
-        function_en: comp.function_en || "",
-        final_percent: Number(finalPercent.toFixed(8)),
+        function_text: comp.function_kr || comp.function_en || "",
       });
     }
   }
@@ -166,76 +172,39 @@ function expandComplexRows(lines: any[], components: any[]): ExpandedComponentRo
   return rows.sort((a, b) => b.final_percent - a.final_percent);
 }
 
-function expandSingleRows(lines: any[], components: any[]): ExpandedComponentRow[] {
-  const complexRawCodes = new Set(components.map((c: any) => c.raw_code));
-
+function singleRows(lines: any[], components: any[]): ExpandedRow[] {
+  const complexRawCodes = new Set(components.map((c) => c.raw_code));
   return lines
     .filter((line) => !complexRawCodes.has(line.raw_code))
     .map((line) => ({
-      inci_kr: line.inci_kr || line.raw_name || "",
+      formula_code: line.formula_code,
+      formula_name: line.formula_name,
       inci_en: line.inci_en || line.raw_name || "",
+      inci_kr: line.inci_kr || line.raw_name || "",
+      final_percent: n(line.percentage),
       cas_no: line.cas_no || "",
       ec_no: line.ec_no || "",
-      function_kr: line.function_kr || "",
-      function_en: line.function_en || "",
-      final_percent: n(line.percentage),
+      function_text: line.function_kr || line.function_en || "",
     }))
     .sort((a, b) => b.final_percent - a.final_percent);
 }
 
-function mergeRows(rows: ExpandedComponentRow[]) {
-  const map = new Map<string, ExpandedComponentRow>();
-
+function mergeRows(rows: ExpandedRow[]) {
+  const map = new Map<string, ExpandedRow>();
   for (const row of rows) {
-    const key = [
-      row.inci_kr,
-      row.inci_en,
-      row.cas_no,
-      row.ec_no,
-      row.function_kr || row.function_en,
-    ].join("|");
-
-    const existing = map.get(key);
-    if (existing) {
-      existing.final_percent = Number((existing.final_percent + row.final_percent).toFixed(8));
+    const key = [row.inci_en, row.inci_kr, row.cas_no, row.ec_no, row.function_text].join("|");
+    const old = map.get(key);
+    if (old) {
+      old.final_percent = Number((old.final_percent + row.final_percent).toFixed(8));
     } else {
       map.set(key, { ...row });
     }
   }
-
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
-}
-
-function componentRowsTable(rows: ExpandedComponentRow[], emptyMessage: string) {
-  return `<table>
-<thead>
-<tr>
-  <th>순서</th>
-  <th>국문 INCI</th>
-  <th>영문 INCI</th>
-  <th>CAS No.</th>
-  <th>EC No.</th>
-  <th>기능</th>
-  <th>함량(%)</th>
-</tr>
-</thead>
-<tbody>
-${rows.map((x, i) => `<tr>
-  <td>${i + 1}</td>
-  <td>${e(x.inci_kr)}</td>
-  <td>${e(x.inci_en)}</td>
-  <td>${e(x.cas_no)}</td>
-  <td>${e(x.ec_no)}</td>
-  <td>${e(x.function_kr || x.function_en)}</td>
-  <td class="right">${pct(x.final_percent)}%</td>
-</tr>`).join("") || `<tr><td colspan="7">${e(emptyMessage)}</td></tr>`}
-</tbody>
-</table>`;
 }
 
 export function buildFormulaSheetHtml(f: any, lines: any[]) {
   const total = Number(lines.reduce((s, x) => s + n(x.percentage), 0).toFixed(4));
-
   const rows = lines.map((x) => `<tr>
 <td>${e(x.line_no)}</td><td>${e(x.phase)}</td><td>${e(x.raw_code)}</td><td>${e(x.raw_name)}</td>
 <td>${e(x.inci_kr || x.inci_en || "")}</td><td class="right">${e(x.percentage)}%</td><td>${e(x.function_kr || x.function_en || "")}</td>
@@ -259,42 +228,93 @@ export function buildFormulaSheetHtml(f: any, lines: any[]) {
 
 export async function buildInciListHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const fullRows = mergeRows([
-    ...expandComplexRows(lines, components),
-    ...expandSingleRows(lines, components),
-  ]);
+  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+  const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
 
-  const krList = fullRows.map((x) => x.inci_kr).filter(Boolean).join(", ");
-  const enList = fullRows.map((x) => x.inci_en).filter(Boolean).join(", ");
-
-  return baseHtml("전성분표 / INCI List", `
-<h2>${formulaTitle(f)}</h2>
-<h2>1. 전성분 국문</h2>
-<p style="line-height:1.9">${e(krList || "-")}</p>
-<h2>2. INCI List 영문</h2>
-<p style="line-height:1.9">${e(enList || "-")}</p>
-<h2>3. 항목별 INCI List</h2>
-${componentRowsTable(fullRows, "INCI 데이터가 없습니다.")}`);
+  return baseHtml("전성분표", `
+<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
+<table>
+<thead><tr><th>전성분</th></tr></thead>
+<tbody><tr><td>${e(inciKr || "-")}</td></tr></tbody>
+</table>
+<h2>영문 INCI List</h2>
+<table>
+<thead><tr><th>INCI</th></tr></thead>
+<tbody><tr><td>${e(inciEn || "-")}</td></tr></tbody>
+</table>`);
 }
 
 export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = mergeRows(expandComplexRows(lines, components));
+  const rows = complexRows(lines, components);
 
   return baseHtml("복합성분표", `
-<h2>${formulaTitle(f)}</h2>
-<p>복합원료의 구성성분을 최종 처방 함량 기준으로 전개한 자료입니다.</p>
-${componentRowsTable(rows, "복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.")}`);
+<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
+<table>
+<thead>
+<tr>
+  <th>처방코드</th>
+  <th>처방명</th>
+  <th>원료코드</th>
+  <th>원료명</th>
+  <th>원료투입량(%)</th>
+  <th>INCI</th>
+  <th>국문명</th>
+  <th>원료 내 구성비(%)</th>
+  <th>최종함량(%)</th>
+  <th>CAS No.</th>
+  <th>EC No.</th>
+  <th>기능</th>
+</tr>
+</thead>
+<tbody>
+${rows.map((x) => `<tr>
+  <td>${e(f.formula_code)}</td>
+  <td>${e(f.formula_name)}</td>
+  <td>${e(x.raw_code)}</td>
+  <td>${e(x.raw_name)}</td>
+  <td class="right">${pct(x.raw_percent)}%</td>
+  <td>${e(x.inci_en)}</td>
+  <td>${e(x.inci_kr)}</td>
+  <td class="right">${pct(x.component_percent)}%</td>
+  <td class="right">${pct(x.final_percent)}%</td>
+  <td>${e(x.cas_no)}</td>
+  <td>${e(x.ec_no)}</td>
+  <td>${e(x.function_text)}</td>
+</tr>`).join("") || `<tr><td colspan="12">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}
+</tbody>
+</table>`);
 }
 
 export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = mergeRows(expandSingleRows(lines, components));
+  const rows = mergeRows(singleRows(lines, components));
 
   return baseHtml("단일성분표", `
-<h2>${formulaTitle(f)}</h2>
-<p>복합원료를 제외한 단일 원료 기준 자료입니다.</p>
-${componentRowsTable(rows, "단일성분 데이터가 없습니다.")}`);
+<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
+<table>
+<thead>
+<tr>
+  <th>INCI</th>
+  <th>국문명</th>
+  <th>CAS No.</th>
+  <th>EC No.</th>
+  <th>기능</th>
+  <th>최종함량(%)</th>
+</tr>
+</thead>
+<tbody>
+${rows.map((x) => `<tr>
+  <td>${e(x.inci_en)}</td>
+  <td>${e(x.inci_kr)}</td>
+  <td>${e(x.cas_no)}</td>
+  <td>${e(x.ec_no)}</td>
+  <td>${e(x.function_text)}</td>
+  <td class="right">${pct(x.final_percent)}%</td>
+</tr>`).join("") || `<tr><td colspan="6">단일성분 데이터가 없습니다.</td></tr>`}
+</tbody>
+</table>`);
 }
 
 export async function createFormulaDocument(formula: any, kind: DocKind) {
@@ -326,7 +346,7 @@ export async function createFormulaDocument(formula: any, kind: DocKind) {
       status: "CREATED",
       payload_json: { formula, lines },
       html_content: html,
-      created_by: "Sprint 2-5 Component IL Fix",
+      created_by: "Sprint 2-6 Template Based Docs",
     })
     .select("*")
     .single();
