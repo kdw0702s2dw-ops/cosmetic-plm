@@ -1,0 +1,2 @@
+-- 이미 DB에 적용 완료. 재현/백업용. 다시 실행 불필요.
+-- plm_ingredient_dictionary (275종) + plm_search_ingredients / plm_get_ingredient / plm_save_components
