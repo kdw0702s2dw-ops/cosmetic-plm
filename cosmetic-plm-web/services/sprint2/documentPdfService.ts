@@ -80,6 +80,11 @@ function e(v: any) {
   }[m] || m));
 }
 
+// 셀 내 줄바꿈: 배열을 <br>로 연결 (각 항목 HTML 이스케이프)
+function eLines(items: any[]) {
+  return items.map((x) => e(x)).join("<br/>");
+}
+
 function n(v: any) {
   const num = Number(v || 0);
   return Number.isFinite(num) ? num : 0;
@@ -90,34 +95,77 @@ function pct(v: any) {
   return Number.isInteger(num) ? String(num) : String(Number(num.toFixed(6)));
 }
 
-function baseHtml(title: string, body: string) {
+// ============================================================
+// KOVAS 양식 공통 스타일 (줄바꿈 셀 + 박스 + 각주/기밀문구)
+// ============================================================
+const CONFIDENTIAL =
+  "본 문서는 지정된 수신인만을 위한 것이며 영업비밀·기밀정보를 포함할 수 있습니다. 무단 공개·배포·복사를 금합니다.";
+const NOTES = [
+  "1) Raw material manufacturers can be changed without advance notice if it does not affect product functions.",
+  "2) Viscosity and pH-related raw materials can be adjusted.",
+  "3) Allergen Labeling: Leave-on ≥ 0.001% / Rinse-off ≥ 0.01%",
+];
+
+function baseHtml(title: string, headerMeta: Record<string, string>, body: string) {
+  const metaRows = Object.entries(headerMeta)
+    .map(
+      ([k, v]) =>
+        `<tr><td class="k">${e(k)}</td><td class="colon">:</td><td class="v">${e(v)}</td></tr>`
+    )
+    .join("");
+
   return `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
 <title>${e(title)}</title>
 <style>
-body{margin:0;background:#f1f5f9;color:#0f172a;font-family:Arial,'Noto Sans KR',sans-serif}
-.page{width:980px;margin:24px auto;background:white;padding:42px;border:1px solid #dbe3ef}
-.header{display:flex;justify-content:space-between;border-bottom:4px solid #0f172a;padding-bottom:18px;margin-bottom:26px}
-h1{font-size:28px;margin:0}.sub{color:#64748b;font-size:13px;line-height:1.6}
-h2{font-size:18px;margin:28px 0 10px}table{width:100%;border-collapse:collapse}
-th{background:#0f172a;color:white}th,td{border:1px solid #cbd5e1;padding:9px;font-size:12px;vertical-align:top}
-.right{text-align:right}.no-print{margin-top:24px;padding:12px 18px;border:0;border-radius:10px;background:#2563eb;color:white;font-weight:800}
-@media print{body{background:white}.page{width:auto;margin:0;border:0}.no-print{display:none}}
+body{margin:0;background:#f1f5f9;color:#0f172a;font-family:Arial,'Malgun Gothic','Noto Sans KR',sans-serif}
+.page{width:1040px;margin:24px auto;background:white;padding:40px 44px;border:1px solid #dbe3ef}
+.doctitle{text-align:center;font-size:22px;font-weight:800;margin:0 0 20px}
+.meta{border-collapse:collapse;margin-bottom:20px}
+.meta td{padding:3px 6px;font-size:12px;vertical-align:top}
+.meta .k{color:#334155;white-space:nowrap}
+.meta .colon{color:#94a3b8;padding:0 8px}
+.meta .v{color:#0f172a}
+table.grid{width:100%;border-collapse:collapse;margin-top:4px}
+table.grid th{background:#e8e6df;color:#1b1f1d;font-weight:700}
+table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px;vertical-align:top;line-height:1.55}
+.center{text-align:center}.right{text-align:right}
+.notes{margin-top:14px}.notes p{margin:2px 0;font-size:10px;font-style:italic;color:#475569}
+.confidential{margin-top:12px;font-size:9px;color:#94a3b8}
+.doccode{margin-top:18px;font-size:10px;color:#334155}
+.box{border:1px solid #888;margin-top:10px}
+.box .bt{background:#f3f4f6;text-align:center;font-weight:800;padding:8px;border-bottom:1px solid #888;font-size:13px}
+.box .bb{text-align:center;padding:12px;font-size:12px;line-height:1.7}
+.no-print{margin-top:24px;padding:12px 18px;border:0;border-radius:10px;background:#2563eb;color:white;font-weight:800;cursor:pointer}
+@media print{body{background:white}.page{width:auto;margin:0;border:0;padding:14px}.no-print{display:none}}
 </style>
 </head>
 <body>
 <div class="page">
-<div class="header">
-  <div><h1>${e(title)}</h1><div class="sub">Cosmetic PLM Enterprise Document</div></div>
-  <div class="sub">생성일: ${e(new Date().toLocaleString("ko-KR"))}</div>
-</div>
+<div class="doctitle">${e(title)}</div>
+<table class="meta">${metaRows}</table>
 ${body}
+<div class="notes">${NOTES.map((x) => `<p>${e(x)}</p>`).join("")}</div>
+<div class="confidential">${e(CONFIDENTIAL)}</div>
+<div class="doccode">KVSP-738(4)-05 Ingredient list</div>
 <button class="no-print" onclick="window.print()">PDF로 저장/인쇄</button>
 </div>
 </body>
 </html>`;
+}
+
+function kovasMeta(f: any) {
+  return {
+    "Frame formulation number": f.formula_code ?? "",
+    "No.": f.revision ?? "",
+    Date: new Date().toLocaleDateString("ko-KR"),
+    Manufacturer: f.manufacturer ?? "뉴트리어드바이저",
+    Customer: f.customer ?? "",
+    "Kovas no": f.kovas_no ?? "",
+    "Product name acc. To package": f.formula_name ?? "",
+  };
 }
 
 type ExpandedRow = {
@@ -203,118 +251,152 @@ function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
+// 전성분 정렬: 1%↑ 함량 내림차순 + 1%↓ 국문명 가나다순
+function inciOrder(rows: ExpandedRow[]) {
+  const high = rows.filter((r) => r.final_percent >= 1).sort((a, b) => b.final_percent - a.final_percent);
+  const low = rows.filter((r) => r.final_percent < 1).sort((a, b) => a.inci_kr.localeCompare(b.inci_kr, "ko"));
+  return [...high, ...low];
+}
+
+// ============================================================
+// Formula Sheet (기존 유지, 헤더만 KOVAS 메타 사용)
+// ============================================================
 export function buildFormulaSheetHtml(f: any, lines: any[]) {
   const total = Number(lines.reduce((s, x) => s + n(x.percentage), 0).toFixed(4));
-  const rows = lines.map((x) => `<tr>
-<td>${e(x.line_no)}</td><td>${e(x.phase)}</td><td>${e(x.raw_code)}</td><td>${e(x.raw_name)}</td>
+  const rows = lines
+    .map(
+      (x) => `<tr>
+<td class="center">${e(x.line_no)}</td><td>${e(x.phase)}</td><td>${e(x.raw_code)}</td><td>${e(x.raw_name)}</td>
 <td>${e(x.inci_kr || x.inci_en || "")}</td><td class="right">${e(x.percentage)}%</td><td>${e(x.function_kr || x.function_en || "")}</td>
-</tr>`).join("");
+</tr>`
+    )
+    .join("");
 
-  return baseHtml("Formula Sheet", `
-<h2>처방 기본정보</h2>
-<table>
-<tr><th>항목</th><th>내용</th></tr>
-<tr><td>처방코드</td><td>${e(f.formula_code)}</td></tr>
-<tr><td>Revision</td><td>${e(f.revision)}</td></tr>
-<tr><td>처방명</td><td>${e(f.formula_name)}</td></tr>
-<tr><td>총합</td><td>${total}%</td></tr>
-</table>
-<h2>BOM</h2>
-<table>
+  return baseHtml("Formula Sheet", kovasMeta(f), `
+<table class="grid">
 <thead><tr><th>No</th><th>Phase</th><th>원료코드</th><th>원료명</th><th>INCI</th><th>함량</th><th>기능</th></tr></thead>
 <tbody>${rows || `<tr><td colspan="7">BOM 없음</td></tr>`}</tbody>
-</table>`);
-}
-
-export async function buildInciListHtml(f: any, lines: any[]) {
-  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
-  const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
-  const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
-
-  return baseHtml("전성분표", `
-<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
-<table>
-<thead><tr><th>전성분</th></tr></thead>
-<tbody><tr><td>${e(inciKr || "-")}</td></tr></tbody>
 </table>
-<h2>영문 INCI List</h2>
-<table>
-<thead><tr><th>INCI</th></tr></thead>
-<tbody><tr><td>${e(inciEn || "-")}</td></tr></tbody>
-</table>`);
+<div style="text-align:right;font-weight:700;margin-top:6px;font-size:12px">총합: ${total}%</div>`);
 }
 
+// ============================================================
+// 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
+// ============================================================
 export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = complexRows(lines, components);
+  const map = byRawComponents(components);
 
-  return baseHtml("복합성분표", `
-<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
-<table>
-<thead>
-<tr>
-  <th>처방코드</th>
-  <th>처방명</th>
-  <th>원료코드</th>
-  <th>원료명</th>
-  <th>원료투입량(%)</th>
-  <th>INCI</th>
-  <th>국문명</th>
-  <th>원료 내 구성비(%)</th>
-  <th>최종함량(%)</th>
-  <th>CAS No.</th>
-  <th>EC No.</th>
-  <th>기능</th>
-</tr>
-</thead>
-<tbody>
-${rows.map((x) => `<tr>
-  <td>${e(f.formula_code)}</td>
-  <td>${e(f.formula_name)}</td>
-  <td>${e(x.raw_code)}</td>
-  <td>${e(x.raw_name)}</td>
-  <td class="right">${pct(x.raw_percent)}%</td>
-  <td>${e(x.inci_en)}</td>
-  <td>${e(x.inci_kr)}</td>
-  <td class="right">${pct(x.component_percent)}%</td>
-  <td class="right">${pct(x.final_percent)}%</td>
-  <td>${e(x.cas_no)}</td>
-  <td>${e(x.ec_no)}</td>
-  <td>${e(x.function_text)}</td>
-</tr>`).join("") || `<tr><td colspan="12">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}
-</tbody>
+  // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개.
+  const grouped = lines
+    .map((line) => {
+      const comps = map.get(line.raw_code) || [];
+      const items = comps.length
+        ? comps.map((c) => ({
+            inci_en: c.inci_en || c.component_name_en || "",
+            inci_kr: c.inci_kr || c.component_name_kr || "",
+            ratio: n(c.composition_percent),
+            cas: c.cas_no || "-",
+          }))
+        : [
+            {
+              inci_en: line.inci_en || line.raw_name || "",
+              inci_kr: line.inci_kr || line.raw_name || "",
+              ratio: null as number | null, // 단일원료는 '-'
+              cas: line.cas_no || "-",
+            },
+          ];
+      return {
+        raw_code: line.raw_code,
+        raw_name: line.raw_name,
+        input: n(line.percentage),
+        func: line.function_kr || line.function_en || "",
+        items,
+      };
+    })
+    .sort((a, b) => b.input - a.input);
+
+  const body = grouped
+    .map((g, i) => {
+      const en = eLines(g.items.map((x) => x.inci_en));
+      const kr = eLines(g.items.map((x) => x.inci_kr));
+      const ratio =
+        g.items.length === 1 && g.items[0].ratio === null
+          ? "-"
+          : eLines(g.items.map((x) => pct(x.ratio)));
+      const cas = eLines(g.items.map((x) => x.cas));
+      return `<tr>
+  <td class="center">${i + 1}</td>
+  <td>${en}</td>
+  <td>${kr}</td>
+  <td class="center">${ratio}</td>
+  <td class="center">${pct(g.input)}</td>
+  <td>${cas}</td>
+  <td>${e(g.func)}</td>
+</tr>`;
+    })
+    .join("");
+
+  return baseHtml("Ingredient List for Development", kovasMeta(f), `
+<table class="grid">
+<thead><tr>
+  <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
+  <th>구성비(%)</th><th>최종함량(%)</th><th>CAS No.</th><th>Function</th>
+</tr></thead>
+<tbody>${body || `<tr><td colspan="7">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
 </table>`);
 }
 
+// ============================================================
+// 단일성분표 (KOVAS): INCI 합산, 함량 내림차순
+// ============================================================
 export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = mergeRows(singleRows(lines, components));
+  // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
+  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
 
-  return baseHtml("단일성분표", `
-<h2>${e(f.formula_name)} / ${e(f.formula_code)}-${e(f.revision)}</h2>
-<table>
-<thead>
-<tr>
-  <th>INCI</th>
-  <th>국문명</th>
-  <th>CAS No.</th>
-  <th>EC No.</th>
-  <th>기능</th>
-  <th>최종함량(%)</th>
-</tr>
-</thead>
-<tbody>
-${rows.map((x) => `<tr>
+  const body = rows
+    .map(
+      (x, i) => `<tr>
+  <td class="center">${i + 1}</td>
   <td>${e(x.inci_en)}</td>
   <td>${e(x.inci_kr)}</td>
-  <td>${e(x.cas_no)}</td>
-  <td>${e(x.ec_no)}</td>
+  <td class="right">${pct(x.final_percent)}</td>
+  <td>${e(x.cas_no || "-")}</td>
+  <td>${e(x.ec_no || "-")}</td>
   <td>${e(x.function_text)}</td>
-  <td class="right">${pct(x.final_percent)}%</td>
-</tr>`).join("") || `<tr><td colspan="6">단일성분 데이터가 없습니다.</td></tr>`}
-</tbody>
+</tr>`
+    )
+    .join("");
+
+  return baseHtml("Ingredient List (Single)", kovasMeta(f), `
+<table class="grid">
+<thead><tr>
+  <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
+  <th>Percentage(%)</th><th>CAS No.</th><th>EC No.</th><th>Function</th>
+</tr></thead>
+<tbody>${body || `<tr><td colspan="7">단일성분 데이터가 없습니다.</td></tr>`}</tbody>
 </table>`);
+}
+
+// ============================================================
+// 전성분표 (KOVAS): 박스 형태 (영문 / 국문)
+// ============================================================
+export async function buildInciListHtml(f: any, lines: any[]) {
+  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+  const rows = inciOrder(mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]));
+  const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
+  const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+
+  return baseHtml("Ingredient List for Development", kovasMeta(f), `
+<div class="box">
+  <div class="bt">Ingredient list</div>
+  <div class="bb">${e(inciEn || "-")}</div>
+</div>
+<div class="box">
+  <div class="bt">국문전성분</div>
+  <div class="bb">${e(inciKr || "-")}</div>
+</div>`);
 }
 
 export async function createFormulaDocument(formula: any, kind: DocKind) {
@@ -346,7 +428,7 @@ export async function createFormulaDocument(formula: any, kind: DocKind) {
       status: "CREATED",
       payload_json: { formula, lines },
       html_content: html,
-      created_by: "Sprint 2-6 Template Based Docs",
+      created_by: "KOVAS Template Docs",
     })
     .select("*")
     .single();
