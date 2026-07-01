@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import FormulaCoreWithAuthPanel from "@/components/sprint1/FormulaCoreWithAuthPanel";
 import Sprint0Dashboard from "@/components/platform/Sprint0Dashboard";
 import UserAdminPanel from "@/components/sprint1/UserAdminPanel";
 import RawMaterialCorePanel from "@/components/sprint2/RawMaterialCorePanel";
+import RawMaterialManager from "@/components/sprint2/RawMaterialManager";
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
@@ -13,16 +13,16 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "raw" | "formula" | "docs" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "raw" | "rawManager" | "formula" | "docs" | "regulation" | "users";
 
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
   const auth = useSprint1Auth();
-  const router = useRouter();
 
   function renderActive() {
     if (active === "sprint0") return <Sprint0Dashboard />;
     if (active === "raw") return <RawMaterialCorePanel />;
+    if (active === "rawManager") return <RawMaterialManager />;
     if (active === "formula") return <FormulaCoreWithAuthPanel />;
     if (active === "docs") return <DocumentPdfPanel />;
     if (active === "regulation") return <RegulationEnginePanel />;
@@ -39,7 +39,7 @@ export default function EnterpriseSprint1Workspace() {
             <div className="v50-menu-label">현재 사용 가능</div>
             <button className={active === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>
             <button className={active === "raw" ? "active" : ""} onClick={() => setActive("raw")}><span>원료관리 Core</span></button>
-            <button onClick={() => router.push("/sprint2/raw-materials")}><span>원료 관리</span></button>
+            <button className={active === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
             <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리 Core</span></button>
             <button className={active === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>
             <button className={active === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>
