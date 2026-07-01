@@ -95,36 +95,36 @@ export async function upsertSprint1Formula(formula: Sprint1Formula) {
   return data;
 }
 
-export async function upsertSprint1FormulaLine(line: Sprint1FormulaLine) {
-  const cost = Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4));
+export async function upsertSprint1FormulaLines(lines: Sprint1FormulaLine[]) {
+  if (lines.length === 0) return [];
+
+  const payload = lines.map((line) => ({
+    ...line,
+    phase: line.phase || "A",
+    cost_per_kg: Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4)),
+    updated_at: new Date().toISOString(),
+  }));
 
   const { data, error } = await supabaseProductionFinal
     .from("plm_formula_lines")
-    .upsert({
-      ...line,
-      phase: line.phase || "A",
-      cost_per_kg: cost,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "formula_code,revision,line_no" })
-    .select()
-    .single();
+    .upsert(payload, { onConflict: "formula_code,revision,line_no" })
+    .select();
 
   if (error) throw error;
-
-  await recalcSprint1Formula(line.formula_code, line.revision);
   return data;
 }
 
-export async function deleteSprint1FormulaLine(formulaCode: string, revision: string, lineNo: number) {
+export async function deleteSprint1FormulaLines(formulaCode: string, revision: string, lineNos: number[]) {
+  if (lineNos.length === 0) return;
+
   const { error } = await supabaseProductionFinal
     .from("plm_formula_lines")
     .delete()
     .eq("formula_code", formulaCode)
     .eq("revision", revision)
-    .eq("line_no", lineNo);
+    .in("line_no", lineNos);
 
   if (error) throw error;
-  await recalcSprint1Formula(formulaCode, revision);
 }
 
 export async function softDeleteSprint1Formula(formulaCode: string, revision: string) {

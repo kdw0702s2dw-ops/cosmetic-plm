@@ -71,54 +71,65 @@ export default function FormulaCorePanel() {
         </article>
       </section>
 
-      <section className="v50-split">
-        <article className="v50-panel">
-          <h2>원료 검색/선택</h2>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="v50-input" value={s.rawKeyword} onChange={(e) => s.setRawKeyword(e.target.value)} placeholder="원료명, INCI, Trade Name 검색" />
-            <button className="v50-button" onClick={() => s.loadRaws()}>검색</button>
-          </div>
-          <div style={{ display: "grid", gap: 8, maxHeight: 420, overflow: "auto" }}>
-            {s.raws.map((raw) => (
-              <article key={raw.raw_code} className="v50-card" style={{ padding: 12 }}>
-                <strong>{raw.raw_name}</strong>
-                <div style={{ color: "#64748b", fontSize: 13 }}>{raw.trade_name || "-"} · {raw.inci_en || raw.inci_kr || "-"} · {Number(raw.unit_price || 0).toLocaleString()}원/kg</div>
-                <button className="v50-button-light" style={{ marginTop: 8 }} onClick={() => s.addRaw(raw)}>BOM에 추가</button>
-              </article>
-            ))}
-          </div>
-        </article>
-
-        <article className="v50-panel">
-          <h2>자동 전성분</h2>
-          <p style={{ lineHeight: 1.8 }}>{s.inciList || "BOM 원료를 추가하면 자동 생성됩니다."}</p>
-        </article>
+      <section className="v50-panel">
+        <h2>자동 전성분</h2>
+        <p style={{ lineHeight: 1.8 }}>{s.inciList || "BOM 원료를 추가하면 자동 생성됩니다."}</p>
       </section>
 
       <section className="v50-panel">
-        <h2>BOM 편집</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>BOM 편집</h2>
+          <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
+        </div>
+        <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>기능</th><th>삭제</th></tr></thead>
             <tbody>
               {s.lines.map((line) => (
-                <tr key={`${line.formula_code}-${line.revision}-${line.line_no}`}>
+                <tr key={line.line_no}>
                   <td>{line.line_no}</td>
-                  <td><input className="v50-input" value={line.phase || "A"} onChange={(e) => s.updateLine(line, { phase: e.target.value })} /></td>
-                  <td>{line.raw_name}</td>
+                  <td><input className="v50-input" style={{ width: 56 }} value={line.phase || "A"} onChange={(e) => s.updateLine(line.line_no, { phase: e.target.value })} /></td>
+                  <td style={{ position: "relative" }}>
+                    <input className="v50-input" value={line.raw_name || ""} placeholder="원료명 검색"
+                      onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)} />
+                    {s.activeRawRow === line.line_no && s.rawHits.length > 0 && (
+                      <RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} />
+                    )}
+                  </td>
                   <td>{line.inci_kr || line.inci_en}</td>
-                  <td><input className="v50-input" type="number" value={line.percentage || 0} onChange={(e) => s.updateLine(line, { percentage: Number(e.target.value) })} /></td>
+                  <td><input className="v50-input" style={{ width: 72 }} type="number" value={line.percentage || 0} onChange={(e) => s.updateLine(line.line_no, { percentage: Number(e.target.value) })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
                   <td>{line.function_kr || line.function_en}</td>
-                  <td><button className="v50-button-light" onClick={() => s.removeLine(line)}>삭제</button></td>
+                  <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
               ))}
-              {s.lines.length === 0 && <tr><td colSpan={9}>원료를 검색해서 BOM에 추가하세요.</td></tr>}
+              {s.lines.length === 0 && <tr><td colSpan={9}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
           </table>
         </div>
       </section>
+    </div>
+  );
+}
+
+function RawDropdown({ hits, onPick }: { hits: any[]; onPick: (raw: any) => void }) {
+  return (
+    <div style={{
+      position: "absolute", zIndex: 30, top: "100%", left: 0, right: 0,
+      background: "white", border: "1px solid #cbd5e1", borderRadius: 8,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 240, overflow: "auto", textAlign: "left",
+    }}>
+      {hits.map((raw) => (
+        <div key={raw.raw_code} onClick={() => onPick(raw)}
+          style={{ padding: "8px 10px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f1f5f9" }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}>
+          <b>{raw.raw_name}</b> <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
+          <span style={{ color: "#16a34a", marginLeft: 8 }}>{Number(raw.unit_price || 0).toLocaleString()}원/kg</span>
+        </div>
+      ))}
     </div>
   );
 }
