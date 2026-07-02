@@ -188,7 +188,15 @@ export function useSprint1FormulaCore() {
   }
 
   function searchRawForLine(lineNo: number, value: string) {
-    updateLine(lineNo, { raw_name: value, raw_code: "" });
+    updateLine(lineNo, {
+      raw_name: value,
+      raw_code: "",
+      inci_kr: "",
+      inci_en: "",
+      function_kr: "",
+      function_en: "",
+      unit_price: 0,
+    });
     setActiveRawRow(lineNo);
 
     if (searchTimer.current) clearTimeout(searchTimer.current);

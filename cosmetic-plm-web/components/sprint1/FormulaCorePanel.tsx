@@ -1,10 +1,28 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import "@/styles/enterprise-v50.css";
 
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
+  const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (s.activeRawRow == null) {
+      setAnchorRect(null);
+      return;
+    }
+    const el = rawInputRefs.current[s.activeRawRow];
+    if (!el) {
+      setAnchorRect(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    setAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+  }, [s.activeRawRow, s.rawHits]);
 
   function updateFormula(key: string, value: any) {
     s.setFormula({ ...s.formula, [key]: value });
@@ -90,12 +108,12 @@ export default function FormulaCorePanel() {
                 <tr key={line.line_no}>
                   <td>{line.line_no}</td>
                   <td><input className="v50-input" style={{ width: 56 }} value={line.phase || "A"} onChange={(e) => s.updateLine(line.line_no, { phase: e.target.value })} /></td>
-                  <td style={{ position: "relative" }}>
-                    <input className="v50-input" value={line.raw_name || ""} placeholder="원료명 검색"
+                  <td>
+                    <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
+                      value={line.raw_name || ""} placeholder="원료명 검색"
                       onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)} />
-                    {s.activeRawRow === line.line_no && s.rawHits.length > 0 && (
-                      <RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} />
-                    )}
+                    {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorRect &&
+                      createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} rect={anchorRect} />, document.body)}
                   </td>
                   <td>{line.inci_kr || line.inci_en}</td>
                   <td><input className="v50-input" style={{ width: 72 }} type="number" value={line.percentage || 0} onChange={(e) => s.updateLine(line.line_no, { percentage: Number(e.target.value) })} /></td>
@@ -114,10 +132,10 @@ export default function FormulaCorePanel() {
   );
 }
 
-function RawDropdown({ hits, onPick }: { hits: any[]; onPick: (raw: any) => void }) {
+function RawDropdown({ hits, onPick, rect }: { hits: any[]; onPick: (raw: any) => void; rect: { top: number; left: number; width: number } }) {
   return (
     <div style={{
-      position: "absolute", zIndex: 30, top: "100%", left: 0, right: 0,
+      position: "fixed", zIndex: 1000, top: rect.top, left: rect.left, width: rect.width,
       background: "white", border: "1px solid #cbd5e1", borderRadius: 8,
       boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 240, overflow: "auto", textAlign: "left",
     }}>
