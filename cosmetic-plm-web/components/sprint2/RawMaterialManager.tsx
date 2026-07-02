@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, searchIngredients, saveRawMaterial,
   fetchComponents, saveComponents, sumComposition,
-  type RawMaterial, type Component, type IngredientHit,
+  bulkUpdateUnitPrices,
+  type RawMaterial, type Component, type IngredientHit, type PriceUpdateRow,
 } from "@/services/sprint2/rawMaterialService";
 import "@/styles/enterprise-v50.css";
 
@@ -30,6 +32,11 @@ export default function RawMaterialManager() {
   const [hits, setHits] = useState<IngredientHit[]>([]);
   const [activeCell, setActiveCell] = useState<{ row: number; scope: "rm" | "comp" } | null>(null);
 
+  // CSV 단가 일괄 반영 상태
+  const [csvRows, setCsvRows] = useState<PriceUpdateRow[]>([]);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvMsg, setCsvMsg] = useState("");
+
   const load = useCallback(async () => {
     try { setList(await fetchRawMaterials(keyword)); }
     catch (e: any) { setMsg("목록 조회 오류: " + e.message); }
@@ -48,6 +55,42 @@ export default function RawMaterialManager() {
     setRm({ ...emptyRm });
     setComps([]);
     setMsg("새 원료 입력 모드");
+  }
+
+  // CSV 업로드 → raw_code, unit_price 파싱 (헤더: raw_code/원료코드, unit_price/단가)
+  async function handleCsvFile(file: File) {
+    setCsvMsg("파싱 중…");
+    const text = await file.text();
+    const wb = XLSX.read(text, { type: "string" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+    const rows: PriceUpdateRow[] = [];
+    let invalid = 0;
+    for (const r of json) {
+      const code = String(r.raw_code ?? r["원료코드"] ?? "").trim();
+      const price = Number(r.unit_price ?? r["단가"]);
+      if (!code || !Number.isFinite(price)) { invalid++; continue; }
+      rows.push({ raw_code: code, unit_price: price });
+    }
+    setCsvRows(rows);
+    setCsvMsg(`파싱 완료: 유효 ${rows.length}건${invalid > 0 ? `, 형식 오류로 제외 ${invalid}건` : ""}`);
+  }
+
+  async function applyCsvPrices() {
+    if (csvRows.length === 0) return;
+    setCsvBusy(true);
+    setCsvMsg("반영 중…");
+    try {
+      const { updated, skipped } = await bulkUpdateUnitPrices(csvRows);
+      setCsvMsg(`반영 완료: ${updated}건 업데이트${skipped > 0 ? `, DB에 없는 코드 ${skipped}건 스킵` : ""}`);
+      setCsvRows([]);
+      await load();
+    } catch (e: any) {
+      setCsvMsg("반영 오류: " + e.message);
+    } finally {
+      setCsvBusy(false);
+    }
   }
 
   // INCI 입력 → 자동완성 검색
@@ -108,6 +151,24 @@ export default function RawMaterialManager() {
       </section>
 
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>CSV로 단가 일괄 반영</h2>
+        <p style={{ color: "#64748b", fontSize: 13 }}>
+          헤더: <code>raw_code,unit_price</code> (또는 <code>원료코드,단가</code>). DB에 이미 있는 원료코드만 반영되고, 없는 코드는 무시됩니다.
+        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="file" accept=".csv" onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleCsvFile(file);
+            e.target.value = "";
+          }} />
+          <button className="v50-button" onClick={applyCsvPrices} disabled={csvRows.length === 0 || csvBusy}>
+            {csvBusy ? "반영 중…" : `일괄 반영 (${csvRows.length}건)`}
+          </button>
+        </div>
+        {csvMsg && <p style={{ color: "#2563eb", fontWeight: 700, marginTop: 8 }}>{csvMsg}</p>}
+      </section>
 
       <section className="v50-split">
         {/* 좌: 원료 목록 */}

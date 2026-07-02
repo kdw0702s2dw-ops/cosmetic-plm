@@ -71,6 +71,27 @@ export async function fetchRawMaterials(keyword = "") {
   return (data || []) as RawMaterial[];
 }
 
+export type PriceUpdateRow = { raw_code: string; unit_price: number };
+
+// plm_raw_materials.raw_name 등 NOT NULL 컬럼 때문에 upsert(부분 컬럼)는 사용 불가
+// (ON CONFLICT DO UPDATE도 postgres가 INSERT 후보 행의 NOT NULL을 먼저 검증함) → RPC로 순수 UPDATE 수행
+export async function bulkUpdateUnitPrices(rows: PriceUpdateRow[]) {
+  const chunkSize = 500;
+  let updated = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { data, error } = await supabaseProductionFinal.rpc("plm_bulk_update_raw_prices", { p_rows: chunk });
+    if (error) throw error;
+    for (const r of (data || []) as { raw_code: string; updated: boolean }[]) {
+      if (r.updated) updated++;
+      else skipped++;
+    }
+  }
+  return { updated, skipped };
+}
+
 export async function searchIngredients(keyword: string): Promise<IngredientHit[]> {
   const { data, error } = await supabaseProductionFinal.rpc("plm_search_ingredients", { keyword });
   if (error) throw error;
