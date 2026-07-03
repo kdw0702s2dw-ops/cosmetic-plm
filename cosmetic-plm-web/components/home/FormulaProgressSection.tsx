@@ -1,16 +1,9 @@
 "use client";
 
-import { useFormulaProgress, FormulaProgressRow } from "@/hooks/useFormulaProgress";
+import { useFormulaProgress, FormulaProgressRow, STAGES, Stage } from "@/hooks/useFormulaProgress";
+import RegisterFormulaForm from "@/components/home/RegisterFormulaForm";
 
-const STAGES: FormulaProgressRow["current_stage"][] = [
-  "처방등록",
-  "견본제작",
-  "샘플발송",
-  "추가요청",
-  "컨펌완료",
-];
-
-function StageBar({ stage }: { stage: FormulaProgressRow["current_stage"] }) {
+function StageBar({ stage }: { stage: Stage }) {
   const idx = STAGES.indexOf(stage);
   return (
     <div style={{ display: "flex", gap: 4 }}>
@@ -31,7 +24,25 @@ function StageBar({ stage }: { stage: FormulaProgressRow["current_stage"] }) {
 }
 
 export default function FormulaProgressSection() {
-  const { data, loading, load } = useFormulaProgress();
+  const { data, loading, load, registerFormula, advanceStage, requestAdditional, toggleDocument } =
+    useFormulaProgress();
+
+  const handleAdvance = async (row: FormulaProgressRow) => {
+    const res = await advanceStage(row);
+    if (res.error) alert(res.error);
+  };
+
+  const handleRequestAdditional = async (row: FormulaProgressRow) => {
+    const note = window.prompt("추가 요청 사항을 입력하세요:");
+    if (note === null) return; // 취소
+    const res = await requestAdditional(row, note);
+    if (res.error) alert(res.error);
+  };
+
+  const handleToggleDocument = async (row: FormulaProgressRow) => {
+    const res = await toggleDocument(row);
+    if (res.error) alert(res.error);
+  };
 
   return (
     <article className="v50-panel">
@@ -41,6 +52,9 @@ export default function FormulaProgressSection() {
           새로고침
         </button>
       </div>
+
+      <RegisterFormulaForm onRegistered={registerFormula} />
+
       <div className="v50-table-wrap">
         <table className="v50-table">
           <thead>
@@ -51,6 +65,7 @@ export default function FormulaProgressSection() {
               <th>진행 단계</th>
               <th>문서 출력</th>
               <th>최근 업데이트</th>
+              <th>액션</th>
             </tr>
           </thead>
           <tbody>
@@ -74,20 +89,36 @@ export default function FormulaProgressSection() {
                   <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{p.current_stage}</div>
                 </td>
                 <td>
-                  {p.document_issued ? (
-                    <span style={{ color: "#059669", fontWeight: 700 }}>완료</span>
-                  ) : (
-                    <span style={{ color: "#dc2626", fontWeight: 700 }}>미출력</span>
-                  )}
+                  <button className="v50-button-light" onClick={() => handleToggleDocument(p)}>
+                    {p.document_issued ? (
+                      <span style={{ color: "#059669", fontWeight: 700 }}>완료</span>
+                    ) : (
+                      <span style={{ color: "#dc2626", fontWeight: 700 }}>미출력</span>
+                    )}
+                  </button>
                 </td>
                 <td style={{ color: "#64748b", fontSize: 12 }}>
                   {new Date(p.updated_at).toLocaleDateString("ko-KR")}
+                </td>
+                <td>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {p.current_stage !== "컨펌완료" && (
+                      <button onClick={() => handleAdvance(p)}>
+                        {p.current_stage === "추가요청" ? "컨펌 완료" : "다음 단계로"}
+                      </button>
+                    )}
+                    {p.current_stage !== "추가요청" && p.current_stage !== "컨펌완료" && (
+                      <button className="v50-button-light" onClick={() => handleRequestAdditional(p)}>
+                        추가요청
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
             {data.length === 0 && (
               <tr>
-                <td colSpan={6}>진행 중인 처방이 없습니다.</td>
+                <td colSpan={7}>진행 중인 처방이 없습니다. 위에서 새로 등록해보세요.</td>
               </tr>
             )}
           </tbody>
