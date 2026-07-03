@@ -32,6 +32,7 @@ export default function RawMaterialManager() {
   // 성분 자동완성 상태
   const [hits, setHits] = useState<IngredientHit[]>([]);
   const [activeCell, setActiveCell] = useState<{ row: number; scope: "rm" | "comp" } | null>(null);
+  const [inciSearchLoading, setInciSearchLoading] = useState(false);
   const rmInciRef = useRef<HTMLInputElement | null>(null);
   const compInciRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [dropdownPos, setDropdownPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
@@ -142,8 +143,14 @@ export default function RawMaterialManager() {
     if (scope === "rm") setRm((p) => ({ ...p, inci_kr: value }));
     else updateComp(row, "inci_kr", value);
     if (value.trim().length >= 1) {
-      try { setHits(await searchIngredients(value.trim())); } catch { setHits([]); }
-    } else setHits([]);
+      setInciSearchLoading(true);
+      try { setHits(await searchIngredients(value.trim())); }
+      catch { setHits([]); }
+      finally { setInciSearchLoading(false); }
+    } else {
+      setHits([]);
+      setInciSearchLoading(false);
+    }
   }
 
   // 자동완성 항목 선택 → CAS/EC 자동 채움
@@ -270,6 +277,9 @@ export default function RawMaterialManager() {
             <input className="v50-input" placeholder="CAS" value={rm.cas_no || ""} onChange={(e) => setRm({ ...rm, cas_no: e.target.value })} />
             <input className="v50-input" placeholder="EC" value={rm.ec_no || ""} onChange={(e) => setRm({ ...rm, ec_no: e.target.value })} />
           </div>
+          {activeCell?.scope === "rm" && inciSearchLoading && (
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
+          )}
           {activeCell?.scope === "rm" && hits.length > 0 && dropdownPos &&
             createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
         </div>
@@ -292,6 +302,9 @@ export default function RawMaterialManager() {
                     <td>
                       <input className="v50-input" ref={(el) => { compInciRefs.current[i] = el; }}
                         value={c.inci_kr || ""} onChange={(e) => onInciSearch(e.target.value, "comp", i)} />
+                      {activeCell?.scope === "comp" && activeCell.row === i && inciSearchLoading && (
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
+                      )}
                       {activeCell?.scope === "comp" && activeCell.row === i && hits.length > 0 && dropdownPos &&
                         createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
                     </td>
