@@ -51,6 +51,7 @@ export function useSprint1FormulaCore() {
 
   const [rawHits, setRawHits] = useState<any[]>([]);
   const [activeRawRow, setActiveRawRow] = useState<number | null>(null);
+  const [rawSearchLoading, setRawSearchLoading] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 규제 즉시 대조 상태 (target_country 기준 규정 캐시 + 라인별 판정 결과)
@@ -228,6 +229,7 @@ export function useSprint1FormulaCore() {
     if (activeRawRow === lineNo) {
       setRawHits([]);
       setActiveRawRow(null);
+      setRawSearchLoading(false);
     }
   }
 
@@ -246,13 +248,17 @@ export function useSprint1FormulaCore() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!value.trim()) {
       setRawHits([]);
+      setRawSearchLoading(false);
       return;
     }
+    setRawSearchLoading(true);
     searchTimer.current = setTimeout(async () => {
       try {
         setRawHits(await fetchSprint1RawOptions(value.trim()));
       } catch {
         setRawHits([]);
+      } finally {
+        setRawSearchLoading(false);
       }
     }, 250);
   }
@@ -300,7 +306,7 @@ export function useSprint1FormulaCore() {
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList,
-    rawHits, activeRawRow, lineWarnings,
+    rawHits, activeRawRow, rawSearchLoading, lineWarnings,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, searchRawForLine, pickRawForLine,
   };

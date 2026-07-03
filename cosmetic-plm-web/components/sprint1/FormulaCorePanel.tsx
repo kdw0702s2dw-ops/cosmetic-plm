@@ -118,6 +118,9 @@ export default function FormulaCorePanel() {
                     <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
                       value={line.raw_name || ""} placeholder="원료명 검색"
                       onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)} />
+                    {s.activeRawRow === line.line_no && s.rawSearchLoading && (
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
+                    )}
                     {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorPos &&
                       createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
                   </td>
