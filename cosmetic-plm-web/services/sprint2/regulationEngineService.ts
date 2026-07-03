@@ -8,6 +8,7 @@ export type RegulationHit = {
   rule_code: string;
   region: string;
   warning_level: string;
+  allowed_status: string;
   ingredient_keyword: string;
   issue: string;
   action_suggestion: string;
@@ -79,6 +80,7 @@ export function evaluateLineAgainstRules(line: any, rules: any[]): RegulationHit
       rule_code: rule.rule_code,
       region: rule.region,
       warning_level: rule.warning_level,
+      allowed_status: rule.allowed_status,
       ingredient_keyword: rule.ingredient_keyword,
       issue: found.issue,
       action_suggestion: found.action,

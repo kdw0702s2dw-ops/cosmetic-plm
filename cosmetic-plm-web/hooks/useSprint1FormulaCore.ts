@@ -111,6 +111,17 @@ export function useSprint1FormulaCore() {
       setMessage("처방코드와 처방명은 필수입니다.");
       return;
     }
+
+    const bannedLines = lines.filter((l) =>
+      (lineWarnings[l.line_no] || []).some((h) => h.allowed_status === "BANNED")
+    );
+    if (bannedLines.length > 0) {
+      const names = bannedLines.map((l) => l.raw_name).join(", ");
+      if (!confirm(`사용금지(BANNED) 규제 대상 원료가 포함되어 있습니다: ${names}\n그래도 저장하시겠습니까?`)) {
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const saved = await upsertSprint1Formula(formula);
@@ -282,16 +293,12 @@ export function useSprint1FormulaCore() {
     loadFormulas("");
   }, []);
 
-  // 출시국가가 바뀔 때마다 해당 지역 규정을 다시 불러온다
+  // 전체 국가 규정을 한 번 불러온다 (배지는 특정 출시국가가 아니라 전체 국가 기준으로 대조)
   useEffect(() => {
-    if (!formula.target_country) {
-      setRegulationRules([]);
-      return;
-    }
-    fetchRegulationRules(formula.target_country)
+    fetchRegulationRules("ALL")
       .then(setRegulationRules)
       .catch(() => setRegulationRules([]));
-  }, [formula.target_country]);
+  }, []);
 
   // 규정이 새로 로드되면(=국가 변경) 이미 담긴 라인들도 새 규정 기준으로 다시 판정
   useEffect(() => {

@@ -3,7 +3,32 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
+import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import "@/styles/enterprise-v50.css";
+
+const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
+const STATUS_LABEL: Record<string, string> = { BANNED: "금지", LIMITED: "제한", REVIEW_REQUIRED: "검토필요" };
+const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
+  BANNED: { bg: "#fee2e2", fg: "#dc2626" },
+  LIMITED: { bg: "#fef3c7", fg: "#b45309" },
+  REVIEW_REQUIRED: { bg: "#dbeafe", fg: "#1d4ed8" },
+};
+
+// 여러 국가에서 규제 대상이면 가장 심각한 것(금지 > 제한 > 검토필요) 기준으로 배지를 정한다
+function worstHit(hits: RegulationHit[]): RegulationHit | null {
+  let worst: RegulationHit | null = null;
+  for (const h of hits) {
+    if (!STATUS_PRIORITY[h.allowed_status]) continue;
+    if (!worst || STATUS_PRIORITY[h.allowed_status] > STATUS_PRIORITY[worst.allowed_status]) worst = h;
+  }
+  return worst;
+}
+
+function buildTooltip(hits: RegulationHit[]) {
+  return hits
+    .map((h) => `${h.region}: ${STATUS_LABEL[h.allowed_status] || h.allowed_status}${h.max_percent != null ? ` (기준 ${h.max_percent}%)` : ""} - ${h.issue}`)
+    .join("\n");
+}
 
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
@@ -97,7 +122,24 @@ export default function FormulaCorePanel() {
 
       <section className="v50-panel">
         <h2>자동 전성분</h2>
-        <p style={{ lineHeight: 1.8 }}>{s.inciList || "BOM 원료를 추가하면 자동 생성됩니다."}</p>
+        <p style={{ lineHeight: 1.8 }}>
+          {(() => {
+            const entries = [...s.lines]
+              .sort((a, b) => Number(b.percentage || 0) - Number(a.percentage || 0))
+              .map((line) => ({ line, name: line.inci_kr || line.inci_en || line.raw_name }))
+              .filter((x) => x.name);
+            if (entries.length === 0) return "BOM 원료를 추가하면 자동 생성됩니다.";
+            return entries.map(({ line, name }, i) => {
+              const worst = worstHit(s.lineWarnings[line.line_no] || []);
+              const color = worst?.allowed_status === "BANNED" ? "#dc2626" : worst?.allowed_status === "LIMITED" ? "#b45309" : undefined;
+              return (
+                <span key={line.line_no} style={color ? { color, fontWeight: 700 } : undefined}>
+                  {name}{i < entries.length - 1 ? ", " : ""}
+                </span>
+              );
+            });
+          })()}
+        </p>
       </section>
 
       <section className="v50-panel">
@@ -130,15 +172,20 @@ export default function FormulaCorePanel() {
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
                   <td>{line.function_kr || line.function_en}</td>
                   <td>
-                    {(s.lineWarnings[line.line_no] || []).map((h, i) => (
-                      <div key={i} title={`${h.issue} ${h.action_suggestion}`} style={{
-                        fontSize: 11, fontWeight: 700, marginBottom: 2, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap",
-                        background: h.warning_level === "CRITICAL" ? "#fee2e2" : h.warning_level === "WARNING" ? "#fef3c7" : "#e0f2fe",
-                        color: h.warning_level === "CRITICAL" ? "#dc2626" : h.warning_level === "WARNING" ? "#b45309" : "#0369a1",
-                      }}>
-                        {h.region} {h.warning_level}
-                      </div>
-                    ))}
+                    {(() => {
+                      const hits = s.lineWarnings[line.line_no] || [];
+                      const worst = worstHit(hits);
+                      if (!worst) return null;
+                      const color = STATUS_COLOR[worst.allowed_status];
+                      return (
+                        <span title={buildTooltip(hits)} style={{
+                          display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                          background: color.bg, color: color.fg, whiteSpace: "nowrap", cursor: "default",
+                        }}>
+                          {STATUS_LABEL[worst.allowed_status]}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
