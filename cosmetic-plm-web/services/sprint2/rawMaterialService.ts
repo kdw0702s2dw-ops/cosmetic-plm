@@ -36,6 +36,7 @@ export type RawMaterialListItem = {
   manufacturer: string | null;
   supplier: string | null;
   unit_price: number | null;
+  currency: string | null;
   inci_kr: string | null;
   inci_en: string | null;
   inci_display: string | null;

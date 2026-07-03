@@ -230,13 +230,17 @@ export default function RawMaterialManager() {
         </div>
         <div className="v50-table-wrap" style={{ maxHeight: 420, overflow: "auto" }}>
           <table className="v50-table">
-            <thead><tr><th>코드</th><th>원료명</th><th>INCI</th><th style={{ width: 120 }}>액션</th></tr></thead>
+            <thead><tr><th>코드</th><th>원료명</th><th>INCI</th><th>제조사</th><th>단가</th><th style={{ width: 120 }}>액션</th></tr></thead>
             <tbody>
               {list.map((r) => (
                 <tr key={r.raw_code} style={{ background: rm.raw_code === r.raw_code ? "#eff6ff" : undefined }}>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.raw_code}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.raw_name}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.inci_display}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.manufacturer || "-"}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>
+                    {r.unit_price != null ? `${Number(r.unit_price).toLocaleString()}${r.currency ? " " + r.currency : ""}` : "-"}
+                  </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="v50-button-light" onClick={() => selectRm(r)}>수정</button>
@@ -245,7 +249,7 @@ export default function RawMaterialManager() {
                   </td>
                 </tr>
               ))}
-              {list.length === 0 && <tr><td colSpan={4}>원료가 없습니다.</td></tr>}
+              {list.length === 0 && <tr><td colSpan={6}>원료가 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>
