@@ -2,6 +2,8 @@
 
 import { useResearcherHome } from "@/hooks/useResearcherHome";
 import "@/styles/enterprise-v50.css";
+import FormulaProgressSection from "@/components/home/FormulaProgressSection";
+import AIChatSection from "@/components/home/AIChatSection";
 
 export default function ResearcherHomePanel({
   openRaw,
@@ -45,6 +47,11 @@ export default function ResearcherHomePanel({
         <Kpi label="확인 필요" value={String(k.warnings)} hint="100% 확인" />
         <Kpi label="문서 대기" value={String(h.data.recentFormulas.length)} hint="최근 처방 기준" />
         <Kpi label="실시간" value="ON" hint="DB 변경 감지" />
+      </section>
+
+      {/* 신규: 완료되지 않은 처방 실시간 진행표 */}
+      <section style={{ marginBottom: 18 }}>
+        <FormulaProgressSection />
       </section>
 
       <section className="v50-split">
@@ -136,6 +143,11 @@ export default function ResearcherHomePanel({
             ))}
           </div>
         </article>
+      </section>
+
+      {/* 신규: AI 대화창 (실제 DB 조회 도구 연결, Groq 무료 모델 사용) */}
+      <section style={{ marginBottom: 18 }}>
+        <AIChatSection />
       </section>
     </div>
   );
