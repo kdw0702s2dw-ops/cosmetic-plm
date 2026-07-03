@@ -67,7 +67,26 @@ export async function fetchPdfDocuments() {
     .limit(150);
 
   if (error) throw error;
-  return data || [];
+  const docs = data || [];
+
+  // plm_documents -> plm_formulas FK가 없어서 formula_code로 별도 조회 후 바이어(customer)를 붙여줌
+  const formulaCodes = Array.from(new Set(docs.map((d) => d.formula_code).filter(Boolean)));
+  const customerByKey = new Map<string, string>();
+  if (formulaCodes.length > 0) {
+    const { data: formulas, error: formulaError } = await supabaseProductionFinal
+      .from("plm_formulas")
+      .select("formula_code, revision, customer")
+      .in("formula_code", formulaCodes);
+    if (formulaError) throw formulaError;
+    for (const f of formulas || []) {
+      customerByKey.set(`${f.formula_code}|${f.revision}`, f.customer || "");
+    }
+  }
+
+  return docs.map((d) => ({
+    ...d,
+    customer: customerByKey.get(`${d.formula_code}|${d.revision}`) || "",
+  }));
 }
 
 function e(v: any) {
