@@ -8,20 +8,27 @@ import "@/styles/enterprise-v50.css";
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
   const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [anchorPos, setAnchorPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
 
   useEffect(() => {
     if (s.activeRawRow == null) {
-      setAnchorRect(null);
+      setAnchorPos(null);
       return;
     }
     const el = rawInputRefs.current[s.activeRawRow];
     if (!el) {
-      setAnchorRect(null);
+      setAnchorPos(null);
       return;
     }
     const r = el.getBoundingClientRect();
-    setAnchorRect({ top: r.bottom, left: r.left, width: r.width });
+    const estimatedHeight = Math.min(s.rawHits.length * 40 + 8, 240);
+    const spaceBelow = window.innerHeight - r.bottom;
+    // 아래쪽 공간이 부족하고 위쪽 공간이 더 넓으면 입력창 위로 뒤집어서 연다
+    if (spaceBelow < estimatedHeight && r.top > spaceBelow) {
+      setAnchorPos({ left: r.left, width: r.width, bottom: window.innerHeight - r.top });
+    } else {
+      setAnchorPos({ left: r.left, width: r.width, top: r.bottom });
+    }
   }, [s.activeRawRow, s.rawHits]);
 
   function updateFormula(key: string, value: any) {
@@ -112,8 +119,8 @@ export default function FormulaCorePanel() {
                     <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
                       value={line.raw_name || ""} placeholder="원료명 검색"
                       onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)} />
-                    {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorRect &&
-                      createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} rect={anchorRect} />, document.body)}
+                    {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorPos &&
+                      createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
                   </td>
                   <td>{line.inci_kr || line.inci_en}</td>
                   <td><input className="v50-input" style={{ width: 72 }} type="number" value={line.percentage || 0} onChange={(e) => s.updateLine(line.line_no, { percentage: Number(e.target.value) })} /></td>
@@ -132,10 +139,10 @@ export default function FormulaCorePanel() {
   );
 }
 
-function RawDropdown({ hits, onPick, rect }: { hits: any[]; onPick: (raw: any) => void; rect: { top: number; left: number; width: number } }) {
+function RawDropdown({ hits, onPick, pos }: { hits: any[]; onPick: (raw: any) => void; pos: { left: number; width: number; top?: number; bottom?: number } }) {
   return (
     <div style={{
-      position: "fixed", zIndex: 1000, top: rect.top, left: rect.left, width: rect.width,
+      position: "fixed", zIndex: 1000, left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom,
       background: "white", border: "1px solid #cbd5e1", borderRadius: 8,
       boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 240, overflow: "auto", textAlign: "left",
     }}>
