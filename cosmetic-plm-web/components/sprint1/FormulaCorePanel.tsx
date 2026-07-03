@@ -58,42 +58,41 @@ export default function FormulaCorePanel() {
         <Kpi label="상태" value={s.formula.status || "DRAFT"} hint="처방 상태" />
       </section>
 
-      <section className="v50-split">
-        <article className="v50-panel">
-          <h2>처방 목록</h2>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
-            <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
-          </div>
-          <div className="v50-table-wrap">
-            <table className="v50-table">
-              <thead><tr><th>처방코드</th><th>처방명</th><th>버전</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
-              <tbody>
-                {s.formulas.map((f) => (
-                  <tr key={`${f.formula_code}-${f.revision}`}>
-                    <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{Number(f.estimated_cost_per_kg || 0).toLocaleString()}</td>
-                    <td><button className="v50-button-light" onClick={() => s.openFormula(f)}>열기</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </article>
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>처방 목록</h2>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
+          <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
+        </div>
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead><tr><th>처방코드</th><th>처방명</th><th>버전</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <tbody>
+              {s.formulas.map((f) => (
+                <tr key={`${f.formula_code}-${f.revision}`}>
+                  <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{Number(f.estimated_cost_per_kg || 0).toLocaleString()}</td>
+                  <td><button className="v50-button-light" onClick={() => s.openFormula(f)}>열기</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <article className="v50-panel">
-          <h2>처방 기본정보</h2>
-          <div className="v50-grid-2">
-            <Input label="처방코드" value={s.formula.formula_code} onChange={(v) => updateFormula("formula_code", v)} />
-            <Input label="Revision" value={s.formula.revision} onChange={(v) => updateFormula("revision", v)} />
-            <Input label="처방명" value={s.formula.formula_name} onChange={(v) => updateFormula("formula_name", v)} />
-            <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
-            <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
-            <Input label="출시국가" value={s.formula.target_country} onChange={(v) => updateFormula("target_country", v)} />
-          </div>
-          <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
-            <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />
-          </label>
-        </article>
+      <section className="v50-panel">
+        <h2>처방 기본정보</h2>
+        <div className="v50-grid-2">
+          <Input label="처방코드" value={s.formula.formula_code} onChange={(v) => updateFormula("formula_code", v)} />
+          <Input label="Revision" value={s.formula.revision} onChange={(v) => updateFormula("revision", v)} />
+          <Input label="처방명" value={s.formula.formula_name} onChange={(v) => updateFormula("formula_name", v)} />
+          <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
+          <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
+          <Input label="담당 연구원" value={s.formula.assigned_researcher} onChange={(v) => updateFormula("assigned_researcher", v)} />
+          <Input label="출시국가" value={s.formula.target_country} onChange={(v) => updateFormula("target_country", v)} />
+        </div>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
+          <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />
+        </label>
       </section>
 
       <section className="v50-panel">
@@ -109,7 +108,7 @@ export default function FormulaCorePanel() {
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>기능</th><th>삭제</th></tr></thead>
+            <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>기능</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
               {s.lines.map((line) => (
                 <tr key={line.line_no}>
@@ -127,11 +126,33 @@ export default function FormulaCorePanel() {
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
                   <td>{line.function_kr || line.function_en}</td>
+                  <td>
+                    {(s.lineWarnings[line.line_no] || []).map((h, i) => (
+                      <div key={i} title={`${h.issue} ${h.action_suggestion}`} style={{
+                        fontSize: 11, fontWeight: 700, marginBottom: 2, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap",
+                        background: h.warning_level === "CRITICAL" ? "#fee2e2" : h.warning_level === "WARNING" ? "#fef3c7" : "#e0f2fe",
+                        color: h.warning_level === "CRITICAL" ? "#dc2626" : h.warning_level === "WARNING" ? "#b45309" : "#0369a1",
+                      }}>
+                        {h.region} {h.warning_level}
+                      </div>
+                    ))}
+                  </td>
                   <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
               ))}
-              {s.lines.length === 0 && <tr><td colSpan={9}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
+              {s.lines.length === 0 && <tr><td colSpan={10}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
+            {s.lines.length > 0 && (
+              <tfoot>
+                <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
+                  <td colSpan={4}>합계</td>
+                  <td>{s.total}%</td>
+                  <td></td>
+                  <td>{s.cost.toLocaleString()}원</td>
+                  <td colSpan={3}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>

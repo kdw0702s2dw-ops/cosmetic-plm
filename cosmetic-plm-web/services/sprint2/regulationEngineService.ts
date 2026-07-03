@@ -4,7 +4,17 @@ import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
 export type RegulationRegion = "KR" | "EU" | "CN" | "US" | "JP" | "ASEAN";
 
-export async function fetchRegulationRules(region: RegulationRegion | "ALL" = "ALL") {
+export type RegulationHit = {
+  rule_code: string;
+  region: string;
+  warning_level: string;
+  ingredient_keyword: string;
+  issue: string;
+  action_suggestion: string;
+  max_percent: number | null;
+};
+
+export async function fetchRegulationRules(region: string | "ALL" = "ALL") {
   let q = supabaseProductionFinal.from("plm_regulatory_rules").select("*").eq("is_active", true).order("region").order("ingredient_keyword");
   if (region !== "ALL") q = q.eq("region", region);
   const { data, error } = await q;
@@ -57,33 +67,50 @@ function buildIssue(rule: any, percent: number) {
   return { isAlert: false, issue: "", action: "" };
 }
 
-export async function validateFormulaRegulation(formula: any, regions: RegulationRegion[]) {
+// 원료 한 줄을 규정 목록과 즉석 대조 (DB 저장 없이 클라이언트에서 바로 판정할 때 재사용)
+export function evaluateLineAgainstRules(line: any, rules: any[]): RegulationHit[] {
+  const percent = Number(line.percentage || 0);
+  const hits: RegulationHit[] = [];
+  for (const rule of rules) {
+    if (!matchRule(rule, line)) continue;
+    const found = buildIssue(rule, percent);
+    if (!found.isAlert) continue;
+    hits.push({
+      rule_code: rule.rule_code,
+      region: rule.region,
+      warning_level: rule.warning_level,
+      ingredient_keyword: rule.ingredient_keyword,
+      issue: found.issue,
+      action_suggestion: found.action,
+      max_percent: rule.max_percent === null || rule.max_percent === undefined ? null : Number(rule.max_percent),
+    });
+  }
+  return hits;
+}
+
+export async function validateFormulaRegulation(formula: any, regions: string[]) {
   const [lines, rules] = await Promise.all([fetchFormulaLinesForRegulation(formula.formula_code, formula.revision), fetchRegulationRules("ALL")]);
   const activeRules = rules.filter((r: any) => regions.includes(r.region));
   const alerts: any[] = [];
 
   for (const line of lines) {
-    for (const rule of activeRules) {
-      if (!matchRule(rule, line)) continue;
-      const percent = Number(line.percentage || 0);
-      const found = buildIssue(rule, percent);
-      if (!found.isAlert) continue;
+    for (const hit of evaluateLineAgainstRules(line, activeRules)) {
       alerts.push({
         formula_code: formula.formula_code,
         revision: formula.revision,
         formula_name: formula.formula_name,
-        region: rule.region,
-        rule_code: rule.rule_code,
-        warning_level: rule.warning_level,
-        ingredient_keyword: rule.ingredient_keyword,
+        region: hit.region,
+        rule_code: hit.rule_code,
+        warning_level: hit.warning_level,
+        ingredient_keyword: hit.ingredient_keyword,
         raw_name: line.raw_name,
         inci_kr: line.inci_kr,
         inci_en: line.inci_en,
         cas_no: line.cas_no,
-        formula_percent: percent,
-        max_percent: rule.max_percent,
-        issue: found.issue,
-        action_suggestion: found.action,
+        formula_percent: Number(line.percentage || 0),
+        max_percent: hit.max_percent,
+        issue: hit.issue,
+        action_suggestion: hit.action_suggestion,
         status: "OPEN",
       });
     }

@@ -15,6 +15,12 @@ import {
   type Sprint1Formula,
   type Sprint1FormulaLine,
 } from "@/services/sprint1/formulaCoreService";
+import {
+  evaluateLineAgainstRules,
+  fetchRegulationRules,
+  validateFormulaRegulation,
+  type RegulationHit,
+} from "@/services/sprint2/regulationEngineService";
 
 const emptyFormula: Sprint1Formula = {
   formula_code: "",
@@ -24,6 +30,7 @@ const emptyFormula: Sprint1Formula = {
   product_type: "",
   customer: "",
   target_country: "KR",
+  assigned_researcher: "",
   claim: "",
 };
 
@@ -45,6 +52,10 @@ export function useSprint1FormulaCore() {
   const [rawHits, setRawHits] = useState<any[]>([]);
   const [activeRawRow, setActiveRawRow] = useState<number | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 규제 즉시 대조 상태 (target_country 기준 규정 캐시 + 라인별 판정 결과)
+  const [regulationRules, setRegulationRules] = useState<any[]>([]);
+  const [lineWarnings, setLineWarnings] = useState<Record<number, RegulationHit[]>>({});
 
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
@@ -72,6 +83,12 @@ export function useSprint1FormulaCore() {
     setDeletedLineNos([]);
     setRawHits([]);
     setActiveRawRow(null);
+    // 방금 캐시된 규정(이전 처방 기준)으로 우선 즉시 판정, target_country가 다르면 아래 useEffect가 곧 새 규정으로 다시 계산함
+    setLineWarnings(() => {
+      const next: Record<number, RegulationHit[]> = {};
+      for (const l of data) if (l.raw_code) next[l.line_no] = evaluateLineAgainstRules(l, regulationRules);
+      return next;
+    });
     setMessage(`${f.formula_code}/${f.revision} 열기 완료`);
   }
 
@@ -84,6 +101,7 @@ export function useSprint1FormulaCore() {
     setDeletedLineNos([]);
     setRawHits([]);
     setActiveRawRow(null);
+    setLineWarnings({});
     setMessage("신규 처방 작성 시작");
   }
 
@@ -114,8 +132,19 @@ export function useSprint1FormulaCore() {
       setSavedLineNos(nextLines.map((x) => x.line_no));
       setDeletedLineNos([]);
 
+      // 저장 시점에 규제 경고를 plm_regulatory_alerts에 기록 (화면 즉시표시는 이미 선택 시점에 반영됨)
+      let alertCount = 0;
+      if (formula.target_country) {
+        try {
+          const alerts = await validateFormulaRegulation(saved, [formula.target_country]);
+          alertCount = alerts.length;
+        } catch {
+          // 규제 기록 실패는 저장 자체를 막지 않음
+        }
+      }
+
       await loadFormulas();
-      setMessage("처방 저장 완료");
+      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "처방 저장 오류");
     } finally {
@@ -174,10 +203,25 @@ export function useSprint1FormulaCore() {
         return next;
       })
     );
+    // 원료 선택/함량 변경 즉시 규정 재판정 (저장 없이 화면에만 반영)
+    setLineWarnings((prev) => {
+      const current = lines.find((l) => l.line_no === lineNo);
+      if (!current) return prev;
+      const next = { ...current, ...patch };
+      if (!next.raw_code) {
+        const { [lineNo]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [lineNo]: evaluateLineAgainstRules(next, regulationRules) };
+    });
   }
 
   function removeLine(lineNo: number) {
     setLines((prev) => prev.filter((l) => l.line_no !== lineNo));
+    setLineWarnings((prev) => {
+      const { [lineNo]: _removed, ...rest } = prev;
+      return rest;
+    });
     if (savedLineNos.includes(lineNo)) {
       setDeletedLineNos((prev) => [...prev, lineNo]);
     }
@@ -232,10 +276,31 @@ export function useSprint1FormulaCore() {
     loadFormulas("");
   }, []);
 
+  // 출시국가가 바뀔 때마다 해당 지역 규정을 다시 불러온다
+  useEffect(() => {
+    if (!formula.target_country) {
+      setRegulationRules([]);
+      return;
+    }
+    fetchRegulationRules(formula.target_country)
+      .then(setRegulationRules)
+      .catch(() => setRegulationRules([]));
+  }, [formula.target_country]);
+
+  // 규정이 새로 로드되면(=국가 변경) 이미 담긴 라인들도 새 규정 기준으로 다시 판정
+  useEffect(() => {
+    setLineWarnings(() => {
+      const next: Record<number, RegulationHit[]> = {};
+      for (const l of lines) if (l.raw_code) next[l.line_no] = evaluateLineAgainstRules(l, regulationRules);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regulationRules]);
+
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList,
-    rawHits, activeRawRow,
+    rawHits, activeRawRow, lineWarnings,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, searchRawForLine, pickRawForLine,
   };
