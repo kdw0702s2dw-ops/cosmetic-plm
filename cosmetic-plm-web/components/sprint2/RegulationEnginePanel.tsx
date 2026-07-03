@@ -47,9 +47,8 @@ export default function RegulationEnginePanel() {
         <p style={{ color: "#64748b", marginTop: 10 }}>선택된 국가: {s.regions.join(", ") || "없음"}</p>
       </section>
 
-      <section className="v50-split">
-        <article className="v50-panel">
-          <h2>처방 선택 검증</h2>
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>처방 선택 검증</h2>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
             <button className="v50-button" onClick={s.load}>검색</button>
@@ -68,10 +67,10 @@ export default function RegulationEnginePanel() {
               </tbody>
             </table>
           </div>
-        </article>
+      </section>
 
-        <article className="v50-panel">
-          <h2>국가별 규칙</h2>
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>국가별 규칙</h2>
           <select className="v50-input" value={s.activeRegion} onChange={(e) => s.setActiveRegion(e.target.value as any)} style={{ marginBottom: 12 }}>
             <option value="ALL">전체</option>
             {regions.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
@@ -85,7 +84,6 @@ export default function RegulationEnginePanel() {
               </tbody>
             </table>
           </div>
-        </article>
       </section>
 
       <section className="v50-panel">
