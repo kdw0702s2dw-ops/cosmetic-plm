@@ -69,24 +69,31 @@ export async function fetchPdfDocuments() {
   if (error) throw error;
   const docs = data || [];
 
-  // plm_documents -> plm_formulas FK가 없어서 formula_code로 별도 조회 후 바이어(customer)를 붙여줌
+  // plm_documents -> plm_formulas FK가 없어서 formula_code로 별도 조회 후 바이어(customer)/처방명을 붙여줌
   const formulaCodes = Array.from(new Set(docs.map((d) => d.formula_code).filter(Boolean)));
-  const customerByKey = new Map<string, string>();
+  const metaByKey = new Map<string, { customer: string; formula_name: string }>();
   if (formulaCodes.length > 0) {
     const { data: formulas, error: formulaError } = await supabaseProductionFinal
       .from("plm_formulas")
-      .select("formula_code, revision, customer")
+      .select("formula_code, revision, customer, formula_name")
       .in("formula_code", formulaCodes);
     if (formulaError) throw formulaError;
     for (const f of formulas || []) {
-      customerByKey.set(`${f.formula_code}|${f.revision}`, f.customer || "");
+      metaByKey.set(`${f.formula_code}|${f.revision}`, {
+        customer: f.customer || "",
+        formula_name: f.formula_name || "",
+      });
     }
   }
 
-  return docs.map((d) => ({
-    ...d,
-    customer: customerByKey.get(`${d.formula_code}|${d.revision}`) || "",
-  }));
+  return docs.map((d) => {
+    const meta = metaByKey.get(`${d.formula_code}|${d.revision}`);
+    return {
+      ...d,
+      customer: meta?.customer || "",
+      formula_name: meta?.formula_name || d.formula_code,
+    };
+  });
 }
 
 function e(v: any) {
@@ -418,22 +425,23 @@ export async function buildInciListHtml(f: any, lines: any[]) {
 </div>`);
 }
 
+export const DOC_KIND_NAMES: Record<DocKind, string> = {
+  FORMULA_SHEET_PDF: "Formula Sheet",
+  INCI_LIST: "전성분표",
+  COMPLEX_COMPONENT_TABLE: "복합성분표",
+  SINGLE_COMPONENT_TABLE: "단일성분표",
+};
+
+async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[]) {
+  if (kind === "FORMULA_SHEET_PDF") return buildFormulaSheetHtml(formula, lines);
+  if (kind === "INCI_LIST") return buildInciListHtml(formula, lines);
+  if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines);
+  return buildSingleComponentTableHtml(formula, lines);
+}
+
 export async function createFormulaDocument(formula: any, kind: DocKind) {
   const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-
-  let html = "";
-  if (kind === "FORMULA_SHEET_PDF") html = buildFormulaSheetHtml(formula, lines);
-  if (kind === "INCI_LIST") html = await buildInciListHtml(formula, lines);
-  if (kind === "COMPLEX_COMPONENT_TABLE") html = await buildComplexComponentTableHtml(formula, lines);
-  if (kind === "SINGLE_COMPONENT_TABLE") html = await buildSingleComponentTableHtml(formula, lines);
-
-  const names: Record<DocKind, string> = {
-    FORMULA_SHEET_PDF: "Formula Sheet",
-    INCI_LIST: "전성분표",
-    COMPLEX_COMPONENT_TABLE: "복합성분표",
-    SINGLE_COMPONENT_TABLE: "단일성분표",
-  };
-
+  const html = await buildDocumentHtml(formula, kind, lines);
   const documentCode = `${kind}-${formula.formula_code}-${formula.revision}-${Date.now().toString().slice(-6)}`;
 
   const { data, error } = await supabaseProductionFinal
@@ -443,12 +451,33 @@ export async function createFormulaDocument(formula: any, kind: DocKind) {
       formula_code: formula.formula_code,
       revision: formula.revision,
       document_type: kind,
-      title: `${formula.formula_name} ${names[kind]}`,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}`,
       status: "CREATED",
       payload_json: { formula, lines },
       html_content: html,
       created_by: "KOVAS Template Docs",
     })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// 기존 문서 row를 그대로 UPDATE (새 row를 insert하지 않아 목록에 중복이 쌓이지 않음)
+export async function regenerateFormulaDocument(existingDoc: any, formula: any, kind: DocKind) {
+  const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
+  const html = await buildDocumentHtml(formula, kind, lines);
+
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_documents")
+    .update({
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}`,
+      payload_json: { formula, lines },
+      html_content: html,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existingDoc.id)
     .select("*")
     .single();
 
