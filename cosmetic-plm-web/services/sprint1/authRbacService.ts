@@ -140,6 +140,29 @@ export async function updateUserProfileRole(id: string, role: PlmRole, isActive:
   return data;
 }
 
+async function authedFetch(input: string, init: RequestInit) {
+  const { data } = await supabaseProductionFinal.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("로그인이 필요합니다.");
+
+  const res = await fetch(input, {
+    ...init,
+    headers: { ...(init.headers || {}), "content-type": "application/json", authorization: `Bearer ${token}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `요청 실패 (${res.status})`);
+  return body;
+}
+
+export async function createUserAccount(input: { email: string; password: string; role: PlmRole; display_name?: string }) {
+  const body = await authedFetch("/api/admin/users", { method: "POST", body: JSON.stringify(input) });
+  return body.user as PlmUserProfile;
+}
+
+export async function deleteUserAccount(id: string) {
+  await authedFetch("/api/admin/users", { method: "DELETE", body: JSON.stringify({ id }) });
+}
+
 export async function getAuthDebugInfo() {
   const session = await getCurrentSession();
   const user = await getCurrentUser();
