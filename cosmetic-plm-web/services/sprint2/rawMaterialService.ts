@@ -28,6 +28,20 @@ export type RawMaterial = {
   is_active?: boolean;
 };
 
+// 원료 목록 화면 전용 타입 - v_plm_raw_material_list 뷰 기준 (복합원료는 구성성분 전체가 inci_display에 합쳐져 옴)
+export type RawMaterialListItem = {
+  raw_code: string;
+  raw_name: string;
+  trade_name: string | null;
+  manufacturer: string | null;
+  supplier: string | null;
+  unit_price: number | null;
+  inci_kr: string | null;
+  inci_en: string | null;
+  inci_display: string | null;
+  updated_at: string;
+};
+
 export type Component = {
   component_no?: number;
   inci_en?: string;
@@ -52,11 +66,11 @@ export type IngredientHit = {
   function_en: string | null;
 };
 
-export async function fetchRawMaterials(keyword = "") {
+// 목록 화면용: v_plm_raw_material_list 뷰 사용 (INCI 컬럼에 복합원료 전성분이 합쳐져서 나옴)
+export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListItem[]> {
   let q = supabaseProductionFinal
-    .from("plm_raw_materials")
+    .from("v_plm_raw_material_list")
     .select("*")
-    .eq("is_active", true)
     .order("updated_at", { ascending: false })
     .limit(100);
 
@@ -68,7 +82,18 @@ export async function fetchRawMaterials(keyword = "") {
   }
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []) as RawMaterial[];
+  return (data || []) as RawMaterialListItem[];
+}
+
+// 편집 패널용: 목록 뷰엔 없는 필드(moq, cas_no 등)까지 전부 필요해서 원본 테이블에서 단건 조회
+export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMaterial> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_materials")
+    .select("*")
+    .eq("raw_code", rawCode)
+    .single();
+  if (error) throw error;
+  return data as RawMaterial;
 }
 
 export type PriceUpdateRow = { raw_code: string; unit_price: number };
@@ -121,6 +146,15 @@ export async function saveRawMaterial(rm: RawMaterial) {
     });
   }
   return data as RawMaterial;
+}
+
+// 원료 삭제 - 소프트 삭제(is_active=false)로 처리. 물리적으로 지우지 않아서 처방에 이미 쓰인 원료의 이력이 깨지지 않음.
+export async function deleteRawMaterial(rawCode: string) {
+  const { error } = await supabaseProductionFinal
+    .from("plm_raw_materials")
+    .update({ is_active: false })
+    .eq("raw_code", rawCode);
+  if (error) throw error;
 }
 
 export async function fetchComponents(rawCode: string): Promise<Component[]> {
