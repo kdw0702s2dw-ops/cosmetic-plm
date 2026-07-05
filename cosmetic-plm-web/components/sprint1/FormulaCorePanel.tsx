@@ -6,6 +6,9 @@ import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import "@/styles/enterprise-v50.css";
 
+const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
+const PROGRESS_STATUSES = ["개발중", "컨펌", "생산완료", "보류"];
+
 const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
 const STATUS_LABEL: Record<string, string> = { BANNED: "금지", LIMITED: "제한", REVIEW_REQUIRED: "검토필요" };
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
@@ -114,6 +117,8 @@ export default function FormulaCorePanel() {
           <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
           <Input label="담당 연구원" value={s.formula.assigned_researcher} onChange={(v) => updateFormula("assigned_researcher", v)} />
           <Input label="출시국가" value={s.formula.target_country} onChange={(v) => updateFormula("target_country", v)} />
+          <Select label="개발형태" value={s.formula.development_type} options={DEVELOPMENT_TYPES} onChange={(v) => updateFormula("development_type", v)} placeholder="선택 안 함" />
+          <Select label="진행상태" value={s.formula.progress_status} options={PROGRESS_STATUSES} onChange={(v) => updateFormula("progress_status", v)} />
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
           <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />
@@ -232,6 +237,18 @@ function RawDropdown({ hits, onPick, pos }: { hits: any[]; onPick: (raw: any) =>
 
 function Input({ label, value, onChange }: { label: string; value?: string; onChange: (v: string) => void }) {
   return <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>{label}<input className="v50-input" value={value || ""} onChange={(e) => onChange(e.target.value)} /></label>;
+}
+
+function Select({ label, value, options, onChange, placeholder }: { label: string; value?: string; options: string[]; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+      {label}
+      <select className="v50-input" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
 }
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {

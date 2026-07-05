@@ -11,6 +11,8 @@ export type Sprint1Formula = {
   customer?: string;
   target_country?: string;
   assigned_researcher?: string;
+  development_type?: string;
+  progress_status?: string;
   claim?: string;
 };
 

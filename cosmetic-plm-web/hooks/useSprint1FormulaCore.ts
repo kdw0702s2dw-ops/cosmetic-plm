@@ -31,6 +31,8 @@ const emptyFormula: Sprint1Formula = {
   customer: "",
   target_country: "KR",
   assigned_researcher: "",
+  development_type: "",
+  progress_status: "개발중",
   claim: "",
 };
 
