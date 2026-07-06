@@ -70,6 +70,9 @@ web_modules/
 .env.*
 !.env.example
 
+# 운영 DB 백업 export (원료/처방 등 실데이터 CSV, 커밋 대상 아님)
+backups/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
