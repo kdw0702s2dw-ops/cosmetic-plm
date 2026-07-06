@@ -160,7 +160,6 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 .center{text-align:center}.right{text-align:right}
 .notes{margin-top:14px}.notes p{margin:2px 0;font-size:10px;font-style:italic;color:#475569}
 .confidential{margin-top:12px;font-size:9px;color:#94a3b8}
-.doccode{margin-top:18px;font-size:10px;color:#334155}
 .box{border:1px solid #888;margin-top:10px}
 .box .bt{background:#f3f4f6;text-align:center;font-weight:800;padding:8px;border-bottom:1px solid #888;font-size:13px}
 .box .bb{text-align:center;padding:12px;font-size:12px;line-height:1.7}
@@ -175,7 +174,6 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 ${body}
 <div class="notes">${NOTES.map((x) => `<p>${e(x)}</p>`).join("")}</div>
 <div class="confidential">${e(CONFIDENTIAL)}</div>
-<div class="doccode">KVSP-738(4)-05 Ingredient list</div>
 <button class="no-print" onclick="window.print()">PDF로 저장/인쇄</button>
 </div>
 </body>
@@ -189,7 +187,6 @@ function kovasMeta(f: any) {
     Date: new Date().toLocaleDateString("ko-KR"),
     Manufacturer: f.manufacturer ?? "뉴트리어드바이저",
     Customer: f.customer ?? "",
-    "Kovas no": f.kovas_no ?? "",
     "Product name acc. To package": f.formula_name ?? "",
   };
 }
