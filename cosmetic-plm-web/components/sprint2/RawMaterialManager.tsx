@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
   fetchComponents, saveComponents, sumComposition,
-  bulkUpdateUnitPrices, fetchNextRawCode,
+  bulkUpdateUnitPrices, fetchNextRawCode, searchRawMaterialsAutocomplete,
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow,
 } from "@/services/sprint2/rawMaterialService";
 import "@/styles/enterprise-v50.css";
@@ -58,6 +58,29 @@ export default function RawMaterialManager() {
     }
   }, [activeCell, hits]);
 
+  // 원료 목록 검색창 자동완성 상태
+  const [searchHits, setSearchHits] = useState<RawMaterialListItem[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchDropdownPos, setSearchDropdownPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
+
+  useEffect(() => {
+    if (!searchOpen || searchHits.length === 0 || !searchInputRef.current) {
+      setSearchDropdownPos(null);
+      return;
+    }
+    const r = searchInputRef.current.getBoundingClientRect();
+    const estimatedHeight = Math.min(searchHits.length * 44 + 8, 280);
+    const spaceBelow = window.innerHeight - r.bottom;
+    if (spaceBelow < estimatedHeight && r.top > spaceBelow) {
+      setSearchDropdownPos({ left: r.left, width: r.width, bottom: window.innerHeight - r.top });
+    } else {
+      setSearchDropdownPos({ left: r.left, width: r.width, top: r.bottom });
+    }
+  }, [searchOpen, searchHits]);
+
   // CSV 단가 일괄 반영 상태
   const [csvRows, setCsvRows] = useState<PriceUpdateRow[]>([]);
   const [csvBusy, setCsvBusy] = useState(false);
@@ -69,6 +92,32 @@ export default function RawMaterialManager() {
   }, [keyword]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line
+
+  // 검색창 자동완성: 입력 300ms debounce 후 조회
+  function onSearchKeywordChange(value: string) {
+    setKeyword(value);
+    setSearchOpen(true);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!value.trim()) {
+      setSearchHits([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    searchTimer.current = setTimeout(async () => {
+      try { setSearchHits(await searchRawMaterialsAutocomplete(value.trim())); }
+      catch { setSearchHits([]); }
+      finally { setSearchLoading(false); }
+    }, 300);
+  }
+
+  async function pickSearchHit(item: RawMaterialListItem) {
+    setKeyword(item.raw_code);
+    setSearchOpen(false);
+    setSearchHits([]);
+    await selectRm(item);
+    try { setList(await fetchRawMaterials(item.raw_code)); } catch { /* 목록 갱신 실패는 무시 */ }
+  }
 
   // 목록 뷰엔 편집에 필요한 필드(moq, cas_no 등)가 없어서, 선택 시 원본 테이블에서 단건 다시 조회
   async function selectRm(item: RawMaterialListItem) {
@@ -229,10 +278,16 @@ export default function RawMaterialManager() {
       {/* 원료 목록 - 전체 폭 */}
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>원료 목록</h2>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input className="v50-input" value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder="코드/원료명/Trade/INCI 검색" onKeyDown={(e) => e.key === "Enter" && load()} style={{ flex: 1 }} />
-          <button className="v50-button" onClick={load}>검색</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, position: "relative" }}>
+          <input className="v50-input" ref={searchInputRef} value={keyword} onChange={(e) => onSearchKeywordChange(e.target.value)}
+            onFocus={() => keyword.trim() && setSearchOpen(true)}
+            placeholder="코드/원료명/Trade/INCI 검색" onKeyDown={(e) => e.key === "Enter" && (setSearchOpen(false), load())} style={{ flex: 1 }} />
+          <button className="v50-button" onClick={() => { setSearchOpen(false); load(); }}>검색</button>
+          {searchOpen && searchLoading && (
+            <span style={{ position: "absolute", left: 8, top: -18, fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
+          )}
+          {searchOpen && searchHits.length > 0 && searchDropdownPos &&
+            createPortal(<RawSearchDropdown hits={searchHits} onPick={pickSearchHit} pos={searchDropdownPos} />, document.body)}
         </div>
         <div className="v50-table-wrap" style={{ maxHeight: 420, overflow: "auto" }}>
           <table className="v50-table">
@@ -347,6 +402,26 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 2 }}>{label}</label>
       {children}
+    </div>
+  );
+}
+
+function RawSearchDropdown({ hits, onPick, pos }: { hits: RawMaterialListItem[]; onPick: (item: RawMaterialListItem) => void; pos: { left: number; width: number; top?: number; bottom?: number } }) {
+  return (
+    <div style={{
+      position: "fixed", zIndex: 1000, left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom,
+      background: "white", border: "1px solid #cbd5e1", borderRadius: 8,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 280, overflow: "auto", textAlign: "left",
+    }}>
+      {hits.map((item) => (
+        <div key={item.raw_code} onClick={() => onPick(item)}
+          style={{ padding: "8px 10px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f1f5f9" }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}>
+          <b>{item.raw_code}</b> {item.raw_name}
+          {item.inci_display && <span style={{ color: "#64748b", marginLeft: 8 }}>{item.inci_display}</span>}
+        </div>
+      ))}
     </div>
   );
 }
