@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
   fetchComponents, saveComponents, sumComposition,
-  bulkUpdateUnitPrices,
+  bulkUpdateUnitPrices, fetchNextRawCode,
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow,
 } from "@/services/sprint2/rawMaterialService";
 import "@/styles/enterprise-v50.css";
@@ -83,10 +83,16 @@ export default function RawMaterialManager() {
     }
   }
 
-  function newRm() {
+  async function newRm() {
     setRm({ ...emptyRm });
     setComps([]);
     setMsg("새 원료 입력 모드");
+    try {
+      const code = await fetchNextRawCode();
+      setRm((prev) => ({ ...prev, raw_code: code }));
+    } catch {
+      // 자동 채번 실패 시 직접 입력하면 되므로 조용히 무시
+    }
   }
 
   async function handleDelete(item: RawMaterialListItem) {

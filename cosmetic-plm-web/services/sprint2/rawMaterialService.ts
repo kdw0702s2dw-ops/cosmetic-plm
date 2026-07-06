@@ -86,6 +86,18 @@ export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListIt
   return (data || []) as RawMaterialListItem[];
 }
 
+// "+ 새 원료" 클릭 시 다음 순번(RM-00001부터) 자동 채번용 - 비활성(삭제) 원료 코드도 충돌 방지를 위해 포함해서 계산
+export async function fetchNextRawCode(): Promise<string> {
+  const { data, error } = await supabaseProductionFinal.from("plm_raw_materials").select("raw_code");
+  if (error) throw error;
+  const nums = (data || [])
+    .map((r: any) => r.raw_code as string)
+    .filter((code) => /^RM-\d{5}$/.test(code))
+    .map((code) => Number(code.slice(3)));
+  const next = (nums.length > 0 ? Math.max(...nums) : 0) + 1;
+  return `RM-${String(next).padStart(5, "0")}`;
+}
+
 // 편집 패널용: 목록 뷰엔 없는 필드(moq, cas_no 등)까지 전부 필요해서 원본 테이블에서 단건 조회
 export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMaterial> {
   const { data, error } = await supabaseProductionFinal
