@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // 서버 전용 - service_role 키. 클라이언트 번들에는 절대 포함되지 않음 (app/api 라우트는 서버에서만 실행)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// 모듈 최상단에서 즉시 생성하면 빌드의 "Collecting page data" 단계에서 이 파일이 평가될 때
+// 환경변수가 없을 경우 build 자체가 실패하므로, 요청이 실제로 들어올 때만 생성한다.
+let cachedAdmin: SupabaseClient | null = null;
+function getSupabaseAdmin(): SupabaseClient {
+  if (!cachedAdmin) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error("서버에 Supabase 환경변수(SUPABASE_SERVICE_ROLE_KEY)가 설정되어 있지 않습니다.");
+    cachedAdmin = createClient(url, key);
+  }
+  return cachedAdmin;
+}
 
 const ALLOWED_ROLES = ["Admin", "Researcher", "QA", "Viewer"];
 
@@ -15,6 +23,7 @@ async function requireAdmin(req: NextRequest) {
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) return { error: NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }) };
 
+  const supabaseAdmin = getSupabaseAdmin();
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
   if (userError || !userData.user) {
     return { error: NextResponse.json({ error: "유효하지 않은 인증 정보입니다." }, { status: 401 }) };
@@ -34,6 +43,13 @@ async function requireAdmin(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "서버 설정 오류" }, { status: 500 });
+  }
+
   const check = await requireAdmin(req);
   if (check.error) return check.error;
 
@@ -81,6 +97,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "서버 설정 오류" }, { status: 500 });
+  }
+
   const check = await requireAdmin(req);
   if (check.error) return check.error;
 
