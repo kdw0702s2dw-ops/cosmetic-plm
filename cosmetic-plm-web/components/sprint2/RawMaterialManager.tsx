@@ -37,9 +37,49 @@ export default function RawMaterialManager() {
   const compInciRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [dropdownPos, setDropdownPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
 
-  // 알러젠 마스터 목록 (구성성분 표의 알러젠 선택 드롭다운용)
+  // 알러젠 마스터 목록 (구성성분 표의 알러젠 선택 드롭다운 + 자동 감지 매칭용)
   const [allergens, setAllergens] = useState<AllergenMaster[]>([]);
   useEffect(() => { fetchAllergenMaster().then(setAllergens).catch(() => setAllergens([])); }, []);
+  // 자동 감지로 체크/선택된 행 번호 (수동으로 다시 만지면 이 표시는 사라짐 - 실제 저장값과는 무관한 화면 전용 상태)
+  const [autoDetectedRows, setAutoDetectedRows] = useState<Set<number>>(new Set());
+
+  function clearAutoDetected(i: number) {
+    setAutoDetectedRows((s) => {
+      if (!s.has(i)) return s;
+      const next = new Set(s);
+      next.delete(i);
+      return next;
+    });
+  }
+
+  // CAS 번호 일치 우선, 그다음 INCI 영문명 일치(대소문자/공백 무시)로 알러젠 마스터와 매칭
+  function matchAllergen(inciEn: string, casNo: string): AllergenMaster | null {
+    const cas = (casNo || "").trim();
+    if (cas) {
+      const casHit = allergens.find((a) => a.cas_no && a.cas_no.trim() === cas);
+      if (casHit) return casHit;
+    }
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const inci = norm(inciEn || "");
+    if (inci) {
+      const inciHit = allergens.find((a) => norm(a.allergen_name_en) === inci);
+      if (inciHit) return inciHit;
+    }
+    return null;
+  }
+
+  // INCI 영문 / CAS 입력 시 알러젠 자동 감지: 매칭되면 체크박스+드롭다운을 자동으로 채움 (수동 입력은 계속 가능)
+  function updateCompDetect(i: number, key: "inci_en" | "cas_no", val: string) {
+    setComps((prev) => {
+      const next = prev.map((c, idx) => (idx === i ? { ...c, [key]: val } : c));
+      const match = matchAllergen(next[i].inci_en || "", next[i].cas_no || "");
+      if (match) {
+        next[i] = { ...next[i], is_allergen: true, allergen_id: match.id };
+        setAutoDetectedRows((s) => new Set(s).add(i));
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!activeCell || hits.length === 0) {
@@ -130,6 +170,7 @@ export default function RawMaterialManager() {
       const full = await fetchRawMaterialByCode(item.raw_code);
       setRm(full);
       setComps(await fetchComponents(full.raw_code));
+      setAutoDetectedRows(new Set());
       setMsg("");
     } catch (e: any) {
       setMsg("원료 조회 오류: " + e.message);
@@ -139,6 +180,7 @@ export default function RawMaterialManager() {
   async function newRm() {
     setRm({ ...emptyRm });
     setComps([]);
+    setAutoDetectedRows(new Set());
     setMsg("새 원료 입력 모드");
     try {
       const code = await fetchNextRawCode();
@@ -211,16 +253,25 @@ export default function RawMaterialManager() {
     }
   }
 
-  // 자동완성 항목 선택 → CAS/EC 자동 채움
+  // 자동완성 항목 선택 → CAS/EC 자동 채움 + 알러젠 자동 감지
   function pickHit(h: IngredientHit) {
     if (!activeCell) return;
+    const row = activeCell.row;
     const patch = {
       inci_en: h.inci_en ?? "", inci_kr: h.inci_kr ?? "",
       inci_cn: h.inci_cn ?? "", inci_jp: h.inci_jp ?? "",
       cas_no: h.cas_no ?? "", ec_no: h.ec_no ?? "",
       function_kr: h.function_kr ?? "", function_en: h.function_en ?? "",
     };
-    setComps((p) => p.map((c, i) => (i === activeCell.row ? { ...c, ...patch } : c)));
+    setComps((p) => {
+      const next = p.map((c, i) => (i === row ? { ...c, ...patch } : c));
+      const match = matchAllergen(next[row].inci_en || "", next[row].cas_no || "");
+      if (match) {
+        next[row] = { ...next[row], is_allergen: true, allergen_id: match.id };
+        setAutoDetectedRows((s) => new Set(s).add(row));
+      }
+      return next;
+    });
     setHits([]);
     setActiveCell(null);
   }
@@ -229,7 +280,17 @@ export default function RawMaterialManager() {
     setComps((p) => p.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
   }
   function addRow() { setComps((p) => [...p, { ...emptyComp }]); }
-  function delRow(i: number) { setComps((p) => p.filter((_, idx) => idx !== i)); }
+  function delRow(i: number) {
+    setComps((p) => p.filter((_, idx) => idx !== i));
+    setAutoDetectedRows((s) => {
+      const next = new Set<number>();
+      for (const idx of s) {
+        if (idx < i) next.add(idx);
+        else if (idx > i) next.add(idx - 1);
+      }
+      return next;
+    });
+  }
 
   async function handleSave() {
     if (!rm.raw_code.trim()) { setMsg("원료코드를 입력하세요."); return; }
@@ -365,20 +426,25 @@ export default function RawMaterialManager() {
                       {activeCell?.row === i && hits.length > 0 && dropdownPos &&
                         createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
                     </td>
-                    <td><input className="v50-input" value={c.inci_en || ""} onChange={(e) => updateComp(i, "inci_en", e.target.value)} /></td>
+                    <td><input className="v50-input" value={c.inci_en || ""} onChange={(e) => updateCompDetect(i, "inci_en", e.target.value)} /></td>
                     <td><input className="v50-input" type="number" style={{ width: 72 }} value={c.composition_percent as any || ""} onChange={(e) => updateComp(i, "composition_percent", e.target.value)} /></td>
-                    <td><input className="v50-input" value={c.cas_no || ""} onChange={(e) => updateComp(i, "cas_no", e.target.value)} /></td>
+                    <td><input className="v50-input" value={c.cas_no || ""} onChange={(e) => updateCompDetect(i, "cas_no", e.target.value)} /></td>
                     <td><input className="v50-input" value={c.ec_no || ""} onChange={(e) => updateComp(i, "ec_no", e.target.value)} /></td>
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
-                        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, flexWrap: "wrap" }}>
                           <input type="checkbox" checked={!!c.is_allergen}
-                            onChange={(e) => updateComp(i, "is_allergen", e.target.checked)} />
+                            onChange={(e) => { updateComp(i, "is_allergen", e.target.checked); clearAutoDetected(i); }} />
                           알러젠
+                          {autoDetectedRows.has(i) && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "1px 6px", borderRadius: 999 }}>
+                              자동 감지
+                            </span>
+                          )}
                         </label>
                         {c.is_allergen && (
                           <select className="v50-input" style={{ fontSize: 12, padding: "4px 6px" }}
-                            value={c.allergen_id || ""} onChange={(e) => updateComp(i, "allergen_id", e.target.value || null)}>
+                            value={c.allergen_id || ""} onChange={(e) => { updateComp(i, "allergen_id", e.target.value || null); clearAutoDetected(i); }}>
                             <option value="">선택...</option>
                             {allergens.map((a) => (
                               <option key={a.id} value={a.id}>{a.allergen_name_kr || a.allergen_name_en}</option>

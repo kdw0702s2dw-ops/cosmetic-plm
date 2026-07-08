@@ -62,6 +62,7 @@ export type AllergenMaster = {
   id: string;
   allergen_name_en: string;
   allergen_name_kr: string | null;
+  cas_no: string | null;
 };
 
 export type IngredientHit = {
@@ -194,7 +195,7 @@ export async function deleteRawMaterial(rawCode: string) {
 export async function fetchAllergenMaster(): Promise<AllergenMaster[]> {
   const { data, error } = await supabaseProductionFinal
     .from("plm_allergen_master")
-    .select("id, allergen_name_en, allergen_name_kr")
+    .select("id, allergen_name_en, allergen_name_kr, cas_no")
     .eq("is_active", true)
     .order("allergen_name_en");
   if (error) throw error;
