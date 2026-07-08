@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import { fetchAllergenAlerts } from "@/services/sprint2/allergenService";
 
 export type DocKind =
   | "FORMULA_SHEET_PDF"
@@ -129,10 +130,42 @@ const CONFIDENTIAL =
 const NOTES = [
   "1) Raw material manufacturers can be changed without advance notice if it does not affect product functions.",
   "2) Viscosity and pH-related raw materials can be adjusted.",
-  "3) Allergen Labeling: Leave-on ≥ 0.001% / Rinse-off ≥ 0.01%",
 ];
+const ALLERGEN_BASE_LINE = "3) Allergen Labeling: Leave-on ≥ 0.001% / Rinse-off ≥ 0.01%";
 
-function baseHtml(title: string, headerMeta: Record<string, string>, body: string) {
+// 처방의 제품 사용유형(exposure_type)에 따라 plm_allergen_alerts 계산 결과를 표로 렌더링.
+// exposure_type 미지정이면 "계산 불가" 안내, 계산은 됐지만 표시대상이 0건이면 그와 구분되게 명시.
+function allergenSection(f: any, alerts: any[]) {
+  if (!f.exposure_type) {
+    return `<p>${e(ALLERGEN_BASE_LINE)}</p>
+<p style="color:#b91c1c">제품 사용유형이 미지정되어 알러젠 표시 여부를 계산할 수 없습니다. 처방관리에서 Leave-on/Rinse-off를 먼저 지정해주세요.</p>`;
+  }
+
+  const label = f.exposure_type === "LEAVE_ON" ? "Leave-on" : "Rinse-off";
+  if (alerts.length === 0) {
+    return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
+<p style="color:#64748b">표시 대상 알러젠 성분 없음</p>`;
+  }
+
+  const rows = alerts
+    .map(
+      (a) => `<tr>
+<td>${e(a.allergen_name_kr || "-")} (${e(a.allergen_name_en)})</td>
+<td class="right">${pct(a.formula_percent)}%</td>
+<td class="center">${a.label_required ? "표시" : "미표시"}</td>
+</tr>`
+    )
+    .join("");
+
+  return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
+<table class="grid" style="margin-top:6px">
+<thead><tr><th>표시대상 성분</th><th>최종함량(%)</th><th>표시여부</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>`;
+}
+
+async function baseHtml(title: string, headerMeta: Record<string, string>, body: string, formula: any) {
+  const alerts = await fetchAllergenAlerts(formula.formula_code, formula.revision).catch(() => []);
   const metaRows = Object.entries(headerMeta)
     .map(
       ([k, v]) =>
@@ -173,6 +206,7 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 <table class="meta">${metaRows}</table>
 ${body}
 <div class="notes">${NOTES.map((x) => `<p>${e(x)}</p>`).join("")}</div>
+<div class="notes">${allergenSection(formula, alerts)}</div>
 <div class="confidential">${e(CONFIDENTIAL)}</div>
 <button class="no-print" onclick="window.print()">PDF로 저장/인쇄</button>
 </div>
@@ -284,7 +318,7 @@ function inciOrder(rows: ExpandedRow[]) {
 // ============================================================
 // Formula Sheet (기존 유지, 헤더만 KOVAS 메타 사용)
 // ============================================================
-export function buildFormulaSheetHtml(f: any, lines: any[]) {
+export async function buildFormulaSheetHtml(f: any, lines: any[]) {
   const total = Number(lines.reduce((s, x) => s + n(x.percentage), 0).toFixed(4));
   const rows = lines
     .map(
@@ -300,7 +334,7 @@ export function buildFormulaSheetHtml(f: any, lines: any[]) {
 <thead><tr><th>No</th><th>Phase</th><th>원료코드</th><th>원료명</th><th>INCI</th><th>함량</th><th>기능</th></tr></thead>
 <tbody>${rows || `<tr><td colspan="7">BOM 없음</td></tr>`}</tbody>
 </table>
-<div style="text-align:right;font-weight:700;margin-top:6px;font-size:12px">총합: ${total}%</div>`);
+<div style="text-align:right;font-weight:700;margin-top:6px;font-size:12px">총합: ${total}%</div>`, f);
 }
 
 // ============================================================
@@ -367,7 +401,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
   <th>구성비(%)</th><th>최종함량(%)</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="7">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
-</table>`);
+</table>`, f);
 }
 
 // ============================================================
@@ -399,7 +433,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
   <th>Percentage(%)</th><th>CAS No.</th><th>EC No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="7">단일성분 데이터가 없습니다.</td></tr>`}</tbody>
-</table>`);
+</table>`, f);
 }
 
 // ============================================================
@@ -419,7 +453,7 @@ export async function buildInciListHtml(f: any, lines: any[]) {
 <div class="box">
   <div class="bt">국문전성분</div>
   <div class="bb">${e(inciKr || "-")}</div>
-</div>`);
+</div>`, f);
 }
 
 export const DOC_KIND_NAMES: Record<DocKind, string> = {

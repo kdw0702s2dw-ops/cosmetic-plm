@@ -21,6 +21,7 @@ import {
   validateFormulaRegulation,
   type RegulationHit,
 } from "@/services/sprint2/regulationEngineService";
+import { calculateAllergenAlerts } from "@/services/sprint2/allergenService";
 
 const emptyFormula: Sprint1Formula = {
   formula_code: "",
@@ -158,8 +159,18 @@ export function useSprint1FormulaCore() {
         }
       }
 
+      // 규제 경고와 정확히 같은 시점에 알러젠 표시 대상도 계산해서 plm_allergen_alerts에 기록
+      let allergenCount = 0;
+      if (formula.exposure_type) {
+        try {
+          allergenCount = await calculateAllergenAlerts(formula.formula_code, formula.revision);
+        } catch {
+          // 알러젠 계산 실패는 저장 자체를 막지 않음
+        }
+      }
+
       await loadFormulas();
-      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}`);
+      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "처방 저장 오류");
     } finally {
