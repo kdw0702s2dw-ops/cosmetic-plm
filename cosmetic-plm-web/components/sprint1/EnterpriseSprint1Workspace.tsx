@@ -37,7 +37,7 @@ export default function EnterpriseSprint1Workspace() {
             <div className="v50-menu-label">현재 사용 가능</div>
             <button className={active === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>
             <button className={active === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
-            <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리 Core</span></button>
+            <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>
             <button className={active === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>
             <button className={active === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>
             <button className={active === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>

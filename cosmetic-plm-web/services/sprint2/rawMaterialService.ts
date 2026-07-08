@@ -54,6 +54,14 @@ export type Component = {
   composition_percent?: number | string;
   function_kr?: string;
   function_en?: string;
+  is_allergen?: boolean;
+  allergen_id?: string | null;
+};
+
+export type AllergenMaster = {
+  id: string;
+  allergen_name_en: string;
+  allergen_name_kr: string | null;
 };
 
 export type IngredientHit = {
@@ -183,6 +191,16 @@ export async function deleteRawMaterial(rawCode: string) {
   if (error) throw error;
 }
 
+export async function fetchAllergenMaster(): Promise<AllergenMaster[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_allergen_master")
+    .select("id, allergen_name_en, allergen_name_kr")
+    .eq("is_active", true)
+    .order("allergen_name_en");
+  if (error) throw error;
+  return (data || []) as AllergenMaster[];
+}
+
 export async function fetchComponents(rawCode: string): Promise<Component[]> {
   const { data, error } = await supabaseProductionFinal
     .from("plm_raw_material_components")
@@ -206,6 +224,8 @@ export async function saveComponents(rawCode: string, components: Component[]) {
       composition_percent: String(c.composition_percent ?? ""),
       function_kr: c.function_kr ?? "",
       function_en: c.function_en ?? "",
+      is_allergen: !!c.is_allergen,
+      allergen_id: c.allergen_id ?? "",
     }));
 
   const { data, error } = await supabaseProductionFinal.rpc("plm_save_components", {

@@ -119,6 +119,14 @@ export default function FormulaCorePanel() {
           <Input label="출시국가" value={s.formula.target_country} onChange={(v) => updateFormula("target_country", v)} />
           <Select label="개발형태" value={s.formula.development_type} options={DEVELOPMENT_TYPES} onChange={(v) => updateFormula("development_type", v)} placeholder="선택 안 함" />
           <Select label="진행상태" value={s.formula.progress_status} options={PROGRESS_STATUSES} onChange={(v) => updateFormula("progress_status", v)} />
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            제품 사용유형
+            <select className="v50-input" value={s.formula.exposure_type || ""} onChange={(e) => updateFormula("exposure_type", e.target.value)}>
+              <option value="">선택 안 함</option>
+              <option value="LEAVE_ON">Leave-on</option>
+              <option value="RINSE_OFF">Rinse-off</option>
+            </select>
+          </label>
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
           <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />

@@ -33,6 +33,7 @@ const emptyFormula: Sprint1Formula = {
   assigned_researcher: "",
   development_type: "",
   progress_status: "개발중",
+  exposure_type: "",
   claim: "",
 };
 

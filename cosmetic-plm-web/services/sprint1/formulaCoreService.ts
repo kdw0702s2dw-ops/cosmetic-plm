@@ -13,6 +13,7 @@ export type Sprint1Formula = {
   assigned_researcher?: string;
   development_type?: string;
   progress_status?: string;
+  exposure_type?: string;
   claim?: string;
 };
 

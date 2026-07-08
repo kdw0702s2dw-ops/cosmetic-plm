@@ -5,9 +5,9 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
-  fetchComponents, saveComponents, sumComposition,
+  fetchComponents, saveComponents, sumComposition, fetchAllergenMaster,
   bulkUpdateUnitPrices, fetchNextRawCode, searchRawMaterialsAutocomplete,
-  type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow,
+  type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
 import "@/styles/enterprise-v50.css";
 
@@ -19,6 +19,7 @@ const emptyRm: RawMaterial = {
 
 const emptyComp: Component = {
   inci_en: "", inci_kr: "", cas_no: "", ec_no: "", composition_percent: "", function_kr: "",
+  is_allergen: false, allergen_id: null,
 };
 
 export default function RawMaterialManager() {
@@ -29,20 +30,23 @@ export default function RawMaterialManager() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 성분 자동완성 상태
+  // 성분 자동완성 상태 (구성성분 표의 INCI 국문 입력에서만 사용)
   const [hits, setHits] = useState<IngredientHit[]>([]);
-  const [activeCell, setActiveCell] = useState<{ row: number; scope: "rm" | "comp" } | null>(null);
+  const [activeCell, setActiveCell] = useState<{ row: number } | null>(null);
   const [inciSearchLoading, setInciSearchLoading] = useState(false);
-  const rmInciRef = useRef<HTMLInputElement | null>(null);
   const compInciRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [dropdownPos, setDropdownPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
+
+  // 알러젠 마스터 목록 (구성성분 표의 알러젠 선택 드롭다운용)
+  const [allergens, setAllergens] = useState<AllergenMaster[]>([]);
+  useEffect(() => { fetchAllergenMaster().then(setAllergens).catch(() => setAllergens([])); }, []);
 
   useEffect(() => {
     if (!activeCell || hits.length === 0) {
       setDropdownPos(null);
       return;
     }
-    const el = activeCell.scope === "rm" ? rmInciRef.current : compInciRefs.current[activeCell.row];
+    const el = compInciRefs.current[activeCell.row];
     if (!el) {
       setDropdownPos(null);
       return;
@@ -193,10 +197,9 @@ export default function RawMaterialManager() {
   }
 
   // INCI 입력 → 자동완성 검색
-  async function onInciSearch(value: string, scope: "rm" | "comp", row: number) {
-    setActiveCell({ row, scope });
-    if (scope === "rm") setRm((p) => ({ ...p, inci_kr: value }));
-    else updateComp(row, "inci_kr", value);
+  async function onInciSearch(value: string, row: number) {
+    setActiveCell({ row });
+    updateComp(row, "inci_kr", value);
     if (value.trim().length >= 1) {
       setInciSearchLoading(true);
       try { setHits(await searchIngredients(value.trim())); }
@@ -217,13 +220,12 @@ export default function RawMaterialManager() {
       cas_no: h.cas_no ?? "", ec_no: h.ec_no ?? "",
       function_kr: h.function_kr ?? "", function_en: h.function_en ?? "",
     };
-    if (activeCell.scope === "rm") setRm((p) => ({ ...p, ...patch }));
-    else setComps((p) => p.map((c, i) => (i === activeCell.row ? { ...c, ...patch } : c)));
+    setComps((p) => p.map((c, i) => (i === activeCell.row ? { ...c, ...patch } : c)));
     setHits([]);
     setActiveCell(null);
   }
 
-  function updateComp(i: number, key: keyof Component, val: string) {
+  function updateComp(i: number, key: keyof Component, val: string | boolean | null) {
     setComps((p) => p.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
   }
   function addRow() { setComps((p) => [...p, { ...emptyComp }]); }
@@ -234,8 +236,16 @@ export default function RawMaterialManager() {
     if (!rm.raw_name.trim()) { setMsg("원료명을 입력하세요."); return; }
     setSaving(true); setMsg("");
     try {
-      await saveRawMaterial(rm);
+      // 대표 INCI 입력란이 없어졌으므로, 구성성분 1번 행 값을 원료 상위 필드로 동기화
+      // (처방관리 원료 검색, AI 어시스턴트 등 plm_raw_materials.inci_kr/inci_en/cas_no/ec_no를 직접 참조하는
+      //  다른 화면이 계속 정상 동작하도록 하기 위함 - grep으로 확인 완료)
+      const first = comps[0];
+      const rmToSave = first
+        ? { ...rm, inci_kr: first.inci_kr || "", inci_en: first.inci_en || "", cas_no: first.cas_no || "", ec_no: first.ec_no || "" }
+        : rm;
+      await saveRawMaterial(rmToSave);
       if (comps.length > 0) await saveComponents(rm.raw_code, comps);
+      setRm(rmToSave);
       setMsg("저장 완료: " + rm.raw_code);
       await load();
     } catch (e: any) { setMsg("저장 오류: " + e.message); }
@@ -243,14 +253,13 @@ export default function RawMaterialManager() {
   }
 
   const compSum = sumComposition(comps);
-  const isComplex = comps.length > 0;
 
   return (
     <div className="v50-page">
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">원료 관리</h1>
-          <p className="v50-desc">Trade name과 INCI만 입력하면 CAS·EC가 자동으로 채워집니다. 복합원료는 구성성분을 표에서 바로 추가하세요.</p>
+          <p className="v50-desc">모든 원료의 INCI는 아래 구성성분 표에서 입력합니다 (단일 성분이면 행 1개만 등록). INCI 국문 입력 시 CAS·EC가 자동완성됩니다.</p>
         </div>
         <button className="v50-button" onClick={newRm}>+ 새 원료</button>
       </section>
@@ -332,55 +341,56 @@ export default function RawMaterialManager() {
           <Field label="Origin"><input className="v50-input" value={rm.origin_country || ""} onChange={(e) => setRm({ ...rm, origin_country: e.target.value })} /></Field>
         </div>
 
-        {/* 단일원료 INCI (자동완성) */}
-        <div style={{ position: "relative", marginBottom: 6 }}>
-          <label style={{ fontSize: 12, color: "#475569", fontWeight: 700 }}>대표 INCI (단일 성분 원료용 — 입력 시 CAS·EC 자동완성. 복합원료는 아래 구성성분 표를 쓰세요)</label>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.5fr 1.5fr", gap: 8 }}>
-            <input className="v50-input" placeholder="INCI 국문" ref={rmInciRef} value={rm.inci_kr || ""}
-              onChange={(e) => onInciSearch(e.target.value, "rm", -1)} />
-            <input className="v50-input" placeholder="INCI 영문" value={rm.inci_en || ""} onChange={(e) => setRm({ ...rm, inci_en: e.target.value })} />
-            <input className="v50-input" placeholder="CAS" value={rm.cas_no || ""} onChange={(e) => setRm({ ...rm, cas_no: e.target.value })} />
-            <input className="v50-input" placeholder="EC" value={rm.ec_no || ""} onChange={(e) => setRm({ ...rm, ec_no: e.target.value })} />
-          </div>
-          {activeCell?.scope === "rm" && inciSearchLoading && (
-            <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
-          )}
-          {activeCell?.scope === "rm" && hits.length > 0 && dropdownPos &&
-            createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
-        </div>
-
-        {/* 구성성분 (복합원료) — 엑셀식 */}
+        {/* 구성성분 — 모든 원료(단일/복합 공통)의 INCI를 여기서 입력. 단일 성분이면 행 1개(구성비 100%)만 등록 */}
         <div style={{ marginTop: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ margin: 0 }}>구성성분 (복합원료)</h2>
+            <h2 style={{ margin: 0 }}>구성성분</h2>
             <span style={{ fontSize: 12, fontWeight: 800, color: Math.abs(compSum - 100) < 0.01 || compSum === 0 ? "#16a34a" : "#dc2626" }}>
-              {isComplex ? `구성비 합계 ${compSum}%` : "단일원료"}
+              구성비 합계 {compSum}%
             </span>
           </div>
           <div className="v50-table-wrap" style={{ marginTop: 8 }}>
             <table className="v50-table">
-              <thead><tr><th>#</th><th>INCI 국문</th><th>INCI 영문</th><th>구성비%</th><th>CAS</th><th>EC</th><th></th></tr></thead>
+              <thead><tr><th>#</th><th>INCI 국문</th><th>INCI 영문</th><th>구성비%</th><th>CAS</th><th>EC</th><th>알러젠</th><th></th></tr></thead>
               <tbody>
                 {comps.map((c, i) => (
                   <tr key={i}>
                     <td>{i + 1}</td>
                     <td>
                       <input className="v50-input" ref={(el) => { compInciRefs.current[i] = el; }}
-                        value={c.inci_kr || ""} onChange={(e) => onInciSearch(e.target.value, "comp", i)} />
-                      {activeCell?.scope === "comp" && activeCell.row === i && inciSearchLoading && (
+                        value={c.inci_kr || ""} onChange={(e) => onInciSearch(e.target.value, i)} />
+                      {activeCell?.row === i && inciSearchLoading && (
                         <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
                       )}
-                      {activeCell?.scope === "comp" && activeCell.row === i && hits.length > 0 && dropdownPos &&
+                      {activeCell?.row === i && hits.length > 0 && dropdownPos &&
                         createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
                     </td>
                     <td><input className="v50-input" value={c.inci_en || ""} onChange={(e) => updateComp(i, "inci_en", e.target.value)} /></td>
                     <td><input className="v50-input" type="number" style={{ width: 72 }} value={c.composition_percent as any || ""} onChange={(e) => updateComp(i, "composition_percent", e.target.value)} /></td>
                     <td><input className="v50-input" value={c.cas_no || ""} onChange={(e) => updateComp(i, "cas_no", e.target.value)} /></td>
                     <td><input className="v50-input" value={c.ec_no || ""} onChange={(e) => updateComp(i, "ec_no", e.target.value)} /></td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                          <input type="checkbox" checked={!!c.is_allergen}
+                            onChange={(e) => updateComp(i, "is_allergen", e.target.checked)} />
+                          알러젠
+                        </label>
+                        {c.is_allergen && (
+                          <select className="v50-input" style={{ fontSize: 12, padding: "4px 6px" }}
+                            value={c.allergen_id || ""} onChange={(e) => updateComp(i, "allergen_id", e.target.value || null)}>
+                            <option value="">선택...</option>
+                            {allergens.map((a) => (
+                              <option key={a.id} value={a.id}>{a.allergen_name_kr || a.allergen_name_en}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    </td>
                     <td><button className="v50-button-light" onClick={() => delRow(i)}>삭제</button></td>
                   </tr>
                 ))}
-                {comps.length === 0 && <tr><td colSpan={7} style={{ color: "#94a3b8" }}>단일원료입니다. 복합원료면 아래 버튼으로 구성성분을 추가하세요.</td></tr>}
+                {comps.length === 0 && <tr><td colSpan={8} style={{ color: "#94a3b8" }}>등록된 성분이 없습니다. 아래 버튼으로 성분을 추가하세요 (단일 성분이면 1개만 등록).</td></tr>}
               </tbody>
             </table>
           </div>
