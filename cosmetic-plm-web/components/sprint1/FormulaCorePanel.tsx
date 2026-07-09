@@ -127,6 +127,15 @@ export default function FormulaCorePanel() {
               <option value="RINSE_OFF">Rinse-off</option>
             </select>
           </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            대상 시장
+            <select className="v50-input" value={s.formula.target_market || ""} onChange={(e) => updateFormula("target_market", e.target.value)}>
+              <option value="">선택 안 함 (기본 KR)</option>
+              <option value="KR">한국</option>
+              <option value="EU">EU</option>
+              <option value="UK">영국</option>
+            </select>
+          </label>
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
           <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />

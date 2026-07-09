@@ -35,6 +35,7 @@ const emptyFormula: Sprint1Formula = {
   development_type: "",
   progress_status: "개발중",
   exposure_type: "",
+  target_market: "",
   claim: "",
 };
 
@@ -169,8 +170,10 @@ export function useSprint1FormulaCore() {
         }
       }
 
+      const marketNotice = formula.exposure_type && !formula.target_market ? " (대상 시장 미지정 → KR 기준 적용)" : "";
+
       await loadFormulas();
-      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}`);
+      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "처방 저장 오류");
     } finally {
