@@ -4,14 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import {
   buildSprint1InciList,
   deleteSprint1FormulaLines,
+  fetchProductionBomRows,
   fetchSprint1FormulaLines,
   fetchSprint1Formulas,
   fetchSprint1RawOptions,
   nextSprint1LineNo,
   recalcSprint1Formula,
+  saveProductionBomRows,
   softDeleteSprint1Formula,
   upsertSprint1Formula,
   upsertSprint1FormulaLines,
+  type ProductionBomRow,
   type Sprint1Formula,
   type Sprint1FormulaLine,
 } from "@/services/sprint1/formulaCoreService";
@@ -63,6 +66,9 @@ export function useSprint1FormulaCore() {
   const [regulationRules, setRegulationRules] = useState<any[]>([]);
   const [lineWarnings, setLineWarnings] = useState<Record<number, RegulationHit[]>>({});
 
+  // 생산 BOM 전개 상태 (원료 BOM과 별개, 현재 열려있는 처방에 자동으로 연결됨)
+  const [productionBomRows, setProductionBomRows] = useState<ProductionBomRow[]>([]);
+
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
   const inciList = buildSprint1InciList(lines);
@@ -95,6 +101,11 @@ export function useSprint1FormulaCore() {
       for (const l of data) if (l.raw_code) next[l.line_no] = evaluateLineAgainstRules(l, regulationRules);
       return next;
     });
+    try {
+      setProductionBomRows(await fetchProductionBomRows(f.formula_code, f.revision));
+    } catch {
+      setProductionBomRows([]);
+    }
     setMessage(`${f.formula_code}/${f.revision} 열기 완료`);
   }
 
@@ -108,6 +119,7 @@ export function useSprint1FormulaCore() {
     setRawHits([]);
     setActiveRawRow(null);
     setLineWarnings({});
+    setProductionBomRows([]);
     setMessage("신규 처방 작성 시작");
   }
 
@@ -172,6 +184,14 @@ export function useSprint1FormulaCore() {
 
       const marketNotice = formula.exposure_type && !formula.target_market ? " (대상 시장 미지정 → KR 기준 적용)" : "";
 
+      // 생산 BOM 전개는 현재 열려있는 처방(formula_code/revision)에 자동으로 연결해서 저장
+      try {
+        const savedBomRows = await saveProductionBomRows(formula.formula_code, formula.revision, productionBomRows);
+        setProductionBomRows(savedBomRows);
+      } catch {
+        // 생산 BOM 저장 실패는 처방 저장 자체를 막지 않음
+      }
+
       await loadFormulas();
       setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`);
     } catch (error) {
@@ -191,6 +211,7 @@ export function useSprint1FormulaCore() {
       setLines([]);
       setSavedLineNos([]);
       setDeletedLineNos([]);
+      setProductionBomRows([]);
       setSelected(null);
       await loadFormulas();
       setMessage("처방 삭제 처리 완료");
@@ -306,6 +327,18 @@ export function useSprint1FormulaCore() {
     setActiveRawRow(null);
   }
 
+  function addProductionBomRow() {
+    setProductionBomRows((prev) => [...prev, {}]);
+  }
+
+  function updateProductionBomRow(index: number, patch: Partial<ProductionBomRow>) {
+    setProductionBomRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }
+
+  function removeProductionBomRow(index: number) {
+    setProductionBomRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
   useEffect(() => {
     loadFormulas("");
   }, []);
@@ -333,5 +366,6 @@ export function useSprint1FormulaCore() {
     rawHits, activeRawRow, rawSearchLoading, lineWarnings,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, searchRawForLine, pickRawForLine,
+    productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
   };
 }

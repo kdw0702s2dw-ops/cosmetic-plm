@@ -228,6 +228,34 @@ export default function FormulaCorePanel() {
           </table>
         </div>
       </section>
+
+      <section className="v50-panel">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>생산 BOM 전개</h2>
+          <button className="v50-button-light" onClick={s.addProductionBomRow}>+ 행 추가</button>
+        </div>
+        <p style={{ color: "#64748b", fontSize: 13 }}>현재 열려있는 처방({s.formula.formula_code || "-"} / {s.formula.revision || "-"})에 자동으로 연결되어 저장됩니다.</p>
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead><tr><th>코드</th><th>제품명</th><th>부자재명1</th><th>부자재명2</th><th>부자재명3</th><th>성형</th><th>비고</th><th>삭제</th></tr></thead>
+            <tbody>
+              {s.productionBomRows.map((row, i) => (
+                <tr key={row.id || i}>
+                  <td><input className="v50-input" value={row.production_code || ""} onChange={(e) => s.updateProductionBomRow(i, { production_code: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.product_name || ""} onChange={(e) => s.updateProductionBomRow(i, { product_name: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.material_name_1 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_1: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.material_name_2 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_2: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.material_name_3 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_3: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.molding_type || ""} onChange={(e) => s.updateProductionBomRow(i, { molding_type: e.target.value })} /></td>
+                  <td><input className="v50-input" value={row.remarks || ""} onChange={(e) => s.updateProductionBomRow(i, { remarks: e.target.value })} /></td>
+                  <td><button className="v50-button-light" onClick={() => s.removeProductionBomRow(i)}>삭제</button></td>
+                </tr>
+              ))}
+              {s.productionBomRows.length === 0 && <tr><td colSpan={8}>"+ 행 추가"로 생산 BOM 행을 추가하세요.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
