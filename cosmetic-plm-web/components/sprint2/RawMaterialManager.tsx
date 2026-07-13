@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
   fetchComponents, saveComponents, sumComposition, fetchAllergenMaster,
-  bulkUpdateUnitPrices, fetchNextRawCode, searchRawMaterialsAutocomplete,
+  bulkUpdateUnitPrices, checkRawCodeExists, searchRawMaterialsAutocomplete,
   fetchRawMaterialsForExport, fetchExistingRawCodes,
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
@@ -242,17 +242,11 @@ export default function RawMaterialManager() {
     }
   }
 
-  async function newRm() {
+  function newRm() {
     setRm({ ...emptyRm });
     setComps([]);
     setAutoDetectedRows(new Set());
     setMsg("새 원료 입력 모드");
-    try {
-      const code = await fetchNextRawCode();
-      setRm((prev) => ({ ...prev, raw_code: code }));
-    } catch {
-      // 자동 채번 실패 시 직접 입력하면 되므로 조용히 무시
-    }
   }
 
   async function handleDelete(item: RawMaterialListItem) {
@@ -480,6 +474,10 @@ export default function RawMaterialManager() {
     if (!rm.raw_name.trim()) { setMsg("원료명을 입력하세요."); return; }
     setSaving(true); setMsg("");
     try {
+      if (await checkRawCodeExists(rm.raw_code.trim(), rm.id)) {
+        setMsg("이미 사용 중인 원료코드입니다");
+        return;
+      }
       // 대표 INCI 입력란이 없어졌으므로, 구성성분 1번 행 값을 원료 상위 필드로 동기화
       // (처방관리 원료 검색, AI 어시스턴트 등 plm_raw_materials.inci_kr/inci_en/cas_no/ec_no를 직접 참조하는
       //  다른 화면이 계속 정상 동작하도록 하기 위함 - grep으로 확인 완료)
@@ -646,9 +644,7 @@ export default function RawMaterialManager() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
           <Field label="원료코드*">
-            <input className="v50-input" value={rm.raw_code} readOnly={!!rm.id} disabled={!!rm.id}
-              title={rm.id ? "기존 원료는 원료코드를 변경할 수 없습니다 (변경 시 새 원료로 등록되어 기존 항목과 분리됩니다)." : ""}
-              onChange={(e) => setRm({ ...rm, raw_code: e.target.value })} />
+            <input className="v50-input" value={rm.raw_code} onChange={(e) => setRm({ ...rm, raw_code: e.target.value })} />
           </Field>
           <Field label="원료명*"><input className="v50-input" value={rm.raw_name} onChange={(e) => setRm({ ...rm, raw_name: e.target.value })} /></Field>
           <Field label="Trade name"><input className="v50-input" value={rm.trade_name || ""} onChange={(e) => setRm({ ...rm, trade_name: e.target.value })} /></Field>

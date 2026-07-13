@@ -108,16 +108,13 @@ export async function searchRawMaterialsAutocomplete(keyword: string): Promise<R
   return (data || []) as RawMaterialListItem[];
 }
 
-// "+ 새 원료" 클릭 시 다음 순번(RM-00001부터) 자동 채번용 - 비활성(삭제) 원료 코드도 충돌 방지를 위해 포함해서 계산
-export async function fetchNextRawCode(): Promise<string> {
-  const { data, error } = await supabaseProductionFinal.from("plm_raw_materials").select("raw_code");
+// 원료코드 중복 체크 (신규 등록/수정 저장 전 확인용). excludeId를 주면 본인 행은 제외하고 검사한다.
+export async function checkRawCodeExists(rawCode: string, excludeId?: string): Promise<boolean> {
+  let q = supabaseProductionFinal.from("plm_raw_materials").select("id").eq("raw_code", rawCode).limit(1);
+  if (excludeId) q = q.neq("id", excludeId);
+  const { data, error } = await q;
   if (error) throw error;
-  const nums = (data || [])
-    .map((r: any) => r.raw_code as string)
-    .filter((code) => /^RM-\d{5}$/.test(code))
-    .map((code) => Number(code.slice(3)));
-  const next = (nums.length > 0 ? Math.max(...nums) : 0) + 1;
-  return `RM-${String(next).padStart(5, "0")}`;
+  return (data || []).length > 0;
 }
 
 // 편집 패널용: 목록 뷰엔 없는 필드(moq, cas_no 등)까지 전부 필요해서 원본 테이블에서 단건 조회
@@ -180,13 +177,14 @@ export async function searchIngredients(keyword: string): Promise<IngredientHit[
   return (data || []) as IngredientHit[];
 }
 
+// rm.id가 있으면(기존 원료 편집) id 기준 UPDATE - raw_code 값 자체를 바꿔도 새 행이 생기지 않고 그 컬럼만 바뀐다.
+// rm.id가 없으면(신규 등록, 또는 CSV 일괄 등록의 raw_code 기준 upsert) 기존처럼 raw_code 기준 upsert.
 export async function saveRawMaterial(rm: RawMaterial) {
   const payload = { ...rm, is_active: rm.is_active ?? true, updated_at: new Date().toISOString() };
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_raw_materials")
-    .upsert(payload, { onConflict: "raw_code" })
-    .select("*")
-    .single();
+  const query = rm.id
+    ? supabaseProductionFinal.from("plm_raw_materials").update(payload).eq("id", rm.id).select("*").single()
+    : supabaseProductionFinal.from("plm_raw_materials").upsert(payload, { onConflict: "raw_code" }).select("*").single();
+  const { data, error } = await query;
   if (error) throw error;
 
   if (rm.inci_en || rm.inci_kr) {
