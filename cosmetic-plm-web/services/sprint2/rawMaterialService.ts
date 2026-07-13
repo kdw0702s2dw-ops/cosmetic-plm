@@ -131,6 +131,28 @@ export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMateri
   return data as RawMaterial;
 }
 
+// CSV 다운로드용: 100건 제한이 있는 목록 뷰가 아니라 원본 테이블에서 전체 조회 (활성 원료만, 화면 목록과 동일 기준)
+export async function fetchRawMaterialsForExport(): Promise<RawMaterial[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_materials")
+    .select("raw_code, raw_name, trade_name, inci_kr, inci_en, cas_no, ec_no, manufacturer, supplier, unit_price, moq, lead_time, origin_country")
+    .eq("is_active", true)
+    .order("raw_code", { ascending: true });
+  if (error) throw error;
+  return (data || []) as RawMaterial[];
+}
+
+// CSV 일괄 등록 시 신규/중복 구분용
+export async function fetchExistingRawCodes(codes: string[]): Promise<Set<string>> {
+  if (codes.length === 0) return new Set();
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_materials")
+    .select("raw_code")
+    .in("raw_code", codes);
+  if (error) throw error;
+  return new Set((data || []).map((r: any) => r.raw_code as string));
+}
+
 export type PriceUpdateRow = { raw_code: string; unit_price: number };
 
 // plm_raw_materials.raw_name 등 NOT NULL 컬럼 때문에 upsert(부분 컬럼)는 사용 불가
