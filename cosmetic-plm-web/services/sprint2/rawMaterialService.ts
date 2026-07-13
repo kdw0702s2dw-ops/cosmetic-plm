@@ -181,7 +181,7 @@ export async function searchIngredients(keyword: string): Promise<IngredientHit[
 }
 
 export async function saveRawMaterial(rm: RawMaterial) {
-  const payload = { ...rm, is_active: rm.is_active ?? true };
+  const payload = { ...rm, is_active: rm.is_active ?? true, updated_at: new Date().toISOString() };
   const { data, error } = await supabaseProductionFinal
     .from("plm_raw_materials")
     .upsert(payload, { onConflict: "raw_code" })

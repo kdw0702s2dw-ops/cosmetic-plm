@@ -192,9 +192,12 @@ export default function RawMaterialManager() {
   const [bulkMsg, setBulkMsg] = useState("");
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
 
+  const [listLoading, setListLoading] = useState(false);
   const load = useCallback(async () => {
+    setListLoading(true);
     try { setList(await fetchRawMaterials(keyword)); }
     catch (e: any) { setMsg("목록 조회 오류: " + e.message); }
+    finally { setListLoading(false); }
   }, [keyword]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line
@@ -590,9 +593,14 @@ export default function RawMaterialManager() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>원료 목록</h2>
-          <button className="v50-button-light" onClick={handleDownloadCsv} disabled={downloadBusy}>
-            {downloadBusy ? "다운로드 중…" : "CSV 다운로드"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="v50-button-light" onClick={() => load()} disabled={listLoading}>
+              {listLoading ? "새로고침 중…" : "새로고침"}
+            </button>
+            <button className="v50-button-light" onClick={handleDownloadCsv} disabled={downloadBusy}>
+              {downloadBusy ? "다운로드 중…" : "CSV 다운로드"}
+            </button>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12, position: "relative" }}>
           <input className="v50-input" ref={searchInputRef} value={keyword} onChange={(e) => onSearchKeywordChange(e.target.value)}
@@ -637,7 +645,11 @@ export default function RawMaterialManager() {
         <h2>{rm.raw_code ? `원료 편집 · ${rm.raw_code}` : "새 원료 등록"}</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
-          <Field label="원료코드*"><input className="v50-input" value={rm.raw_code} onChange={(e) => setRm({ ...rm, raw_code: e.target.value })} /></Field>
+          <Field label="원료코드*">
+            <input className="v50-input" value={rm.raw_code} readOnly={!!rm.id} disabled={!!rm.id}
+              title={rm.id ? "기존 원료는 원료코드를 변경할 수 없습니다 (변경 시 새 원료로 등록되어 기존 항목과 분리됩니다)." : ""}
+              onChange={(e) => setRm({ ...rm, raw_code: e.target.value })} />
+          </Field>
           <Field label="원료명*"><input className="v50-input" value={rm.raw_name} onChange={(e) => setRm({ ...rm, raw_name: e.target.value })} /></Field>
           <Field label="Trade name"><input className="v50-input" value={rm.trade_name || ""} onChange={(e) => setRm({ ...rm, trade_name: e.target.value })} /></Field>
           <Field label="Manufacturer"><input className="v50-input" value={rm.manufacturer || ""} onChange={(e) => setRm({ ...rm, manufacturer: e.target.value })} /></Field>
@@ -646,6 +658,12 @@ export default function RawMaterialManager() {
           <Field label="MOQ"><input className="v50-input" value={rm.moq || ""} onChange={(e) => setRm({ ...rm, moq: e.target.value })} /></Field>
           <Field label="Lead time"><input className="v50-input" value={rm.lead_time || ""} onChange={(e) => setRm({ ...rm, lead_time: e.target.value })} /></Field>
           <Field label="Origin"><input className="v50-input" value={rm.origin_country || ""} onChange={(e) => setRm({ ...rm, origin_country: e.target.value })} /></Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Field label="비고">
+              <textarea className="v50-textarea" rows={3}
+                value={rm.note || ""} onChange={(e) => setRm({ ...rm, note: e.target.value })} />
+            </Field>
+          </div>
         </div>
 
         {/* 구성성분 — 모든 원료(단일/복합 공통)의 INCI를 여기서 입력. 단일 성분이면 행 1개(구성비 100%)만 등록 */}
