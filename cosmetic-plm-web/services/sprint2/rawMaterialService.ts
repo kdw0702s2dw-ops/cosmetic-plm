@@ -187,20 +187,45 @@ export async function saveRawMaterial(rm: RawMaterial) {
   const { data, error } = await query;
   if (error) throw error;
 
-  if (rm.inci_en || rm.inci_kr) {
-    await supabaseProductionFinal.from("plm_ingredient_dictionary").insert({
-      inci_en: rm.inci_en || null,
-      inci_kr: rm.inci_kr || null,
-      inci_cn: rm.inci_cn || null,
-      inci_jp: rm.inci_jp || null,
-      cas_no: rm.cas_no || null,
-      ec_no: rm.ec_no || null,
-      function_kr: rm.function_kr || null,
-      function_en: rm.function_en || null,
-      source: "raw_material_save",
-    });
-  }
+  await upsertIngredientDictionary(rm);
   return data as RawMaterial;
+}
+
+// cas_no가 있으면 cas_no로, 없으면 inci_kr로 기존 행을 찾아서 있으면 UPDATE, 없으면 INSERT
+// (매번 조건 없이 insert하던 버그 수정 - 동시성은 이 앱 트래픽 규모에서 무시 가능)
+async function upsertIngredientDictionary(rm: RawMaterial) {
+  if (!rm.inci_en && !rm.inci_kr) return;
+
+  const casNo = (rm.cas_no || "").trim();
+  const inciKr = (rm.inci_kr || "").trim();
+
+  let existingId: string | null = null;
+  if (casNo) {
+    const { data } = await supabaseProductionFinal
+      .from("plm_ingredient_dictionary").select("id").eq("cas_no", casNo).limit(1).maybeSingle();
+    existingId = data?.id ?? null;
+  } else if (inciKr) {
+    const { data } = await supabaseProductionFinal
+      .from("plm_ingredient_dictionary").select("id").eq("inci_kr", inciKr).limit(1).maybeSingle();
+    existingId = data?.id ?? null;
+  }
+
+  const fields = {
+    inci_en: rm.inci_en || null, inci_kr: rm.inci_kr || null,
+    inci_cn: rm.inci_cn || null, inci_jp: rm.inci_jp || null,
+    cas_no: rm.cas_no || null, ec_no: rm.ec_no || null,
+    function_kr: rm.function_kr || null, function_en: rm.function_en || null,
+  };
+
+  if (existingId) {
+    // 원료가 이 INCI를 참조해서 저장한다는 건 실제 사용 중이라는 뜻이므로,
+    // 전성분관리에서 삭제(is_active=false) 상태였어도 다시 활성화한다.
+    await supabaseProductionFinal.from("plm_ingredient_dictionary")
+      .update({ ...fields, is_active: true, updated_at: new Date().toISOString() }).eq("id", existingId);
+  } else {
+    await supabaseProductionFinal.from("plm_ingredient_dictionary")
+      .insert({ ...fields, source: "raw_material_save", is_active: true });
+  }
 }
 
 // 원료 삭제 - 소프트 삭제(is_active=false)로 처리. 물리적으로 지우지 않아서 처방에 이미 쓰인 원료의 이력이 깨지지 않음.
