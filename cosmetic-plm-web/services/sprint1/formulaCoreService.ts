@@ -119,20 +119,45 @@ export async function upsertSprint1Formula(formula: Sprint1Formula) {
 export async function upsertSprint1FormulaLines(lines: Sprint1FormulaLine[]) {
   if (lines.length === 0) return [];
 
-  const payload = lines.map((line) => ({
-    ...line,
-    phase: line.phase || "A",
-    cost_per_kg: Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4)),
-    updated_at: new Date().toISOString(),
-  }));
+  function buildRow(line: Sprint1FormulaLine) {
+    return {
+      ...line,
+      phase: line.phase || "A",
+      cost_per_kg: Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4)),
+      updated_at: new Date().toISOString(),
+    };
+  }
 
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_formula_lines")
-    .upsert(payload, { onConflict: "formula_code,revision,line_no" })
-    .select();
+  // id가 있는 기존 라인과 없는 신규 라인을 같은 배치에 섞으면 supabase-js가 배치 전체의
+  // 컬럼 합집합으로 columns= 파라미터를 만들어서, id 없는 신규 라인도 id=null로 전송되어
+  // NOT NULL 제약 위반이 난다 (23502). 그래서 완전히 분리된 두 번의 upsert로 나눈다.
+  const existing = lines.filter((l) => l.id);
+  const fresh = lines.filter((l) => !l.id);
+  const results: any[] = [];
 
-  if (error) throw error;
-  return data;
+  if (existing.length > 0) {
+    const { data, error } = await supabaseProductionFinal
+      .from("plm_formula_lines")
+      .upsert(existing.map(buildRow), { onConflict: "formula_code,revision,line_no" })
+      .select();
+    if (error) throw error;
+    results.push(...(data || []));
+  }
+
+  if (fresh.length > 0) {
+    const payload = fresh.map((line) => {
+      const { id, ...rest } = buildRow(line); // id 키 자체를 제거 - DB의 gen_random_uuid() 기본값이 채우도록
+      return rest;
+    });
+    const { data, error } = await supabaseProductionFinal
+      .from("plm_formula_lines")
+      .upsert(payload, { onConflict: "formula_code,revision,line_no" })
+      .select();
+    if (error) throw error;
+    results.push(...(data || []));
+  }
+
+  return results;
 }
 
 export async function deleteSprint1FormulaLines(formulaCode: string, revision: string, lineNos: number[]) {
