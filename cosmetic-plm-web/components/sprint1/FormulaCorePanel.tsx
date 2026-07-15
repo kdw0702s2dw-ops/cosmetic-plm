@@ -182,7 +182,7 @@ export default function FormulaCorePanel() {
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>기능</th><th>규제</th><th>삭제</th></tr></thead>
+            <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
               {s.lines.map((line) => (
                 <tr key={line.line_no}>
@@ -199,10 +199,9 @@ export default function FormulaCorePanel() {
                       createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
                   </td>
                   <td>{line.inci_kr || line.inci_en}</td>
-                  <td><input className="v50-input" style={{ width: 72 }} type="number" value={line.percentage || 0} onChange={(e) => s.updateLine(line.line_no, { percentage: Number(e.target.value) })} /></td>
+                  <td><input className="v50-input" style={{ width: 72 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
-                  <td>{line.function_kr || line.function_en}</td>
                   <td>
                     {(() => {
                       const hits = s.lineWarnings[line.line_no] || [];
@@ -222,7 +221,7 @@ export default function FormulaCorePanel() {
                   <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
               ))}
-              {s.lines.length === 0 && <tr><td colSpan={10}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
+              {s.lines.length === 0 && <tr><td colSpan={9}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
             {s.lines.length > 0 && (
               <tfoot>
@@ -231,7 +230,7 @@ export default function FormulaCorePanel() {
                   <td>{s.total}%</td>
                   <td></td>
                   <td>{s.cost.toLocaleString()}원</td>
-                  <td colSpan={3}></td>
+                  <td colSpan={2}></td>
                 </tr>
               </tfoot>
             )}

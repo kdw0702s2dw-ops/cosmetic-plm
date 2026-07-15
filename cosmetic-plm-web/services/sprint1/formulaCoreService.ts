@@ -41,7 +41,7 @@ export type Sprint1FormulaLine = {
   raw_name?: string;
   inci_kr?: string;
   inci_en?: string;
-  percentage: number;
+  percentage: number | string; // 입력 중 "0.0005" 같은 문자열을 그대로 유지 (계산 시 Number()로 변환)
   function_kr?: string;
   function_en?: string;
   unit_price?: number;
