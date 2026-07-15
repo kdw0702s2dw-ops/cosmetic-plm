@@ -37,6 +37,7 @@ export type Sprint1FormulaLine = {
   revision: string;
   line_no: number;
   phase: string;
+  phase_seq?: number | string; // Phase 내 표시 순서 (자유 입력, line_no와 무관 - 정렬 전용)
   raw_code?: string;
   raw_name?: string;
   inci_kr?: string;
@@ -252,4 +253,11 @@ export function buildSprint1InciList(lines: Sprint1FormulaLine[]) {
 
 export function nextSprint1LineNo(lines: Sprint1FormulaLine[]) {
   return (Math.max(0, ...lines.map((x) => Number(x.line_no || 0))) + 1);
+}
+
+// 같은 Phase 내 마지막 순번 + 10 (없으면 10) - 나중에 중간 삽입할 여유 공간을 둠
+export function nextPhaseSeq(lines: Sprint1FormulaLine[], phase: string) {
+  const samePhase = lines.filter((x) => (x.phase || "A") === phase);
+  if (samePhase.length === 0) return 10;
+  return Math.max(0, ...samePhase.map((x) => Number(x.phase_seq || 0))) + 10;
 }

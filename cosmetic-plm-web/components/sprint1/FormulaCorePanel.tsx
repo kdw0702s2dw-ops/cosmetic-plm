@@ -71,6 +71,16 @@ export default function FormulaCorePanel() {
     s.setFormula({ ...s.formula, [key]: value });
   }
 
+  // BOM 표시 순서: Phase 오름차순 -> 그 안에서 phase_seq 오름차순(없으면 line_no로 대체).
+  // s.lines 자체는 건드리지 않고(저장 로직/line_no와 무관), 화면 표시용으로만 정렬한다.
+  const sortedLines = [...s.lines].sort((a, b) => {
+    const phaseCmp = (a.phase || "A").localeCompare(b.phase || "A");
+    if (phaseCmp !== 0) return phaseCmp;
+    const seqA = a.phase_seq !== undefined && a.phase_seq !== null && a.phase_seq !== "" ? Number(a.phase_seq) : Number(a.line_no || 0);
+    const seqB = b.phase_seq !== undefined && b.phase_seq !== null && b.phase_seq !== "" ? Number(b.phase_seq) : Number(b.line_no || 0);
+    return seqA - seqB;
+  });
+
   return (
     <div className="v50-page">
       <section className="v50-hero">
@@ -181,13 +191,19 @@ export default function FormulaCorePanel() {
         </div>
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">
-          <table className="v50-table">
-            <thead><tr><th>No</th><th>Phase</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
+          <table className="v50-table bom-lines-table">
+            <colgroup>
+              <col className="col-no" /><col className="col-phase" /><col className="col-seq" />
+              <col className="col-rawcode" /><col className="col-rawname" /><col className="col-percent" />
+              <col className="col-price" /><col className="col-cost" /><col className="col-reg" /><col className="col-del" />
+            </colgroup>
+            <thead><tr><th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
-              {s.lines.map((line) => (
+              {sortedLines.map((line) => (
                 <tr key={line.line_no}>
                   <td>{line.line_no}</td>
                   <td><input className="v50-input" style={{ width: 56 }} value={line.phase || "A"} onChange={(e) => s.updateLine(line.line_no, { phase: e.target.value })} /></td>
+                  <td><input className="v50-input" style={{ width: 56 }} type="number" value={line.phase_seq ?? ""} onChange={(e) => s.updateLine(line.line_no, { phase_seq: e.target.value })} /></td>
                   <td>{line.raw_code || "-"}</td>
                   <td>
                     <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
@@ -199,7 +215,7 @@ export default function FormulaCorePanel() {
                     {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorPos &&
                       createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
                   </td>
-                  <td><input className="v50-input" style={{ width: 72 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
+                  <td><input className="v50-input bom-percent-input" style={{ width: 96 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
                   <td>
@@ -221,12 +237,12 @@ export default function FormulaCorePanel() {
                   <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
               ))}
-              {s.lines.length === 0 && <tr><td colSpan={9}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
+              {s.lines.length === 0 && <tr><td colSpan={10}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
             {s.lines.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                  <td colSpan={4}>합계</td>
+                  <td colSpan={5}>합계</td>
                   <td>{s.total}%</td>
                   <td></td>
                   <td>{s.cost.toLocaleString()}원</td>

@@ -9,6 +9,7 @@ import {
   fetchSprint1Formulas,
   fetchSprint1RawOptions,
   nextSprint1LineNo,
+  nextPhaseSeq,
   recalcSprint1Formula,
   saveProductionBomRows,
   softDeleteSprint1Formula,
@@ -229,6 +230,7 @@ export function useSprint1FormulaCore() {
 
   function addLine() {
     const lineNo = nextSprint1LineNo(lines);
+    const phaseSeq = nextPhaseSeq(lines, "A");
     setLines((prev) => [
       ...prev,
       {
@@ -236,6 +238,7 @@ export function useSprint1FormulaCore() {
         revision: formula.revision,
         line_no: lineNo,
         phase: "A",
+        phase_seq: phaseSeq,
         raw_code: "",
         raw_name: "",
         inci_kr: "",

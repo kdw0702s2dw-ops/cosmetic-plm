@@ -167,6 +167,23 @@
   font-weight:650;
 }
 .v50-textarea { min-height:120px; resize:vertical; }
+/* BOM 편집 함량% 입력 - 스피너(위/아래 화살표) 숨김. v50-input 전체가 아니라 이 클래스에만 한정 */
+.bom-percent-input::-webkit-inner-spin-button,
+.bom-percent-input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.bom-percent-input { -moz-appearance:textfield; }
+/* BOM 편집 표 컬럼 폭 - 원가~규제 사이 여백이 과도했던 문제(테이블 auto layout)를 고정폭으로 해결.
+   다른 화면의 v50-table에는 영향 없도록 이 클래스에만 한정 */
+.bom-lines-table { table-layout:fixed; min-width:1000px; }
+.bom-lines-table .col-no { width:44px; }
+.bom-lines-table .col-phase { width:64px; }
+.bom-lines-table .col-seq { width:64px; }
+.bom-lines-table .col-rawcode { width:110px; }
+.bom-lines-table .col-rawname { width:auto; }
+.bom-lines-table .col-percent { width:110px; }
+.bom-lines-table .col-price { width:90px; }
+.bom-lines-table .col-cost { width:90px; }
+.bom-lines-table .col-reg { width:90px; }
+.bom-lines-table .col-del { width:70px; }
 .v50-table-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:white; }
 .v50-table { width:100%; min-width:850px; border-collapse:collapse; }
 .v50-table th {
