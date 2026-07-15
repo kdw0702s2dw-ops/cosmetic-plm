@@ -10,6 +10,7 @@ import {
   fetchRawMaterialsForExport, fetchExistingRawCodes,
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
+import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 // 다운로드/업로드 양식 공통 컬럼 순서 (그대로 다운받아 채워서 재업로드 가능하도록 이름/순서를 맞춤)
@@ -81,6 +82,7 @@ export default function RawMaterialManager() {
   const [comps, setComps] = useState<Component[]>([]);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
 
   // 성분 자동완성 상태 (구성성분 표의 INCI 국문 입력에서만 사용)
   const [hits, setHits] = useState<IngredientHit[]>([]);
@@ -476,6 +478,7 @@ export default function RawMaterialManager() {
     try {
       if (await checkRawCodeExists(rm.raw_code.trim(), rm.id)) {
         setMsg("이미 사용 중인 원료코드입니다");
+        setToast({ type: "error", text: "이미 사용 중인 원료코드입니다" });
         return;
       }
       // 대표 INCI 입력란이 없어졌으므로, 구성성분 1번 행 값을 원료 상위 필드로 동기화
@@ -489,8 +492,12 @@ export default function RawMaterialManager() {
       if (comps.length > 0) await saveComponents(rm.raw_code, comps);
       setRm(rmToSave);
       setMsg("저장 완료: " + rm.raw_code);
+      setToast({ type: "success", text: "저장되었습니다: " + rm.raw_code });
       await load();
-    } catch (e: any) { setMsg("저장 오류: " + e.message); }
+    } catch (e: any) {
+      setMsg("저장 오류: " + e.message);
+      setToast({ type: "error", text: "저장 실패: " + e.message });
+    }
     finally { setSaving(false); }
   }
 
@@ -505,6 +512,8 @@ export default function RawMaterialManager() {
         </div>
         <button className="v50-button" onClick={newRm}>+ 새 원료</button>
       </section>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 

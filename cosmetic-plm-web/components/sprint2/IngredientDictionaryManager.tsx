@@ -5,6 +5,7 @@ import {
   fetchIngredientDictionary, fetchIngredientById, checkIngredientDuplicate, saveIngredient, deleteIngredient,
   type IngredientDictionaryItem,
 } from "@/services/sprint2/ingredientDictionaryService";
+import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const PAGE_SIZE = 20;
@@ -22,8 +23,8 @@ export default function IngredientDictionaryManager() {
 
   const [item, setItem] = useState<IngredientDictionaryItem>(emptyItem);
   const [msg, setMsg] = useState("");
-  const [dupWarning, setDupWarning] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
 
   const load = useCallback(async () => {
     setListLoading(true);
@@ -47,13 +48,11 @@ export default function IngredientDictionaryManager() {
 
   function newItem() {
     setItem({ ...emptyItem });
-    setDupWarning("");
     setMsg("새 성분 입력 모드");
   }
 
   async function selectItem(it: IngredientDictionaryItem) {
     setMsg("불러오는 중...");
-    setDupWarning("");
     try {
       const full = await fetchIngredientById(it.id!);
       setItem(full);
@@ -77,18 +76,20 @@ export default function IngredientDictionaryManager() {
 
   async function handleSave() {
     if (!item.inci_kr?.trim() && !item.inci_en?.trim()) { setMsg("INCI 한글명 또는 영문명을 입력하세요."); return; }
-    setSaving(true); setMsg(""); setDupWarning("");
+    setSaving(true); setMsg("");
     try {
       const dup = await checkIngredientDuplicate({ casNo: item.cas_no || undefined, inciKr: item.inci_kr || undefined }, item.id);
-      if (dup) {
-        setDupWarning(`이미 등록된 항목과 겹칩니다 (기존: ${dup.inci_kr || dup.inci_en || "-"} / CAS ${dup.cas_no || "-"}). 그대로 저장되었습니다 — 중복이 의도한 게 아니라면 확인해주세요.`);
+      if (dup && !confirm(`이미 등록된 성분입니다 (기존: ${dup.inci_kr || dup.inci_en || "-"} / CAS ${dup.cas_no || "-"}). 그래도 저장하시겠습니까?`)) {
+        return;
       }
       const saved = await saveIngredient(item);
       setItem(saved);
       setMsg("저장 완료");
+      setToast({ type: "success", text: "저장되었습니다" });
       await load();
     } catch (e: any) {
       setMsg("저장 오류: " + e.message);
+      setToast({ type: "error", text: "저장 실패: " + e.message });
     } finally {
       setSaving(false);
     }
@@ -105,6 +106,8 @@ export default function IngredientDictionaryManager() {
         </div>
         <button className="v50-button" onClick={newItem}>+ 새 성분</button>
       </section>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 
@@ -152,11 +155,6 @@ export default function IngredientDictionaryManager() {
 
       <section className="v50-panel">
         <h2>{item.id ? "성분 편집" : "새 성분 등록"}</h2>
-        {dupWarning && (
-          <p style={{ color: "#b45309", background: "#fef3c7", padding: "8px 12px", borderRadius: 8, fontWeight: 700, fontSize: 13 }}>
-            {dupWarning}
-          </p>
-        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
           <Field label="INCI 국문명"><input className="v50-input" value={item.inci_kr || ""} onChange={(e) => setItem({ ...item, inci_kr: e.target.value })} /></Field>
           <Field label="INCI 영문명"><input className="v50-input" value={item.inci_en || ""} onChange={(e) => setItem({ ...item, inci_en: e.target.value })} /></Field>
