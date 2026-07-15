@@ -182,12 +182,13 @@ export default function FormulaCorePanel() {
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>No</th><th>Phase</th><th>원료명</th><th>INCI</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
+            <thead><tr><th>No</th><th>Phase</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
               {s.lines.map((line) => (
                 <tr key={line.line_no}>
                   <td>{line.line_no}</td>
                   <td><input className="v50-input" style={{ width: 56 }} value={line.phase || "A"} onChange={(e) => s.updateLine(line.line_no, { phase: e.target.value })} /></td>
+                  <td>{line.raw_code || "-"}</td>
                   <td>
                     <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
                       value={line.raw_name || ""} placeholder="원료명 검색"
@@ -198,7 +199,6 @@ export default function FormulaCorePanel() {
                     {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorPos &&
                       createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
                   </td>
-                  <td>{line.inci_kr || line.inci_en}</td>
                   <td><input className="v50-input" style={{ width: 72 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
