@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
+import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
@@ -37,6 +38,13 @@ export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
   const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [anchorPos, setAnchorPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
+
+  async function handleSaveClick() {
+    const result = await s.saveFormula();
+    if (!result) return; // 사용자가 BANNED 확인창에서 취소한 경우 - 토스트 없음
+    setToast({ type: result.ok ? "success" : "error", text: result.ok ? "저장되었습니다" : `저장 실패: ${result.message}` });
+  }
 
   useEffect(() => {
     if (s.activeRawRow == null) {
@@ -72,10 +80,12 @@ export default function FormulaCorePanel() {
         </div>
         <div className="v50-flow">
           <button onClick={s.newFormula}>신규 처방</button>
-          <button onClick={s.saveFormula} disabled={s.loading}>저장</button>
+          <button onClick={handleSaveClick} disabled={s.loading}>저장</button>
           <button onClick={s.removeFormula} disabled={!s.formula.formula_code || s.loading}>삭제</button>
         </div>
       </section>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       <p style={{ color: "#2563eb", fontWeight: 900 }}>{s.message}</p>
 

@@ -123,10 +123,11 @@ export function useSprint1FormulaCore() {
     setMessage("신규 처방 작성 시작");
   }
 
-  async function saveFormula() {
+  async function saveFormula(): Promise<{ ok: boolean; message: string } | undefined> {
     if (!formula.formula_code || !formula.formula_name) {
-      setMessage("처방코드와 처방명은 필수입니다.");
-      return;
+      const msg = "처방코드와 처방명은 필수입니다.";
+      setMessage(msg);
+      return { ok: false, message: msg };
     }
 
     const bannedLines = lines.filter((l) =>
@@ -135,7 +136,7 @@ export function useSprint1FormulaCore() {
     if (bannedLines.length > 0) {
       const names = bannedLines.map((l) => l.raw_name).join(", ");
       if (!confirm(`사용금지(BANNED) 규제 대상 원료가 포함되어 있습니다: ${names}\n그래도 저장하시겠습니까?`)) {
-        return;
+        return undefined; // 사용자가 취소한 경우 - 실패가 아니므로 토스트를 띄우지 않음
       }
     }
 
@@ -193,9 +194,13 @@ export function useSprint1FormulaCore() {
       }
 
       await loadFormulas();
-      setMessage(`처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`);
+      const okMsg = `처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`;
+      setMessage(okMsg);
+      return { ok: true, message: okMsg };
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "처방 저장 오류");
+      const errMsg = error instanceof Error ? error.message : "처방 저장 오류";
+      setMessage(errMsg);
+      return { ok: false, message: errMsg };
     } finally {
       setLoading(false);
     }
