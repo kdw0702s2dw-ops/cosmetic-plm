@@ -59,7 +59,38 @@ export async function fetchIngredientById(id: string): Promise<IngredientDiction
   return data as IngredientDictionaryItem;
 }
 
+// CAS No 필드에 "A, B, C"처럼 여러 CAS(이성질체 등)가 콤마로 같이 들어있는 경우가 있어서,
+// 완전 문자열 일치 대신 콤마로 쪼갠 CAS 집합끼리 하나라도 겹치면 같은 성분으로 판단한다.
+function splitCasTokens(casNo: string): string[] {
+  return casNo.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function casSetsOverlap(a: string, b: string): boolean {
+  const setA = new Set(splitCasTokens(a));
+  return splitCasTokens(b).some((t) => setA.has(t));
+}
+
+// cas_no가 주어진 CAS 토큰 중 하나라도 부분일치하는 후보를 SQL로 넓게 가져온 뒤,
+// JS에서 콤마 split한 토큰 집합이 실제로 겹치는지 정확히 재확인한다.
+export async function findIngredientByCasNo(casNo: string, excludeId?: string): Promise<IngredientDictionaryItem | null> {
+  const tokens = splitCasTokens(casNo);
+  if (tokens.length === 0) return null;
+
+  let q = supabaseProductionFinal
+    .from("plm_ingredient_dictionary")
+    .select("id, inci_kr, inci_en, cas_no")
+    .eq("is_active", true)
+    .or(tokens.map((t) => `cas_no.ilike.%${t}%`).join(","));
+  if (excludeId) q = q.neq("id", excludeId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  const candidates = (data || []) as IngredientDictionaryItem[];
+  return candidates.find((c) => casSetsOverlap(casNo, c.cas_no || "")) || null;
+}
+
 // 저장 전 중복 경고용 - cas_no 또는 inci_kr이 이미 있는 다른 행이 있으면 그 행을 반환 (본인 행은 제외)
+// CAS 우선 확인(콤마로 나뉜 이성질체 등도 겹치면 매칭), 없으면 inci_kr 정확 일치로 확인
 export async function checkIngredientDuplicate(
   args: { casNo?: string; inciKr?: string },
   excludeId?: string
@@ -68,21 +99,23 @@ export async function checkIngredientDuplicate(
   const inciKr = (args.inciKr || "").trim();
   if (!casNo && !inciKr) return null;
 
-  const orParts: string[] = [];
-  if (casNo) orParts.push(`cas_no.eq.${casNo}`);
-  if (inciKr) orParts.push(`inci_kr.eq.${inciKr}`);
-
-  let q = supabaseProductionFinal
-    .from("plm_ingredient_dictionary")
-    .select("id, inci_kr, inci_en, cas_no")
-    .eq("is_active", true)
-    .or(orParts.join(","))
-    .limit(1);
-  if (excludeId) q = q.neq("id", excludeId);
-
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data && data[0]) || null;
+  if (casNo) {
+    const casMatch = await findIngredientByCasNo(casNo, excludeId);
+    if (casMatch) return casMatch;
+  }
+  if (inciKr) {
+    let q = supabaseProductionFinal
+      .from("plm_ingredient_dictionary")
+      .select("id, inci_kr, inci_en, cas_no")
+      .eq("is_active", true)
+      .eq("inci_kr", inciKr)
+      .limit(1);
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (data && data[0]) return data[0];
+  }
+  return null;
 }
 
 export async function saveIngredient(item: IngredientDictionaryItem): Promise<IngredientDictionaryItem> {

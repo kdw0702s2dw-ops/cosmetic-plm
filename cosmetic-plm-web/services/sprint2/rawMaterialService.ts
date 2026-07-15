@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import { findIngredientByCasNo } from "@/services/sprint2/ingredientDictionaryService";
 
 export type RawMaterial = {
   id?: string;
@@ -201,9 +202,8 @@ async function upsertIngredientDictionary(rm: RawMaterial) {
 
   let existingId: string | null = null;
   if (casNo) {
-    const { data } = await supabaseProductionFinal
-      .from("plm_ingredient_dictionary").select("id").eq("cas_no", casNo).limit(1).maybeSingle();
-    existingId = data?.id ?? null;
+    const match = await findIngredientByCasNo(casNo);
+    existingId = match?.id ?? null;
   } else if (inciKr) {
     const { data } = await supabaseProductionFinal
       .from("plm_ingredient_dictionary").select("id").eq("inci_kr", inciKr).limit(1).maybeSingle();
