@@ -308,13 +308,6 @@ function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
-// 전성분 정렬: 1%↑ 함량 내림차순 + 1%↓ 국문명 가나다순
-function inciOrder(rows: ExpandedRow[]) {
-  const high = rows.filter((r) => r.final_percent >= 1).sort((a, b) => b.final_percent - a.final_percent);
-  const low = rows.filter((r) => r.final_percent < 1).sort((a, b) => a.inci_kr.localeCompare(b.inci_kr, "ko"));
-  return [...high, ...low];
-}
-
 // ============================================================
 // Formula Sheet (기존 유지, 헤더만 KOVAS 메타 사용)
 // ============================================================
@@ -441,7 +434,8 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
 // ============================================================
 export async function buildInciListHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const rows = inciOrder(mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]));
+  // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
+  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
 
