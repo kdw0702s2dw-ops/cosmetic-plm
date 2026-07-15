@@ -32,7 +32,7 @@
 .v50-brand-sub { margin-top:5px; color:#98a2b3; font-size:13px; }
 .v50-menu { padding:12px; }
 .v50-menu-label { margin:16px 10px 7px; color:#98a2b3; font-size:12px; font-weight:900; }
-.v50-menu button {
+.v50-menu button, .v50-menu a {
   width:100%;
   border:0;
   background:transparent;
@@ -46,8 +46,10 @@
   font-weight:850;
   cursor:pointer;
   text-align:left;
+  text-decoration:none;
+  box-sizing:border-box;
 }
-.v50-menu button:hover { background:rgba(255,255,255,.08); }
+.v50-menu button:hover, .v50-menu a:hover { background:rgba(255,255,255,.08); }
 .v50-menu button.active { background:var(--blue); }
 .v50-main { flex:1; min-width:0; height:100vh; overflow:hidden; display:flex; flex-direction:column; }
 .v50-topbar {

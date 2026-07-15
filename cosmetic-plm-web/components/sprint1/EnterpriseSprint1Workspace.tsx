@@ -43,6 +43,7 @@ export default function EnterpriseSprint1Workspace() {
             <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>
             <button className={active === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>
             <button className={active === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>
+            <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>
             <button className={active === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>
             {auth.canManageUsers && <button className={active === "users" ? "active" : ""} onClick={() => setActive("users")}><span>사용자 권한관리</span></button>}
           </div>
