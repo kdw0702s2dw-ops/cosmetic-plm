@@ -125,45 +125,28 @@ export async function upsertSprint1Formula(formula: Sprint1Formula) {
 export async function upsertSprint1FormulaLines(lines: Sprint1FormulaLine[]) {
   if (lines.length === 0) return [];
 
-  function buildRow(line: Sprint1FormulaLine) {
+  // id는 payload에 절대 포함하지 않는다. (formula_code,revision,line_no) 고유키가 충돌 감지를
+  // 전담하므로, 매칭되는 기존 행이 있으면 그 행의 id가 그대로 유지된 채 UPDATE되고 없으면
+  // DB의 gen_random_uuid() 기본값이 채운다. id를 실어 보내면 리비전을 바꿔 저장할 때 예전 id가
+  // 새 INSERT에 그대로 끼어들어 plm_formula_lines_pkey를 위반한다(23505) - 기존/신규 라인을
+  // 배치로 나눌 필요도 없어짐(어차피 전부 id 없이 보내므로 컬럼 구성이 항상 동일).
+  const payload = lines.map((line) => {
+    const { id, ...rest } = line as Sprint1FormulaLine & { id?: string };
     return {
-      ...line,
-      phase: line.phase || "A",
-      cost_per_kg: Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4)),
+      ...rest,
+      phase: rest.phase || "A",
+      cost_per_kg: Number(((Number(rest.percentage || 0) / 100) * Number(rest.unit_price || 0)).toFixed(4)),
       updated_at: new Date().toISOString(),
     };
-  }
+  });
 
-  // id가 있는 기존 라인과 없는 신규 라인을 같은 배치에 섞으면 supabase-js가 배치 전체의
-  // 컬럼 합집합으로 columns= 파라미터를 만들어서, id 없는 신규 라인도 id=null로 전송되어
-  // NOT NULL 제약 위반이 난다 (23502). 그래서 완전히 분리된 두 번의 upsert로 나눈다.
-  const existing = lines.filter((l) => l.id);
-  const fresh = lines.filter((l) => !l.id);
-  const results: any[] = [];
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formula_lines")
+    .upsert(payload, { onConflict: "formula_code,revision,line_no" })
+    .select();
 
-  if (existing.length > 0) {
-    const { data, error } = await supabaseProductionFinal
-      .from("plm_formula_lines")
-      .upsert(existing.map(buildRow), { onConflict: "formula_code,revision,line_no" })
-      .select();
-    if (error) throw error;
-    results.push(...(data || []));
-  }
-
-  if (fresh.length > 0) {
-    const payload = fresh.map((line) => {
-      const { id, ...rest } = buildRow(line); // id 키 자체를 제거 - DB의 gen_random_uuid() 기본값이 채우도록
-      return rest;
-    });
-    const { data, error } = await supabaseProductionFinal
-      .from("plm_formula_lines")
-      .upsert(payload, { onConflict: "formula_code,revision,line_no" })
-      .select();
-    if (error) throw error;
-    results.push(...(data || []));
-  }
-
-  return results;
+  if (error) throw error;
+  return data;
 }
 
 export async function deleteSprint1FormulaLines(formulaCode: string, revision: string, lineNos: number[]) {
