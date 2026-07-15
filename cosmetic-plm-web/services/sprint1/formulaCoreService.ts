@@ -98,15 +98,21 @@ export async function fetchSprint1RawOptions(keyword = "") {
 }
 
 export async function upsertSprint1Formula(formula: Sprint1Formula) {
+  // formula 상태는 openFormula()에서 DB row 전체(select("*"))를 그대로 spread해서 만들어지기 때문에,
+  // Sprint1Formula 타입엔 id가 없어도 런타임엔 원래 열었던 행의 id가 실려 있을 수 있다.
+  // formula_code/revision을 바꿔서 저장하면 이 낡은 id가 새 INSERT에 그대로 끼어들어
+  // plm_formulas_pkey(PRIMARY KEY, id)를 위반하므로(23505), upsert 직전에 반드시 제거한다.
+  const { id, ...payload } = formula as Sprint1Formula & { id?: string };
+
   const { data, error } = await supabaseProductionFinal
     .from("plm_formulas")
     .upsert({
-      ...formula,
-      status: formula.status || "DRAFT",
-      revision: formula.revision || "R0",
+      ...payload,
+      status: payload.status || "DRAFT",
+      revision: payload.revision || "R0",
       // exposure_type/target_market은 DB에 CHECK IN (...) 제약이 있어서 빈 문자열은 위반됨 - 미선택이면 null로 저장
-      exposure_type: formula.exposure_type || null,
-      target_market: formula.target_market || null,
+      exposure_type: payload.exposure_type || null,
+      target_market: payload.target_market || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "formula_code,revision" })
     .select()
