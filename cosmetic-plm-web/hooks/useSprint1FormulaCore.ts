@@ -10,9 +10,11 @@ import {
   fetchSprint1RawOptions,
   nextSprint1LineNo,
   nextPhaseSeq,
+  normalizeDuplicatePhaseSeq,
   recalcSprint1Formula,
   saveProductionBomRows,
   softDeleteSprint1Formula,
+  sortLinesForDisplay,
   upsertSprint1Formula,
   upsertSprint1FormulaLines,
   type ProductionBomRow,
@@ -112,8 +114,11 @@ export function useSprint1FormulaCore() {
     setSelected(f);
     setFormula({ ...emptyFormula, ...f });
     const data = (await fetchSprint1FormulaLines(f.formula_code, f.revision)) as Sprint1FormulaLine[];
-    setLines(data);
-    setSavedLineNos(data.map((x) => x.line_no));
+    // 같은 Phase 내 phase_seq가 중복된 처방은 열 때마다 화면에서 1,2,3...으로 정리해서 보여준다.
+    // DB에는 저장 버튼을 눌러야 반영됨 (다른 화면에서 다시 열어도 정리된 값이 매번 다시 계산되어 표시됨).
+    const normalized = normalizeDuplicatePhaseSeq(data);
+    setLines(normalized);
+    setSavedLineNos(normalized.map((x) => x.line_no));
     setDeletedLineNos([]);
     setRawHits([]);
     setActiveRawRow(null);
@@ -295,6 +300,29 @@ export function useSprint1FormulaCore() {
     });
   }
 
+  // 같은 Phase 안에서만 순서 변경 (다른 Phase로는 이동 불가). updateLine()은 원가/규제까지 재계산하므로
+  // phase_seq만 바꾸는 이 동작엔 재사용하지 않고 별도로 둔다.
+  function moveLinePhaseSeq(lineNo: number, direction: "up" | "down") {
+    setLines((prev) => {
+      const current = prev.find((l) => l.line_no === lineNo);
+      if (!current) return prev;
+      const phase = current.phase || "A";
+      const group = sortLinesForDisplay(prev.filter((l) => (l.phase || "A") === phase));
+      const idx = group.findIndex((l) => l.line_no === lineNo);
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= group.length) return prev;
+
+      // 이동 후 그룹 순서대로 1..N 재부여 (스왑 대신 전체 재계산 - 기존 중복/공백도 함께 정리됨)
+      const reordered = [...group];
+      const [moved] = reordered.splice(idx, 1);
+      reordered.splice(targetIdx, 0, moved);
+      const patches = new Map<number, number>();
+      reordered.forEach((l, i) => patches.set(l.line_no, i + 1));
+
+      return prev.map((l) => (patches.has(l.line_no) ? { ...l, phase_seq: patches.get(l.line_no)! } : l));
+    });
+  }
+
   function removeLine(lineNo: number) {
     setLines((prev) => prev.filter((l) => l.line_no !== lineNo));
     setLineWarnings((prev) => {
@@ -414,7 +442,7 @@ export function useSprint1FormulaCore() {
     selected, message, loading, total, cost, inciList, mergedInciRows,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
-    addLine, updateLine, removeLine, searchRawForLine, pickRawForLine,
+    addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
   };
 }

@@ -261,3 +261,38 @@ export function nextPhaseSeq(lines: Sprint1FormulaLine[], phase: string) {
   if (samePhase.length === 0) return 10;
   return Math.max(0, ...samePhase.map((x) => Number(x.phase_seq || 0))) + 10;
 }
+
+// BOM 표시 순서: Phase 오름차순 -> 그 안에서 phase_seq 오름차순(없으면 line_no로 대체).
+// 원본 배열은 건드리지 않는다(저장 로직/line_no와 무관, 표시/정렬 전용).
+export function sortLinesForDisplay(lines: Sprint1FormulaLine[]) {
+  return [...lines].sort((a, b) => {
+    const phaseCmp = (a.phase || "A").localeCompare(b.phase || "A");
+    if (phaseCmp !== 0) return phaseCmp;
+    const seqA = a.phase_seq !== undefined && a.phase_seq !== null && a.phase_seq !== "" ? Number(a.phase_seq) : Number(a.line_no || 0);
+    const seqB = b.phase_seq !== undefined && b.phase_seq !== null && b.phase_seq !== "" ? Number(b.phase_seq) : Number(b.line_no || 0);
+    return seqA - seqB;
+  });
+}
+
+// 같은 Phase 내에서 phase_seq가 중복된 그룹만 현재 표시 순서 기준 1,2,3...으로 재부여한다.
+// 중복이 없는 그룹은 건드리지 않아 기존에 의도적으로 둔 간격(10,20,30...)을 보존한다.
+export function normalizeDuplicatePhaseSeq(lines: Sprint1FormulaLine[]) {
+  const sorted = sortLinesForDisplay(lines);
+  const byPhase = new Map<string, Sprint1FormulaLine[]>();
+  for (const l of sorted) {
+    const phase = l.phase || "A";
+    const arr = byPhase.get(phase) || [];
+    arr.push(l);
+    byPhase.set(phase, arr);
+  }
+
+  const patches = new Map<number, number>(); // line_no -> new phase_seq
+  for (const group of byPhase.values()) {
+    const seqValues = group.map((l) => Number(l.phase_seq || 0));
+    const hasDuplicate = new Set(seqValues).size !== seqValues.length;
+    if (!hasDuplicate) continue;
+    group.forEach((l, i) => patches.set(l.line_no, i + 1));
+  }
+  if (patches.size === 0) return lines;
+  return lines.map((l) => (patches.has(l.line_no) ? { ...l, phase_seq: patches.get(l.line_no)! } : l));
+}

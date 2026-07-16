@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
+import { sortLinesForDisplay } from "@/services/sprint1/formulaCoreService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
@@ -73,13 +74,7 @@ export default function FormulaCorePanel() {
 
   // BOM 표시 순서: Phase 오름차순 -> 그 안에서 phase_seq 오름차순(없으면 line_no로 대체).
   // s.lines 자체는 건드리지 않고(저장 로직/line_no와 무관), 화면 표시용으로만 정렬한다.
-  const sortedLines = [...s.lines].sort((a, b) => {
-    const phaseCmp = (a.phase || "A").localeCompare(b.phase || "A");
-    if (phaseCmp !== 0) return phaseCmp;
-    const seqA = a.phase_seq !== undefined && a.phase_seq !== null && a.phase_seq !== "" ? Number(a.phase_seq) : Number(a.line_no || 0);
-    const seqB = b.phase_seq !== undefined && b.phase_seq !== null && b.phase_seq !== "" ? Number(b.phase_seq) : Number(b.line_no || 0);
-    return seqA - seqB;
-  });
+  const sortedLines = sortLinesForDisplay(s.lines);
 
   return (
     <div className="v50-page">
@@ -201,11 +196,25 @@ export default function FormulaCorePanel() {
             </colgroup>
             <thead><tr><th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
-              {sortedLines.map((line) => (
+              {sortedLines.map((line, idx) => {
+                const phase = line.phase || "A";
+                const isFirstInPhase = idx === 0 || (sortedLines[idx - 1].phase || "A") !== phase;
+                const isLastInPhase = idx === sortedLines.length - 1 || (sortedLines[idx + 1].phase || "A") !== phase;
+                return (
                 <tr key={line.line_no}>
                   <td>{line.line_no}</td>
                   <td><input className="v50-input" style={{ width: 56 }} value={line.phase || "A"} onChange={(e) => s.updateLine(line.line_no, { phase: e.target.value })} /></td>
-                  <td><input className="v50-input" style={{ width: 56 }} type="number" value={line.phase_seq ?? ""} onChange={(e) => s.updateLine(line.line_no, { phase_seq: e.target.value })} /></td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 12, color: "#64748b", minWidth: 14, textAlign: "center" }}>{line.phase_seq ?? "-"}</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <button type="button" className="v50-button-light" style={{ padding: "0 5px", fontSize: 10, lineHeight: "14px" }}
+                          disabled={isFirstInPhase} onClick={() => s.moveLinePhaseSeq(line.line_no, "up")}>▲</button>
+                        <button type="button" className="v50-button-light" style={{ padding: "0 5px", fontSize: 10, lineHeight: "14px" }}
+                          disabled={isLastInPhase} onClick={() => s.moveLinePhaseSeq(line.line_no, "down")}>▼</button>
+                      </div>
+                    </div>
+                  </td>
                   <td>{line.raw_code || "-"}</td>
                   <td>
                     <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
@@ -238,7 +247,8 @@ export default function FormulaCorePanel() {
                   </td>
                   <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
                 </tr>
-              ))}
+                );
+              })}
               {s.lines.length === 0 && <tr><td colSpan={10}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
             {s.lines.length > 0 && (
@@ -253,6 +263,9 @@ export default function FormulaCorePanel() {
               </tfoot>
             )}
           </table>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button className="v50-button" onClick={handleSaveClick} disabled={s.loading}>저장</button>
         </div>
       </section>
 
