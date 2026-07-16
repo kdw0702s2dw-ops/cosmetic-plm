@@ -116,7 +116,7 @@ function n(v: any) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function pct(v: any) {
+export function pct(v: any) {
   const num = Number(v || 0);
   return Number.isInteger(num) ? String(num) : String(Number(num.toFixed(6)));
 }
@@ -124,13 +124,13 @@ function pct(v: any) {
 // ============================================================
 // KOVAS 양식 공통 스타일 (줄바꿈 셀 + 박스 + 각주/기밀문구)
 // ============================================================
-const CONFIDENTIAL =
+export const CONFIDENTIAL =
   "본 문서는 지정된 수신인만을 위한 것이며 영업비밀·기밀정보를 포함할 수 있습니다. 무단 공개·배포·복사를 금합니다.";
-const NOTES = [
+export const NOTES = [
   "1) Raw material manufacturers can be changed without advance notice if it does not affect product functions.",
   "2) Viscosity and pH-related raw materials can be adjusted.",
 ];
-const ALLERGEN_BASE_LINE = "3) Allergen Labeling: Leave-on ≥ 0.001% / Rinse-off ≥ 0.01%";
+export const ALLERGEN_BASE_LINE = "3) Allergen Labeling: Leave-on ≥ 0.001% / Rinse-off ≥ 0.01%";
 
 // 처방의 제품 사용유형(exposure_type)에 따라 plm_allergen_alerts 계산 결과를 표로 렌더링.
 // exposure_type 미지정이면 "계산 불가" 안내, 계산은 됐지만 표시대상이 0건이면 그와 구분되게 명시.
@@ -213,7 +213,7 @@ ${body}
 </html>`;
 }
 
-function kovasMeta(f: any) {
+export function kovasMeta(f: any) {
   return {
     "Frame formulation number": f.formula_code ?? "",
     "No.": f.revision ?? "",
@@ -314,18 +314,18 @@ export function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
-// ============================================================
-// 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
-// ============================================================
-export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
-  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const map = byRawComponents(components);
+export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string };
+export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
 
-  // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개.
-  const grouped = lines
+// 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
+// PDF(복합성분표)와 엑셀 다운로드가 이 함수를 그대로 공유해서, 원료=1행/구성성분은 셀 내 줄바꿈이라는
+// 동일한 레이아웃 규칙을 두 출력 형식에서 어긋나지 않게 유지한다.
+export function buildComplexGroupedRows(lines: any[], components: any[]): ComplexGroupedRow[] {
+  const map = byRawComponents(components);
+  return lines
     .map((line) => {
       const comps = map.get(line.raw_code) || [];
-      const items = comps.length
+      const items: ComplexGroupedItem[] = comps.length
         ? comps.map((c) => ({
             inci_en: c.inci_en || c.component_name_en || "",
             inci_kr: c.inci_kr || c.component_name_kr || "",
@@ -336,7 +336,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
             {
               inci_en: line.inci_en || line.raw_name || "",
               inci_kr: line.inci_kr || line.raw_name || "",
-              ratio: null as number | null, // 단일원료는 '-'
+              ratio: null,
               cas: line.cas_no || "-",
             },
           ];
@@ -349,6 +349,14 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
       };
     })
     .sort((a, b) => b.input - a.input);
+}
+
+// ============================================================
+// 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
+// ============================================================
+export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
+  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+  const grouped = buildComplexGroupedRows(lines, components);
 
   const body = grouped
     .map((g, i) => {
