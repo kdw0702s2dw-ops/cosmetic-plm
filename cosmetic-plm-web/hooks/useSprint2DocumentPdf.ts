@@ -6,6 +6,11 @@ import {
   openPrintDocument, regenerateFormulaDocument, type DocKind,
 } from "@/services/sprint2/documentPdfService";
 import { downloadLabJournalDocument } from "@/services/sprint2/labJournalExcelService";
+import {
+  downloadComplexComponentExcel,
+  downloadInciListExcel,
+  downloadSingleComponentExcel,
+} from "@/services/sprint2/documentExcelService";
 
 export type FormulaDocGroup = {
   formula_code: string;
@@ -109,6 +114,20 @@ export function useSprint2DocumentPdf() {
     }
   }
 
+  async function downloadDocExcel(formula: any, kind: DocKind, label: string) {
+    setLoading(true);
+    try {
+      if (kind === "INCI_LIST") await downloadInciListExcel(formula);
+      else if (kind === "COMPLEX_COMPONENT_TABLE") await downloadComplexComponentExcel(formula);
+      else await downloadSingleComponentExcel(formula);
+      setMessage(`${label} 엑셀 다운로드 완료`);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function preview(doc: any) { setSelected(doc); setMessage(`${doc.document_code} 미리보기`); }
   function download(doc: any) { downloadHtmlDocument(doc); setMessage("HTML 다운로드 완료"); }
   function print(doc: any) {
@@ -136,6 +155,6 @@ export function useSprint2DocumentPdf() {
   return {
     formulas, documents, keyword, setKeyword, selected, message, loading,
     existingDocByKey, groupedDocs,
-    load, createDoc, regenerateDoc, preview, download, print, downloadLabJournal,
+    load, createDoc, regenerateDoc, preview, download, print, downloadLabJournal, downloadDocExcel,
   };
 }

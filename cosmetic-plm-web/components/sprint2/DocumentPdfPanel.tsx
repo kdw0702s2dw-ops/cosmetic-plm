@@ -74,13 +74,18 @@ export default function DocumentPdfPanel() {
                       <button className="v50-button-light" onClick={() => s.downloadLabJournal(f)}>실험일지 다운로드</button>
                       {docButtons.map((b) => {
                         const existing = s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`);
-                        return existing ? (
+                        return (
                           <span key={b.kind} style={{ display: "inline-flex", gap: 4 }}>
-                            <button className="v50-button-light" disabled style={{ opacity: 0.55 }}>{b.label} (생성됨)</button>
-                            <button className="v50-button" onClick={() => s.regenerateDoc(existing, f, b.kind)}>재생성</button>
+                            {existing ? (
+                              <>
+                                <button className="v50-button-light" disabled style={{ opacity: 0.55 }}>{b.label} (생성됨)</button>
+                                <button className="v50-button" onClick={() => s.regenerateDoc(existing, f, b.kind)}>재생성</button>
+                              </>
+                            ) : (
+                              <button className="v50-button-light" onClick={() => s.createDoc(f, b.kind)}>{b.label}</button>
+                            )}
+                            <button className="v50-button-light" onClick={() => s.downloadDocExcel(f, b.kind, b.label)}>{b.label} 엑셀</button>
                           </span>
-                        ) : (
-                          <button key={b.kind} className="v50-button-light" onClick={() => s.createDoc(f, b.kind)}>{b.label}</button>
                         );
                       })}
                     </div>

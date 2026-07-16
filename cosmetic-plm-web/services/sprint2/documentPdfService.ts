@@ -286,6 +286,8 @@ export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
     .map((line) => ({
       formula_code: line.formula_code,
       formula_name: line.formula_name,
+      raw_code: line.raw_code,
+      raw_name: line.raw_name,
       inci_en: line.inci_en || line.raw_name || "",
       inci_kr: line.inci_kr || line.raw_name || "",
       final_percent: n(line.percentage),
