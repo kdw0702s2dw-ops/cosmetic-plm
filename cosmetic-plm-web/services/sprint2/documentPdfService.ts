@@ -4,7 +4,6 @@ import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { fetchAllergenAlerts } from "@/services/sprint2/allergenService";
 
 export type DocKind =
-  | "FORMULA_SHEET_PDF"
   | "INCI_LIST"
   | "COMPLEX_COMPONENT_TABLE"
   | "SINGLE_COMPONENT_TABLE";
@@ -314,28 +313,6 @@ export function mergeRows(rows: ExpandedRow[]) {
 }
 
 // ============================================================
-// Formula Sheet (기존 유지, 헤더만 KOVAS 메타 사용)
-// ============================================================
-export async function buildFormulaSheetHtml(f: any, lines: any[]) {
-  const total = Number(lines.reduce((s, x) => s + n(x.percentage), 0).toFixed(4));
-  const rows = lines
-    .map(
-      (x) => `<tr>
-<td class="center">${e(x.line_no)}</td><td>${e(x.phase)}</td><td>${e(x.raw_code)}</td><td>${e(x.raw_name)}</td>
-<td>${e(x.inci_kr || x.inci_en || "")}</td><td class="right">${e(x.percentage)}%</td><td>${e(x.function_kr || x.function_en || "")}</td>
-</tr>`
-    )
-    .join("");
-
-  return baseHtml("Formula Sheet", kovasMeta(f), `
-<table class="grid">
-<thead><tr><th>No</th><th>Phase</th><th>원료코드</th><th>원료명</th><th>INCI</th><th>함량</th><th>기능</th></tr></thead>
-<tbody>${rows || `<tr><td colspan="7">BOM 없음</td></tr>`}</tbody>
-</table>
-<div style="text-align:right;font-weight:700;margin-top:6px;font-size:12px">총합: ${total}%</div>`, f);
-}
-
-// ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
 export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
@@ -456,14 +433,12 @@ export async function buildInciListHtml(f: any, lines: any[]) {
 }
 
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
-  FORMULA_SHEET_PDF: "Formula Sheet",
   INCI_LIST: "전성분표",
   COMPLEX_COMPONENT_TABLE: "복합성분표",
   SINGLE_COMPONENT_TABLE: "단일성분표",
 };
 
 async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[]) {
-  if (kind === "FORMULA_SHEET_PDF") return buildFormulaSheetHtml(formula, lines);
   if (kind === "INCI_LIST") return buildInciListHtml(formula, lines);
   if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines);
   return buildSingleComponentTableHtml(formula, lines);
@@ -514,9 +489,6 @@ export async function regenerateFormulaDocument(existingDoc: any, formula: any, 
   if (error) throw error;
   return data;
 }
-
-export const createFormulaSheetDocument = (formula: any) =>
-  createFormulaDocument(formula, "FORMULA_SHEET_PDF");
 
 export function downloadHtmlDocument(doc: any) {
   const blob = new Blob([doc.html_content || ""], { type: "text/html;charset=utf-8" });

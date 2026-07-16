@@ -6,7 +6,6 @@ import type { DocKind } from "@/services/sprint2/documentPdfService";
 import "@/styles/enterprise-v50.css";
 
 const docButtons: { kind: DocKind; label: string }[] = [
-  { kind: "FORMULA_SHEET_PDF", label: "Formula Sheet" },
   { kind: "INCI_LIST", label: "전성분표" },
   { kind: "COMPLEX_COMPONENT_TABLE", label: "복합성분표" },
   { kind: "SINGLE_COMPONENT_TABLE", label: "단일성분표" },
@@ -48,7 +47,7 @@ export default function DocumentPdfPanel() {
       <section className="v50-hero">
         <div>
           <h1 className="v50-title">문서관리 PDF</h1>
-          <p className="v50-desc">Formula Sheet, 전성분표, 복합성분표, 단일성분표를 각각 생성하고 PDF로 저장합니다.</p>
+          <p className="v50-desc">실험일지(엑셀)를 다운로드하고, 전성분표/복합성분표/단일성분표를 각각 생성하여 PDF로 저장합니다.</p>
         </div>
         <button className="v50-button" onClick={s.load}>새로고침</button>
       </section>
@@ -72,6 +71,7 @@ export default function DocumentPdfPanel() {
                   <td>{f.total_percent}%</td>
                   <td>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button className="v50-button-light" onClick={() => s.downloadLabJournal(f)}>실험일지 다운로드</button>
                       {docButtons.map((b) => {
                         const existing = s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`);
                         return existing ? (

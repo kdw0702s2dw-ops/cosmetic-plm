@@ -5,6 +5,7 @@ import {
   createFormulaDocument, downloadHtmlDocument, fetchDocumentFormulas, fetchPdfDocuments,
   openPrintDocument, regenerateFormulaDocument, type DocKind,
 } from "@/services/sprint2/documentPdfService";
+import { downloadLabJournalDocument } from "@/services/sprint2/labJournalExcelService";
 
 export type FormulaDocGroup = {
   formula_code: string;
@@ -96,6 +97,18 @@ export function useSprint2DocumentPdf() {
     }
   }
 
+  async function downloadLabJournal(formula: any) {
+    setLoading(true);
+    try {
+      await downloadLabJournalDocument(formula);
+      setMessage(`${formula.formula_name} 실험일지 다운로드 완료`);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "실험일지 다운로드 오류");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function preview(doc: any) { setSelected(doc); setMessage(`${doc.document_code} 미리보기`); }
   function download(doc: any) { downloadHtmlDocument(doc); setMessage("HTML 다운로드 완료"); }
   function print(doc: any) {
@@ -123,6 +136,6 @@ export function useSprint2DocumentPdf() {
   return {
     formulas, documents, keyword, setKeyword, selected, message, loading,
     existingDocByKey, groupedDocs,
-    load, createDoc, regenerateDoc, preview, download, print,
+    load, createDoc, regenerateDoc, preview, download, print, downloadLabJournal,
   };
 }
