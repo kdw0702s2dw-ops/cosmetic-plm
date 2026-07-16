@@ -217,8 +217,7 @@ export function kovasMeta(f: any) {
   return {
     "Frame formulation number": f.formula_code ?? "",
     "No.": f.revision ?? "",
-    Date: new Date().toLocaleDateString("ko-KR"),
-    Manufacturer: f.manufacturer ?? "뉴트리어드바이저",
+    Manufacturer: f.manufacturer ?? "Nutriadvisor(뉴트리어드바이저)",
     Customer: f.customer ?? "",
     "Product name acc. To package": f.formula_name ?? "",
   };
