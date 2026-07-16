@@ -225,7 +225,7 @@ function kovasMeta(f: any) {
   };
 }
 
-type ExpandedRow = {
+export type ExpandedRow = {
   formula_code?: string;
   formula_name?: string;
   raw_code?: string;
@@ -238,9 +238,11 @@ type ExpandedRow = {
   cas_no: string;
   ec_no: string;
   function_text: string;
+  line_no?: number;
+  sourceLineNos?: number[];
 };
 
-function byRawComponents(components: any[]) {
+export function byRawComponents(components: any[]) {
   const map = new Map<string, any[]>();
   for (const c of components) {
     const arr = map.get(c.raw_code) || [];
@@ -250,7 +252,7 @@ function byRawComponents(components: any[]) {
   return map;
 }
 
-function complexRows(lines: any[], components: any[]): ExpandedRow[] {
+export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
   const map = byRawComponents(components);
   const rows: ExpandedRow[] = [];
 
@@ -270,6 +272,7 @@ function complexRows(lines: any[], components: any[]): ExpandedRow[] {
         cas_no: comp.cas_no || "",
         ec_no: comp.ec_no || "",
         function_text: comp.function_kr || comp.function_en || "",
+        line_no: line.line_no,
       });
     }
   }
@@ -277,7 +280,7 @@ function complexRows(lines: any[], components: any[]): ExpandedRow[] {
   return rows.sort((a, b) => b.final_percent - a.final_percent);
 }
 
-function singleRows(lines: any[], components: any[]): ExpandedRow[] {
+export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
   const complexRawCodes = new Set(components.map((c) => c.raw_code));
   return lines
     .filter((line) => !complexRawCodes.has(line.raw_code))
@@ -290,19 +293,21 @@ function singleRows(lines: any[], components: any[]): ExpandedRow[] {
       cas_no: line.cas_no || "",
       ec_no: line.ec_no || "",
       function_text: line.function_kr || line.function_en || "",
+      line_no: line.line_no,
     }))
     .sort((a, b) => b.final_percent - a.final_percent);
 }
 
-function mergeRows(rows: ExpandedRow[]) {
+export function mergeRows(rows: ExpandedRow[]) {
   const map = new Map<string, ExpandedRow>();
   for (const row of rows) {
     const key = [row.inci_en, row.inci_kr, row.cas_no, row.ec_no, row.function_text].join("|");
     const old = map.get(key);
     if (old) {
       old.final_percent = Number((old.final_percent + row.final_percent).toFixed(8));
+      if (row.line_no != null) old.sourceLineNos = [...(old.sourceLineNos || []), row.line_no];
     } else {
-      map.set(key, { ...row });
+      map.set(key, { ...row, sourceLineNos: row.line_no != null ? [row.line_no] : [] });
     }
   }
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);

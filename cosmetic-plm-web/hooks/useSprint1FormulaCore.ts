@@ -26,6 +26,14 @@ import {
   type RegulationHit,
 } from "@/services/sprint2/regulationEngineService";
 import { calculateAllergenAlerts } from "@/services/sprint2/allergenService";
+import {
+  byRawComponents,
+  complexRows,
+  fetchComponentsByRawCodes,
+  mergeRows,
+  singleRows,
+  type ExpandedRow,
+} from "@/services/sprint2/documentPdfService";
 
 const emptyFormula: Sprint1Formula = {
   formula_code: "",
@@ -70,9 +78,22 @@ export function useSprint1FormulaCore() {
   // 생산 BOM 전개 상태 (원료 BOM과 별개, 현재 열려있는 처방에 자동으로 연결됨)
   const [productionBomRows, setProductionBomRows] = useState<ProductionBomRow[]>([]);
 
+  // 자동 전성분(복합원료 구성성분 전개 + INCI 병합) 계산용 원료별 구성성분 캐시
+  // - raw_code 집합이 바뀔 때만 DB에서 다시 불러온다 (함량%만 바뀌는 경우는 아래에서 즉시 재계산)
+  const [rawComponentsMap, setRawComponentsMap] = useState<Map<string, any[]>>(new Map());
+  const rawCodeKey = Array.from(new Set(lines.map((l) => l.raw_code).filter(Boolean))).sort().join(",");
+
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
   const inciList = buildSprint1InciList(lines);
+
+  // 문서관리 PDF(단일성분표/전성분표)와 동일한 mergeRows() 파이프라인을 재사용:
+  // 복합원료(premix)는 plm_raw_material_components 구성성분으로 전개하고, 단일원료는 라인 자신의 INCI를 사용해 병합한다.
+  const rawComponentsForLines = Array.from(rawComponentsMap.values()).flat();
+  const mergedInciRows: ExpandedRow[] = mergeRows([
+    ...complexRows(lines, rawComponentsForLines),
+    ...singleRows(lines, rawComponentsForLines),
+  ]);
 
   async function loadFormulas(k = keyword) {
     setLoading(true);
@@ -368,9 +389,29 @@ export function useSprint1FormulaCore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regulationRules]);
 
+  // BOM에 쓰인 원료 구성(raw_code) 집합이 바뀔 때만 구성성분을 다시 불러온다 (함량%만 바뀌는 경우는 즉시 로컬 재계산됨)
+  useEffect(() => {
+    const codes = rawCodeKey ? rawCodeKey.split(",") : [];
+    if (codes.length === 0) {
+      setRawComponentsMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    fetchComponentsByRawCodes(codes)
+      .then((components) => {
+        if (!cancelled) setRawComponentsMap(byRawComponents(components));
+      })
+      .catch(() => {
+        if (!cancelled) setRawComponentsMap(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rawCodeKey]);
+
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
-    selected, message, loading, total, cost, inciList,
+    selected, message, loading, total, cost, inciList, mergedInciRows,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, searchRawForLine, pickRawForLine,

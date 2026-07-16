@@ -164,18 +164,20 @@ export default function FormulaCorePanel() {
 
       <section className="v50-panel">
         <h2>자동 전성분</h2>
+        <p style={{ color: "#64748b", fontSize: 13, marginTop: -8, marginBottom: 10 }}>
+          복합원료(premix)는 구성성분으로 전개하고, 동일 INCI는 합산하여 함량 내림차순으로 표시합니다. (문서관리 전성분표와 동일한 로직)
+        </p>
         <p style={{ lineHeight: 1.8 }}>
           {(() => {
-            const entries = [...s.lines]
-              .sort((a, b) => Number(b.percentage || 0) - Number(a.percentage || 0))
-              .map((line) => ({ line, name: line.inci_kr || line.inci_en || line.raw_name }))
-              .filter((x) => x.name);
+            const entries = s.mergedInciRows.filter((row) => row.inci_kr || row.inci_en);
             if (entries.length === 0) return "BOM 원료를 추가하면 자동 생성됩니다.";
-            return entries.map(({ line, name }, i) => {
-              const worst = worstHit(s.lineWarnings[line.line_no] || []);
+            return entries.map((row, i) => {
+              const name = row.inci_kr || row.inci_en;
+              const hits = (row.sourceLineNos || []).flatMap((ln) => s.lineWarnings[ln] || []);
+              const worst = worstHit(hits);
               const color = worst?.allowed_status === "BANNED" ? "#dc2626" : worst?.allowed_status === "LIMITED" ? "#b45309" : undefined;
               return (
-                <span key={line.line_no} style={color ? { color, fontWeight: 700 } : undefined}>
+                <span key={`${row.inci_en}|${row.inci_kr}|${row.cas_no}|${i}`} style={color ? { color, fontWeight: 700 } : undefined}>
                   {name}{i < entries.length - 1 ? ", " : ""}
                 </span>
               );
