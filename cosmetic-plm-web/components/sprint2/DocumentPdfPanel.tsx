@@ -21,10 +21,52 @@ function DocActions({ d, onPreview, onDownload, onPrint }: { d: any; onPreview: 
   );
 }
 
+// 처방 1건 펼침 영역 안에서 문서 종류(전성분표/복합성분표/단일성분표) 한 줄.
+// "PDF 보기/생성" 버튼은 상태에 따라 라벨/동작이 바뀐다: 미생성 -> 생성(createDoc), 생성됨 -> 보기(preview).
+function DocKindRow({
+  label, kind, formula, existing, s,
+}: {
+  label: string;
+  kind: DocKind;
+  formula: any;
+  existing: any;
+  s: ReturnType<typeof useSprint2DocumentPdf>;
+}) {
+  const statusText = existing
+    ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
+    : "미생성";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+      <span style={{ width: 100, fontWeight: 800 }}>{label}</span>
+      <span style={{ width: 170, fontSize: 13, color: existing ? "#16a34a" : "#94a3b8" }}>{statusText}</span>
+      <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+        {existing ? (
+          <>
+            <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
+            <button className="v50-button-light" onClick={() => s.regenerateDoc(existing, formula, kind)}>재생성</button>
+          </>
+        ) : (
+          <button className="v50-button-light" onClick={() => s.createDoc(formula, kind)}>PDF 생성</button>
+        )}
+        <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label)}>엑셀 다운로드</button>
+      </div>
+    </div>
+  );
+}
+
 export default function DocumentPdfPanel() {
   const s = useSprint2DocumentPdf();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [expandedOlder, setExpandedOlder] = useState<Set<string>>(new Set());
+  const [expandedFormulas, setExpandedFormulas] = useState<Set<string>>(new Set());
+
+  function toggleFormula(key: string) {
+    setExpandedFormulas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   function toggleGroup(code: string) {
     setCollapsedGroups((prev) => {
@@ -59,43 +101,43 @@ export default function DocumentPdfPanel() {
           <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
           <button className="v50-button" onClick={s.load}>검색</button>
         </div>
-        <div className="v50-table-wrap">
-          <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>처방명</th><th>Rev</th><th>총합</th><th>문서 생성</th></tr></thead>
-            <tbody>
-              {s.formulas.map((f) => (
-                <tr key={`${f.formula_code}-${f.revision}`}>
-                  <td>{f.formula_code}</td>
-                  <td>{f.formula_name}</td>
-                  <td>{f.revision}</td>
-                  <td>{f.total_percent}%</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <button className="v50-button-light" onClick={() => s.downloadLabJournal(f)}>실험일지 다운로드</button>
-                      {docButtons.map((b) => {
-                        const existing = s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`);
-                        return (
-                          <span key={b.kind} style={{ display: "inline-flex", gap: 4 }}>
-                            {existing ? (
-                              <>
-                                <button className="v50-button-light" disabled style={{ opacity: 0.55 }}>{b.label} (생성됨)</button>
-                                <button className="v50-button" onClick={() => s.regenerateDoc(existing, f, b.kind)}>재생성</button>
-                              </>
-                            ) : (
-                              <button className="v50-button-light" onClick={() => s.createDoc(f, b.kind)}>{b.label}</button>
-                            )}
-                            <button className="v50-button-light" onClick={() => s.downloadDocExcel(f, b.kind, b.label)}>{b.label} 엑셀</button>
-                          </span>
-                        );
-                      })}
+        {s.formulas.length === 0 && <p style={{ color: "#64748b" }}>처방 데이터가 없습니다.</p>}
+        {s.formulas.map((f) => {
+          const key = `${f.formula_code}-${f.revision}`;
+          const expanded = expandedFormulas.has(key);
+          return (
+            <div key={key} className="v50-card" style={{ padding: 0, marginBottom: 10, overflow: "hidden" }}>
+              <button onClick={() => toggleFormula(key)} style={{
+                width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "12px 16px", background: "#f8fafc", border: "none", cursor: "pointer", fontWeight: 800,
+              }}>
+                <span>{f.formula_name} ({f.formula_code}) · Rev {f.revision} · 총합 {f.total_percent}%</span>
+                <span>{expanded ? "▲" : "▼"}</span>
+              </button>
+              {expanded && (
+                <div style={{ padding: "2px 16px 4px" }}>
+                  {docButtons.map((b) => (
+                    <DocKindRow
+                      key={b.kind}
+                      label={b.label}
+                      kind={b.kind}
+                      formula={f}
+                      existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`)}
+                      s={s}
+                    />
+                  ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
+                    <span style={{ width: 100, fontWeight: 800 }}>실험일지</span>
+                    <span style={{ width: 170 }} />
+                    <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                      <button className="v50-button" onClick={() => s.downloadLabJournal(f)}>엑셀 다운로드</button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {s.formulas.length === 0 && <tr><td colSpan={5}>처방 데이터가 없습니다.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
