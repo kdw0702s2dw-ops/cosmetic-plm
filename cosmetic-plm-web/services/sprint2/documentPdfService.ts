@@ -215,8 +215,8 @@ ${body}
 
 export function kovasMeta(f: any) {
   return {
-    "Frame formulation number": f.formula_code ?? "",
-    "No.": f.revision ?? "",
+    "Development No.": f.formula_code ?? "",
+    "Sample No.": f.revision ?? "",
     Manufacturer: f.manufacturer ?? "Nutriadvisor(뉴트리어드바이저)",
     Customer: f.customer ?? "",
     "Product name acc. To package": f.formula_name ?? "",
