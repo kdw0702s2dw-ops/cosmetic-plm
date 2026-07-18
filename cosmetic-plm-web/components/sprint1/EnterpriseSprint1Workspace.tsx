@@ -5,6 +5,7 @@ import FormulaCoreWithAuthPanel from "@/components/sprint1/FormulaCoreWithAuthPa
 import Sprint0Dashboard from "@/components/platform/Sprint0Dashboard";
 import UserAdminPanel from "@/components/sprint1/UserAdminPanel";
 import RawMaterialManager from "@/components/sprint2/RawMaterialManager";
+import MaterialManager from "@/components/sprint2/MaterialManager";
 import IngredientDictionaryManager from "@/components/sprint2/IngredientDictionaryManager";
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
@@ -13,7 +14,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "formula" | "docs" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "formula" | "docs" | "regulation" | "users";
 
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
@@ -23,6 +24,7 @@ export default function EnterpriseSprint1Workspace() {
     if (active === "sprint0") return <Sprint0Dashboard />;
     if (active === "ingredientDict") return <IngredientDictionaryManager />;
     if (active === "rawManager") return <RawMaterialManager />;
+    if (active === "materialManager") return <MaterialManager />;
     if (active === "formula") return <FormulaCoreWithAuthPanel />;
     if (active === "docs") return <DocumentPdfPanel />;
     if (active === "regulation") return <RegulationEnginePanel />;
@@ -38,6 +40,7 @@ export default function EnterpriseSprint1Workspace() {
           <div>
             <div className="v50-menu-label">현재 사용 가능</div>
             <button className={active === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>
+            <button className={active === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
             <button className={active === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>
             <button className={active === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
             <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>
@@ -66,6 +69,7 @@ export default function EnterpriseSprint1Workspace() {
         </header>
         <nav className="v50-tabs">
           <div className={`v50-tab ${active === "home" ? "active" : ""}`} onClick={() => setActive("home")}><span>연구원 홈</span></div>
+          <div className={`v50-tab ${active === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
           <div className={`v50-tab ${active === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>
           <div className={`v50-tab ${active === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
           <div className={`v50-tab ${active === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>

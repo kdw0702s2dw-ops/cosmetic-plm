@@ -25,8 +25,11 @@ export type ProductionBomRow = {
   production_code?: string;
   product_name?: string;
   material_name_1?: string;
+  material_code_1?: string; // 부자재관리(plm_materials) 연동 - 자동완성으로 선택 시 채워짐
   material_name_2?: string;
+  material_code_2?: string;
   material_name_3?: string;
+  material_code_3?: string;
   molding_type?: string;
   remarks?: string;
 };
@@ -225,8 +228,11 @@ export async function saveProductionBomRows(formulaCode: string, revision: strin
     production_code: r.production_code || null,
     product_name: r.product_name || null,
     material_name_1: r.material_name_1 || null,
+    material_code_1: r.material_code_1 || null,
     material_name_2: r.material_name_2 || null,
+    material_code_2: r.material_code_2 || null,
     material_name_3: r.material_name_3 || null,
+    material_code_3: r.material_code_3 || null,
     molding_type: r.molding_type || null,
     remarks: r.remarks || null,
     formula_code: formulaCode,

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import { sortLinesForDisplay } from "@/services/sprint1/formulaCoreService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import SearchDropdown from "@/components/common/SearchDropdown";
+import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
@@ -38,35 +40,17 @@ function buildTooltip(hits: RegulationHit[]) {
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
   const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-  const [anchorPos, setAnchorPos] = useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
+  const materialInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [toast, setToast] = useState<ToastState>(null);
+  const anchorPos = useAnchorPosition(s.activeRawRow, () => (s.activeRawRow != null ? rawInputRefs.current[s.activeRawRow] : null), s.rawHits);
+  const activeMaterialKey = s.activeMaterialCell ? `${s.activeMaterialCell.rowIndex}-${s.activeMaterialCell.field}` : null;
+  const materialAnchorPos = useAnchorPosition(activeMaterialKey, () => (activeMaterialKey ? materialInputRefs.current[activeMaterialKey] : null), s.materialHits);
 
   async function handleSaveClick() {
     const result = await s.saveFormula();
     if (!result) return; // 사용자가 BANNED 확인창에서 취소한 경우 - 토스트 없음
     setToast({ type: result.ok ? "success" : "error", text: result.ok ? "저장되었습니다" : `저장 실패: ${result.message}` });
   }
-
-  useEffect(() => {
-    if (s.activeRawRow == null) {
-      setAnchorPos(null);
-      return;
-    }
-    const el = rawInputRefs.current[s.activeRawRow];
-    if (!el) {
-      setAnchorPos(null);
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    const estimatedHeight = Math.min(s.rawHits.length * 40 + 8, 240);
-    const spaceBelow = window.innerHeight - r.bottom;
-    // 아래쪽 공간이 부족하고 위쪽 공간이 더 넓으면 입력창 위로 뒤집어서 연다
-    if (spaceBelow < estimatedHeight && r.top > spaceBelow) {
-      setAnchorPos({ left: r.left, width: r.width, bottom: window.innerHeight - r.top });
-    } else {
-      setAnchorPos({ left: r.left, width: r.width, top: r.bottom });
-    }
-  }, [s.activeRawRow, s.rawHits]);
 
   function updateFormula(key: string, value: any) {
     s.setFormula({ ...s.formula, [key]: value });
@@ -224,7 +208,21 @@ export default function FormulaCorePanel() {
                       <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
                     )}
                     {s.activeRawRow === line.line_no && s.rawHits.length > 0 && anchorPos &&
-                      createPortal(<RawDropdown hits={s.rawHits} onPick={s.pickRawForLine} pos={anchorPos} />, document.body)}
+                      createPortal(
+                        <SearchDropdown
+                          hits={s.rawHits}
+                          onPick={s.pickRawForLine}
+                          pos={anchorPos}
+                          keyExtractor={(raw: any) => raw.raw_code}
+                          renderItem={(raw: any) => (
+                            <>
+                              <b>{raw.raw_name}</b> <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
+                              <span style={{ color: "#16a34a", marginLeft: 8 }}>{Number(raw.unit_price || 0).toLocaleString()}원/kg</span>
+                            </>
+                          )}
+                        />,
+                        document.body
+                      )}
                   </td>
                   <td><input className="v50-input bom-percent-input" style={{ width: 96 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
@@ -283,9 +281,18 @@ export default function FormulaCorePanel() {
                 <tr key={row.id || i}>
                   <td><input className="v50-input" value={row.production_code || ""} onChange={(e) => s.updateProductionBomRow(i, { production_code: e.target.value })} /></td>
                   <td><input className="v50-input" value={row.product_name || ""} onChange={(e) => s.updateProductionBomRow(i, { product_name: e.target.value })} /></td>
-                  <td><input className="v50-input" value={row.material_name_1 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_1: e.target.value })} /></td>
-                  <td><input className="v50-input" value={row.material_name_2 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_2: e.target.value })} /></td>
-                  <td><input className="v50-input" value={row.material_name_3 || ""} onChange={(e) => s.updateProductionBomRow(i, { material_name_3: e.target.value })} /></td>
+                  {(["material_name_1", "material_name_2", "material_name_3"] as const).map((field) => (
+                    <MaterialCell
+                      key={field}
+                      rowIndex={i}
+                      field={field}
+                      row={row}
+                      s={s}
+                      inputRefs={materialInputRefs}
+                      activeMaterialKey={activeMaterialKey}
+                      materialAnchorPos={materialAnchorPos}
+                    />
+                  ))}
                   <td><input className="v50-input" value={row.molding_type || ""} onChange={(e) => s.updateProductionBomRow(i, { molding_type: e.target.value })} /></td>
                   <td><input className="v50-input" value={row.remarks || ""} onChange={(e) => s.updateProductionBomRow(i, { remarks: e.target.value })} /></td>
                   <td><button className="v50-button-light" onClick={() => s.removeProductionBomRow(i)}>삭제</button></td>
@@ -300,23 +307,61 @@ export default function FormulaCorePanel() {
   );
 }
 
-function RawDropdown({ hits, onPick, pos }: { hits: any[]; onPick: (raw: any) => void; pos: { left: number; width: number; top?: number; bottom?: number } }) {
+type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
+const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
+  material_name_1: "material_code_1",
+  material_name_2: "material_code_2",
+  material_name_3: "material_code_3",
+};
+
+// 생산 BOM 전개의 부자재명1/2/3 칸 - 원료명 검색과 동일한 자동완성 패턴(SearchDropdown 재사용) +
+// 선택된 부자재의 명칭·규격·공급사를 입력칸 바로 아래에 작게 표시.
+function MaterialCell({
+  rowIndex, field, row, s, inputRefs, activeMaterialKey, materialAnchorPos,
+}: {
+  rowIndex: number;
+  field: MaterialSlot;
+  row: any;
+  s: ReturnType<typeof useSprint1FormulaCore>;
+  inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
+  activeMaterialKey: string | null;
+  materialAnchorPos: { left: number; width: number; top?: number; bottom?: number } | null;
+}) {
+  const key = `${rowIndex}-${field}`;
+  const isActive = activeMaterialKey === key;
+  const code = row[MATERIAL_CODE_FIELD[field]] as string | undefined;
+  const info = code ? s.materialsByCode.get(code) : undefined;
+
   return (
-    <div style={{
-      position: "fixed", zIndex: 1000, left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom,
-      background: "white", border: "1px solid #cbd5e1", borderRadius: 8,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 240, overflow: "auto", textAlign: "left",
-    }}>
-      {hits.map((raw) => (
-        <div key={raw.raw_code} onClick={() => onPick(raw)}
-          style={{ padding: "8px 10px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f1f5f9" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}>
-          <b>{raw.raw_name}</b> <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
-          <span style={{ color: "#16a34a", marginLeft: 8 }}>{Number(raw.unit_price || 0).toLocaleString()}원/kg</span>
+    <td>
+      <input className="v50-input" ref={(el) => { inputRefs.current[key] = el; }}
+        value={row[field] || ""} placeholder="부자재 검색"
+        onChange={(e) => s.searchMaterialForBomCell(rowIndex, field, e.target.value)} />
+      {isActive && s.materialSearchLoading && (
+        <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
+      )}
+      {isActive && s.materialHits.length > 0 && materialAnchorPos &&
+        createPortal(
+          <SearchDropdown
+            hits={s.materialHits}
+            onPick={s.pickMaterialForBomCell}
+            pos={materialAnchorPos}
+            keyExtractor={(m: any) => m.material_code}
+            renderItem={(m: any) => (
+              <>
+                <b>{m.material_code}</b> {m.material_name}
+                {m.spec && <span style={{ color: "#64748b", marginLeft: 8 }}>{m.spec}</span>}
+              </>
+            )}
+          />,
+          document.body
+        )}
+      {info && (
+        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+          {info.material_name}{info.spec ? ` · ${info.spec}` : ""}{info.supplier ? ` · ${info.supplier}` : ""}
         </div>
-      ))}
-    </div>
+      )}
+    </td>
   );
 }
 
