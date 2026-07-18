@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import * as XLSX from "xlsx";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
   fetchComponents, saveComponents, sumComposition, fetchAllergenMaster,
-  bulkUpdateUnitPrices, checkRawCodeExists, searchRawMaterialsAutocomplete,
-  fetchRawMaterialsForExport, fetchExistingRawCodes,
-  type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type PriceUpdateRow, type AllergenMaster,
+  checkRawCodeExists, searchRawMaterialsAutocomplete,
+  fetchRawMaterialsForExport,
+  type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
@@ -44,25 +43,6 @@ function downloadTextFile(filename: string, content: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
-
-type BulkImportRow = {
-  rowNo: number; // CSV의 실제 행 번호(헤더 다음 줄부터 2)
-  raw_code: string;
-  raw_name: string;
-  trade_name: string;
-  inci_kr: string;
-  inci_en: string;
-  cas_no: string;
-  ec_no: string;
-  manufacturer: string;
-  supplier: string;
-  unit_price: number | null;
-  moq: string;
-  lead_time: string;
-  origin_country: string;
-  status: "NEW" | "DUPLICATE" | "ERROR";
-  errorMessage?: string;
-};
 
 const emptyRm: RawMaterial = {
   raw_code: "", raw_name: "", trade_name: "", manufacturer: "", supplier: "",
@@ -179,20 +159,8 @@ export default function RawMaterialManager() {
     }
   }, [searchOpen, searchHits]);
 
-  // CSV 단가 일괄 반영 상태
-  const [csvRows, setCsvRows] = useState<PriceUpdateRow[]>([]);
-  const [csvBusy, setCsvBusy] = useState(false);
-  const [csvMsg, setCsvMsg] = useState("");
-
   // CSV 다운로드
   const [downloadBusy, setDownloadBusy] = useState(false);
-
-  // CSV 원료 일괄 등록 상태
-  const [bulkRows, setBulkRows] = useState<BulkImportRow[]>([]);
-  const [bulkUpdateExisting, setBulkUpdateExisting] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkMsg, setBulkMsg] = useState("");
-  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
 
   const [listLoading, setListLoading] = useState(false);
   const load = useCallback(async () => {
@@ -263,42 +231,6 @@ export default function RawMaterialManager() {
     }
   }
 
-  // CSV 업로드 → raw_code, unit_price 파싱 (헤더: raw_code/원료코드, unit_price/단가)
-  async function handleCsvFile(file: File) {
-    setCsvMsg("파싱 중…");
-    const text = await file.text();
-    const wb = XLSX.read(text, { type: "string" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-    const rows: PriceUpdateRow[] = [];
-    let invalid = 0;
-    for (const r of json) {
-      const code = String(r.raw_code ?? r["원료코드"] ?? "").trim();
-      const price = Number(r.unit_price ?? r["단가"]);
-      if (!code || !Number.isFinite(price)) { invalid++; continue; }
-      rows.push({ raw_code: code, unit_price: price });
-    }
-    setCsvRows(rows);
-    setCsvMsg(`파싱 완료: 유효 ${rows.length}건${invalid > 0 ? `, 형식 오류로 제외 ${invalid}건` : ""}`);
-  }
-
-  async function applyCsvPrices() {
-    if (csvRows.length === 0) return;
-    setCsvBusy(true);
-    setCsvMsg("반영 중…");
-    try {
-      const { updated, skipped } = await bulkUpdateUnitPrices(csvRows);
-      setCsvMsg(`반영 완료: ${updated}건 업데이트${skipped > 0 ? `, DB에 없는 코드 ${skipped}건 스킵` : ""}`);
-      setCsvRows([]);
-      await load();
-    } catch (e: any) {
-      setCsvMsg("반영 오류: " + e.message);
-    } finally {
-      setCsvBusy(false);
-    }
-  }
-
   // 원료 목록 CSV 다운로드 (업로드 양식과 컬럼 순서/이름 동일 - 다운받아 채워서 그대로 재업로드 가능)
   async function handleDownloadCsv() {
     setDownloadBusy(true);
@@ -314,107 +246,6 @@ export default function RawMaterialManager() {
     } finally {
       setDownloadBusy(false);
     }
-  }
-
-  // 원료 일괄 등록 CSV 파싱 → 미리보기 (아직 DB 반영 안 함)
-  async function handleBulkImportFile(file: File) {
-    setBulkMsg("파싱 중…");
-    setBulkErrors([]);
-    const text = await file.text();
-    const wb = XLSX.read(text, { type: "string" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const json: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-    const codesInFile = json.map((r) => String(r.raw_code ?? "").trim()).filter(Boolean);
-    let existingCodes = new Set<string>();
-    try {
-      existingCodes = await fetchExistingRawCodes(codesInFile);
-    } catch {
-      // 기존 코드 조회 실패해도 파싱/미리보기는 계속 진행 (전부 NEW로 취급됨)
-    }
-
-    const rows: BulkImportRow[] = json.map((r, i) => {
-      const raw_code = String(r.raw_code ?? "").trim();
-      const raw_name = String(r.name ?? "").trim();
-      const unitPriceRaw = r.unit_price;
-      let unit_price: number | null = null;
-      let errorMessage = "";
-
-      if (!raw_code) errorMessage = "raw_code 누락";
-      else if (!raw_name) errorMessage = "name 누락";
-      else if (unitPriceRaw !== "" && unitPriceRaw !== undefined && unitPriceRaw !== null) {
-        const n = Number(unitPriceRaw);
-        if (!Number.isFinite(n)) errorMessage = "unit_price 숫자 형식 오류";
-        else unit_price = n;
-      }
-
-      const status: BulkImportRow["status"] = errorMessage ? "ERROR" : existingCodes.has(raw_code) ? "DUPLICATE" : "NEW";
-
-      return {
-        rowNo: i + 2,
-        raw_code, raw_name,
-        trade_name: String(r.trade_name ?? "").trim(),
-        inci_kr: String(r.inci_kr ?? "").trim(),
-        inci_en: String(r.inci_en ?? "").trim(),
-        cas_no: String(r.cas_no ?? "").trim(),
-        ec_no: String(r.ec_no ?? "").trim(),
-        manufacturer: String(r.manufacturer ?? "").trim(),
-        supplier: String(r.supplier ?? "").trim(),
-        unit_price,
-        moq: String(r.moq ?? "").trim(),
-        lead_time: String(r.lead_time ?? "").trim(),
-        origin_country: String(r.origin ?? "").trim(),
-        status,
-        errorMessage: errorMessage || undefined,
-      };
-    });
-
-    setBulkRows(rows);
-    const newCount = rows.filter((x) => x.status === "NEW").length;
-    const dupCount = rows.filter((x) => x.status === "DUPLICATE").length;
-    const errCount = rows.filter((x) => x.status === "ERROR").length;
-    setBulkMsg(`미리보기: 이 중 신규 ${newCount}건이 등록됩니다 (중복 ${dupCount}건${bulkUpdateExisting ? " 업데이트 예정" : " 건너뜀"}, 오류 ${errCount}건). 아래 "등록 확인" 버튼을 눌러야 실제로 반영됩니다.`);
-  }
-
-  // 미리보기 확인 후 실제 DB 반영
-  async function applyBulkImport() {
-    if (bulkRows.length === 0) return;
-    setBulkBusy(true);
-    setBulkMsg("반영 중…");
-    let inserted = 0, updated = 0, skipped = 0, failed = 0;
-    const errors: string[] = [];
-
-    for (const row of bulkRows) {
-      if (row.status === "ERROR") {
-        failed++;
-        errors.push(`${row.rowNo}행 (${row.raw_code || "코드없음"}): ${row.errorMessage}`);
-        continue;
-      }
-      if (row.status === "DUPLICATE" && !bulkUpdateExisting) {
-        skipped++;
-        continue;
-      }
-      try {
-        await saveRawMaterial({
-          raw_code: row.raw_code, raw_name: row.raw_name,
-          trade_name: row.trade_name || undefined, inci_kr: row.inci_kr || undefined, inci_en: row.inci_en || undefined,
-          cas_no: row.cas_no || undefined, ec_no: row.ec_no || undefined,
-          manufacturer: row.manufacturer || undefined, supplier: row.supplier || undefined,
-          unit_price: row.unit_price, moq: row.moq || undefined, lead_time: row.lead_time || undefined,
-          origin_country: row.origin_country || undefined, is_active: true,
-        });
-        if (row.status === "NEW") inserted++; else updated++;
-      } catch (e: any) {
-        failed++;
-        errors.push(`${row.rowNo}행 (${row.raw_code}): ${e.message}`);
-      }
-    }
-
-    setBulkMsg(`처리 완료: 신규 등록 ${inserted}건 / 업데이트 ${updated}건 / 중복 건너뜀 ${skipped}건 / 오류 ${failed}건`);
-    setBulkErrors(errors);
-    setBulkRows([]);
-    setBulkBusy(false);
-    await load();
   }
 
   // INCI 입력 → 자동완성 검색
@@ -516,85 +347,6 @@ export default function RawMaterialManager() {
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
-
-      <section className="v50-panel" style={{ marginBottom: 18 }}>
-        <h2>CSV로 단가 일괄 반영</h2>
-        <p style={{ color: "#64748b", fontSize: 13 }}>
-          헤더: <code>raw_code,unit_price</code> (또는 <code>원료코드,단가</code>). DB에 이미 있는 원료코드만 반영되고, 없는 코드는 무시됩니다.
-        </p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="file" accept=".csv" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleCsvFile(file);
-            e.target.value = "";
-          }} />
-          <button className="v50-button" onClick={applyCsvPrices} disabled={csvRows.length === 0 || csvBusy}>
-            {csvBusy ? "반영 중…" : `일괄 반영 (${csvRows.length}건)`}
-          </button>
-        </div>
-        {csvMsg && <p style={{ color: "#2563eb", fontWeight: 700, marginTop: 8 }}>{csvMsg}</p>}
-      </section>
-
-      <section className="v50-panel" style={{ marginBottom: 18 }}>
-        <h2>CSV로 원료 일괄 등록</h2>
-        <p style={{ color: "#64748b", fontSize: 13 }}>
-          헤더: <code>{RAW_CSV_HEADERS.join(",")}</code> ("CSV 다운로드"로 받은 파일을 그대로 채워서 올리면 됩니다).
-          <code>raw_code</code>, <code>name</code>은 필수이고 나머지는 선택입니다.
-        </p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="file" accept=".csv" onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleBulkImportFile(file);
-            e.target.value = "";
-          }} />
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-            <input type="checkbox" checked={bulkUpdateExisting}
-              onChange={(e) => setBulkUpdateExisting(e.target.checked)} />
-            이미 존재하는 원료코드는 건너뛰지 않고 업데이트
-          </label>
-        </div>
-        {bulkMsg && <p style={{ color: "#2563eb", fontWeight: 700, marginTop: 8 }}>{bulkMsg}</p>}
-
-        {bulkRows.length > 0 && (
-          <>
-            <div className="v50-table-wrap" style={{ marginTop: 8, maxHeight: 320, overflow: "auto" }}>
-              <table className="v50-table">
-                <thead><tr><th>행</th><th>상태</th><th>코드</th><th>원료명</th><th>제조사</th><th>단가</th><th>비고</th></tr></thead>
-                <tbody>
-                  {bulkRows.map((r) => (
-                    <tr key={r.rowNo}>
-                      <td>{r.rowNo}</td>
-                      <td>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                          background: r.status === "NEW" ? "#dcfce7" : r.status === "DUPLICATE" ? "#fef3c7" : "#fee2e2",
-                          color: r.status === "NEW" ? "#16a34a" : r.status === "DUPLICATE" ? "#b45309" : "#dc2626",
-                        }}>
-                          {r.status === "NEW" ? "신규" : r.status === "DUPLICATE" ? (bulkUpdateExisting ? "업데이트" : "중복(건너뜀)") : "오류"}
-                        </span>
-                      </td>
-                      <td>{r.raw_code}</td>
-                      <td>{r.raw_name}</td>
-                      <td>{r.manufacturer || "-"}</td>
-                      <td>{r.unit_price != null ? r.unit_price.toLocaleString() : "-"}</td>
-                      <td style={{ color: "#dc2626" }}>{r.errorMessage || ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <button className="v50-button" style={{ marginTop: 8 }} onClick={applyBulkImport} disabled={bulkBusy}>
-              {bulkBusy ? "반영 중…" : `등록 확인 (신규 ${bulkRows.filter((r) => r.status === "NEW").length}건${bulkUpdateExisting ? ` + 업데이트 ${bulkRows.filter((r) => r.status === "DUPLICATE").length}건` : ""})`}
-            </button>
-          </>
-        )}
-
-        {bulkErrors.length > 0 && (
-          <div style={{ marginTop: 8, color: "#dc2626", fontSize: 13 }}>
-            {bulkErrors.map((e, i) => <p key={i} style={{ margin: "2px 0" }}>{e}</p>)}
-          </div>
-        )}
-      </section>
 
       {/* 원료 목록 - 전체 폭 */}
       <section className="v50-panel" style={{ marginBottom: 18 }}>
