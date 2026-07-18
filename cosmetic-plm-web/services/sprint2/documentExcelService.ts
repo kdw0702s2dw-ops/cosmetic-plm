@@ -5,9 +5,12 @@ import {
   ALLERGEN_BASE_LINE,
   buildComplexGroupedRows,
   complexRows,
+  computeUniformPercentDecimals,
   CONFIDENTIAL,
+  exactDecimalToNumber,
   fetchComponentsByRawCodes,
   fetchFormulaLinesForPdf,
+  fixedPct,
   kovasMeta,
   mergeRows,
   NOTES,
@@ -110,11 +113,16 @@ async function loadExpandedRows(formula: any) {
 export async function downloadSingleComponentExcel(formula: any) {
   const { lines, components } = await loadExpandedRows(formula);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
+  // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
+  // 엑셀에서는 숫자 그대로라 정렬/필터/수식 계산이 가능함).
+  const decimals = computeUniformPercentDecimals(rows);
+  const percentNumFmt = "0." + "0".repeat(decimals);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("단일성분표");
   const colCount = 7;
-  ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 14 }, { width: 16 }, { width: 12 }, { width: 20 }];
+  ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 8 + decimals }, { width: 16 }, { width: 12 }, { width: 20 }];
 
   writeTitleRow(ws, "Ingredient List (Single)", colCount);
   writeMetaRows(ws, formula, colCount);
@@ -131,8 +139,10 @@ export async function downloadSingleComponentExcel(formula: any) {
     ws.addRow(["", "단일성분 데이터가 없습니다.", "", "", "", "", ""]);
   }
   rows.forEach((x, i) => {
-    const row = ws.addRow([i + 1, x.inci_en, x.inci_kr, Number(pct(x.final_percent)), x.cas_no || "-", x.ec_no || "-", x.function_text]);
+    const percentValue = x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent));
+    const row = ws.addRow([i + 1, x.inci_en, x.inci_kr, percentValue, x.cas_no || "-", x.ec_no || "-", x.function_text]);
     row.alignment = { vertical: "middle" };
+    row.getCell(4).numFmt = percentNumFmt;
     border(ws, row.number, 1, row.number, colCount);
   });
 
@@ -194,14 +204,15 @@ export async function downloadComplexComponentExcel(formula: any) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
   const colCount = 7;
-  ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 12 }, { width: 14 }, { width: 24 }, { width: 20 }];
+  ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
 
   writeTitleRow(ws, "Ingredient List for Development", colCount);
   writeMetaRows(ws, formula, colCount);
 
-  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "구성비(%)", "최종함량(%)", "CAS No.", "Function"]);
+  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "CAS No.", "Function"]);
   headerRow.font = { bold: true };
-  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  headerRow.height = 30;
   headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
   });
@@ -214,10 +225,10 @@ export async function downloadComplexComponentExcel(formula: any) {
   grouped.forEach((g, i) => {
     const en = g.items.map((x) => x.inci_en).join("\n");
     const kr = g.items.map((x) => x.inci_kr).join("\n");
-    const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => pct(x.ratio)).join("\n");
+    const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 4)).join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
-    const row = ws.addRow([i + 1, en, kr, ratio, Number(pct(g.input)), cas, g.func]);
+    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 6), cas, g.func]);
     row.alignment = { vertical: "middle" };
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
     row.getCell(3).alignment = { vertical: "middle", wrapText: true };

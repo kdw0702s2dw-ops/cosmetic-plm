@@ -121,6 +121,102 @@ export function pct(v: any) {
   return Number.isInteger(num) ? String(num) : String(Number(num.toFixed(6)));
 }
 
+// 고정 소수 자릿수 표시 (예: fixedPct(1.3, 6) -> "1.300000"). PDF/엑셀이 항상 같은 문자열을 쓰도록
+// 여기 한 곳에만 둔다.
+export function fixedPct(v: any, decimals: number) {
+  return Number(v || 0).toFixed(decimals);
+}
+
+// ============================================================
+// 정확한 소수 연산 (BigInt 기반) - 단일성분표 Percentage(%) 표시 전용.
+// line.percentage/comp.composition_percent는 둘 다 유한소수이므로 곱셈/나눗셈(÷100)/덧셈의
+// 결과도 항상 유한소수로 정확히 끝난다. 부동소수점(Number) 연산은 이진수라 0.1+0.2 같은 오차가
+// 생기므로, 소수점을 제거한 정수(BigInt) 연산으로 우회해 오차 없이 "정확히 몇 자리에서 끝나는지"까지
+// 계산한다. 기존 final_percent(원가 계산 등 다른 곳에서 쓰는, .toFixed(8)로 반올림된 값)는 건드리지
+// 않고, 이 계산은 exactPercent라는 별도 필드에만 병행해서 쌓는다.
+// ============================================================
+export type ExactDecimal = { digits: bigint; scale: number }; // value = digits / 10^scale
+
+// tsconfig target이 ES2017이라 BigInt 리터럴(0n 등) 문법을 못 쓰므로 생성자 호출로 대신한다.
+const BIG_ZERO = BigInt(0);
+const BIG_TEN = BigInt(10);
+
+function pow10(exp: number): bigint {
+  return BIG_TEN ** BigInt(exp);
+}
+
+export function toExactDecimal(n: number): ExactDecimal {
+  if (!Number.isFinite(n) || n === 0) return { digits: BIG_ZERO, scale: 0 };
+  const negative = n < 0;
+  // Number.prototype.toString()은 그 값과 다시 파싱했을 때 동일한 double이 되는 "가장 짧은" 십진
+  // 표현을 보장한다(ECMA-262 Number::toString) - 즉 우리가 다루는 범위(퍼센트, 소수 몇~십여 자리)의
+  // 값이라면 원래 입력한 십진수 그대로를 안전하게 복원할 수 있다.
+  const s = Math.abs(n).toString();
+  if (s.includes("e") || s.includes("E")) {
+    // 이 앱의 퍼센트 범위에서는 실질적으로 나오지 않지만 방어적으로 처리
+    const [mantissa, exp] = s.split(/e/i);
+    const expNum = Number(exp);
+    const [intPart, fracPart = ""] = mantissa.split(".");
+    const scale = fracPart.length - expNum;
+    const digits = BigInt(intPart + fracPart);
+    return { digits: negative ? -digits : digits, scale: Math.max(0, scale) };
+  }
+  const [intPart, fracPart = ""] = s.split(".");
+  const digits = BigInt((intPart + fracPart).replace(/^0+(?=\d)/, "") || "0");
+  return { digits: negative ? -digits : digits, scale: fracPart.length };
+}
+
+function scaleUpTo(d: ExactDecimal, targetScale: number): bigint {
+  const diff = targetScale - d.scale;
+  return diff > 0 ? d.digits * pow10(diff) : d.digits;
+}
+
+export function exactAdd(a: ExactDecimal, b: ExactDecimal): ExactDecimal {
+  const scale = Math.max(a.scale, b.scale);
+  return { digits: scaleUpTo(a, scale) + scaleUpTo(b, scale), scale };
+}
+
+export function exactMultiply(a: ExactDecimal, b: ExactDecimal): ExactDecimal {
+  return { digits: a.digits * b.digits, scale: a.scale + b.scale };
+}
+
+export function exactDivideByPow10(a: ExactDecimal, power: number): ExactDecimal {
+  return { digits: a.digits, scale: a.scale + power };
+}
+
+// 뒤에 붙은 0을 제거해서 "값이 정확히 끝나는" 최소 소수 자릿수를 구한다. maxScale을 넘어가면
+// (=15자리를 넘도록 끝나지 않으면) 거기서 멈춘다.
+export function minimalScale(d: ExactDecimal, maxScale = 15): number {
+  if (d.digits === BIG_ZERO) return 0;
+  const abs = d.digits < BIG_ZERO ? -d.digits : d.digits;
+  let s = abs.toString().padStart(d.scale + 1, "0");
+  let scale = d.scale;
+  while (scale > 0 && s.endsWith("0")) {
+    s = s.slice(0, -1);
+    scale--;
+  }
+  return Math.min(scale, maxScale);
+}
+
+// targetScale 자리로 정확하게(반올림 없이) 문자열을 만든다. targetScale은 항상
+// minimalScale(d) 이상으로 호출되므로(우리 쪽 사용 방식상), 자리를 줄여야 할 때 버려지는
+// 자리는 전부 0이라 정밀도 손실이 없다.
+export function exactDecimalToString(d: ExactDecimal, targetScale: number): string {
+  const negative = d.digits < BIG_ZERO;
+  const abs = d.digits < BIG_ZERO ? -d.digits : d.digits;
+  const diff = targetScale - d.scale;
+  const scaled = diff >= 0 ? abs * pow10(diff) : abs / pow10(-diff);
+  const s = scaled.toString().padStart(targetScale + 1, "0");
+  const intPart = targetScale > 0 ? s.slice(0, s.length - targetScale) : s;
+  const fracPart = targetScale > 0 ? s.slice(s.length - targetScale) : "";
+  const body = targetScale > 0 ? `${intPart}.${fracPart}` : intPart;
+  return negative && scaled !== BIG_ZERO ? `-${body}` : body;
+}
+
+export function exactDecimalToNumber(d: ExactDecimal): number {
+  return Number(exactDecimalToString(d, d.scale));
+}
+
 // ============================================================
 // KOVAS 양식 공통 스타일 (줄바꿈 셀 + 박스 + 각주/기밀문구)
 // ============================================================
@@ -238,6 +334,7 @@ export type ExpandedRow = {
   function_text: string;
   line_no?: number;
   sourceLineNos?: number[];
+  exactPercent?: ExactDecimal; // 단일성분표 Percentage(%) 표시 전용 (오차 없는 정확값, final_percent와 별개)
 };
 
 export function byRawComponents(components: any[]) {
@@ -271,6 +368,10 @@ export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
         ec_no: comp.ec_no || "",
         function_text: comp.function_kr || comp.function_en || "",
         line_no: line.line_no,
+        exactPercent: exactDivideByPow10(
+          exactMultiply(toExactDecimal(n(line.percentage)), toExactDecimal(n(comp.composition_percent))),
+          2
+        ),
       });
     }
   }
@@ -294,6 +395,7 @@ export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
       ec_no: line.ec_no || "",
       function_text: line.function_kr || line.function_en || "",
       line_no: line.line_no,
+      exactPercent: toExactDecimal(n(line.percentage)),
     }))
     .sort((a, b) => b.final_percent - a.final_percent);
 }
@@ -305,12 +407,26 @@ export function mergeRows(rows: ExpandedRow[]) {
     const old = map.get(key);
     if (old) {
       old.final_percent = Number((old.final_percent + row.final_percent).toFixed(8));
+      if (row.exactPercent) {
+        old.exactPercent = old.exactPercent ? exactAdd(old.exactPercent, row.exactPercent) : row.exactPercent;
+      }
       if (row.line_no != null) old.sourceLineNos = [...(old.sourceLineNos || []), row.line_no];
     } else {
       map.set(key, { ...row, sourceLineNos: row.line_no != null ? [row.line_no] : [] });
     }
   }
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
+}
+
+// mergeRows() 결과(rows)에 대해 문서 전체에서 통일할 소수 자릿수를 구한다:
+// 각 행의 "정확히 끝나는 자리"(minimalScale) 중 최댓값을, 최소 8자리~최대 15자리 사이로 clamp.
+export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals = 8, maxDecimals = 15) {
+  let maxNeeded = minDecimals;
+  for (const row of rows) {
+    if (!row.exactPercent) continue;
+    maxNeeded = Math.max(maxNeeded, minimalScale(row.exactPercent, maxDecimals));
+  }
+  return Math.min(maxNeeded, maxDecimals);
 }
 
 export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string };
@@ -364,14 +480,14 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
       const ratio =
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
-          : eLines(g.items.map((x) => pct(x.ratio)));
+          : eLines(g.items.map((x) => fixedPct(x.ratio, 4)));
       const cas = eLines(g.items.map((x) => x.cas));
       return `<tr>
   <td class="center">${i + 1}</td>
   <td>${en}</td>
   <td>${kr}</td>
   <td class="center">${ratio}</td>
-  <td class="center">${pct(g.input)}</td>
+  <td class="center">${fixedPct(g.input, 6)}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
 </tr>`;
@@ -382,7 +498,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
-  <th>구성비(%)</th><th>최종함량(%)</th><th>CAS No.</th><th>Function</th>
+  <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="7">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
 </table>`, f);
@@ -395,6 +511,8 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  // Percentage(%): 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일해서 0-패딩 표시
+  const decimals = computeUniformPercentDecimals(rows);
 
   const body = rows
     .map(
@@ -402,7 +520,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
   <td class="center">${i + 1}</td>
   <td>${e(x.inci_en)}</td>
   <td>${e(x.inci_kr)}</td>
-  <td class="right">${pct(x.final_percent)}</td>
+  <td class="right">${e(x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals))}</td>
   <td>${e(x.cas_no || "-")}</td>
   <td>${e(x.ec_no || "-")}</td>
   <td>${e(x.function_text)}</td>
