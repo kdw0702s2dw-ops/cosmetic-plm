@@ -84,6 +84,22 @@ export default function DocumentPdfPanel() {
     });
   }
 
+  // "처방 선택"에서 펼친(formula_code, revision) 조합만 정확히 추려서 "생성 문서 목록"을 그 범위로 필터링한다.
+  // expandedFormulas는 "formula_code-revision" 문자열 키라 역파싱이 애매하므로, 이미 갖고 있는 s.formulas와
+  // 대조해서 정확한 (formula_code, revision) 집합을 구한다. 새 state는 추가하지 않는다.
+  const expandedFormulaKeys = new Set(
+    s.formulas
+      .filter((f) => expandedFormulas.has(`${f.formula_code}-${f.revision}`))
+      .map((f) => `${f.formula_code}|${f.revision}`)
+  );
+  const visibleGroupedDocs = s.groupedDocs
+    .map((g) => ({
+      ...g,
+      latestDocs: g.latestDocs.filter((d) => expandedFormulaKeys.has(`${d.formula_code}|${d.revision}`)),
+      olderDocs: g.olderDocs.filter((d) => expandedFormulaKeys.has(`${d.formula_code}|${d.revision}`)),
+    }))
+    .filter((g) => g.latestDocs.length > 0 || g.olderDocs.length > 0);
+
   return (
     <div className="v50-page">
       <section className="v50-hero">
@@ -142,8 +158,12 @@ export default function DocumentPdfPanel() {
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>생성 문서 목록 (처방별)</h2>
-        {s.groupedDocs.length === 0 && <p style={{ color: "#64748b" }}>생성된 문서가 없습니다.</p>}
-        {s.groupedDocs.map((g) => {
+        {expandedFormulas.size === 0 ? (
+          <p style={{ color: "#64748b" }}>처방을 선택하면 이력이 표시됩니다.</p>
+        ) : visibleGroupedDocs.length === 0 ? (
+          <p style={{ color: "#64748b" }}>생성된 문서가 없습니다.</p>
+        ) : null}
+        {visibleGroupedDocs.map((g) => {
           const collapsed = collapsedGroups.has(g.formula_code);
           const olderOpen = expandedOlder.has(g.formula_code);
           return (
