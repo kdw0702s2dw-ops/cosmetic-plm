@@ -3,6 +3,8 @@
 import ExcelJS from "exceljs";
 import { fetchFormulaLinesForPdf } from "@/services/sprint2/documentPdfService";
 
+const FONT_NAME = "맑은 고딕";
+
 function n(v: any) {
   const num = Number(v || 0);
   return Number.isFinite(num) ? num : 0;
@@ -29,6 +31,7 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
 
 const CENTER: Partial<ExcelJS.Alignment> = { vertical: "middle", horizontal: "center", wrapText: true };
 const CENTER_V_ONLY: Partial<ExcelJS.Alignment> = { vertical: "middle", wrapText: true };
+const BOM_DATA_FONT: Partial<ExcelJS.Font> = { name: FONT_NAME, size: 9 };
 
 function border(ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: number) {
   for (let r = r1; r <= r2; r++) {
@@ -45,12 +48,12 @@ function mergeLabel(
   r2: number,
   c2: number,
   value: string,
-  opts: { bold?: boolean; align?: Partial<ExcelJS.Alignment> } = {}
+  opts: { bold?: boolean; align?: Partial<ExcelJS.Alignment>; size?: number } = {}
 ) {
   ws.mergeCells(r1, c1, r2, c2);
   const cell = ws.getCell(r1, c1);
   cell.value = value;
-  cell.font = { bold: opts.bold ?? false };
+  cell.font = { name: FONT_NAME, bold: opts.bold ?? false, size: opts.size ?? 11 };
   cell.alignment = opts.align ?? CENTER;
   border(ws, r1, c1, r2, c2);
 }
@@ -61,10 +64,13 @@ export async function buildLabJournalWorkbook(formula: any, lines: any[]) {
   const ws = wb.addWorksheet("실험일지");
 
   ws.columns = [
-    { width: 2 }, { width: 6.25 }, { width: 7.625 }, { width: 20.875 },
-    { width: 10.25 }, { width: 10.25 }, { width: 10.25 }, { width: 10.25 }, { width: 10.25 }, { width: 10.25 },
-    { width: 10.125 }, { width: 2 },
+    { width: 2 }, { width: 6.25 }, { width: 10.5 }, { width: 24.25 },
+    { width: 10.125 }, { width: 10.125 }, { width: 10.125 }, { width: 10.125 }, { width: 10.125 }, { width: 10.125 },
+    { width: 10.125 },
   ];
+  ws.columns.forEach((col) => {
+    col.style = { font: { name: FONT_NAME } };
+  });
 
   const sorted = sortLinesForLabJournal(lines);
   const bomStart = 6;
@@ -72,9 +78,8 @@ export async function buildLabJournalWorkbook(formula: any, lines: any[]) {
   const totalRow = bomEnd + 1;
   const physicalStart = totalRow + 1;
   const physicalEnd = physicalStart + 5; // 원단/필름/칼선/두께(㎛)/pH/액단가 6줄
-  const processRow = physicalEnd + 1;
-  const noteRow = processRow + 1;
-  const signRow = noteRow + 1;
+  const noteStart = physicalEnd + 1; // 특이사항 라벨+박스가 차지하는 첫 번째 행 (구 공정 행 자리)
+  const noteEnd = noteStart + 1; // 특이사항 라벨+박스 마지막 행 (구 특이사항 행 자리) - 여기서 끝, 서명란 없음
 
   ws.getRow(1).height = 22.5;
   ws.getRow(2).height = 14.25;
@@ -83,31 +88,30 @@ export async function buildLabJournalWorkbook(formula: any, lines: any[]) {
   ws.getRow(5).height = 16.5;
   for (let r = bomStart; r <= totalRow; r++) ws.getRow(r).height = 21.95;
   for (let r = physicalStart; r <= physicalEnd; r++) ws.getRow(r).height = 16.5;
-  ws.getRow(processRow).height = 16.5;
-  ws.getRow(noteRow).height = 17.25;
-  ws.getRow(signRow).height = 16.5;
+  ws.getRow(noteStart).height = 16.5;
+  ws.getRow(noteEnd).height = 17.25;
 
   // R1: 제목
-  mergeLabel(ws, 1, 1, 1, 12, "실험일지", { bold: true, align: CENTER });
-  ws.getCell(1, 1).font = { bold: true, size: 14 };
+  mergeLabel(ws, 1, 1, 1, 11, "실험일지", { bold: true, align: CENTER });
+  ws.getCell(1, 1).font = { name: FONT_NAME, bold: true, size: 14 };
 
   // R2~R3: 베이스처방 / 처방명 / 처방코드 (라벨행 + 값행)
   mergeLabel(ws, 2, 1, 2, 3, "베이스처방", { bold: true });
   mergeLabel(ws, 2, 4, 2, 9, "처방명", { bold: true });
-  mergeLabel(ws, 2, 10, 2, 12, "처방코드", { bold: true });
+  mergeLabel(ws, 2, 10, 2, 11, "처방코드", { bold: true });
   mergeLabel(ws, 3, 1, 3, 3, "");
   mergeLabel(ws, 3, 4, 3, 9, formula.formula_name || "");
-  mergeLabel(ws, 3, 10, 3, 12, formula.formula_code || "");
+  mergeLabel(ws, 3, 10, 3, 11, formula.formula_code || "");
 
   // R4~R5: 표 헤더 (Phase/원료코드/원료명은 2행 병합, 원처방/Revision은 별도 행)
   mergeLabel(ws, 4, 1, 5, 2, "Phase", { bold: true });
   mergeLabel(ws, 4, 3, 5, 3, "원료코드", { bold: true });
   mergeLabel(ws, 4, 4, 5, 4, "원료명", { bold: true });
   mergeLabel(ws, 4, 5, 4, 5, "원처방", { bold: true });
-  mergeLabel(ws, 5, 5, 5, 5, formula.revision || "");
+  mergeLabel(ws, 5, 5, 5, 5, formula.revision || "", { size: 9 });
   for (const r of [4, 5]) {
     for (let c = 6; c <= 10; c++) border(ws, r, c, r, c);
-    mergeLabel(ws, r, 11, r, 12, "");
+    mergeLabel(ws, r, 11, r, 11, "");
   }
 
   // R6~: BOM 라인
@@ -122,11 +126,14 @@ export async function buildLabJournalWorkbook(formula: any, lines: any[]) {
     ws.getCell(row, 3).alignment = CENTER_V_ONLY;
     ws.getCell(row, 4).alignment = { vertical: "middle", horizontal: "left", wrapText: true };
     ws.getCell(row, 5).alignment = { vertical: "middle", horizontal: "right" };
+    ws.getCell(row, 3).font = BOM_DATA_FONT;
+    ws.getCell(row, 4).font = BOM_DATA_FONT;
+    ws.getCell(row, 5).font = BOM_DATA_FONT;
     border(ws, row, 3, row, 3);
     border(ws, row, 4, row, 4);
     border(ws, row, 5, row, 5);
     for (let c = 6; c <= 10; c++) border(ws, row, c, row, c);
-    mergeLabel(ws, row, 11, row, 12, "");
+    mergeLabel(ws, row, 11, row, 11, "");
 
     const isLastLine = i === sorted.length - 1;
     const phaseChanges = isLastLine || (sorted[i + 1].phase || "A") !== phase;
@@ -142,41 +149,36 @@ export async function buildLabJournalWorkbook(formula: any, lines: any[]) {
     mergeLabel(ws, bomStart, 1, bomStart, 2, "");
     border(ws, bomStart, 3, bomStart, 5);
     for (let c = 6; c <= 10; c++) border(ws, bomStart, c, bomStart, c);
-    mergeLabel(ws, bomStart, 11, bomStart, 12, "");
+    mergeLabel(ws, bomStart, 11, bomStart, 11, "");
   }
 
-  // 합계 행
+  // 합계 행 (값은 BOM 데이터 컬럼과 동일하게 9pt 볼드)
   const total = Number(lines.reduce((s, x) => s + n(x.percentage), 0).toFixed(4));
   mergeLabel(ws, totalRow, 1, totalRow, 4, "합     계", { bold: true });
   ws.getCell(totalRow, 5).value = total;
   ws.getCell(totalRow, 5).alignment = { vertical: "middle", horizontal: "right" };
-  ws.getCell(totalRow, 5).font = { bold: true };
+  ws.getCell(totalRow, 5).font = { name: FONT_NAME, bold: true, size: 9 };
   border(ws, totalRow, 5, totalRow, 5);
   for (let c = 6; c <= 10; c++) border(ws, totalRow, c, totalRow, c);
-  mergeLabel(ws, totalRow, 11, totalRow, 12, "");
+  mergeLabel(ws, totalRow, 11, totalRow, 11, "");
 
-  // 물성/사용감 및 기타사항 (라벨 6행 병합 + 항목별 라벨/입력칸)
+  // 물성/사용감 및 기타사항 (라벨 6행 병합 + 항목별 라벨/입력칸, 라벨은 오른쪽 정렬)
   mergeLabel(ws, physicalStart, 1, physicalEnd, 3, "물성, 사용감 및 기타사항", { bold: true });
   const physicalLabels = ["원단", "필름", "칼선", "두께(㎛)", "pH", "액단가(원/kg)"];
   physicalLabels.forEach((label, i) => {
     const row = physicalStart + i;
     ws.getCell(row, 4).value = label;
-    ws.getCell(row, 4).alignment = CENTER_V_ONLY;
+    ws.getCell(row, 4).alignment = { vertical: "middle", horizontal: "right", wrapText: true };
+    ws.getCell(row, 4).font = { name: FONT_NAME, size: 11 };
     border(ws, row, 4, row, 4);
     border(ws, row, 5, row, 5);
   });
   for (let c = 6; c <= 10; c++) mergeLabel(ws, physicalStart, c, physicalEnd, c, "");
-  mergeLabel(ws, physicalStart, 11, physicalEnd, 12, "");
+  mergeLabel(ws, physicalStart, 11, physicalEnd, 11, "");
 
-  // 공정 / 특이사항 (우측 입력란은 두 행을 합쳐 하나의 박스로 병합 - 원본 구조 그대로)
-  mergeLabel(ws, processRow, 1, processRow, 3, "공정", { bold: true });
-  mergeLabel(ws, noteRow, 1, noteRow, 3, "특이사항", { bold: true });
-  mergeLabel(ws, processRow, 4, noteRow, 12, "");
-
-  // 마지막 서명란 (빈 병합 칸 3개)
-  mergeLabel(ws, signRow, 2, signRow, 5, "");
-  mergeLabel(ws, signRow, 6, signRow, 8, "");
-  mergeLabel(ws, signRow, 9, signRow, 11, "");
+  // 특이사항 (공정 행/서명란 제거 - 남은 2행을 특이사항 라벨+입력박스가 그대로 사용)
+  mergeLabel(ws, noteStart, 1, noteEnd, 3, "특이사항", { bold: true });
+  mergeLabel(ws, noteStart, 4, noteEnd, 11, "");
 
   return wb;
 }
