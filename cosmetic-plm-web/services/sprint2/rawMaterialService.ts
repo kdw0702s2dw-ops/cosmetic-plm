@@ -129,6 +129,18 @@ export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMateri
   return data as RawMaterial;
 }
 
+// 원료발주가처방 등 raw_code 목록으로 원료명·공급사를 일괄 조회할 때 사용
+export async function fetchRawMaterialsByCodes(rawCodes: string[]): Promise<RawMaterial[]> {
+  const codes = Array.from(new Set(rawCodes.filter(Boolean)));
+  if (codes.length === 0) return [];
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_materials")
+    .select("*")
+    .in("raw_code", codes);
+  if (error) throw error;
+  return (data || []) as RawMaterial[];
+}
+
 // CSV 다운로드용: 100건 제한이 있는 목록 뷰가 아니라 원본 테이블에서 전체 조회 (활성 원료만, 화면 목록과 동일 기준)
 export async function fetchRawMaterialsForExport(): Promise<RawMaterial[]> {
   const { data, error } = await supabaseProductionFinal

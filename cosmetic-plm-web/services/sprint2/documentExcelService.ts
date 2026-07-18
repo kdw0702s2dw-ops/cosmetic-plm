@@ -14,6 +14,8 @@ import {
   kovasMeta,
   mergeRows,
   NOTES,
+  orderSheetMeta,
+  OrderSheetRow,
   pct,
   singleRows,
 } from "@/services/sprint2/documentPdfService";
@@ -46,8 +48,7 @@ function writeTitleRow(ws: ExcelJS.Worksheet, title: string, colCount: number) {
 // PDF(kovasMeta)의 <table class="meta"> 라벨:값 6행과 동일한 내용을 그대로 재사용
 // 라벨을 1~2번 컬럼에 병합해서 쓴다 - 표 본문의 "No." 컬럼(폭 6)과 컬럼을 공유하다 보니
 // 라벨(예: "Product name acc. To package")이 한 컬럼 폭만으로는 잘려 보이는 문제가 있었음.
-function writeMetaRows(ws: ExcelJS.Worksheet, formula: any, colCount: number) {
-  const meta = kovasMeta(formula);
+function writeMetaRows(ws: ExcelJS.Worksheet, meta: Record<string, string>, colCount: number) {
   for (const [label, value] of Object.entries(meta)) {
     const row = ws.addRow(["", "", "", ""]);
     ws.mergeCells(row.number, 1, row.number, 2);
@@ -125,7 +126,7 @@ export async function downloadSingleComponentExcel(formula: any) {
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 8 + decimals }, { width: 16 }, { width: 12 }, { width: 20 }];
 
   writeTitleRow(ws, "Ingredient List (Single)", colCount);
-  writeMetaRows(ws, formula, colCount);
+  writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "Percentage(%)", "CAS No.", "EC No.", "Function"]);
   headerRow.font = { bold: true };
@@ -167,7 +168,7 @@ export async function downloadInciListExcel(formula: any) {
   const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
   writeTitleRow(ws, "Ingredient List for Development", colCount);
-  writeMetaRows(ws, formula, colCount);
+  writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const writeBox = (title: string, content: string) => {
     const titleRow = ws.addRow([title]);
@@ -207,7 +208,7 @@ export async function downloadComplexComponentExcel(formula: any) {
   ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
 
   writeTitleRow(ws, "Ingredient List for Development", colCount);
-  writeMetaRows(ws, formula, colCount);
+  writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "CAS No.", "Function"]);
   headerRow.font = { bold: true };
@@ -242,4 +243,40 @@ export async function downloadComplexComponentExcel(formula: any) {
 
   writeFooterNotes(ws, colCount);
   await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}.xlsx`);
+}
+
+// ============================================================
+// 원료발주가처방 엑셀: PDF(No/원료코드/원료명/함량(%)/신규 체크/공급사/담당자)와 동일한 컬럼
+// rows/personInCharge는 미리보기 팝업에서 사용자가 확정한 값을 그대로 받는다 (재계산하지 않음)
+// ============================================================
+export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: OrderSheetRow[], personInCharge: string) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("원료발주가처방");
+  const colCount = 7;
+  ws.columns = [{ width: 6 }, { width: 18 }, { width: 30 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 16 }];
+
+  writeTitleRow(ws, "원료발주가처방 (Raw Material Provisional Order Sheet)", colCount);
+  writeMetaRows(ws, orderSheetMeta(formula), colCount);
+
+  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "담당자"]);
+  headerRow.font = { bold: true };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+  });
+  border(ws, headerRow.number, 1, headerRow.number, colCount);
+
+  if (rows.length === 0) {
+    ws.addRow(["", "BOM 데이터가 없습니다.", "", "", "", "", ""]);
+  }
+  rows.forEach((r, i) => {
+    const row = ws.addRow([i + 1, r.raw_code, r.raw_name, Number(pct(r.percent)), r.isNew ? "O" : "", r.supplier || "-", personInCharge || "-"]);
+    row.alignment = { vertical: "middle" };
+    row.getCell(4).alignment = { vertical: "middle", horizontal: "right" };
+    row.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
+    border(ws, row.number, 1, row.number, colCount);
+  });
+
+  writeFooterNotes(ws, colCount);
+  await downloadWorkbook(wb, `원료발주가처방_${formula.formula_code}_${formula.revision}.xlsx`);
 }

@@ -2,15 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  createFormulaDocument, downloadHtmlDocument, fetchDocumentFormulas, fetchPdfDocuments,
-  openPrintDocument, regenerateFormulaDocument, type DocKind,
+  computeOrderSheetRows, createFormulaDocument, createRawMaterialOrderSheetDocument,
+  downloadHtmlDocument, fetchDocumentFormulas, fetchFormulaLinesForPdf, fetchPdfDocuments,
+  openPrintDocument, regenerateFormulaDocument, regenerateRawMaterialOrderSheetDocument,
+  type DocKind, type OrderSheetRow,
 } from "@/services/sprint2/documentPdfService";
 import { downloadLabJournalDocument } from "@/services/sprint2/labJournalExcelService";
 import {
   downloadComplexComponentExcel,
   downloadInciListExcel,
+  downloadRawMaterialOrderSheetExcel,
   downloadSingleComponentExcel,
 } from "@/services/sprint2/documentExcelService";
+
+type OrderSheetModalState = {
+  open: boolean;
+  mode: "pdf" | "excel";
+  formula: any;
+  existingDoc: any | null;
+  rows: OrderSheetRow[];
+  personInCharge: string;
+  loading: boolean;
+};
+
+const EMPTY_ORDER_SHEET_MODAL: OrderSheetModalState = {
+  open: false, mode: "pdf", formula: null, existingDoc: null, rows: [], personInCharge: "", loading: false,
+};
 
 export type FormulaDocGroup = {
   formula_code: string;
@@ -128,6 +145,62 @@ export function useSprint2DocumentPdf() {
     }
   }
 
+  const [orderSheetModal, setOrderSheetModal] = useState<OrderSheetModalState>(EMPTY_ORDER_SHEET_MODAL);
+
+  // "PDF 생성/재생성" 또는 "엑셀 다운로드" 버튼 클릭 시 바로 만들지 않고, 자동판정된 신규 체크/함량을
+  // 먼저 보여주는 미리보기 팝업을 연다. 담당자는 매번 빈칸에서 시작한다(이전 값 기억 안 함).
+  async function openOrderSheetModal(formula: any, existingDoc: any | null, mode: "pdf" | "excel") {
+    setOrderSheetModal({ ...EMPTY_ORDER_SHEET_MODAL, open: true, mode, formula, existingDoc, loading: true });
+    try {
+      const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
+      const rows = await computeOrderSheetRows(formula, lines);
+      setOrderSheetModal((prev) => ({ ...prev, rows, loading: false }));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "원료발주가처방 데이터 조회 오류");
+      setOrderSheetModal(EMPTY_ORDER_SHEET_MODAL);
+    }
+  }
+
+  function updateOrderSheetRowIsNew(index: number, isNew: boolean) {
+    setOrderSheetModal((prev) => ({
+      ...prev,
+      rows: prev.rows.map((r, i) => (i === index ? { ...r, isNew } : r)),
+    }));
+  }
+
+  function setOrderSheetPersonInCharge(value: string) {
+    setOrderSheetModal((prev) => ({ ...prev, personInCharge: value }));
+  }
+
+  function closeOrderSheetModal() {
+    setOrderSheetModal(EMPTY_ORDER_SHEET_MODAL);
+  }
+
+  async function confirmOrderSheet() {
+    const { mode, formula, existingDoc, rows, personInCharge } = orderSheetModal;
+    setOrderSheetModal((prev) => ({ ...prev, loading: true }));
+    try {
+      if (mode === "excel") {
+        await downloadRawMaterialOrderSheetExcel(formula, rows, personInCharge);
+        setMessage("원료발주가처방 엑셀 다운로드 완료");
+      } else if (existingDoc) {
+        const doc = await regenerateRawMaterialOrderSheetDocument(existingDoc, formula, rows, personInCharge);
+        setSelected(doc);
+        await load();
+        setMessage(`${doc.title} 재생성 완료`);
+      } else {
+        const doc = await createRawMaterialOrderSheetDocument(formula, rows, personInCharge);
+        setSelected(doc);
+        await load();
+        setMessage(`${doc.title} 생성 완료`);
+      }
+      setOrderSheetModal(EMPTY_ORDER_SHEET_MODAL);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "원료발주가처방 처리 오류");
+      setOrderSheetModal((prev) => ({ ...prev, loading: false }));
+    }
+  }
+
   function preview(doc: any) { setSelected(doc); setMessage(`${doc.document_code} 미리보기`); }
   function download(doc: any) { downloadHtmlDocument(doc); setMessage("HTML 다운로드 완료"); }
   function print(doc: any) {
@@ -156,5 +229,7 @@ export function useSprint2DocumentPdf() {
     formulas, documents, keyword, setKeyword, selected, message, loading,
     existingDocByKey, groupedDocs,
     load, createDoc, regenerateDoc, preview, download, print, downloadLabJournal, downloadDocExcel,
+    orderSheetModal, openOrderSheetModal, updateOrderSheetRowIsNew, setOrderSheetPersonInCharge,
+    closeOrderSheetModal, confirmOrderSheet,
   };
 }

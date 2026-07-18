@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSprint2DocumentPdf } from "@/hooks/useSprint2DocumentPdf";
-import type { DocKind } from "@/services/sprint2/documentPdfService";
+import { pct, type DocKind } from "@/services/sprint2/documentPdfService";
 import "@/styles/enterprise-v50.css";
 
 const docButtons: { kind: DocKind; label: string }[] = [
@@ -49,6 +49,95 @@ function DocKindRow({
           <button className="v50-button-light" onClick={() => s.createDoc(formula, kind)}>PDF 생성</button>
         )}
         <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label)}>엑셀 다운로드</button>
+      </div>
+    </div>
+  );
+}
+
+// 원료발주가처방 행: 다른 3종과 달리 버튼 클릭 시 바로 생성하지 않고 미리보기 팝업(신규 체크/담당자 확인)을 먼저 연다.
+function OrderSheetDocRow({ formula, existing, s }: { formula: any; existing: any; s: ReturnType<typeof useSprint2DocumentPdf> }) {
+  const statusText = existing
+    ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
+    : "미생성";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+      <span style={{ width: 100, fontWeight: 800 }}>원료발주가처방</span>
+      <span style={{ width: 170, fontSize: 13, color: existing ? "#16a34a" : "#94a3b8" }}>{statusText}</span>
+      <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+        {existing ? (
+          <>
+            <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
+            <button className="v50-button-light" onClick={() => s.openOrderSheetModal(formula, existing, "pdf")}>재생성</button>
+          </>
+        ) : (
+          <button className="v50-button-light" onClick={() => s.openOrderSheetModal(formula, null, "pdf")}>PDF 생성</button>
+        )}
+        <button className="v50-button" onClick={() => s.openOrderSheetModal(formula, existing, "excel")}>엑셀 다운로드</button>
+      </div>
+    </div>
+  );
+}
+
+// 신규 체크(자동판정, 개별 수정 가능) + 담당자 입력 후 확인해야 실제 PDF/엑셀이 생성된다.
+function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> }) {
+  const m = s.orderSheetModal;
+  if (!m.open) return null;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", zIndex: 50,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }}>
+      <div className="v50-card" style={{ width: "min(760px, 100%)", maxHeight: "85vh", overflow: "auto", padding: 20, background: "white" }}>
+        <h2 style={{ marginTop: 0 }}>원료발주가처방 {m.mode === "excel" ? "엑셀 다운로드" : "PDF 생성"} 확인</h2>
+        <p style={{ color: "#64748b", fontSize: 13 }}>
+          {m.formula?.formula_name} ({m.formula?.formula_code}) · Rev {m.formula?.revision}
+        </p>
+        {m.loading ? (
+          <p>불러오는 중...</p>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>담당자</label>
+              <input
+                className="v50-input"
+                style={{ width: 240 }}
+                value={m.personInCharge}
+                onChange={(e) => s.setOrderSheetPersonInCharge(e.target.value)}
+                placeholder="발주 담당자 이름 입력"
+              />
+            </div>
+            <div className="v50-table-wrap">
+              <table className="v50-table">
+                <thead>
+                  <tr><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th></tr>
+                </thead>
+                <tbody>
+                  {m.rows.length === 0 ? (
+                    <tr><td colSpan={5}>BOM 데이터가 없습니다.</td></tr>
+                  ) : (
+                    m.rows.map((r, i) => (
+                      <tr key={r.raw_code}>
+                        <td>{r.raw_code}</td>
+                        <td>{r.raw_name}</td>
+                        <td>{pct(r.percent)}</td>
+                        <td style={{ textAlign: "center" }}>
+                          <input type="checkbox" checked={r.isNew} onChange={(e) => s.updateOrderSheetRowIsNew(i, e.target.checked)} />
+                        </td>
+                        <td>{r.supplier || "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="v50-button-light" onClick={s.closeOrderSheetModal}>취소</button>
+          <button className="v50-button" disabled={m.loading} onClick={s.confirmOrderSheet}>
+            {m.mode === "excel" ? "엑셀 다운로드" : "생성"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -142,6 +231,11 @@ export default function DocumentPdfPanel() {
                       s={s}
                     />
                   ))}
+                  <OrderSheetDocRow
+                    formula={f}
+                    existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|RAW_MATERIAL_ORDER_SHEET`)}
+                    s={s}
+                  />
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>실험일지</span>
                     <span style={{ width: 170 }} />
@@ -227,6 +321,7 @@ export default function DocumentPdfPanel() {
           <p style={{ color: "#64748b" }}>생성 문서를 선택하면 미리보기가 표시됩니다.</p>
         )}
       </section>
+      <OrderSheetModal s={s} />
     </div>
   );
 }

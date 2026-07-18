@@ -2,11 +2,13 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { fetchAllergenAlerts } from "@/services/sprint2/allergenService";
+import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 
 export type DocKind =
   | "INCI_LIST"
   | "COMPLEX_COMPONENT_TABLE"
-  | "SINGLE_COMPONENT_TABLE";
+  | "SINGLE_COMPONENT_TABLE"
+  | "RAW_MATERIAL_ORDER_SHEET";
 
 export async function fetchDocumentFormulas(keyword = "") {
   let q = supabaseProductionFinal
@@ -62,6 +64,7 @@ export async function fetchPdfDocuments() {
       "INCI_LIST",
       "COMPLEX_COMPONENT_TABLE",
       "SINGLE_COMPONENT_TABLE",
+      "RAW_MATERIAL_ORDER_SHEET",
     ])
     .order("created_at", { ascending: false })
     .limit(150);
@@ -319,6 +322,15 @@ export function kovasMeta(f: any) {
   };
 }
 
+// 원료발주가처방 상단 메타 (개발번호/제품명/연구원 정보만 - 다른 3종 문서의 kovasMeta와 별개)
+export function orderSheetMeta(f: any) {
+  return {
+    "개발번호": f.formula_code ?? "",
+    "제품명": f.formula_name ?? "",
+    "연구원 정보": f.assigned_researcher ?? "",
+  };
+}
+
 export type ExpandedRow = {
   formula_code?: string;
   formula_name?: string;
@@ -480,6 +492,66 @@ export function buildComplexGroupedRows(lines: any[], components: any[]): Comple
     .sort((a, b) => b.input - a.input);
 }
 
+// 이 raw_code가 현재(formula_code, revision) 이외의 다른 BOM 라인에도 등장한 적이 있는지 일괄 확인.
+// "회사에서 한 번도 쓰인 적 없는 원료(=이번이 첫 발주)"인지 판단하는 근거로 쓴다 - plm_raw_materials의
+// 등록일(created_at)은 실제 사용 이력과 무관할 수 있어 신뢰하지 않고, plm_formula_lines 실사용 이력을 직접 본다.
+export async function checkRawCodesUsedElsewhere(
+  rawCodes: string[],
+  excludeFormulaCode: string,
+  excludeRevision: string
+): Promise<Set<string>> {
+  const codes = Array.from(new Set(rawCodes.filter(Boolean)));
+  if (codes.length === 0) return new Set();
+
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formula_lines")
+    .select("raw_code, formula_code, revision")
+    .in("raw_code", codes);
+  if (error) throw error;
+
+  const usedElsewhere = new Set<string>();
+  for (const row of data || []) {
+    if (row.formula_code === excludeFormulaCode && row.revision === excludeRevision) continue;
+    usedElsewhere.add(row.raw_code);
+  }
+  return usedElsewhere;
+}
+
+export type OrderSheetRow = {
+  raw_code: string;
+  raw_name: string;
+  percent: number;
+  supplier: string;
+  isNew: boolean;
+};
+
+// 원료발주가처방 표 데이터 계산: buildComplexGroupedRows()로 raw_code 그룹핑/합산/내림차순 정렬을
+// 그대로 재사용하고(새 로직 작성 없음), 원료명·공급사는 plm_raw_materials에서, 신규 여부는
+// plm_formula_lines 실사용 이력에서 채운다. 미리보기 팝업이 이 결과를 초기값으로 보여주고,
+// 사용자가 신규체크/담당자를 확정한 뒤에만 실제 문서가 생성된다.
+export async function computeOrderSheetRows(formula: any, lines: any[]): Promise<OrderSheetRow[]> {
+  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+  const grouped = buildComplexGroupedRows(lines, components).filter((g) => g.raw_code);
+  const codes = grouped.map((g) => g.raw_code as string);
+
+  const [materials, usedElsewhere] = await Promise.all([
+    fetchRawMaterialsByCodes(codes),
+    checkRawCodesUsedElsewhere(codes, formula.formula_code, formula.revision),
+  ]);
+  const materialByCode = new Map(materials.map((m) => [m.raw_code, m]));
+
+  return grouped.map((g) => {
+    const m = materialByCode.get(g.raw_code as string);
+    return {
+      raw_code: g.raw_code as string,
+      raw_name: m?.raw_name || g.raw_name || "",
+      percent: g.input,
+      supplier: m?.supplier || "",
+      isNew: !usedElsewhere.has(g.raw_code as string),
+    };
+  });
+}
+
 // ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
@@ -573,10 +645,39 @@ export async function buildInciListHtml(f: any, lines: any[]) {
 </div>`, f);
 }
 
+// ============================================================
+// 원료발주가처방: 미리보기 팝업에서 확정된 rows/담당자를 그대로 받아 렌더링만 한다
+// (계산은 computeOrderSheetRows()에서 이미 끝난 상태 - buildComplexGroupedRows() 재사용)
+// ============================================================
+export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow[], personInCharge: string) {
+  const body = rows
+    .map(
+      (r, i) => `<tr>
+  <td class="center">${i + 1}</td>
+  <td>${e(r.raw_code)}</td>
+  <td>${e(r.raw_name)}</td>
+  <td class="right">${pct(r.percent)}</td>
+  <td class="center">${r.isNew ? "☑" : "☐"}</td>
+  <td>${e(r.supplier || "-")}</td>
+  <td>${e(personInCharge || "-")}</td>
+</tr>`
+    )
+    .join("");
+
+  return baseHtml("원료발주가처방 (Raw Material Provisional Order Sheet)", orderSheetMeta(f), `
+<table class="grid">
+<thead><tr>
+  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>담당자</th>
+</tr></thead>
+<tbody>${body || `<tr><td colspan="7">BOM 데이터가 없습니다.</td></tr>`}</tbody>
+</table>`, f);
+}
+
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
   INCI_LIST: "전성분표",
   COMPLEX_COMPONENT_TABLE: "복합성분표",
   SINGLE_COMPONENT_TABLE: "단일성분표",
+  RAW_MATERIAL_ORDER_SHEET: "원료발주가처방",
 };
 
 async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[]) {
@@ -620,6 +721,51 @@ export async function regenerateFormulaDocument(existingDoc: any, formula: any, 
     .update({
       title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}`,
       payload_json: { formula, lines },
+      html_content: html,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", existingDoc.id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// 원료발주가처방은 미리보기 팝업에서 확정한 rows/담당자가 있어야 생성 가능하므로,
+// (formula, kind)만 받는 공용 buildDocumentHtml/createFormulaDocument 경로를 타지 않고 전용 함수로 분리한다.
+export async function createRawMaterialOrderSheetDocument(formula: any, rows: OrderSheetRow[], personInCharge: string) {
+  const html = await buildRawMaterialOrderSheetHtml(formula, rows, personInCharge);
+  const documentCode = `RAW_MATERIAL_ORDER_SHEET-${formula.formula_code}-${formula.revision}-${Date.now().toString().slice(-6)}`;
+
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_documents")
+    .insert({
+      document_code: documentCode,
+      formula_code: formula.formula_code,
+      revision: formula.revision,
+      document_type: "RAW_MATERIAL_ORDER_SHEET",
+      title: `${formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
+      status: "CREATED",
+      payload_json: { formula, rows, personInCharge },
+      html_content: html,
+      created_by: "KOVAS Template Docs",
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function regenerateRawMaterialOrderSheetDocument(existingDoc: any, formula: any, rows: OrderSheetRow[], personInCharge: string) {
+  const html = await buildRawMaterialOrderSheetHtml(formula, rows, personInCharge);
+
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_documents")
+    .update({
+      title: `${formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
+      payload_json: { formula, rows, personInCharge },
       html_content: html,
       updated_at: new Date().toISOString(),
     })
