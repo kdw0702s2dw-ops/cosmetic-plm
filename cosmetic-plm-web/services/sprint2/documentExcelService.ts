@@ -73,6 +73,20 @@ function writeFooterNotes(ws: ExcelJS.Worksheet, colCount: number) {
   confRow.getCell(1).font = { size: 8, color: { argb: "FF94A3B8" } };
 }
 
+// wrapText 셀의 필요한 행 높이를 텍스트 길이 기준으로 추정한다.
+// Excel의 "열 너비" 단위는 대략 라틴 문자 1개 폭과 비슷하고 한글 등 전각 문자는 그 2배 폭을 차지하므로,
+// 문자마다 가중치를 둬서 총 폭 대비 줄바꿈 횟수를 계산한다. 실제 Excel 폭 계산과 완전히 같지는 않으므로
+// 보수적으로(칸수를 살짝 줄이고 줄 높이를 넉넉히 잡아) 텍스트가 잘리는 대신 여백이 조금 남는 쪽으로 잡는다.
+function estimateWrappedRowHeight(text: string, totalColWidth: number, lineHeightPt = 15) {
+  let weightedLength = 0;
+  for (const ch of text) {
+    weightedLength += /[가-힣]/.test(ch) ? 2 : 1;
+  }
+  const charsPerLine = Math.max(10, Math.floor(totalColWidth * 0.9));
+  const estimatedLines = Math.max(1, Math.ceil(weightedLength / charsPerLine));
+  return estimatedLines * lineHeightPt + 8;
+}
+
 async function downloadWorkbook(wb: ExcelJS.Workbook, filename: string) {
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -138,7 +152,9 @@ export async function downloadInciListExcel(formula: any) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("전성분표");
   const colCount = 6;
-  ws.columns = [{ width: 28 }, { width: 4 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }];
+  const colWidths = [28, 4, 24, 24, 24, 24];
+  ws.columns = colWidths.map((width) => ({ width }));
+  const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
   writeTitleRow(ws, "Ingredient List for Development", colCount);
   writeMetaRows(ws, formula, colCount);
@@ -155,6 +171,9 @@ export async function downloadInciListExcel(formula: any) {
     ws.mergeCells(bodyRow.number, 1, bodyRow.number, colCount);
     bodyRow.getCell(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     border(ws, bodyRow.number, 1, bodyRow.number, colCount);
+    // PDF는 텍스트 양에 따라 박스 높이가 자동으로 늘어나지만 엑셀은 고정 행 높이라
+    // 뷰어에 따라 자동 재계산에 의존하지 못하므로, 텍스트 길이 기준으로 직접 계산해서 지정한다.
+    ws.getRow(bodyRow.number).height = estimateWrappedRowHeight(content || "-", totalColWidth);
   };
 
   writeBox("Ingredient list", inciEn);
