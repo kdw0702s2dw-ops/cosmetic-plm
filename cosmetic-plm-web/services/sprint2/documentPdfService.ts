@@ -433,13 +433,27 @@ export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: numb
 export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
+// 같은 raw_code가 여러 Phase/라인에 나뉘어 등록된 경우 하나의 행으로 합친다 - INCI명이 아니라
+// raw_code로만 판단해서(이름만 같은 별개 원료를 잘못 합치지 않도록), 투입%(최종함량)는 합산하고
+// 구성비(원료 고유값)는 그대로 유지한다.
 // PDF(복합성분표)와 엑셀 다운로드가 이 함수를 그대로 공유해서, 원료=1행/구성성분은 셀 내 줄바꿈이라는
 // 동일한 레이아웃 규칙을 두 출력 형식에서 어긋나지 않게 유지한다.
 export function buildComplexGroupedRows(lines: any[], components: any[]): ComplexGroupedRow[] {
   const map = byRawComponents(components);
-  return lines
-    .map((line) => {
-      const comps = map.get(line.raw_code) || [];
+
+  const byRawCode = new Map<string, any[]>();
+  lines.forEach((line, i) => {
+    // raw_code가 없는 라인은 서로 합쳐지지 않도록 라인마다 고유한 키를 준다.
+    const key = line.raw_code || `__no_raw_code_${i}`;
+    const arr = byRawCode.get(key) || [];
+    arr.push(line);
+    byRawCode.set(key, arr);
+  });
+
+  return Array.from(byRawCode.values())
+    .map((group) => {
+      const first = group[0];
+      const comps = map.get(first.raw_code) || [];
       const items: ComplexGroupedItem[] = comps.length
         ? comps.map((c) => ({
             inci_en: c.inci_en || c.component_name_en || "",
@@ -449,17 +463,17 @@ export function buildComplexGroupedRows(lines: any[], components: any[]): Comple
           }))
         : [
             {
-              inci_en: line.inci_en || line.raw_name || "",
-              inci_kr: line.inci_kr || line.raw_name || "",
+              inci_en: first.inci_en || first.raw_name || "",
+              inci_kr: first.inci_kr || first.raw_name || "",
               ratio: null,
-              cas: line.cas_no || "-",
+              cas: first.cas_no || "-",
             },
           ];
       return {
-        raw_code: line.raw_code,
-        raw_name: line.raw_name,
-        input: n(line.percentage),
-        func: line.function_kr || line.function_en || "",
+        raw_code: first.raw_code,
+        raw_name: first.raw_name,
+        input: group.reduce((sum, l) => sum + n(l.percentage), 0),
+        func: first.function_kr || first.function_en || "",
         items,
       };
     })
