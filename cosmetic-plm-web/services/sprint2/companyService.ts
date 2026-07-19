@@ -60,6 +60,23 @@ export async function fetchCompanyById(id: string): Promise<Company> {
   return data as Company;
 }
 
+// 원료 화면·문서에서 manufacturer_company_id/supplier_company_id로 canonical 이름을 일괄 조회할 때 사용
+export async function fetchCompaniesByIds(ids: (string | null | undefined)[]): Promise<Map<string, Company>> {
+  const unique = Array.from(new Set(ids.filter((id): id is string => !!id)));
+  if (unique.length === 0) return new Map();
+  const { data, error } = await supabaseProductionFinal.from("plm_companies").select("*").in("id", unique);
+  if (error) throw error;
+  const map = new Map<string, Company>();
+  for (const c of (data || []) as Company[]) map.set(c.id!, c);
+  return map;
+}
+
+// canonical 표시명: 국문명 우선, 없으면 영문명
+export function companyDisplayName(c: Company | undefined | null): string {
+  if (!c) return "";
+  return c.name_kr || c.name_en || "";
+}
+
 // id가 있으면(기존 편집) id 기준 UPDATE, 없으면 신규 INSERT (업체는 material_code 같은 자연키가 없어 upsert 대신 순수 insert)
 export async function saveCompany(c: Company): Promise<Company> {
   const payload = { ...c, is_active: c.is_active ?? true, updated_at: new Date().toISOString() };

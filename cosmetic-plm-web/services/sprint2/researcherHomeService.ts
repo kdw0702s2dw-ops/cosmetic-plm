@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import { withCompanyDisplayNames } from "@/services/sprint2/rawMaterialService";
 
 export type ResearcherHomeData = {
   kpis: { rawMaterials: number; formulas: number; documents: number; formulaLines: number; warnings: number; todayTasks: number };
@@ -43,6 +44,8 @@ export async function fetchResearcherHomeData(): Promise<ResearcherHomeData> {
     safeRows("plm_regulatory_alerts", (q) => q.select("*").in("status", ["OPEN", "CONFIRMED"]).order("created_at", { ascending: false }).limit(8)),
   ]);
 
+  const recentRawMaterialsDisplay = await withCompanyDisplayNames(recentRawMaterials);
+
   const formulaWarnings = recentFormulas.filter((x: any) => Number(x.total_percent || 0) !== 100);
   const docPendingRows = recentFormulas.filter((x: any) => String(x.status || "").toUpperCase() !== "APPROVED");
   const byRegion: Record<string, number> = {};
@@ -50,7 +53,7 @@ export async function fetchResearcherHomeData(): Promise<ResearcherHomeData> {
 
   return {
     kpis: { rawMaterials, formulas, documents, formulaLines, warnings: regulationAlertCount + formulaWarnings.length, todayTasks: regulationAlertCount + formulaWarnings.length + docPendingRows.length },
-    recentFormulas, recentRawMaterials, recentDocuments,
+    recentFormulas, recentRawMaterials: recentRawMaterialsDisplay, recentDocuments,
     regulationWatch: [
       { region: "한국", status: byRegion.KR ? `${byRegion.KR}건` : "정상", detail: "한국 기준 규제검증 결과" },
       { region: "EU", status: byRegion.EU ? `${byRegion.EU}건` : "정상", detail: "EU 기준 규제검증 결과" },

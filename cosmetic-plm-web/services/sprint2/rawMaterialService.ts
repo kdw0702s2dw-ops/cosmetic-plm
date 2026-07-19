@@ -2,6 +2,7 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { findIngredientByCasNo } from "@/services/sprint2/ingredientDictionaryService";
+import { companyDisplayName, fetchCompaniesByIds } from "@/services/sprint2/companyService";
 
 export type RawMaterial = {
   id?: string;
@@ -120,6 +121,18 @@ export async function checkRawCodeExists(rawCode: string, excludeId?: string): P
   return (data || []).length > 0;
 }
 
+// manufacturer_company_id/supplier_company_id가 있으면 plm_companies의 canonical 이름(국문 우선)으로
+// manufacturer/supplier 텍스트를 덮어써서 반환한다 (없으면 원래 텍스트 그대로 fallback).
+// 원본 텍스트 컬럼 자체는 건드리지 않고, 조회 시점에만 표시값을 정정한다.
+export async function withCompanyDisplayNames(rows: RawMaterial[]): Promise<RawMaterial[]> {
+  const companies = await fetchCompaniesByIds(rows.flatMap((r) => [r.manufacturer_company_id, r.supplier_company_id]));
+  return rows.map((r) => ({
+    ...r,
+    manufacturer: (r.manufacturer_company_id && companyDisplayName(companies.get(r.manufacturer_company_id))) || r.manufacturer,
+    supplier: (r.supplier_company_id && companyDisplayName(companies.get(r.supplier_company_id))) || r.supplier,
+  }));
+}
+
 // 편집 패널용: 목록 뷰엔 없는 필드(moq, cas_no 등)까지 전부 필요해서 원본 테이블에서 단건 조회
 export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMaterial> {
   const { data, error } = await supabaseProductionFinal
@@ -128,7 +141,8 @@ export async function fetchRawMaterialByCode(rawCode: string): Promise<RawMateri
     .eq("raw_code", rawCode)
     .single();
   if (error) throw error;
-  return data as RawMaterial;
+  const [withNames] = await withCompanyDisplayNames([data as RawMaterial]);
+  return withNames;
 }
 
 // 원료발주가처방 등 raw_code 목록으로 원료명·공급사를 일괄 조회할 때 사용
@@ -140,18 +154,18 @@ export async function fetchRawMaterialsByCodes(rawCodes: string[]): Promise<RawM
     .select("*")
     .in("raw_code", codes);
   if (error) throw error;
-  return (data || []) as RawMaterial[];
+  return withCompanyDisplayNames((data || []) as RawMaterial[]);
 }
 
 // CSV 다운로드용: 100건 제한이 있는 목록 뷰가 아니라 원본 테이블에서 전체 조회 (활성 원료만, 화면 목록과 동일 기준)
 export async function fetchRawMaterialsForExport(): Promise<RawMaterial[]> {
   const { data, error } = await supabaseProductionFinal
     .from("plm_raw_materials")
-    .select("raw_code, raw_name, trade_name, inci_kr, inci_en, cas_no, ec_no, manufacturer, supplier, unit_price, moq, lead_time, origin_country")
+    .select("raw_code, raw_name, trade_name, inci_kr, inci_en, cas_no, ec_no, manufacturer, manufacturer_company_id, supplier, supplier_company_id, unit_price, moq, lead_time, origin_country")
     .eq("is_active", true)
     .order("raw_code", { ascending: true });
   if (error) throw error;
-  return (data || []) as RawMaterial[];
+  return withCompanyDisplayNames((data || []) as RawMaterial[]);
 }
 
 export async function searchIngredients(keyword: string): Promise<IngredientHit[]> {
