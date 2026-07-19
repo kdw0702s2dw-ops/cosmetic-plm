@@ -88,7 +88,7 @@ export default function FormulaCorePanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>처방 목록</h2>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
+          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
         </div>
         <div className="v50-table-wrap">
@@ -110,6 +110,7 @@ export default function FormulaCorePanel() {
         <h2>처방 기본정보</h2>
         <div className="v50-grid-2">
           <Input label="처방코드" value={s.formula.formula_code} onChange={(v) => updateFormula("formula_code", v)} />
+          <Input label="확정코드" value={s.formula.confirmed_code} onChange={(v) => updateFormula("confirmed_code", v)} />
           <Input label="Revision" value={s.formula.revision} onChange={(v) => updateFormula("revision", v)} />
           <Input label="처방명" value={s.formula.formula_name} onChange={(v) => updateFormula("formula_name", v)} />
           <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />

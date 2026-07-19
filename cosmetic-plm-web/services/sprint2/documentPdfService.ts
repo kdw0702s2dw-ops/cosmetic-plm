@@ -326,6 +326,7 @@ export function kovasMeta(f: any) {
 export function orderSheetMeta(f: any) {
   return {
     "개발번호": f.formula_code ?? "",
+    "확정코드": f.confirmed_code ?? "",
     "제품명": f.formula_name ?? "",
     "연구원 정보": f.assigned_researcher ?? "",
   };
@@ -664,10 +665,10 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
     )
     .join("");
 
-  return baseHtml("원료발주가처방 (Raw Material Provisional Order Sheet)", orderSheetMeta(f), `
+  return baseHtml("원료발주가처방", orderSheetMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>담당자</th>
+  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>연구 담당자</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="7">BOM 데이터가 없습니다.</td></tr>`}</tbody>
 </table>`, f);

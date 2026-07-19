@@ -246,7 +246,7 @@ export async function downloadComplexComponentExcel(formula: any) {
 }
 
 // ============================================================
-// 원료발주가처방 엑셀: PDF(No/원료코드/원료명/함량(%)/신규 체크/공급사/담당자)와 동일한 컬럼
+// 원료발주가처방 엑셀: PDF(No/원료코드/원료명/함량(%)/신규 체크/공급사/연구 담당자)와 동일한 컬럼
 // rows/personInCharge는 미리보기 팝업에서 사용자가 확정한 값을 그대로 받는다 (재계산하지 않음)
 // ============================================================
 export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: OrderSheetRow[], personInCharge: string) {
@@ -255,10 +255,10 @@ export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: Ord
   const colCount = 7;
   ws.columns = [{ width: 6 }, { width: 18 }, { width: 30 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 16 }];
 
-  writeTitleRow(ws, "원료발주가처방 (Raw Material Provisional Order Sheet)", colCount);
+  writeTitleRow(ws, "원료발주가처방", colCount);
   writeMetaRows(ws, orderSheetMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "담당자"]);
+  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "연구 담당자"]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.eachCell((cell) => {

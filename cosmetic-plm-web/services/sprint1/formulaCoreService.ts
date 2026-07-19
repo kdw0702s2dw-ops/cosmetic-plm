@@ -5,6 +5,7 @@ import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 export type Sprint1Formula = {
   formula_code: string;
   revision: string;
+  confirmed_code?: string;
   formula_name: string;
   status?: string;
   product_type?: string;
@@ -63,7 +64,7 @@ export async function fetchSprint1Formulas(keyword = "") {
 
   if (keyword.trim()) {
     const k = keyword.trim();
-    query = query.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%`);
+    query = query.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%,confirmed_code.ilike.%${k}%`);
   }
 
   const { data, error } = await query;

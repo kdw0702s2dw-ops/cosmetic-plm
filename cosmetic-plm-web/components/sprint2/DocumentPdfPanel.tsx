@@ -97,13 +97,13 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
         ) : (
           <>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>담당자</label>
+              <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>연구 담당자</label>
               <input
                 className="v50-input"
                 style={{ width: 240 }}
                 value={m.personInCharge}
                 onChange={(e) => s.setOrderSheetPersonInCharge(e.target.value)}
-                placeholder="발주 담당자 이름 입력"
+                placeholder="연구 담당자 이름 입력"
               />
             </div>
             <div className="v50-table-wrap">
