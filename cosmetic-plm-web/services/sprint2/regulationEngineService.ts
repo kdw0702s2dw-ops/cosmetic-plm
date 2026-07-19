@@ -2,7 +2,7 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-export type RegulationRegion = "KR" | "EU" | "CN" | "US" | "JP" | "ASEAN";
+export type RegulationRegion = "KR" | "EU" | "CN" | "US" | "JP" | "ASEAN" | "TW" | "AR" | "BR" | "CA";
 
 export type RegulationHit = {
   rule_code: string;

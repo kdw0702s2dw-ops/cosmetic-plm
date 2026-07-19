@@ -1,8 +1,14 @@
 "use client";
 
 import { useRegulationEngine } from "@/hooks/useRegulationEngine";
+import { useMfdsStaging } from "@/hooks/useMfdsStaging";
 import type { RegulationRegion } from "@/services/sprint2/regulationEngineService";
+import type { MfdsStagingRow } from "@/services/sprint2/mfdsRegulationService";
 import "@/styles/enterprise-v50.css";
+
+const REGION_LABEL: Record<string, string> = {
+  KR: "한국", EU: "EU", CN: "중국", US: "미국", JP: "일본", ASEAN: "ASEAN", TW: "대만", AR: "아르헨티나", BR: "브라질", CA: "캐나다",
+};
 
 const regions: { code: RegulationRegion; label: string }[] = [
   { code: "KR", label: "한국" },
@@ -11,10 +17,15 @@ const regions: { code: RegulationRegion; label: string }[] = [
   { code: "US", label: "미국" },
   { code: "JP", label: "일본" },
   { code: "ASEAN", label: "ASEAN" },
+  { code: "TW", label: "대만" },
+  { code: "AR", label: "아르헨티나" },
+  { code: "BR", label: "브라질" },
+  { code: "CA", label: "캐나다" },
 ];
 
 export default function RegulationEnginePanel() {
   const s = useRegulationEngine();
+  const m = useMfdsStaging();
 
   return (
     <div className="v50-page">
@@ -86,6 +97,42 @@ export default function RegulationEnginePanel() {
           </div>
       </section>
 
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>MFDS 데이터 검토</h2>
+            <p style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
+              data.go.kr 공공 API에서 우리 원료(INCI) 기준으로 매칭된 배합금지/제한 성분을 검토해서 승인/거부합니다. 승인된 항목만 위 "국가별 규칙"에 반영됩니다.
+            </p>
+          </div>
+          <button className="v50-button" onClick={m.sync} disabled={m.syncing}>{m.syncing ? "동기화 중…" : "MFDS 동기화"}</button>
+        </div>
+        {m.message && <p style={{ color: "#2563eb", fontWeight: 800, marginTop: 8 }}>{m.message}</p>}
+
+        <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
+          {(["PENDING", "APPROVED", "REJECTED", "ALL"] as const).map((st) => (
+            <button key={st} className={m.statusFilter === st ? "v50-button" : "v50-button-light"} onClick={() => m.setStatusFilter(st)}>
+              {st === "PENDING" ? "검토 대기" : st === "APPROVED" ? "승인됨" : st === "REJECTED" ? "거부됨" : "전체"}
+            </button>
+          ))}
+        </div>
+
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead>
+              <tr>
+                <th>성분</th><th>지역</th><th>유형</th><th style={{ minWidth: 220 }}>제한사항 원문</th>
+                <th style={{ width: 100 }}>max %</th><th>매칭 원료</th><th>상태</th><th style={{ width: 160 }}>작업</th>
+              </tr>
+            </thead>
+            <tbody>
+              {m.rows.map((row) => <StagingRow key={row.id} row={row} m={m} />)}
+              {m.rows.length === 0 && <tr><td colSpan={8}>{m.loading ? "불러오는 중..." : "표시할 항목이 없습니다. \"MFDS 동기화\"를 실행하세요."}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="v50-panel">
         <h2>규제 경고 결과</h2>
         <div className="v50-table-wrap">
@@ -113,4 +160,47 @@ export default function RegulationEnginePanel() {
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
   return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value">{value}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>{hint}</div></article>;
+}
+
+function StagingRow({ row, m }: { row: MfdsStagingRow; m: ReturnType<typeof useMfdsStaging> }) {
+  const pending = row.review_status === "PENDING";
+  return (
+    <tr>
+      <td>
+        <b>{row.ingredient_name_kr || "-"}</b>
+        {row.ingredient_name_en && <div style={{ color: "#64748b", fontSize: 12 }}>{row.ingredient_name_en}</div>}
+        <div style={{ color: "#94a3b8", fontSize: 11 }}>{row.match_type} · {row.source_api}</div>
+      </td>
+      <td>
+        {row.region_mapped ? REGION_LABEL[row.region_mapped] || row.region_mapped : (
+          <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 12 }}>지역 매핑 필요 ({row.region_raw})</span>
+        )}
+      </td>
+      <td>{row.regulate_type || "-"}</td>
+      <td style={{ maxWidth: 320, whiteSpace: "pre-wrap", fontSize: 12 }} title={row.limit_cond_raw || ""}>
+        {(row.limit_cond_raw || "-").slice(0, 160)}{(row.limit_cond_raw || "").length > 160 ? "…" : ""}
+      </td>
+      <td>
+        <input
+          className="v50-input" type="number" style={{ width: 80 }}
+          value={row.max_percent ?? ""}
+          disabled={!pending}
+          onChange={(e) => m.updateDraft(row.id, { max_percent: e.target.value === "" ? null : Number(e.target.value) })}
+          onBlur={() => pending && m.saveDraft(row)}
+        />
+      </td>
+      <td style={{ fontSize: 12 }}>{row.matched_raw_material_codes.join(", ") || "-"}</td>
+      <td>{row.review_status === "PENDING" ? "대기" : row.review_status === "APPROVED" ? "승인됨" : "거부됨"}</td>
+      <td>
+        {pending ? (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="v50-button" onClick={() => m.approve(row)} disabled={!row.region_mapped}>승인</button>
+            <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => m.reject(row)}>거부</button>
+          </div>
+        ) : (
+          <span style={{ color: "#94a3b8", fontSize: 12 }}>{row.reviewed_by}</span>
+        )}
+      </td>
+    </tr>
+  );
 }
