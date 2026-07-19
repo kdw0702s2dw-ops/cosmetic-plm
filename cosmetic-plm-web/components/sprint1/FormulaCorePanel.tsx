@@ -64,8 +64,8 @@ export default function FormulaCorePanel() {
     <div className="v50-page">
       <section className="v50-hero">
         <div>
-          <h1 className="v50-title">Sprint 1 처방관리 Core</h1>
-          <p className="v50-desc">표준 plm_* DB 기반으로 처방 등록·수정·삭제, BOM 편집, 자동합계, 자동원가, 자동전성분을 먼저 완성합니다.</p>
+          <h1 className="v50-title">처방관리</h1>
+          <p className="v50-desc">처방을 등록·수정하고 BOM을 편집하면 합계·원가·전성분이 자동으로 계산됩니다.</p>
         </div>
         <div className="v50-flow">
           <button onClick={s.newFormula}>신규 처방</button>
