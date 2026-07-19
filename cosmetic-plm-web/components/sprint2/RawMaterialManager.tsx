@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   fetchRawMaterials, fetchRawMaterialByCode, searchIngredients, saveRawMaterial, deleteRawMaterial,
@@ -9,7 +9,12 @@ import {
   fetchRawMaterialsForExport,
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
+import {
+  searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
+} from "@/services/sprint2/companyService";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import SearchDropdown from "@/components/common/SearchDropdown";
+import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import "@/styles/enterprise-v50.css";
 
 // 다운로드/업로드 양식 공통 컬럼 순서 (그대로 다운받아 채워서 재업로드 가능하도록 이름/순서를 맞춤)
@@ -409,8 +414,16 @@ export default function RawMaterialManager() {
           </Field>
           <Field label="원료명*"><input className="v50-input" value={rm.raw_name} onChange={(e) => setRm({ ...rm, raw_name: e.target.value })} /></Field>
           <Field label="Trade name"><input className="v50-input" value={rm.trade_name || ""} onChange={(e) => setRm({ ...rm, trade_name: e.target.value })} /></Field>
-          <Field label="Manufacturer"><input className="v50-input" value={rm.manufacturer || ""} onChange={(e) => setRm({ ...rm, manufacturer: e.target.value })} /></Field>
-          <Field label="Supplier"><input className="v50-input" value={rm.supplier || ""} onChange={(e) => setRm({ ...rm, supplier: e.target.value })} /></Field>
+          <CompanyAutocompleteField
+            label="Manufacturer" preferredCategory="제조사"
+            value={rm.manufacturer || ""} companyId={rm.manufacturer_company_id}
+            onChange={(patch) => setRm({ ...rm, manufacturer: patch.value, manufacturer_company_id: patch.companyId })}
+          />
+          <CompanyAutocompleteField
+            label="Supplier" preferredCategory="공급사"
+            value={rm.supplier || ""} companyId={rm.supplier_company_id}
+            onChange={(patch) => setRm({ ...rm, supplier: patch.value, supplier_company_id: patch.companyId })}
+          />
           <Field label="단가"><input className="v50-input" type="number" value={rm.unit_price ?? ""} onChange={(e) => setRm({ ...rm, unit_price: e.target.value === "" ? null : Number(e.target.value) })} /></Field>
           <Field label="MOQ"><input className="v50-input" value={rm.moq || ""} onChange={(e) => setRm({ ...rm, moq: e.target.value })} /></Field>
           <Field label="Lead time"><input className="v50-input" value={rm.lead_time || ""} onChange={(e) => setRm({ ...rm, lead_time: e.target.value })} /></Field>
@@ -491,6 +504,145 @@ export default function RawMaterialManager() {
         </div>
       </section>
     </div>
+  );
+}
+
+// Manufacturer/Supplier 자동완성 - plm_companies에서 이름을 검색하고 고르면 canonical 이름 + company_id를 함께 반영한다.
+// preferredCategory에 속한 업체를 우선 정렬해서 보여주되, 검색 자체는 구분과 무관하게 전체 대상이라 데이터가
+// 완벽히 분류돼있지 않아도 막히지 않는다. 검색 결과에 없으면 그 자리에서 "새 업체 추가"로 즉시 등록 가능.
+type CompanyOrAddNew = Company | { __new: true };
+
+function CompanyAutocompleteField({
+  label, preferredCategory, value, companyId, onChange,
+}: {
+  label: string;
+  preferredCategory: CompanyCategory;
+  value: string;
+  companyId?: string | null;
+  onChange: (patch: { value: string; companyId: string | null }) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [hits, setHits] = useState<Company[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [quickAdd, setQuickAdd] = useState<{ name_kr: string; name_en: string; country: string; contact: string } | null>(null);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showDropdown = open && !quickAdd && value.trim().length > 0;
+  const showQuickAdd = open && !!quickAdd;
+  // useAnchorPosition은 hits 배열의 "길이"만 위치 추정에 쓰지만 참조 자체를 의존성으로 보므로,
+  // 매 렌더마다 새 배열 리터럴을 넘기면 effect가 매번 재실행되어 무한 렌더 루프에 빠진다 - 길이가 실제로
+  // 바뀔 때만 새 배열을 만들도록 useMemo로 참조를 고정한다.
+  const estimateCount = showQuickAdd ? 6 : showDropdown ? hits.length + 1 : 0;
+  const estimateItems = useMemo(() => new Array(estimateCount).fill(0), [estimateCount]);
+  const pos = useAnchorPosition(showDropdown || showQuickAdd ? "open" : null, () => inputRef.current, estimateItems);
+
+  function onInputChange(v: string) {
+    onChange({ value: v, companyId: null });
+    setOpen(true);
+    setQuickAdd(null);
+    if (timer.current) clearTimeout(timer.current);
+    if (!v.trim()) { setHits([]); setLoading(false); return; }
+    setLoading(true);
+    timer.current = setTimeout(async () => {
+      try { setHits(await searchCompaniesAutocomplete(v.trim(), preferredCategory)); }
+      catch { setHits([]); }
+      finally { setLoading(false); }
+    }, 300);
+  }
+
+  function pick(hit: Company) {
+    const kw = value.trim().toLowerCase();
+    const matchedKr = !!hit.name_kr && hit.name_kr.toLowerCase().includes(kw);
+    const matchedEn = !!hit.name_en && hit.name_en.toLowerCase().includes(kw);
+    const chosen = matchedKr ? hit.name_kr! : matchedEn ? hit.name_en! : hit.name_kr || hit.name_en || "";
+    onChange({ value: chosen, companyId: hit.id! });
+    setOpen(false);
+    setHits([]);
+  }
+
+  function openQuickAdd() {
+    setQuickAdd({ name_kr: value.trim(), name_en: "", country: "", contact: "" });
+  }
+
+  async function saveQuickAdd() {
+    if (!quickAdd) return;
+    if (!quickAdd.name_kr.trim() && !quickAdd.name_en.trim()) return;
+    setQuickAddSaving(true);
+    try {
+      const saved = await saveCompany({
+        category: [preferredCategory],
+        name_kr: quickAdd.name_kr.trim(),
+        name_en: quickAdd.name_en.trim(),
+        country: quickAdd.country.trim(),
+        contact: quickAdd.contact.trim(),
+      });
+      onChange({ value: saved.name_kr || saved.name_en || "", companyId: saved.id! });
+      setOpen(false);
+      setQuickAdd(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "업체 등록 오류");
+    } finally {
+      setQuickAddSaving(false);
+    }
+  }
+
+  return (
+    <Field label={label}>
+      <div style={{ position: "relative" }}>
+        <input className="v50-input" ref={inputRef} value={value}
+          onChange={(e) => onInputChange(e.target.value)}
+          onFocus={() => value.trim() && setOpen(true)}
+          placeholder={`${preferredCategory} 검색 또는 직접 입력`} />
+        {companyId && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>업체관리와 연동됨</span>}
+        {showDropdown && loading && <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>}
+        {showDropdown && pos && createPortal(
+          <SearchDropdown<CompanyOrAddNew>
+            hits={[...hits, { __new: true }]}
+            pos={pos}
+            keyExtractor={(item) => ("__new" in item ? "__new__" : item.id!)}
+            onPick={(item) => ("__new" in item ? openQuickAdd() : pick(item))}
+            renderItem={(item) =>
+              "__new" in item ? (
+                <span style={{ color: "#2563eb", fontWeight: 700 }}>+ 새 업체 추가{value.trim() ? `: "${value.trim()}"` : ""}</span>
+              ) : (
+                <span>
+                  <b>{item.name_kr || item.name_en}</b>
+                  {item.name_kr && item.name_en && <span style={{ color: "#64748b", marginLeft: 6 }}>{item.name_en}</span>}
+                  {item.category?.length > 0 && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: item.category.includes(preferredCategory) ? "#1d4ed8" : "#94a3b8" }}>
+                      [{item.category.join(", ")}]
+                    </span>
+                  )}
+                </span>
+              )
+            }
+          />,
+          document.body
+        )}
+        {showQuickAdd && pos && createPortal(
+          <div style={{
+            position: "fixed", zIndex: 1000, left: pos.left, width: Math.max(pos.width, 260), top: pos.top, bottom: pos.bottom,
+            background: "white", border: "1px solid #cbd5e1", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            padding: 10, display: "grid", gap: 6,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#334155" }}>새 업체 등록 ({preferredCategory})</div>
+            <input className="v50-input" placeholder="업체명 국문" value={quickAdd!.name_kr} onChange={(e) => setQuickAdd({ ...quickAdd!, name_kr: e.target.value })} />
+            <input className="v50-input" placeholder="업체명 영문" value={quickAdd!.name_en} onChange={(e) => setQuickAdd({ ...quickAdd!, name_en: e.target.value })} />
+            <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
+            <input className="v50-input" placeholder="담당자 연락처 (선택)" value={quickAdd!.contact} onChange={(e) => setQuickAdd({ ...quickAdd!, contact: e.target.value })} />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <button type="button" className="v50-button-light" onClick={() => setQuickAdd(null)}>취소</button>
+              <button type="button" className="v50-button" disabled={quickAddSaving} onClick={saveQuickAdd}>
+                {quickAddSaving ? "저장 중…" : "추가"}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+      </div>
+    </Field>
   );
 }
 
