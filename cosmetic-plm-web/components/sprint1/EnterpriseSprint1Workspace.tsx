@@ -9,13 +9,14 @@ import MaterialManager from "@/components/sprint2/MaterialManager";
 import CompanyManager from "@/components/sprint2/CompanyManager";
 import IngredientDictionaryManager from "@/components/sprint2/IngredientDictionaryManager";
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
+import ProductionManagementPanel from "@/components/sprint2/ProductionManagementPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "regulation" | "users";
 
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
@@ -29,6 +30,7 @@ export default function EnterpriseSprint1Workspace() {
     if (active === "companyManager") return <CompanyManager />;
     if (active === "formula") return <FormulaCoreWithAuthPanel />;
     if (active === "docs") return <DocumentPdfPanel />;
+    if (active === "production") return <ProductionManagementPanel />;
     if (active === "regulation") return <RegulationEnginePanel />;
     if (active === "users") return <UserAdminPanel />;
     return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} />;
@@ -48,6 +50,7 @@ export default function EnterpriseSprint1Workspace() {
             <button className={active === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
             <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>
             <button className={active === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>
+            <button className={active === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
             <button className={active === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>
             <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>
             <button className={active === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>
@@ -78,6 +81,7 @@ export default function EnterpriseSprint1Workspace() {
           <div className={`v50-tab ${active === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
           <div className={`v50-tab ${active === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>
           <div className={`v50-tab ${active === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리 PDF</span></div>
+          <div className={`v50-tab ${active === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
           <div className={`v50-tab ${active === "regulation" ? "active" : ""}`} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></div>
           <div className={`v50-tab ${active === "sprint0" ? "active" : ""}`} onClick={() => setActive("sprint0")}><span>기반 점검</span></div>
           {auth.canManageUsers && <div className={`v50-tab ${active === "users" ? "active" : ""}`} onClick={() => setActive("users")}><span>사용자 권한관리</span></div>}

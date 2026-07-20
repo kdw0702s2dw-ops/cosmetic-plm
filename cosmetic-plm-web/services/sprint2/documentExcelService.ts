@@ -27,7 +27,7 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   right: { style: "thin" },
 };
 
-function border(ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: number) {
+export function border(ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: number) {
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
       ws.getCell(r, c).border = THIN_BORDER;
@@ -36,7 +36,7 @@ function border(ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: n
 }
 
 // PDF(baseHtml)의 <div class="doctitle">와 동일한 문서 제목 1행 (전체 폭 병합, 굵게, 가운데정렬)
-function writeTitleRow(ws: ExcelJS.Worksheet, title: string, colCount: number) {
+export function writeTitleRow(ws: ExcelJS.Worksheet, title: string, colCount: number) {
   const row = ws.addRow([title]);
   ws.mergeCells(row.number, 1, row.number, colCount);
   const cell = ws.getCell(row.number, 1);
@@ -48,7 +48,7 @@ function writeTitleRow(ws: ExcelJS.Worksheet, title: string, colCount: number) {
 // PDF(kovasMeta)의 <table class="meta"> 라벨:값 6행과 동일한 내용을 그대로 재사용
 // 라벨을 1~2번 컬럼에 병합해서 쓴다 - 표 본문의 "No." 컬럼(폭 6)과 컬럼을 공유하다 보니
 // 라벨(예: "Product name acc. To package")이 한 컬럼 폭만으로는 잘려 보이는 문제가 있었음.
-function writeMetaRows(ws: ExcelJS.Worksheet, meta: Record<string, string>, colCount: number) {
+export function writeMetaRows(ws: ExcelJS.Worksheet, meta: Record<string, string>, colCount: number) {
   for (const [label, value] of Object.entries(meta)) {
     const row = ws.addRow(["", "", "", ""]);
     ws.mergeCells(row.number, 1, row.number, 2);
@@ -91,7 +91,7 @@ function estimateWrappedRowHeight(text: string, totalColWidth: number, lineHeigh
   return estimatedLines * lineHeightPt + 8;
 }
 
-async function downloadWorkbook(wb: ExcelJS.Workbook, filename: string) {
+export async function downloadWorkbook(wb: ExcelJS.Workbook, filename: string) {
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
