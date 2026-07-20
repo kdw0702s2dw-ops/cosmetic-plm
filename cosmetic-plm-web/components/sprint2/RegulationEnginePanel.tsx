@@ -162,14 +162,40 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
   return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value">{value}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>{hint}</div></article>;
 }
 
+// match_type이 정확히 "CAS"뿐이면 이름(국문/영문) 매칭이 하나도 없었다는 뜻 - MFDS가 한 규제 행에
+// 서로 다른 물질의 CAS를 같이 적어놓아서 생기는 허위매칭(예: 크로뮴(VI)트라이옥사이드 사례)일 위험이 높다.
+function isCasOnlyMismatch(row: MfdsStagingRow) {
+  return row.match_type === "CAS";
+}
+
 function StagingRow({ row, m }: { row: MfdsStagingRow; m: ReturnType<typeof useMfdsStaging> }) {
   const pending = row.review_status === "PENDING";
+  const casOnly = isCasOnlyMismatch(row);
+
+  function handleApprove() {
+    if (casOnly) {
+      const confirmed = confirm(
+        `⚠️ 이 항목은 CAS 번호만 일치하고 이름은 일치하지 않습니다 (다른 물질일 가능성 있음).\n\n` +
+        `${row.ingredient_name_kr || row.ingredient_name_en} / CAS ${row.cas_no}\n` +
+        `매칭 원료: ${row.matched_raw_material_codes.join(", ") || "-"}\n\n` +
+        `정말 승인하시겠습니까?`
+      );
+      if (!confirmed) return;
+    }
+    m.approve(row);
+  }
+
   return (
     <tr>
       <td>
         <b>{row.ingredient_name_kr || "-"}</b>
         {row.ingredient_name_en && <div style={{ color: "#64748b", fontSize: 12 }}>{row.ingredient_name_en}</div>}
         <div style={{ color: "#94a3b8", fontSize: 11 }}>{row.match_type} · {row.source_api}</div>
+        {casOnly && (
+          <div style={{ color: "#dc2626", fontWeight: 700, fontSize: 11, marginTop: 4 }}>
+            ⚠️ CAS만 일치 - 이름 불일치, 다른 물질일 가능성 있음
+          </div>
+        )}
       </td>
       <td>
         {row.region_mapped ? REGION_LABEL[row.region_mapped] || row.region_mapped : (
@@ -194,7 +220,7 @@ function StagingRow({ row, m }: { row: MfdsStagingRow; m: ReturnType<typeof useM
       <td>
         {pending ? (
           <div style={{ display: "flex", gap: 6 }}>
-            <button className="v50-button" onClick={() => m.approve(row)} disabled={!row.region_mapped}>승인</button>
+            <button className="v50-button" onClick={handleApprove} disabled={!row.region_mapped}>승인</button>
             <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => m.reject(row)}>거부</button>
           </div>
         ) : (

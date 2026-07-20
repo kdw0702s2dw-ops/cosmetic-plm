@@ -43,13 +43,14 @@ const REGION_MAP: Record<string, string> = {
   대만: "TW", 아르헨티나: "AR", 브라질: "BR", 캐나다: "CA",
 };
 
-const CAS_RE = /^\d{2,7}-\d{2}-\d$/;
+// CAS_NO 필드는 콤마/공백/줄바꿈으로 여러 번호를 나열하거나 "138-86-3 (DL-)"처럼 번호 뒤에
+// 주석이 바로 붙어있는 경우가 많다. split 대신 문자열 전체에서 CAS 형태 부분문자열을 전부
+// 찾아내는 방식이라 구분자나 주석 표기에 관계없이 각 번호를 개별로 추출한다.
+const CAS_RE = /\d{2,7}-\d{2}-\d(?!\d)/g;
 function extractValidCas(raw: unknown): string[] {
   if (!raw) return [];
-  return String(raw)
-    .split(/[,\r\n]+/)
-    .map((c) => c.trim())
-    .filter((c) => CAS_RE.test(c));
+  const matches = String(raw).match(CAS_RE);
+  return matches ? Array.from(new Set(matches)) : [];
 }
 function normalize(s: unknown): string {
   if (!s) return "";
