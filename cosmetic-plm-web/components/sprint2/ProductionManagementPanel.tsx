@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ProductionQtyCheckPanel from "@/components/sprint2/ProductionQtyCheckPanel";
 import InsolubleHgPanel from "@/components/sprint2/InsolubleHgPanel";
+import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
@@ -18,6 +19,12 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     label: "불용성 HG",
     description: "원단/필름 관리기준과 칼선 조건으로 도포량·면적비·DCAP중량을 계산합니다.",
     render: () => <InsolubleHgPanel />,
+  },
+  {
+    key: "solubleHg",
+    label: "수용성 HG",
+    description: "관리기준 3개(필름1/원단/필름2)와 칼선 조건으로 도포량·부자재중량을 계산합니다.",
+    render: () => <SolubleHgPanel />,
   },
 ];
 

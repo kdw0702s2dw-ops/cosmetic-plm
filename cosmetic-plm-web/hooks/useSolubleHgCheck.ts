@@ -2,38 +2,37 @@
 
 import { useMemo, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
+import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import {
-  calcHeader, calcSummaryRows, deleteInsolubleHgSheet, fetchInsolubleHgSheets, saveInsolubleHgSheet,
-  LOSS_RATE_PRESETS, type InsolubleHgHeaderInput, type InsolubleHgSheet,
-} from "@/services/sprint2/insolubleHgService";
-import { downloadInsolubleHgExcel, printInsolubleHgSheet } from "@/services/sprint2/insolubleHgDocService";
+  calcHeader, deleteSolubleHgSheet, fetchSolubleHgSheets, saveSolubleHgSheet,
+  type SolubleHgHeaderInput, type SolubleHgSheet,
+} from "@/services/sprint2/solubleHgService";
+import { downloadSolubleHgExcel, printSolubleHgSheet } from "@/services/sprint2/solubleHgDocService";
 
-const emptyHeaderInput: InsolubleHgHeaderInput = {
-  fabric_standard_weight: 0, film_standard_weight: 0, total_weight: 0,
-  cutting_line_no: "", cutting_area_a4_weight: 0, a4_10x10_weight: 0,
+const emptyHeaderInput: SolubleHgHeaderInput = {
+  component1_raw_code: "", component1_weight: 0,
+  component2_raw_code: "", component2_weight: 0,
+  component3_raw_code: "", component3_weight: 0,
+  total_weight: 0, cutting_line_no: "", cutting_area_a4_weight: 0, a4_10x10_weight: 0,
   loss_rate_preset_key: LOSS_RATE_PRESETS[0].key, loss_rate: LOSS_RATE_PRESETS[0].rate,
-  manual_notice_coat_amount: null, half_cut_width_cm: 0, half_cut_height_cm: 0,
+  manual_notice_coat_amount: null,
 };
 
-export function useInsolubleHgCheck() {
+export function useSolubleHgCheck() {
   const [keyword, setKeyword] = useState("");
   const [formulas, setFormulas] = useState<any[]>([]);
   const [formula, setFormula] = useState<any | null>(null);
   const [searching, setSearching] = useState(false);
 
-  const [headerInput, setHeaderInput] = useState<InsolubleHgHeaderInput>(emptyHeaderInput);
+  const [headerInput, setHeaderInput] = useState<SolubleHgHeaderInput>(emptyHeaderInput);
   const [note, setNote] = useState("");
 
-  const [history, setHistory] = useState<InsolubleHgSheet[]>([]);
+  const [history, setHistory] = useState<SolubleHgSheet[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   const headerResult = useMemo(() => calcHeader(headerInput), [headerInput]);
-  const summaryRows = useMemo(
-    () => calcSummaryRows(headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut),
-    [headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut]
-  );
 
   async function search() {
     setSearching(true);
@@ -55,7 +54,7 @@ export function useInsolubleHgCheck() {
   async function loadHistory(formulaCode: string, revision: string) {
     setLoading(true);
     try {
-      setHistory(await fetchInsolubleHgSheets(formulaCode, revision));
+      setHistory(await fetchSolubleHgSheets(formulaCode, revision));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "이력 조회 오류");
     } finally {
@@ -63,13 +62,12 @@ export function useInsolubleHgCheck() {
     }
   }
 
-  function updateHeaderField(key: keyof Omit<InsolubleHgHeaderInput, "cutting_line_no" | "loss_rate_preset_key">, value: string) {
+  function updateNumericField(key: keyof Omit<SolubleHgHeaderInput, "component1_raw_code" | "component2_raw_code" | "component3_raw_code" | "cutting_line_no" | "loss_rate_preset_key">, value: string) {
     setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
   }
-  function setCuttingLineNo(value: string) {
-    setHeaderInput((prev) => ({ ...prev, cutting_line_no: value }));
+  function updateTextField(key: "component1_raw_code" | "component2_raw_code" | "component3_raw_code" | "cutting_line_no", value: string) {
+    setHeaderInput((prev) => ({ ...prev, [key]: value }));
   }
-
   function selectLossRatePreset(key: string) {
     if (key === "custom") {
       setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: null }));
@@ -85,7 +83,7 @@ export function useInsolubleHgCheck() {
     setHeaderInput((prev) => ({ ...prev, manual_notice_coat_amount: value === "" ? null : Number(value) }));
   }
 
-  function buildCurrentSheet(): InsolubleHgSheet {
+  function buildCurrentSheet(): SolubleHgSheet {
     if (!formula) throw new Error("처방을 먼저 선택하세요.");
     return {
       formula_code: formula.formula_code,
@@ -95,7 +93,6 @@ export function useInsolubleHgCheck() {
       note,
       ...headerInput,
       ...headerResult,
-      summary_rows: summaryRows,
     };
   }
 
@@ -104,7 +101,7 @@ export function useInsolubleHgCheck() {
     setMessage("");
     try {
       const sheet = buildCurrentSheet();
-      const saved = await saveInsolubleHgSheet(sheet);
+      const saved = await saveSolubleHgSheet(sheet);
       setMessage("저장 완료");
       await loadHistory(saved.formula_code, saved.revision);
     } catch (e) {
@@ -114,19 +111,15 @@ export function useInsolubleHgCheck() {
     }
   }
 
-  function loadFromHistory(sheet: InsolubleHgSheet) {
+  function loadFromHistory(sheet: SolubleHgSheet) {
     setHeaderInput({
-      fabric_standard_weight: sheet.fabric_standard_weight,
-      film_standard_weight: sheet.film_standard_weight,
-      total_weight: sheet.total_weight,
-      cutting_line_no: sheet.cutting_line_no,
-      cutting_area_a4_weight: sheet.cutting_area_a4_weight,
-      a4_10x10_weight: sheet.a4_10x10_weight,
-      loss_rate_preset_key: sheet.loss_rate_preset_key,
-      loss_rate: sheet.loss_rate,
+      component1_raw_code: sheet.component1_raw_code, component1_weight: sheet.component1_weight,
+      component2_raw_code: sheet.component2_raw_code, component2_weight: sheet.component2_weight,
+      component3_raw_code: sheet.component3_raw_code, component3_weight: sheet.component3_weight,
+      total_weight: sheet.total_weight, cutting_line_no: sheet.cutting_line_no,
+      cutting_area_a4_weight: sheet.cutting_area_a4_weight, a4_10x10_weight: sheet.a4_10x10_weight,
+      loss_rate_preset_key: sheet.loss_rate_preset_key, loss_rate: sheet.loss_rate,
       manual_notice_coat_amount: sheet.manual_notice_coat_amount ?? null,
-      half_cut_width_cm: sheet.half_cut_width_cm,
-      half_cut_height_cm: sheet.half_cut_height_cm,
     });
     setNote(sheet.note || "");
     setMessage(`불러옴: ${new Date(sheet.created_at || "").toLocaleString("ko-KR")}`);
@@ -135,7 +128,7 @@ export function useInsolubleHgCheck() {
   async function removeHistory(id: string) {
     if (!confirm("이 계산 이력을 삭제하시겠습니까?")) return;
     try {
-      await deleteInsolubleHgSheet(id);
+      await deleteSolubleHgSheet(id);
       if (formula) await loadHistory(formula.formula_code, formula.revision);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "삭제 오류");
@@ -143,22 +136,21 @@ export function useInsolubleHgCheck() {
   }
 
   function printCurrent() {
-    try { printInsolubleHgSheet(buildCurrentSheet()); } catch (e) { setMessage(e instanceof Error ? e.message : "PDF 저장 오류"); }
+    try { printSolubleHgSheet(buildCurrentSheet()); } catch (e) { setMessage(e instanceof Error ? e.message : "PDF 저장 오류"); }
   }
   async function downloadExcelCurrent() {
-    try { await downloadInsolubleHgExcel(buildCurrentSheet()); } catch (e) { setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류"); }
+    try { await downloadSolubleHgExcel(buildCurrentSheet()); } catch (e) { setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류"); }
   }
-  function printHistoryItem(sheet: InsolubleHgSheet) {
-    try { printInsolubleHgSheet(sheet); } catch (e) { setMessage(e instanceof Error ? e.message : "PDF 저장 오류"); }
+  function printHistoryItem(sheet: SolubleHgSheet) {
+    try { printSolubleHgSheet(sheet); } catch (e) { setMessage(e instanceof Error ? e.message : "PDF 저장 오류"); }
   }
-  async function downloadExcelHistoryItem(sheet: InsolubleHgSheet) {
-    try { await downloadInsolubleHgExcel(sheet); } catch (e) { setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류"); }
+  async function downloadExcelHistoryItem(sheet: SolubleHgSheet) {
+    try { await downloadSolubleHgExcel(sheet); } catch (e) { setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류"); }
   }
 
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
-    headerInput, updateHeaderField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
-    summaryRows,
+    headerInput, updateNumericField, updateTextField, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
     printCurrent, downloadExcelCurrent, printHistoryItem, downloadExcelHistoryItem,
