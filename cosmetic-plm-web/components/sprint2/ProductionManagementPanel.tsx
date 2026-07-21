@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ProductionQtyCheckPanel from "@/components/sprint2/ProductionQtyCheckPanel";
+import InsolubleHgPanel from "@/components/sprint2/InsolubleHgPanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
@@ -11,6 +12,12 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     label: "제조량 확인",
     description: "제조량/로스/코팅 조건으로 코팅원단 총 수·실제 수량·샘플 수량을 계산합니다.",
     render: () => <ProductionQtyCheckPanel />,
+  },
+  {
+    key: "insolubleHg",
+    label: "불용성 HG",
+    description: "원단/필름 관리기준과 칼선 조건으로 도포량·면적비·DCAP중량을 계산합니다.",
+    render: () => <InsolubleHgPanel />,
   },
 ];
 
