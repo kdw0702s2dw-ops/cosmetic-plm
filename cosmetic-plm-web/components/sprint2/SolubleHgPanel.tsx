@@ -123,14 +123,14 @@ export default function SolubleHgPanel() {
           <Kpi label="도포량 상한" value={fmtDisplay(s.headerResult.coat_amount_max)} />
           <Kpi label="면적비(R)" value={fmtDisplay(s.headerResult.area_ratio)} />
           <Kpi label="칼선도포량" value={fmtDisplay(s.headerResult.cutting_line_coat_amount)} />
-          <Kpi label="성형품 최소 중량(필름제외)" value={fmtDisplay(s.headerResult.loss_adjusted_coat_amount)} />
-          <Kpi label="성형품 최대 중량(필름제외)" value={fmtDisplay(s.headerResult.standard_coating_amount)} />
+          <Kpi label="성형품 최소 중량(부자재제외)" value={fmtDisplay(s.headerResult.loss_adjusted_coat_amount)} color="#2563eb" />
+          <Kpi label="성형품 최대 중량(부자재제외)" value={fmtDisplay(s.headerResult.standard_coating_amount)} color="#2563eb" />
           <Kpi label="부자재중량1" value={fmtDisplay(s.headerResult.component1_material_weight)} />
           <Kpi label="부자재중량2" value={fmtDisplay(s.headerResult.component2_material_weight)} />
           <Kpi label="부자재중량3" value={fmtDisplay(s.headerResult.component3_material_weight)} />
           <Kpi label="부자재 중량" value={fmtDisplay(s.headerResult.total_material_weight)} />
-          <Kpi label="최소 기준 합계" value={fmtDisplay(s.headerResult.min_total_weight)} />
-          <Kpi label="최대 기준 합계" value={fmtDisplay(s.headerResult.max_total_weight)} />
+          <Kpi label="최소 기준 합계(부자재포함)" value={fmtDisplay(s.headerResult.min_total_weight)} color="#dc2626" />
+          <Kpi label="최대 기준 합계(부자재포함)" value={fmtDisplay(s.headerResult.max_total_weight)} color="#dc2626" />
         </div>
       </section>
 
@@ -153,7 +153,7 @@ export default function SolubleHgPanel() {
         ) : (
           <div className="v50-table-wrap">
             <table className="v50-table">
-              <thead><tr><th>저장일시</th><th>총중량</th><th>최소 기준 합계</th><th>최대 기준 합계</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
+              <thead><tr><th>저장일시</th><th>총중량</th><th>최소 기준 합계(부자재포함)</th><th>최대 기준 합계(부자재포함)</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
               <tbody>
                 {s.history.map((h) => (
                   <tr key={h.id}>
@@ -182,6 +182,6 @@ export default function SolubleHgPanel() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value">{value}</div></article>;
+function Kpi({ label, value, color }: { label: string; value: string; color?: string }) {
+  return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value" style={color ? { color } : undefined}>{value}</div></article>;
 }
