@@ -202,9 +202,16 @@ export default function FormulaCorePanel() {
                   </td>
                   <td>{line.raw_code || "-"}</td>
                   <td>
-                    <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
-                      value={line.raw_name || ""} placeholder="원료명 검색"
-                      onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)} />
+                    {(() => {
+                      const caution = line.raw_code ? s.rawCautionMap.get(line.raw_code) : undefined;
+                      return (
+                        <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
+                          value={line.raw_name || ""} placeholder="원료명 검색"
+                          onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)}
+                          style={caution?.is_caution ? { color: "#dc2626", fontWeight: 700 } : undefined}
+                          title={caution?.is_caution ? (caution.caution_note || "주의 원료") : undefined} />
+                      );
+                    })()}
                     {s.activeRawRow === line.line_no && s.rawSearchLoading && (
                       <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
                     )}
@@ -216,10 +223,11 @@ export default function FormulaCorePanel() {
                           pos={anchorPos}
                           keyExtractor={(raw: any) => raw.raw_code}
                           renderItem={(raw: any) => (
-                            <>
-                              <b>{raw.raw_name}</b> <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
+                            <div title={raw.is_caution ? (raw.caution_note || "주의 원료") : undefined}>
+                              <b style={raw.is_caution ? { color: "#dc2626" } : undefined}>{raw.raw_name}{raw.is_caution && " ⚠"}</b>{" "}
+                              <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
                               <span style={{ color: "#16a34a", marginLeft: 8 }}>{Number(raw.unit_price || 0).toLocaleString()}원/kg</span>
-                            </>
+                            </div>
                           )}
                         />,
                         document.body

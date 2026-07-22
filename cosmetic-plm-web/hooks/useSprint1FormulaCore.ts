@@ -41,6 +41,7 @@ import {
   searchMaterialsAutocomplete,
   type Material,
 } from "@/services/sprint2/materialService";
+import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 
 type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
 const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
@@ -104,6 +105,9 @@ export function useSprint1FormulaCore() {
   // - raw_code 집합이 바뀔 때만 DB에서 다시 불러온다 (함량%만 바뀌는 경우는 아래에서 즉시 재계산)
   const [rawComponentsMap, setRawComponentsMap] = useState<Map<string, any[]>>(new Map());
   const rawCodeKey = Array.from(new Set(lines.map((l) => l.raw_code).filter(Boolean))).sort().join(",");
+
+  // BOM에 쓰인 원료 중 "주의 원료" 표시가 필요한 것들 - raw_code 집합이 바뀔 때만 다시 조회한다 (구성성분 캐시와 동일 패턴)
+  const [rawCautionMap, setRawCautionMap] = useState<Map<string, { is_caution: boolean; caution_note: string | null }>>(new Map());
 
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
@@ -520,10 +524,30 @@ export function useSprint1FormulaCore() {
     };
   }, [rawCodeKey]);
 
+  useEffect(() => {
+    const codes = rawCodeKey ? rawCodeKey.split(",") : [];
+    if (codes.length === 0) {
+      setRawCautionMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    fetchRawMaterialsByCodes(codes)
+      .then((materials) => {
+        if (cancelled) return;
+        setRawCautionMap(new Map(materials.map((m) => [m.raw_code, { is_caution: !!m.is_caution, caution_note: m.caution_note ?? null }])));
+      })
+      .catch(() => {
+        if (!cancelled) setRawCautionMap(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rawCodeKey]);
+
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList, mergedInciRows,
-    rawHits, activeRawRow, rawSearchLoading, lineWarnings,
+    rawHits, activeRawRow, rawSearchLoading, lineWarnings, rawCautionMap,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,

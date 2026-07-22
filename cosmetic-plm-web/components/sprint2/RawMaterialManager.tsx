@@ -53,6 +53,7 @@ const emptyRm: RawMaterial = {
   raw_code: "", raw_name: "", trade_name: "", manufacturer: "", supplier: "",
   unit_price: null, moq: "", lead_time: "", origin_country: "",
   inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", is_active: true,
+  is_caution: false, caution_note: "",
 };
 
 const emptyComp: Component = {
@@ -384,7 +385,13 @@ export default function RawMaterialManager() {
               {list.map((r) => (
                 <tr key={r.raw_code} style={{ background: rm.raw_code === r.raw_code ? "#eff6ff" : undefined }}>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.raw_code}</td>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.raw_name}</td>
+                  <td
+                    style={{ cursor: "pointer", color: r.is_caution ? "#dc2626" : undefined, fontWeight: r.is_caution ? 700 : undefined }}
+                    onClick={() => selectRm(r)}
+                    title={r.is_caution ? (r.caution_note || "주의 원료") : undefined}
+                  >
+                    {r.raw_name}{r.is_caution && " ⚠"}
+                  </td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.inci_display}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.manufacturer || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>
@@ -428,6 +435,15 @@ export default function RawMaterialManager() {
           <Field label="MOQ"><input className="v50-input" value={rm.moq || ""} onChange={(e) => setRm({ ...rm, moq: e.target.value })} /></Field>
           <Field label="Lead time"><input className="v50-input" value={rm.lead_time || ""} onChange={(e) => setRm({ ...rm, lead_time: e.target.value })} /></Field>
           <Field label="Origin"><input className="v50-input" value={rm.origin_country || ""} onChange={(e) => setRm({ ...rm, origin_country: e.target.value })} /></Field>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, whiteSpace: "nowrap" }}>
+              <input type="checkbox" checked={!!rm.is_caution} onChange={(e) => setRm({ ...rm, is_caution: e.target.checked })} />
+              <span style={{ color: rm.is_caution ? "#dc2626" : undefined }}>⚠ 주의 원료</span>
+            </label>
+            <Field label="주의 사유 (예: 수급불안, 단종 예정 등)">
+              <input className="v50-input" value={rm.caution_note || ""} onChange={(e) => setRm({ ...rm, caution_note: e.target.value })} />
+            </Field>
+          </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <Field label="비고">
               <textarea className="v50-textarea" rows={3}
@@ -684,8 +700,12 @@ function RawSearchDropdown({ hits, onPick, pos }: { hits: RawMaterialListItem[];
         <div key={item.raw_code} onClick={() => onPick(item)}
           style={{ padding: "8px 10px", cursor: "pointer", fontSize: 13, borderBottom: "1px solid #f1f5f9" }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}>
-          <b>{item.raw_code}</b> {item.raw_name}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+          title={item.is_caution ? (item.caution_note || "주의 원료") : undefined}>
+          <b>{item.raw_code}</b>{" "}
+          <span style={{ color: item.is_caution ? "#dc2626" : undefined, fontWeight: item.is_caution ? 700 : undefined }}>
+            {item.raw_name}{item.is_caution && " ⚠"}
+          </span>
           {item.inci_display && <span style={{ color: "#64748b", marginLeft: 8 }}>{item.inci_display}</span>}
         </div>
       ))}

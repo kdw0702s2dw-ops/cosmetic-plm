@@ -52,7 +52,12 @@ export default function ResearcherHomePanel({
             {h.data.recentRawMaterials.map((x) => (
               <div key={x.raw_code} className="v50-card" style={{ padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-                  <strong>{x.raw_name}</strong>
+                  <strong
+                    style={x.is_caution ? { color: "#dc2626" } : undefined}
+                    title={x.is_caution ? (x.caution_note || "주의 원료") : undefined}
+                  >
+                    {x.raw_name}{x.is_caution && " ⚠"}
+                  </strong>
                   <span style={{ color: "#64748b", fontSize: 13 }}>{x.raw_code}</span>
                 </div>
                 <div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>
