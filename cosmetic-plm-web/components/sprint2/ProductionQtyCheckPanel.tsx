@@ -8,6 +8,12 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+// 계산 결과/시나리오별 샘플 수량 표는 화면 표시만 정수로 반올림한다 (저장/PDF/엑셀은 원본 정밀도 유지)
+function fmtInt(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return String(Math.round(v));
+}
+
 const HEADER_FIELDS: { key: "manufacture_qty_kg" | "loss_percent" | "coat_max_10x10" | "coating_length_cm" | "coating_width_cm" | "coating_loss_m"; label: string }[] = [
   { key: "manufacture_qty_kg", label: "제조량(kg)" },
   { key: "loss_percent", label: "로스(%)" },
@@ -76,13 +82,13 @@ export default function ProductionQtyCheckPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>계산 결과</h2>
         <div className="v50-grid-4">
-          <Kpi label="순수 사용가능 중량(g)" value={fmt(s.headerResult.usable_weight_g)} />
-          <Kpi label="(m)/1EA" value={fmt(s.headerResult.m_per_ea)} />
-          <Kpi label="코팅원단 총 수(개)" value={fmt(s.headerResult.coating_fabric_count)} />
-          <Kpi label="이론적 수량(m)" value={fmt(s.headerResult.theoretical_qty_m)} />
+          <Kpi label="순수 사용가능 중량(g)" value={fmtInt(s.headerResult.usable_weight_g)} />
+          <Kpi label="(m)/1EA" value={fmtInt(s.headerResult.m_per_ea)} />
+          <Kpi label="코팅원단 총 수(개)" value={fmtInt(s.headerResult.coating_fabric_count)} />
+          <Kpi label="이론적 수량(m)" value={fmtInt(s.headerResult.theoretical_qty_m)} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <Kpi label="실제 수량(m)" value={fmt(s.headerResult.actual_qty_m)} />
+          <Kpi label="실제 수량(m)" value={fmtInt(s.headerResult.actual_qty_m)} />
         </div>
       </section>
 
@@ -99,8 +105,8 @@ export default function ProductionQtyCheckPanel() {
                 <tr key={i}>
                   <td><input className="v50-input" type="number" style={{ width: 100 }} value={s.scenarioRows[i].molded_size_m || ""} onChange={(e) => s.updateScenarioRow(i, { molded_size_m: e.target.value === "" ? 0 : Number(e.target.value) })} /></td>
                   <td><input className="v50-input" type="number" style={{ width: 90 }} value={s.scenarioRows[i].cutting_line_qty || ""} onChange={(e) => s.updateScenarioRow(i, { cutting_line_qty: e.target.value === "" ? 0 : Number(e.target.value) })} /></td>
-                  <td>{fmt(s.headerResult.actual_qty_m)}</td>
-                  <td style={{ fontWeight: 800 }}>{fmt(r.sample_qty)}</td>
+                  <td>{fmtInt(s.headerResult.actual_qty_m)}</td>
+                  <td style={{ fontWeight: 800 }}>{fmtInt(r.sample_qty)}</td>
                   <td><button className="v50-button-light" onClick={() => s.removeScenarioRow(i)}>삭제</button></td>
                 </tr>
               ))}
