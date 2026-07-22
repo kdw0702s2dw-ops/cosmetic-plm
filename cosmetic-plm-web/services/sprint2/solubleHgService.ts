@@ -30,7 +30,8 @@ export type SolubleHgHeaderResult = {
   component2_material_weight: number;
   component3_material_weight: number;
   total_material_weight: number;
-  material_plus_gel_weight: number;
+  min_total_weight: number;
+  max_total_weight: number;
 };
 
 // 첨부 시트("41432 Taiki")의 수식을 그대로 재현한다. 반올림/단순화 없이 그대로 연쇄 계산.
@@ -49,11 +50,12 @@ export function calcHeader(input: SolubleHgHeaderInput): SolubleHgHeaderResult {
   const component2_material_weight = input.component2_weight * area_ratio;
   const component3_material_weight = input.component3_weight * area_ratio;
   const total_material_weight = component1_material_weight + component2_material_weight + component3_material_weight;
-  const material_plus_gel_weight = (input.manual_notice_coat_amount ?? 0) + total_material_weight;
+  const min_total_weight = loss_adjusted_coat_amount + total_material_weight;
+  const max_total_weight = standard_coating_amount + total_material_weight;
   return {
     total_weight_max, coat_amount, coat_amount_max, area_ratio, cutting_line_coat_amount, loss_adjusted_coat_amount,
     standard_coating_amount, component1_material_weight, component2_material_weight, component3_material_weight,
-    total_material_weight, material_plus_gel_weight,
+    total_material_weight, min_total_weight, max_total_weight,
   };
 }
 

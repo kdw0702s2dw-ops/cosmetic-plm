@@ -45,7 +45,7 @@ export function buildSolubleHgHtml(sheet: SolubleHgSheet): string {
     ["칼선면적 A4(종이) 중량", fmt(sheet.cutting_area_a4_weight)],
     ["10x10cm A4(종이) 중량", fmt(sheet.a4_10x10_weight)],
     ["로스율", lossRateLabel(sheet)],
-    ["문안용 도포량", fmt(sheet.manual_notice_coat_amount)],
+    ["문안용 도포량 (참고용)", fmt(sheet.manual_notice_coat_amount)],
   ]
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="right">${escapeHtml(v)}</td></tr>`)
     .join("");
@@ -56,13 +56,14 @@ export function buildSolubleHgHtml(sheet: SolubleHgSheet): string {
     ["도포량 상한", fmt(sheet.coat_amount_max)],
     ["면적비(R)", fmt(sheet.area_ratio)],
     ["칼선도포량", fmt(sheet.cutting_line_coat_amount)],
-    ["로스반영 도포량(필름제외)", fmt(sheet.loss_adjusted_coat_amount)],
-    ["제조표준서 코팅기준(필름제외)", fmt(sheet.standard_coating_amount)],
+    ["성형품 최소 중량(필름제외)", fmt(sheet.loss_adjusted_coat_amount)],
+    ["성형품 최대 중량(필름제외)", fmt(sheet.standard_coating_amount)],
     [`부자재중량1 (${sheet.component1_raw_code || "-"})`, fmt(sheet.component1_material_weight)],
     [`부자재중량2 (${sheet.component2_raw_code || "-"})`, fmt(sheet.component2_material_weight)],
     [`부자재중량3 (${sheet.component3_raw_code || "-"})`, fmt(sheet.component3_material_weight)],
     ["부자재 중량", fmt(sheet.total_material_weight)],
-    ["부자재+겔 중량", fmt(sheet.material_plus_gel_weight)],
+    ["최소 기준 합계", fmt(sheet.min_total_weight)],
+    ["최대 기준 합계", fmt(sheet.max_total_weight)],
   ]
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="right">${escapeHtml(v)}</td></tr>`)
     .join("");
@@ -135,7 +136,7 @@ export async function downloadSolubleHgExcel(sheet: SolubleHgSheet) {
     ["칼선면적 A4(종이) 중량", sheet.cutting_area_a4_weight],
     ["10x10cm A4(종이) 중량", sheet.a4_10x10_weight],
     ["로스율", lossRateLabel(sheet)],
-    ["문안용 도포량", sheet.manual_notice_coat_amount ?? null],
+    ["문안용 도포량 (참고용)", sheet.manual_notice_coat_amount ?? null],
   ];
   for (const [label, value] of inputPairs) {
     const row = ws.addRow([label, value]);
@@ -153,13 +154,14 @@ export async function downloadSolubleHgExcel(sheet: SolubleHgSheet) {
     ["도포량 상한", sheet.coat_amount_max],
     ["면적비(R)", sheet.area_ratio],
     ["칼선도포량", sheet.cutting_line_coat_amount],
-    ["로스반영 도포량(필름제외)", sheet.loss_adjusted_coat_amount],
-    ["제조표준서 코팅기준(필름제외)", sheet.standard_coating_amount],
+    ["성형품 최소 중량(필름제외)", sheet.loss_adjusted_coat_amount],
+    ["성형품 최대 중량(필름제외)", sheet.standard_coating_amount],
     [`부자재중량1 (${sheet.component1_raw_code || "-"})`, sheet.component1_material_weight],
     [`부자재중량2 (${sheet.component2_raw_code || "-"})`, sheet.component2_material_weight],
     [`부자재중량3 (${sheet.component3_raw_code || "-"})`, sheet.component3_material_weight],
     ["부자재 중량", sheet.total_material_weight],
-    ["부자재+겔 중량", sheet.material_plus_gel_weight],
+    ["최소 기준 합계", sheet.min_total_weight],
+    ["최대 기준 합계", sheet.max_total_weight],
   ];
   for (const [label, value] of resultPairs) {
     const row = ws.addRow([label, value ?? null]);

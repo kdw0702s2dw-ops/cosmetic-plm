@@ -9,6 +9,12 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+// 계산 결과 카드는 화면 표시만 소수점 둘째 자리로 반올림한다 (저장/PDF/엑셀은 원본 정밀도 유지)
+function fmtDisplay(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return v.toFixed(2);
+}
+
 const COMPONENTS: { codeKey: "component1_raw_code" | "component2_raw_code" | "component3_raw_code"; weightKey: "component1_weight" | "component2_weight" | "component3_weight"; label: string }[] = [
   { codeKey: "component1_raw_code", weightKey: "component1_weight", label: "관리기준1 (필름1)" },
   { codeKey: "component2_raw_code", weightKey: "component2_weight", label: "관리기준2 (원단)" },
@@ -103,7 +109,7 @@ export default function SolubleHgPanel() {
             </label>
           )}
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            문안용 도포량 (수동)
+            문안용 도포량 (수동, 참고용 - 계산 미반영)
             <input className="v50-input" type="number" value={s.headerInput.manual_notice_coat_amount ?? ""} onChange={(e) => s.updateManualNoticeCoatAmount(e.target.value)} />
           </label>
         </div>
@@ -112,18 +118,19 @@ export default function SolubleHgPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>계산 결과</h2>
         <div className="v50-grid-4">
-          <Kpi label="총중량 상한" value={fmt(s.headerResult.total_weight_max)} />
-          <Kpi label="도포량" value={fmt(s.headerResult.coat_amount)} />
-          <Kpi label="도포량 상한" value={fmt(s.headerResult.coat_amount_max)} />
-          <Kpi label="면적비(R)" value={fmt(s.headerResult.area_ratio)} />
-          <Kpi label="칼선도포량" value={fmt(s.headerResult.cutting_line_coat_amount)} />
-          <Kpi label="로스반영 도포량(필름제외)" value={fmt(s.headerResult.loss_adjusted_coat_amount)} />
-          <Kpi label="제조표준서 코팅기준(필름제외)" value={fmt(s.headerResult.standard_coating_amount)} />
-          <Kpi label="부자재중량1" value={fmt(s.headerResult.component1_material_weight)} />
-          <Kpi label="부자재중량2" value={fmt(s.headerResult.component2_material_weight)} />
-          <Kpi label="부자재중량3" value={fmt(s.headerResult.component3_material_weight)} />
-          <Kpi label="부자재 중량" value={fmt(s.headerResult.total_material_weight)} />
-          <Kpi label="부자재+겔 중량" value={fmt(s.headerResult.material_plus_gel_weight)} />
+          <Kpi label="총중량 상한" value={fmtDisplay(s.headerResult.total_weight_max)} />
+          <Kpi label="도포량" value={fmtDisplay(s.headerResult.coat_amount)} />
+          <Kpi label="도포량 상한" value={fmtDisplay(s.headerResult.coat_amount_max)} />
+          <Kpi label="면적비(R)" value={fmtDisplay(s.headerResult.area_ratio)} />
+          <Kpi label="칼선도포량" value={fmtDisplay(s.headerResult.cutting_line_coat_amount)} />
+          <Kpi label="성형품 최소 중량(필름제외)" value={fmtDisplay(s.headerResult.loss_adjusted_coat_amount)} />
+          <Kpi label="성형품 최대 중량(필름제외)" value={fmtDisplay(s.headerResult.standard_coating_amount)} />
+          <Kpi label="부자재중량1" value={fmtDisplay(s.headerResult.component1_material_weight)} />
+          <Kpi label="부자재중량2" value={fmtDisplay(s.headerResult.component2_material_weight)} />
+          <Kpi label="부자재중량3" value={fmtDisplay(s.headerResult.component3_material_weight)} />
+          <Kpi label="부자재 중량" value={fmtDisplay(s.headerResult.total_material_weight)} />
+          <Kpi label="최소 기준 합계" value={fmtDisplay(s.headerResult.min_total_weight)} />
+          <Kpi label="최대 기준 합계" value={fmtDisplay(s.headerResult.max_total_weight)} />
         </div>
       </section>
 
@@ -146,13 +153,14 @@ export default function SolubleHgPanel() {
         ) : (
           <div className="v50-table-wrap">
             <table className="v50-table">
-              <thead><tr><th>저장일시</th><th>총중량</th><th>부자재+겔 중량</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
+              <thead><tr><th>저장일시</th><th>총중량</th><th>최소 기준 합계</th><th>최대 기준 합계</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
               <tbody>
                 {s.history.map((h) => (
                   <tr key={h.id}>
                     <td>{new Date(h.created_at || "").toLocaleString("ko-KR")}</td>
                     <td>{fmt(h.total_weight)}</td>
-                    <td>{fmt(h.material_plus_gel_weight)}</td>
+                    <td>{fmt(h.min_total_weight)}</td>
+                    <td>{fmt(h.max_total_weight)}</td>
                     <td>{h.note || "-"}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -164,7 +172,7 @@ export default function SolubleHgPanel() {
                     </td>
                   </tr>
                 ))}
-                {s.history.length === 0 && <tr><td colSpan={5}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
+                {s.history.length === 0 && <tr><td colSpan={6}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
           </div>
