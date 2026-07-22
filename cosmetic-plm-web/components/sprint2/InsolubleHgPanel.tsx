@@ -9,6 +9,12 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+// 계산 결과/로스율별 비교 표는 화면 표시만 소수점 둘째 자리로 반올림한다 (저장/PDF/엑셀은 원본 정밀도 유지)
+function fmtDisplay(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return v.toFixed(2);
+}
+
 const NUMERIC_FIELDS: { key: "fabric_standard_weight" | "film_standard_weight" | "total_weight" | "cutting_area_a4_weight" | "a4_10x10_weight"; label: string }[] = [
   { key: "fabric_standard_weight", label: "원단 관리기준" },
   { key: "film_standard_weight", label: "필름 관리기준" },
@@ -101,17 +107,17 @@ export default function InsolubleHgPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>계산 결과</h2>
         <div className="v50-grid-4">
-          <Kpi label="총중량 상한" value={fmt(s.headerResult.total_weight_max)} />
-          <Kpi label="도포량" value={fmt(s.headerResult.coat_amount)} />
-          <Kpi label="도포량 상한" value={fmt(s.headerResult.coat_amount_max)} />
-          <Kpi label="면적비(R)" value={fmt(s.headerResult.area_ratio)} />
-          <Kpi label="칼선도포량" value={fmt(s.headerResult.cutting_line_coat_amount)} />
-          <Kpi label="로스반영 도포량" value={fmt(s.headerResult.loss_adjusted_coat_amount)} />
-          <Kpi label="부직포중량" value={fmt(s.headerResult.nonwoven_weight)} />
-          <Kpi label="필름중량(완칼)" value={fmt(s.headerResult.film_weight_full_cut)} />
-          <Kpi label="DCAP중량(완칼)" value={fmt(s.headerResult.dcap_weight_full_cut)} />
-          <Kpi label="필름중량(반칼)" value={fmt(s.headerResult.film_weight_half_cut)} />
-          <Kpi label="DCAP중량(반칼)" value={fmt(s.headerResult.dcap_weight_half_cut)} />
+          <Kpi label="총중량 상한" value={fmtDisplay(s.headerResult.total_weight_max)} />
+          <Kpi label="도포량" value={fmtDisplay(s.headerResult.coat_amount)} />
+          <Kpi label="도포량 상한" value={fmtDisplay(s.headerResult.coat_amount_max)} />
+          <Kpi label="면적비(R)" value={fmtDisplay(s.headerResult.area_ratio)} />
+          <Kpi label="칼선도포량" value={fmtDisplay(s.headerResult.cutting_line_coat_amount)} />
+          <Kpi label="로스반영 도포량" value={fmtDisplay(s.headerResult.loss_adjusted_coat_amount)} color="#2563eb" />
+          <Kpi label="부직포중량" value={fmtDisplay(s.headerResult.nonwoven_weight)} />
+          <Kpi label="필름중량(완칼)" value={fmtDisplay(s.headerResult.film_weight_full_cut)} />
+          <Kpi label="성형품 중량(완칼)" value={fmtDisplay(s.headerResult.dcap_weight_full_cut)} color="#dc2626" />
+          <Kpi label="필름중량(반칼)" value={fmtDisplay(s.headerResult.film_weight_half_cut)} />
+          <Kpi label="성형품 중량(반칼)" value={fmtDisplay(s.headerResult.dcap_weight_half_cut)} color="#dc2626" />
         </div>
       </section>
 
@@ -119,14 +125,14 @@ export default function InsolubleHgPanel() {
         <h2>로스율별 비교</h2>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>로스율</th><th>로스반영 도포량</th><th>DCAP중량</th><th>97%중량</th></tr></thead>
+            <thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량</th></tr></thead>
             <tbody>
               {s.summaryRows.map((r, i) => (
                 <tr key={i}>
                   <td>{(r.loss_rate * 100).toFixed(0)}%</td>
-                  <td>{fmt(r.loss_adjusted_coat_amount)}</td>
-                  <td>{fmt(r.dcap_weight)}</td>
-                  <td>{fmt(r.weight_97pct)}</td>
+                  <td style={{ color: "#2563eb" }}>{fmtDisplay(r.loss_adjusted_coat_amount)}</td>
+                  <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight)}</td>
+                  <td>{fmtDisplay(r.weight_97pct)}</td>
                 </tr>
               ))}
             </tbody>
@@ -153,7 +159,7 @@ export default function InsolubleHgPanel() {
         ) : (
           <div className="v50-table-wrap">
             <table className="v50-table">
-              <thead><tr><th>저장일시</th><th>총중량</th><th>DCAP중량(완칼)</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
+              <thead><tr><th>저장일시</th><th>총중량</th><th>성형품 중량(완칼)</th><th>비고</th><th style={{ width: 220 }}>작업</th></tr></thead>
               <tbody>
                 {s.history.map((h) => (
                   <tr key={h.id}>
@@ -181,6 +187,6 @@ export default function InsolubleHgPanel() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value">{value}</div></article>;
+function Kpi({ label, value, color }: { label: string; value: string; color?: string }) {
+  return <article className="v50-card"><div className="v50-kpi-label">{label}</div><div className="v50-kpi-value" style={color ? { color } : undefined}>{value}</div></article>;
 }

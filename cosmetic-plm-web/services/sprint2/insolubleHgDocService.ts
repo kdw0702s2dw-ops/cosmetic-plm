@@ -60,9 +60,9 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
     ["로스반영 도포량", fmt(sheet.loss_adjusted_coat_amount)],
     ["부직포중량", fmt(sheet.nonwoven_weight)],
     ["필름중량(완칼)", fmt(sheet.film_weight_full_cut)],
-    ["DCAP중량(완칼)", fmt(sheet.dcap_weight_full_cut)],
+    ["성형품 중량(완칼)", fmt(sheet.dcap_weight_full_cut)],
     ["필름중량(반칼)", fmt(sheet.film_weight_half_cut)],
-    ["DCAP중량(반칼)", fmt(sheet.dcap_weight_half_cut)],
+    ["성형품 중량(반칼)", fmt(sheet.dcap_weight_half_cut)],
   ]
     .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="right">${escapeHtml(v)}</td></tr>`)
     .join("");
@@ -115,7 +115,7 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 
 <div class="sectiontitle">로스율별 비교</div>
 <table class="grid">
-<thead><tr><th>로스율</th><th>로스반영 도포량</th><th>DCAP중량</th><th>97%중량</th></tr></thead>
+<thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량</th></tr></thead>
 <tbody>${summaryRows || `<tr><td colspan="4">비교 데이터가 없습니다.</td></tr>`}</tbody>
 </table>
 
@@ -174,9 +174,9 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
     ["로스반영 도포량", sheet.loss_adjusted_coat_amount],
     ["부직포중량", sheet.nonwoven_weight],
     ["필름중량(완칼)", sheet.film_weight_full_cut],
-    ["DCAP중량(완칼)", sheet.dcap_weight_full_cut],
+    ["성형품 중량(완칼)", sheet.dcap_weight_full_cut],
     ["필름중량(반칼)", sheet.film_weight_half_cut],
-    ["DCAP중량(반칼)", sheet.dcap_weight_half_cut],
+    ["성형품 중량(반칼)", sheet.dcap_weight_half_cut],
   ];
   for (const [label, value] of resultPairs) {
     const row = ws.addRow([label, value ?? null]);
@@ -184,7 +184,7 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   }
 
   ws.addRow([]);
-  const summaryHeaderRow = ws.addRow(["로스율", "로스반영 도포량", "DCAP중량", "97%중량"]);
+  const summaryHeaderRow = ws.addRow(["로스율", "로스반영 도포량", "성형품 중량(완칼)", "97%중량"]);
   summaryHeaderRow.font = { bold: true };
   summaryHeaderRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
