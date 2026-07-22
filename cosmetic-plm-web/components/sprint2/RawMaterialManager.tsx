@@ -633,9 +633,27 @@ function CompanyAutocompleteField({
             <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
             <input className="v50-input" placeholder="담당자 연락처 (선택)" value={quickAdd!.contact} onChange={(e) => setQuickAdd({ ...quickAdd!, contact: e.target.value })} />
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-              <button type="button" className="v50-button-light" onClick={() => setQuickAdd(null)}>취소</button>
-              <button type="button" className="v50-button" disabled={quickAddSaving} onClick={saveQuickAdd}>
-                {quickAddSaving ? "저장 중…" : "추가"}
+              {/* 이 팝업은 createPortal로 document.body에 붙어서 .v50-root 밖으로 나가기 때문에,
+                  .v50-button 등 클래스가 의존하는 CSS 변수(--blue/--text/--line)를 상속받지 못해
+                  버튼이 안 보이는 문제가 있었다. 리터럴 색상값을 인라인으로 직접 지정해서 고정한다. */}
+              <button
+                type="button" onClick={() => setQuickAdd(null)}
+                style={{
+                  border: "1px solid #e2e8f0", background: "white", color: "#0f172a",
+                  borderRadius: 13, padding: "11px 15px", fontWeight: 900, cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button" disabled={quickAddSaving} onClick={saveQuickAdd}
+                style={{
+                  border: 0, background: "#2563eb", color: "white",
+                  borderRadius: 13, padding: "11px 15px", fontWeight: 900,
+                  cursor: quickAddSaving ? "default" : "pointer", opacity: quickAddSaving ? 0.7 : 1,
+                }}
+              >
+                {quickAddSaving ? "저장 중…" : "등록"}
               </button>
             </div>
           </div>,
