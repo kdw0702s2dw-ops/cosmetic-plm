@@ -10,6 +10,7 @@ export type Material = {
   supplier?: string;
   customer?: string;
   is_active?: boolean;
+  weight_10x10cm?: number | null;
 };
 
 export type FormulaLinkHit = {
@@ -60,6 +61,25 @@ export async function fetchMaterialsByCodes(codes: string[]): Promise<Material[]
     .from("plm_materials")
     .select("*")
     .in("material_code", unique);
+  if (error) throw error;
+  return (data || []) as Material[];
+}
+
+// 불용성/수용성 HG의 "10x10cm A4(종이) 중량" 자동입력용 - weight_10x10cm이 등록된 부자재만 노출
+export async function searchMaterialsWithWeight10x10(keyword = ""): Promise<Material[]> {
+  let q = supabaseProductionFinal
+    .from("plm_materials")
+    .select("*")
+    .eq("is_active", true)
+    .not("weight_10x10cm", "is", null)
+    .order("material_code", { ascending: true })
+    .limit(20);
+
+  if (keyword.trim()) {
+    const k = keyword.trim();
+    q = q.or(`material_code.ilike.%${k}%,material_name.ilike.%${k}%`);
+  }
+  const { data, error } = await q;
   if (error) throw error;
   return (data || []) as Material[];
 }

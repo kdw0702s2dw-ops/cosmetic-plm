@@ -11,7 +11,7 @@ import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const emptyMaterial: Material = {
-  material_code: "", material_name: "", spec: "", supplier: "", customer: "", is_active: true,
+  material_code: "", material_name: "", spec: "", supplier: "", customer: "", is_active: true, weight_10x10cm: null,
 };
 
 export default function MaterialManager() {
@@ -167,7 +167,7 @@ export default function MaterialManager() {
         </div>
         <div className="v50-table-wrap" style={{ maxHeight: 420, overflow: "auto" }}>
           <table className="v50-table">
-            <thead><tr><th>코드</th><th>명칭</th><th>규격</th><th>공급사</th><th>바이어</th><th style={{ width: 120 }}>액션</th></tr></thead>
+            <thead><tr><th>코드</th><th>명칭</th><th>규격</th><th>공급사</th><th>바이어</th><th>10x10cm 중량</th><th style={{ width: 120 }}>액션</th></tr></thead>
             <tbody>
               {list.map((m) => (
                 <tr key={m.material_code} style={{ background: material.material_code === m.material_code ? "#eff6ff" : undefined }}>
@@ -176,6 +176,7 @@ export default function MaterialManager() {
                   <td style={{ cursor: "pointer" }} onClick={() => selectMaterial(m)}>{m.spec || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectMaterial(m)}>{m.supplier || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectMaterial(m)}>{m.customer || "-"}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectMaterial(m)}>{m.weight_10x10cm ?? "-"}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="v50-button-light" onClick={() => selectMaterial(m)}>수정</button>
@@ -184,7 +185,7 @@ export default function MaterialManager() {
                   </td>
                 </tr>
               ))}
-              {list.length === 0 && <tr><td colSpan={6}>부자재가 없습니다.</td></tr>}
+              {list.length === 0 && <tr><td colSpan={7}>부자재가 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -208,6 +209,12 @@ export default function MaterialManager() {
           </Field>
           <Field label="바이어">
             <input className="v50-input" value={material.customer || ""} onChange={(e) => setMaterial({ ...material, customer: e.target.value })} />
+          </Field>
+          <Field label="10x10cm 중량 (g)">
+            <input
+              className="v50-input" type="number" value={material.weight_10x10cm ?? ""}
+              onChange={(e) => setMaterial({ ...material, weight_10x10cm: e.target.value === "" ? null : Number(e.target.value) })}
+            />
           </Field>
         </div>
 

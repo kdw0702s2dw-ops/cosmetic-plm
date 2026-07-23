@@ -2,6 +2,7 @@
 
 import { useInsolubleHgCheck } from "@/hooks/useInsolubleHgCheck";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
+import MaterialWeightSearchButton from "@/components/common/MaterialWeightSearchButton";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -69,7 +70,14 @@ export default function InsolubleHgPanel() {
           {NUMERIC_FIELDS.map((f) => (
             <label key={f.key} style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               {f.label}
-              <input className="v50-input" type="number" value={s.headerInput[f.key] || ""} onChange={(e) => s.updateHeaderField(f.key, e.target.value)} />
+              {f.key === "a4_10x10_weight" ? (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="v50-input" type="number" style={{ flex: 1 }} value={s.headerInput[f.key] || ""} onChange={(e) => s.updateHeaderField(f.key, e.target.value)} />
+                  <MaterialWeightSearchButton onPick={(m) => s.updateHeaderField("a4_10x10_weight", String(m.weight_10x10cm ?? ""))} />
+                </div>
+              ) : (
+                <input className="v50-input" type="number" value={s.headerInput[f.key] || ""} onChange={(e) => s.updateHeaderField(f.key, e.target.value)} />
+              )}
             </label>
           ))}
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
