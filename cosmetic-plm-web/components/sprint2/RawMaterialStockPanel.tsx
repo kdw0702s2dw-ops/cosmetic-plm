@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useRawMaterialStockCheck } from "@/hooks/useRawMaterialStockCheck";
 import "@/styles/enterprise-v50.css";
+
+const PAGE_SIZE = 20;
 
 function fmt(v: number | null | undefined) {
   if (v === null || v === undefined || Number.isNaN(v)) return "-";
@@ -10,6 +13,35 @@ function fmt(v: number | null | undefined) {
 
 export default function RawMaterialStockPanel() {
   const s = useRawMaterialStockCheck();
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [s.ledgerDate]);
+
+  function updateSearchTerm(value: string) {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  }
+
+  const filteredRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return s.rows;
+    return s.rows.filter(
+      (r) => r.raw_code.toLowerCase().includes(term) || r.raw_name.toLowerCase().includes(term)
+    );
+  }, [s.rows, searchTerm]);
+
+  const totalCount = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pageRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, currentPage]);
+  const rangeStart = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalCount);
 
   return (
     <div>
@@ -29,6 +61,12 @@ export default function RawMaterialStockPanel() {
 
       <section className="v50-panel">
         <h2>대상 원료 재고</h2>
+        <input
+          className="v50-input" style={{ marginTop: 8, maxWidth: 320 }}
+          placeholder="원료코드 또는 원료명 검색"
+          value={searchTerm}
+          onChange={(e) => updateSearchTerm(e.target.value)}
+        />
         <div className="v50-table-wrap" style={{ marginTop: 8 }}>
           <table className="v50-table">
             <thead>
@@ -37,7 +75,7 @@ export default function RawMaterialStockPanel() {
               </tr>
             </thead>
             <tbody>
-              {s.rows.map((r) => (
+              {pageRows.map((r) => (
                 <tr key={r.raw_code}>
                   <td>{r.raw_code}</td>
                   <td>{r.raw_name}</td>
@@ -65,9 +103,37 @@ export default function RawMaterialStockPanel() {
                   <td style={{ fontWeight: 800 }}>{fmt(r.closing_stock)}</td>
                 </tr>
               ))}
-              {s.rows.length === 0 && <tr><td colSpan={5}>{s.loading ? "불러오는 중..." : "대상 원료가 없습니다."}</td></tr>}
+              {pageRows.length === 0 && (
+                <tr>
+                  <td colSpan={5}>
+                    {s.loading ? "불러오는 중..." : totalCount === 0 && searchTerm ? "검색 결과가 없습니다." : "대상 원료가 없습니다."}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, flexWrap: "wrap", gap: 8 }}>
+          <span style={{ color: "#64748b", fontSize: 13 }}>
+            전체 {totalCount}건 중 {rangeStart}-{rangeEnd}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="v50-button-light"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+            >
+              이전
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 800 }}>{currentPage} / {totalPages}</span>
+            <button
+              className="v50-button-light"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              다음
+            </button>
+          </div>
         </div>
         <div style={{ marginTop: 14 }}>
           <button className="v50-button" onClick={s.save} disabled={s.saving || s.rows.length === 0}>{s.saving ? "저장 중…" : "저장"}</button>
