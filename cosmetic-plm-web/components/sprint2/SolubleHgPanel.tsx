@@ -71,7 +71,7 @@ export default function SolubleHgPanel() {
             <div key={c.codeKey} style={{ display: "grid", gap: 6 }}>
               <label style={{ fontWeight: 800 }}>{c.label}</label>
               <div style={{ display: "flex", gap: 8 }}>
-                <input className="v50-input" placeholder="원료코드" style={{ flex: 1 }} value={s.headerInput[c.codeKey]} onChange={(e) => s.updateTextField(c.codeKey, e.target.value)} />
+                <input className="v50-input" placeholder="부자재코드" style={{ flex: 1 }} value={s.headerInput[c.codeKey]} onChange={(e) => s.updateTextField(c.codeKey, e.target.value)} />
                 <input className="v50-input" type="number" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey] || ""} onChange={(e) => s.updateNumericField(c.weightKey, e.target.value)} />
               </div>
             </div>
