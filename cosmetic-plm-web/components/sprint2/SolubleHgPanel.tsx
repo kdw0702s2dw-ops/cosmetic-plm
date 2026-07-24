@@ -2,7 +2,7 @@
 
 import { useSolubleHgCheck } from "@/hooks/useSolubleHgCheck";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
-import MaterialWeightSearchButton from "@/components/common/MaterialWeightSearchButton";
+import MaterialLookupCard from "@/components/common/MaterialLookupCard";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -62,6 +62,8 @@ export default function SolubleHgPanel() {
         )}
       </section>
 
+      <MaterialLookupCard />
+
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>입력값 - 관리기준 3개</h2>
         <div className="v50-grid-2">
@@ -94,10 +96,7 @@ export default function SolubleHgPanel() {
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             10x10cm A4(종이) 중량
-            <div style={{ display: "flex", gap: 8 }}>
-              <input className="v50-input" type="number" style={{ flex: 1 }} value={s.headerInput.a4_10x10_weight || ""} onChange={(e) => s.updateNumericField("a4_10x10_weight", e.target.value)} />
-              <MaterialWeightSearchButton onPick={(m) => s.updateNumericField("a4_10x10_weight", String(m.weight_10x10cm ?? ""))} />
-            </div>
+            <input className="v50-input" type="number" value={s.headerInput.a4_10x10_weight || ""} onChange={(e) => s.updateNumericField("a4_10x10_weight", e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             로스율
