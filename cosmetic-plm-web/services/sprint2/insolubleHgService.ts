@@ -9,7 +9,9 @@ export const LOSS_RATE_PRESETS = [
 export type LossRatePresetKey = (typeof LOSS_RATE_PRESETS)[number]["key"] | "custom";
 
 export type InsolubleHgHeaderInput = {
+  fabric_material_code: string;
   fabric_standard_weight: number;
+  film_material_code: string;
   film_standard_weight: number;
   total_weight: number;
   cutting_line_no: string;

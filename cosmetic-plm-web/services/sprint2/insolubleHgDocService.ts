@@ -37,8 +37,8 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
     .join("");
 
   const inputRows = [
-    ["원단 관리기준", fmt(sheet.fabric_standard_weight)],
-    ["필름 관리기준", fmt(sheet.film_standard_weight)],
+    [`원단 관리기준 (${sheet.fabric_material_code || "-"})`, fmt(sheet.fabric_standard_weight)],
+    [`필름 관리기준 (${sheet.film_material_code || "-"})`, fmt(sheet.film_standard_weight)],
     ["총중량", fmt(sheet.total_weight)],
     ["칼선(No.)", sheet.cutting_line_no || "-"],
     ["칼선면적 A4(종이) 중량", fmt(sheet.cutting_area_a4_weight)],
@@ -144,8 +144,8 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   inputHeaderRow.getCell(1).font = { bold: true };
 
   const inputPairs: [string, number | string | null][] = [
-    ["원단 관리기준", sheet.fabric_standard_weight],
-    ["필름 관리기준", sheet.film_standard_weight],
+    [`원단 관리기준 (${sheet.fabric_material_code || "-"})`, sheet.fabric_standard_weight],
+    [`필름 관리기준 (${sheet.film_material_code || "-"})`, sheet.film_standard_weight],
     ["총중량", sheet.total_weight],
     ["칼선(No.)", sheet.cutting_line_no || "-"],
     ["칼선면적 A4(종이) 중량", sheet.cutting_area_a4_weight],

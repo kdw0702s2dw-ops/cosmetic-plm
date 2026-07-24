@@ -9,7 +9,7 @@ import {
 import { downloadInsolubleHgExcel, printInsolubleHgSheet } from "@/services/sprint2/insolubleHgDocService";
 
 const emptyHeaderInput: InsolubleHgHeaderInput = {
-  fabric_standard_weight: 0, film_standard_weight: 0, total_weight: 0,
+  fabric_material_code: "", fabric_standard_weight: 0, film_material_code: "", film_standard_weight: 0, total_weight: 0,
   cutting_line_no: "", cutting_area_a4_weight: 0, a4_10x10_weight: 0,
   loss_rate_preset_key: LOSS_RATE_PRESETS[0].key, loss_rate: LOSS_RATE_PRESETS[0].rate,
   manual_notice_coat_amount: null, half_cut_width_cm: 0, half_cut_height_cm: 0,
@@ -63,11 +63,14 @@ export function useInsolubleHgCheck() {
     }
   }
 
-  function updateHeaderField(key: keyof Omit<InsolubleHgHeaderInput, "cutting_line_no" | "loss_rate_preset_key">, value: string) {
+  function updateHeaderField(key: keyof Omit<InsolubleHgHeaderInput, "cutting_line_no" | "loss_rate_preset_key" | "fabric_material_code" | "film_material_code">, value: string) {
     setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
   }
   function setCuttingLineNo(value: string) {
     setHeaderInput((prev) => ({ ...prev, cutting_line_no: value }));
+  }
+  function updateTextField(key: "fabric_material_code" | "film_material_code", value: string) {
+    setHeaderInput((prev) => ({ ...prev, [key]: value }));
   }
 
   function selectLossRatePreset(key: string) {
@@ -116,7 +119,9 @@ export function useInsolubleHgCheck() {
 
   function loadFromHistory(sheet: InsolubleHgSheet) {
     setHeaderInput({
+      fabric_material_code: sheet.fabric_material_code || "",
       fabric_standard_weight: sheet.fabric_standard_weight,
+      film_material_code: sheet.film_material_code || "",
       film_standard_weight: sheet.film_standard_weight,
       total_weight: sheet.total_weight,
       cutting_line_no: sheet.cutting_line_no,
@@ -157,7 +162,7 @@ export function useInsolubleHgCheck() {
 
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
-    headerInput, updateHeaderField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
+    headerInput, updateHeaderField, updateTextField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
     summaryRows,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,

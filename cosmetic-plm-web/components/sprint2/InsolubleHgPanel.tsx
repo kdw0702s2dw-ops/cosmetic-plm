@@ -3,6 +3,7 @@
 import { useInsolubleHgCheck } from "@/hooks/useInsolubleHgCheck";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import MaterialLookupCard from "@/components/common/MaterialLookupCard";
+import MaterialCodeAutocompleteInput from "@/components/common/MaterialCodeAutocompleteInput";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -16,12 +17,15 @@ function fmtDisplay(v: number | null | undefined) {
   return v.toFixed(2);
 }
 
-const NUMERIC_FIELDS: { key: "fabric_standard_weight" | "film_standard_weight" | "total_weight" | "cutting_area_a4_weight" | "a4_10x10_weight"; label: string }[] = [
-  { key: "fabric_standard_weight", label: "원단 관리기준" },
-  { key: "film_standard_weight", label: "필름 관리기준" },
+const NUMERIC_FIELDS: { key: "total_weight" | "cutting_area_a4_weight" | "a4_10x10_weight"; label: string }[] = [
   { key: "total_weight", label: "총중량" },
   { key: "cutting_area_a4_weight", label: "칼선면적 A4(종이) 중량" },
   { key: "a4_10x10_weight", label: "10x10cm A4(종이) 중량" },
+];
+
+const COMPONENTS: { codeKey: "fabric_material_code" | "film_material_code"; weightKey: "fabric_standard_weight" | "film_standard_weight"; label: string }[] = [
+  { codeKey: "fabric_material_code", weightKey: "fabric_standard_weight", label: "원단 관리기준" },
+  { codeKey: "film_material_code", weightKey: "film_standard_weight", label: "필름 관리기준" },
 ];
 
 export default function InsolubleHgPanel() {
@@ -67,7 +71,29 @@ export default function InsolubleHgPanel() {
       <MaterialLookupCard />
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
-        <h2>입력값</h2>
+        <h2>입력값 - 관리기준 2개</h2>
+        <div className="v50-grid-2">
+          {COMPONENTS.map((c) => (
+            <div key={c.codeKey} style={{ display: "grid", gap: 6 }}>
+              <label style={{ fontWeight: 800 }}>{c.label}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <MaterialCodeAutocompleteInput
+                  value={s.headerInput[c.codeKey]}
+                  onChange={(v) => s.updateTextField(c.codeKey, v)}
+                  onPick={(m) => {
+                    s.updateTextField(c.codeKey, m.material_code);
+                    s.updateHeaderField(c.weightKey, String(m.weight_10x10cm ?? ""));
+                  }}
+                />
+                <input className="v50-input" type="number" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey] || ""} onChange={(e) => s.updateHeaderField(c.weightKey, e.target.value)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>입력값 - 나머지</h2>
         <div className="v50-grid-2">
           {NUMERIC_FIELDS.map((f) => (
             <label key={f.key} style={{ display: "grid", gap: 6, fontWeight: 800 }}>
