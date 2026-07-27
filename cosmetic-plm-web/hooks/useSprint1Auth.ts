@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  canExportData,
   canManageUsers,
   canView,
   canWriteFormula,
@@ -55,6 +56,7 @@ export function useSprint1Auth() {
     canView: canView(profile?.role),
     canWriteFormula: canWriteFormula(profile?.role),
     canManageUsers: canManageUsers(profile?.role),
+    canExportData: canExportData(profile?.role),
     load,
     logout,
   };

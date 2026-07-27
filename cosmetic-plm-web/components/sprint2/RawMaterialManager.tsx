@@ -15,6 +15,7 @@ import {
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 
 // 다운로드/업로드 양식 공통 컬럼 순서 (그대로 다운받아 채워서 재업로드 가능하도록 이름/순서를 맞춤)
@@ -62,6 +63,7 @@ const emptyComp: Component = {
 };
 
 export default function RawMaterialManager() {
+  const auth = useSprint1Auth();
   const [keyword, setKeyword] = useState("");
   const [list, setList] = useState<RawMaterialListItem[]>([]);
   const [rm, setRm] = useState<RawMaterial>(emptyRm);
@@ -362,9 +364,11 @@ export default function RawMaterialManager() {
             <button className="v50-button-light" onClick={() => load()} disabled={listLoading}>
               {listLoading ? "새로고침 중…" : "새로고침"}
             </button>
-            <button className="v50-button-light" onClick={handleDownloadCsv} disabled={downloadBusy}>
-              {downloadBusy ? "다운로드 중…" : "CSV 다운로드"}
-            </button>
+            {auth.canExportData && (
+              <button className="v50-button-light" onClick={handleDownloadCsv} disabled={downloadBusy}>
+                {downloadBusy ? "다운로드 중…" : "CSV 다운로드"}
+              </button>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12, position: "relative" }}>

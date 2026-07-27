@@ -1,6 +1,7 @@
 "use client";
 
 import { useInsolubleHgCheck } from "@/hooks/useInsolubleHgCheck";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import MaterialLookupCard from "@/components/common/MaterialLookupCard";
 import MaterialCodeAutocompleteInput from "@/components/common/MaterialCodeAutocompleteInput";
@@ -30,6 +31,7 @@ const COMPONENTS: { codeKey: "fabric_material_code" | "film_material_code"; weig
 
 export default function InsolubleHgPanel() {
   const s = useInsolubleHgCheck();
+  const auth = useSprint1Auth();
 
   return (
     <div>
@@ -177,7 +179,7 @@ export default function InsolubleHgPanel() {
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button className="v50-button" onClick={s.save} disabled={s.saving || !s.formula}>{s.saving ? "저장 중…" : "저장"}</button>
           <button className="v50-button-light" onClick={s.printCurrent} disabled={!s.formula}>PDF 저장</button>
-          <button className="v50-button-light" onClick={s.downloadExcelCurrent} disabled={!s.formula}>엑셀 다운로드</button>
+          {auth.canExportData && <button className="v50-button-light" onClick={s.downloadExcelCurrent} disabled={!s.formula}>엑셀 다운로드</button>}
         </div>
       </section>
 
@@ -200,7 +202,7 @@ export default function InsolubleHgPanel() {
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="v50-button-light" onClick={() => s.loadFromHistory(h)}>불러오기</button>
                         <button className="v50-button-light" onClick={() => s.printHistoryItem(h)}>PDF</button>
-                        <button className="v50-button-light" onClick={() => s.downloadExcelHistoryItem(h)}>엑셀</button>
+                        {auth.canExportData && <button className="v50-button-light" onClick={() => s.downloadExcelHistoryItem(h)}>엑셀</button>}
                         <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
                       </div>
                     </td>

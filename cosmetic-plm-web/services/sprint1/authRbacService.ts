@@ -114,6 +114,10 @@ export function canView(role?: string | null) {
   return role === "Admin" || role === "Researcher" || role === "QA" || role === "Viewer";
 }
 
+export function canExportData(role?: string | null) {
+  return role === "Admin" || role === "Researcher" || role === "QA";
+}
+
 export async function fetchUserProfiles() {
   const { data, error } = await supabaseProductionFinal
     .from("plm_user_profiles")

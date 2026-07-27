@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSprint2DocumentPdf } from "@/hooks/useSprint2DocumentPdf";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { pct, type DocKind } from "@/services/sprint2/documentPdfService";
 import "@/styles/enterprise-v50.css";
 
@@ -24,13 +25,14 @@ function DocActions({ d, onPreview, onDownload, onPrint }: { d: any; onPreview: 
 // 처방 1건 펼침 영역 안에서 문서 종류(전성분표/복합성분표/단일성분표) 한 줄.
 // "PDF 보기/생성" 버튼은 상태에 따라 라벨/동작이 바뀐다: 미생성 -> 생성(createDoc), 생성됨 -> 보기(preview).
 function DocKindRow({
-  label, kind, formula, existing, s,
+  label, kind, formula, existing, s, canExportData,
 }: {
   label: string;
   kind: DocKind;
   formula: any;
   existing: any;
   s: ReturnType<typeof useSprint2DocumentPdf>;
+  canExportData: boolean;
 }) {
   const statusText = existing
     ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
@@ -48,14 +50,14 @@ function DocKindRow({
         ) : (
           <button className="v50-button-light" onClick={() => s.createDoc(formula, kind)}>PDF 생성</button>
         )}
-        <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label)}>엑셀 다운로드</button>
+        {canExportData && <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label)}>엑셀 다운로드</button>}
       </div>
     </div>
   );
 }
 
 // 원료발주가처방 행: 다른 3종과 달리 버튼 클릭 시 바로 생성하지 않고 미리보기 팝업(신규 체크/담당자 확인)을 먼저 연다.
-function OrderSheetDocRow({ formula, existing, s }: { formula: any; existing: any; s: ReturnType<typeof useSprint2DocumentPdf> }) {
+function OrderSheetDocRow({ formula, existing, s, canExportData }: { formula: any; existing: any; s: ReturnType<typeof useSprint2DocumentPdf>; canExportData: boolean }) {
   const statusText = existing
     ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
     : "미생성";
@@ -72,7 +74,7 @@ function OrderSheetDocRow({ formula, existing, s }: { formula: any; existing: an
         ) : (
           <button className="v50-button-light" onClick={() => s.openOrderSheetModal(formula, null, "pdf")}>PDF 생성</button>
         )}
-        <button className="v50-button" onClick={() => s.openOrderSheetModal(formula, existing, "excel")}>엑셀 다운로드</button>
+        {canExportData && <button className="v50-button" onClick={() => s.openOrderSheetModal(formula, existing, "excel")}>엑셀 다운로드</button>}
       </div>
     </div>
   );
@@ -145,6 +147,7 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
 
 export default function DocumentPdfPanel() {
   const s = useSprint2DocumentPdf();
+  const auth = useSprint1Auth();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [expandedOlder, setExpandedOlder] = useState<Set<string>>(new Set());
   const [expandedFormulas, setExpandedFormulas] = useState<Set<string>>(new Set());
@@ -229,18 +232,20 @@ export default function DocumentPdfPanel() {
                       formula={f}
                       existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`)}
                       s={s}
+                      canExportData={auth.canExportData}
                     />
                   ))}
                   <OrderSheetDocRow
                     formula={f}
                     existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|RAW_MATERIAL_ORDER_SHEET`)}
                     s={s}
+                    canExportData={auth.canExportData}
                   />
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>실험일지</span>
                     <span style={{ width: 170 }} />
                     <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                      <button className="v50-button" onClick={() => s.downloadLabJournal(f)}>엑셀 다운로드</button>
+                      {auth.canExportData && <button className="v50-button" onClick={() => s.downloadLabJournal(f)}>엑셀 다운로드</button>}
                     </div>
                   </div>
                 </div>

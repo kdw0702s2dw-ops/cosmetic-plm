@@ -1,6 +1,7 @@
 "use client";
 
 import { useManufacturingQtyReview } from "@/hooks/useManufacturingQtyReview";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -10,6 +11,7 @@ function fmt(v: number | null | undefined) {
 
 export default function ManufacturingQtyReviewPanel() {
   const s = useManufacturingQtyReview();
+  const auth = useSprint1Auth();
 
   return (
     <div>
@@ -88,7 +90,7 @@ export default function ManufacturingQtyReviewPanel() {
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button className="v50-button" onClick={s.save} disabled={s.saving || !s.formula}>{s.saving ? "저장 중…" : "저장"}</button>
           <button className="v50-button-light" onClick={s.printCurrent} disabled={!s.formula}>PDF 저장</button>
-          <button className="v50-button-light" onClick={s.downloadExcelCurrent} disabled={!s.formula}>엑셀 다운로드</button>
+          {auth.canExportData && <button className="v50-button-light" onClick={s.downloadExcelCurrent} disabled={!s.formula}>엑셀 다운로드</button>}
         </div>
       </section>
 
@@ -111,7 +113,7 @@ export default function ManufacturingQtyReviewPanel() {
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="v50-button-light" onClick={() => s.loadFromHistory(h)}>불러오기</button>
                         <button className="v50-button-light" onClick={() => s.printHistoryItem(h)}>PDF</button>
-                        <button className="v50-button-light" onClick={() => s.downloadExcelHistoryItem(h)}>엑셀</button>
+                        {auth.canExportData && <button className="v50-button-light" onClick={() => s.downloadExcelHistoryItem(h)}>엑셀</button>}
                         <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
                       </div>
                     </td>
