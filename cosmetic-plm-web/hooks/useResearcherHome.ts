@@ -7,6 +7,7 @@ const empty: ResearcherHomeData = {
   kpis: { rawMaterials: 0, formulas: 0, documents: 0, formulaLines: 0, warnings: 0, todayTasks: 0 },
   recentFormulas: [],
   recentRawMaterials: [],
+  recentMaterials: [],
   recentDocuments: [],
   regulationWatch: [],
   aiRecommendations: [],
@@ -51,6 +52,7 @@ function supabaseRealtimeHome(load: () => void) {
       .on("postgres_changes", { event: "*", schema: "public", table: "plm_formulas" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "plm_formula_lines" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "plm_raw_materials" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "plm_materials" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "plm_documents" }, load)
       .subscribe();
   } catch {

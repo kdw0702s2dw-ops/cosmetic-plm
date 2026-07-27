@@ -7,6 +7,7 @@ export type ResearcherHomeData = {
   kpis: { rawMaterials: number; formulas: number; documents: number; formulaLines: number; warnings: number; todayTasks: number };
   recentFormulas: any[];
   recentRawMaterials: any[];
+  recentMaterials: any[];
   recentDocuments: any[];
   regulationWatch: any[];
   aiRecommendations: any[];
@@ -32,7 +33,7 @@ async function safeRows(table: string, builder: (q: any) => any) {
 }
 
 export async function fetchResearcherHomeData(): Promise<ResearcherHomeData> {
-  const [rawMaterials, formulas, documents, formulaLines, regulationAlertCount, recentFormulas, recentRawMaterials, recentDocuments, recentRegAlerts] = await Promise.all([
+  const [rawMaterials, formulas, documents, formulaLines, regulationAlertCount, recentFormulas, recentRawMaterials, recentMaterials, recentDocuments, recentRegAlerts] = await Promise.all([
     safeCount("plm_raw_materials", (q) => q.eq("is_active", true)),
     safeCount("plm_formulas", (q) => q.eq("is_active", true)),
     safeCount("plm_documents"),
@@ -40,6 +41,7 @@ export async function fetchResearcherHomeData(): Promise<ResearcherHomeData> {
     safeCount("plm_regulatory_alerts", (q) => q.in("status", ["OPEN", "CONFIRMED"])),
     safeRows("plm_formulas", (q) => q.select("*").eq("is_active", true).order("updated_at", { ascending: false }).limit(8)),
     safeRows("plm_raw_materials", (q) => q.select("*").eq("is_active", true).order("updated_at", { ascending: false }).limit(8)),
+    safeRows("plm_materials", (q) => q.select("*").eq("is_active", true).order("updated_at", { ascending: false }).limit(8)),
     safeRows("plm_documents", (q) => q.select("*").order("created_at", { ascending: false }).limit(8)),
     safeRows("plm_regulatory_alerts", (q) => q.select("*").in("status", ["OPEN", "CONFIRMED"]).order("created_at", { ascending: false }).limit(8)),
   ]);
@@ -53,7 +55,7 @@ export async function fetchResearcherHomeData(): Promise<ResearcherHomeData> {
 
   return {
     kpis: { rawMaterials, formulas, documents, formulaLines, warnings: regulationAlertCount + formulaWarnings.length, todayTasks: regulationAlertCount + formulaWarnings.length + docPendingRows.length },
-    recentFormulas, recentRawMaterials: recentRawMaterialsDisplay, recentDocuments,
+    recentFormulas, recentRawMaterials: recentRawMaterialsDisplay, recentMaterials, recentDocuments,
     regulationWatch: [
       { region: "한국", status: byRegion.KR ? `${byRegion.KR}건` : "정상", detail: "한국 기준 규제검증 결과" },
       { region: "EU", status: byRegion.EU ? `${byRegion.EU}건` : "정상", detail: "EU 기준 규제검증 결과" },

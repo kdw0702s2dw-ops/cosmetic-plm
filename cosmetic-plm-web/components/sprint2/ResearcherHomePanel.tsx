@@ -2,7 +2,6 @@
 
 import { useResearcherHome } from "@/hooks/useResearcherHome";
 import "@/styles/enterprise-v50.css";
-import FormulaProgressSection from "@/components/home/FormulaProgressSection";
 import AIChatSection from "@/components/home/AIChatSection";
 
 export default function ResearcherHomePanel({
@@ -39,11 +38,6 @@ export default function ResearcherHomePanel({
         <AIChatSection />
       </section>
 
-      {/* 처방 진행 현황 (컨펌 전) */}
-      <section style={{ marginBottom: 18 }}>
-        <FormulaProgressSection />
-      </section>
-
       {/* 최근 등록/수정 원료 - 전체 너비, 가로 스크롤 없이 세로 카드 배치 */}
       <section style={{ marginBottom: 18 }}>
         <article className="v50-panel">
@@ -66,6 +60,27 @@ export default function ResearcherHomePanel({
               </div>
             ))}
             {h.data.recentRawMaterials.length === 0 && <p style={{ color: "#64748b" }}>최근 원료가 없습니다.</p>}
+          </div>
+        </article>
+      </section>
+
+      {/* 최근 등록/수정 부자재 - 최근 등록/수정 원료와 동일한 카드 레이아웃 */}
+      <section style={{ marginBottom: 18 }}>
+        <article className="v50-panel">
+          <h2>최근 등록/수정 부자재</h2>
+          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+            {h.data.recentMaterials.map((x) => (
+              <div key={x.material_code} className="v50-card" style={{ padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                  <strong>{x.material_name}</strong>
+                  <span style={{ color: "#64748b", fontSize: 13 }}>{x.material_code}</span>
+                </div>
+                <div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>
+                  규격 {x.spec || "-"} · 공급사 {x.supplier || "-"}
+                </div>
+              </div>
+            ))}
+            {h.data.recentMaterials.length === 0 && <p style={{ color: "#64748b" }}>최근 부자재가 없습니다.</p>}
           </div>
         </article>
       </section>
