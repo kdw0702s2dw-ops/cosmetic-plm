@@ -11,7 +11,7 @@ import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const emptyMaterial: Material = {
-  material_code: "", material_name: "", spec: "", supplier: "", customer: "", is_active: true, weight_10x10cm: null,
+  material_code: "", material_name: "", spec: "", supplier: "", customer: "", is_active: true, weight_10x10cm: null, note: "",
 };
 
 export default function MaterialManager() {
@@ -216,6 +216,12 @@ export default function MaterialManager() {
               onChange={(e) => setMaterial({ ...material, weight_10x10cm: e.target.value === "" ? null : Number(e.target.value) })}
             />
           </Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Field label="비고">
+              <textarea className="v50-textarea" rows={3}
+                value={material.note || ""} onChange={(e) => setMaterial({ ...material, note: e.target.value })} />
+            </Field>
+          </div>
         </div>
 
         <div style={{ marginTop: 18 }}>

@@ -11,7 +11,7 @@ import "@/styles/enterprise-v50.css";
 const PAGE_SIZE = 20;
 
 const emptyItem: IngredientDictionaryItem = {
-  inci_kr: "", inci_en: "", inci_cn: "", inci_jp: "", cas_no: "", ec_no: "", function_kr: "", function_en: "",
+  inci_kr: "", inci_en: "", inci_cn: "", inci_jp: "", cas_no: "", ec_no: "", function_kr: "", function_en: "", note: "",
 };
 
 export default function IngredientDictionaryManager() {
@@ -164,6 +164,12 @@ export default function IngredientDictionaryManager() {
           <Field label="EC No"><input className="v50-input" value={item.ec_no || ""} onChange={(e) => setItem({ ...item, ec_no: e.target.value })} /></Field>
           <Field label="효능(국문)"><input className="v50-input" value={item.function_kr || ""} onChange={(e) => setItem({ ...item, function_kr: e.target.value })} /></Field>
           <Field label="효능(영문)"><input className="v50-input" value={item.function_en || ""} onChange={(e) => setItem({ ...item, function_en: e.target.value })} /></Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Field label="비고">
+              <textarea className="v50-textarea" rows={3}
+                value={item.note || ""} onChange={(e) => setItem({ ...item, note: e.target.value })} />
+            </Field>
+          </div>
         </div>
         <div style={{ marginTop: 18 }}>
           <button className="v50-button" onClick={handleSave} disabled={saving}>

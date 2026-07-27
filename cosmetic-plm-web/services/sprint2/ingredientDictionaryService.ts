@@ -15,6 +15,7 @@ export type IngredientDictionaryItem = {
   source?: string | null;
   is_active?: boolean;
   updated_at?: string;
+  note?: string | null;
 };
 
 export type IngredientDictionaryPage = {
@@ -128,6 +129,7 @@ export async function saveIngredient(item: IngredientDictionaryItem): Promise<In
     ec_no: item.ec_no || null,
     function_kr: item.function_kr || null,
     function_en: item.function_en || null,
+    note: item.note || null,
     updated_at: new Date().toISOString(),
   };
 

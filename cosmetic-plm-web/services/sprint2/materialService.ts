@@ -11,6 +11,7 @@ export type Material = {
   customer?: string;
   is_active?: boolean;
   weight_10x10cm?: number | null;
+  note?: string;
 };
 
 export type FormulaLinkHit = {
