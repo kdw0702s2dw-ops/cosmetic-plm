@@ -49,10 +49,47 @@ export type Sprint1FormulaLine = {
   percentage: number | string; // 입력 중 "0.0005" 같은 문자열을 그대로 유지 (계산 시 Number()로 변환)
   function_kr?: string;
   function_en?: string;
+  cas_no?: string;
+  ec_no?: string;
   unit_price?: number;
   cost_per_kg?: number;
   note?: string;
 };
+
+// BOM 라인에 저장된 스냅샷과 원료관리의 현재 값을 비교해서 달라진 필드 목록을 반환한다.
+// 값이 하나도 다르지 않으면 빈 배열 - 호출부에서 length===0이면 배지를 숨긴다.
+export type RawMaterialDiffField = { key: string; label: string; saved: string; latest: string };
+
+export function computeRawMaterialDiff(line: Sprint1FormulaLine, latest: any | undefined): RawMaterialDiffField[] {
+  if (!latest) return [];
+  const fields: { key: string; label: string; savedRaw: any; latestRaw: any }[] = [
+    { key: "unit_price", label: "단가", savedRaw: line.unit_price, latestRaw: latest.unit_price },
+    { key: "inci_kr", label: "INCI(국문)", savedRaw: line.inci_kr, latestRaw: latest.inci_kr },
+    { key: "inci_en", label: "INCI(영문)", savedRaw: line.inci_en, latestRaw: latest.inci_en },
+    { key: "function_kr", label: "효능(국문)", savedRaw: line.function_kr, latestRaw: latest.function_kr },
+    { key: "function_en", label: "효능(영문)", savedRaw: line.function_en, latestRaw: latest.function_en },
+    { key: "cas_no", label: "CAS No", savedRaw: line.cas_no, latestRaw: latest.cas_no },
+    { key: "ec_no", label: "EC No", savedRaw: line.ec_no, latestRaw: latest.ec_no },
+  ];
+
+  const diffs: RawMaterialDiffField[] = [];
+  for (const f of fields) {
+    if (f.key === "unit_price") {
+      const savedNum = Number(f.savedRaw || 0);
+      const latestNum = Number(f.latestRaw || 0);
+      if (savedNum !== latestNum) {
+        diffs.push({ key: f.key, label: f.label, saved: savedNum.toLocaleString(), latest: latestNum.toLocaleString() });
+      }
+      continue;
+    }
+    const savedText = (f.savedRaw || "").toString().trim();
+    const latestText = (f.latestRaw || "").toString().trim();
+    if (savedText !== latestText) {
+      diffs.push({ key: f.key, label: f.label, saved: savedText || "-", latest: latestText || "-" });
+    }
+  }
+  return diffs;
+}
 
 export async function fetchSprint1Formulas(keyword = "") {
   let query = supabaseProductionFinal

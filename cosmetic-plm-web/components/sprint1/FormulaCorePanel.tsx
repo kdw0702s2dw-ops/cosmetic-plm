@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
-import { sortLinesForDisplay } from "@/services/sprint1/formulaCoreService";
+import { computeRawMaterialDiff, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
@@ -45,6 +45,15 @@ export default function FormulaCorePanel() {
   const anchorPos = useAnchorPosition(s.activeRawRow, () => (s.activeRawRow != null ? rawInputRefs.current[s.activeRawRow] : null), s.rawHits);
   const activeMaterialKey = s.activeMaterialCell ? `${s.activeMaterialCell.rowIndex}-${s.activeMaterialCell.field}` : null;
   const materialAnchorPos = useAnchorPosition(activeMaterialKey, () => (activeMaterialKey ? materialInputRefs.current[activeMaterialKey] : null), s.materialHits);
+
+  // "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버 - 자동 반영 없음, 확인만 가능
+  const [diffPopover, setDiffPopover] = useState<{ lineNo: number; diffs: RawMaterialDiffField[] } | null>(null);
+  const diffBadgeRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const diffAnchorPos = useAnchorPosition(
+    diffPopover?.lineNo ?? null,
+    () => (diffPopover ? diffBadgeRefs.current[diffPopover.lineNo] : null),
+    diffPopover?.diffs ?? []
+  );
 
   async function handleSaveClick() {
     const result = await s.saveFormula();
@@ -203,13 +212,30 @@ export default function FormulaCorePanel() {
                   <td>{line.raw_code || "-"}</td>
                   <td>
                     {(() => {
-                      const caution = line.raw_code ? s.rawCautionMap.get(line.raw_code) : undefined;
+                      const latest = line.raw_code ? s.latestRawDataMap.get(line.raw_code) : undefined;
+                      const diffs = computeRawMaterialDiff(line, latest);
                       return (
-                        <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
-                          value={line.raw_name || ""} placeholder="원료명 검색"
-                          onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)}
-                          style={caution?.is_caution ? { color: "#dc2626", fontWeight: 700 } : undefined}
-                          title={caution?.is_caution ? (caution.caution_note || "주의 원료") : undefined} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input className="v50-input" ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
+                            value={line.raw_name || ""} placeholder="원료명 검색"
+                            onChange={(e) => s.searchRawForLine(line.line_no, e.target.value)}
+                            style={{ flex: 1, ...(latest?.is_caution ? { color: "#dc2626", fontWeight: 700 } : undefined) }}
+                            title={latest?.is_caution ? (latest.caution_note || "주의 원료") : undefined} />
+                          {diffs.length > 0 && (
+                            <button
+                              type="button"
+                              ref={(el) => { diffBadgeRefs.current[line.line_no] = el; }}
+                              onClick={() => setDiffPopover({ lineNo: line.line_no, diffs })}
+                              title={`원료 정보 변경됨: ${diffs.map((d) => d.label).join(", ")}`}
+                              style={{
+                                border: "none", background: "#fef3c7", color: "#d97706", fontWeight: 700,
+                                fontSize: 11, borderRadius: 6, padding: "3px 6px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                              }}
+                            >
+                              ⚠ 원료 정보 변경됨
+                            </button>
+                          )}
+                        </div>
                       );
                     })()}
                     {s.activeRawRow === line.line_no && s.rawSearchLoading && (
@@ -312,6 +338,53 @@ export default function FormulaCorePanel() {
           </table>
         </div>
       </section>
+
+      {diffPopover && diffAnchorPos &&
+        createPortal(
+          <RawMaterialDiffPopover diffs={diffPopover.diffs} pos={diffAnchorPos} onClose={() => setDiffPopover(null)} />,
+          document.body
+        )}
+    </div>
+  );
+}
+
+// "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버. 자동 반영 버튼 없음 - 확인만 가능.
+function RawMaterialDiffPopover({
+  diffs, pos, onClose,
+}: {
+  diffs: RawMaterialDiffField[];
+  pos: { left: number; width: number; top?: number; bottom?: number };
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed", zIndex: 1000, left: pos.left, width: Math.max(pos.width, 340), top: pos.top, bottom: pos.bottom,
+        background: "white", border: "1px solid #cbd5e1", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.16)", padding: 14,
+      }}
+    >
+      <div style={{ fontWeight: 800, marginBottom: 8, color: "#d97706" }}>⚠ 원료 정보 변경됨</div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+            <th style={{ textAlign: "left", padding: "4px 6px" }}>항목</th>
+            <th style={{ textAlign: "left", padding: "4px 6px" }}>저장값</th>
+            <th style={{ textAlign: "left", padding: "4px 6px" }}>최신값</th>
+          </tr>
+        </thead>
+        <tbody>
+          {diffs.map((d) => (
+            <tr key={d.key} style={{ borderBottom: "1px solid #f1f5f9" }}>
+              <td style={{ padding: "4px 6px", fontWeight: 700 }}>{d.label}</td>
+              <td style={{ padding: "4px 6px", color: "#64748b" }}>{d.saved}</td>
+              <td style={{ padding: "4px 6px", color: "#d97706", fontWeight: 700 }}>{d.latest}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ textAlign: "right", marginTop: 10 }}>
+        <button type="button" className="v50-button-light" onClick={onClose}>확인</button>
+      </div>
     </div>
   );
 }

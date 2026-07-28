@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   buildSprint1InciList,
+  computeRawMaterialDiff,
   deleteSprint1FormulaLines,
   fetchProductionBomRows,
   fetchSprint1FormulaLines,
@@ -18,6 +19,7 @@ import {
   upsertSprint1Formula,
   upsertSprint1FormulaLines,
   type ProductionBomRow,
+  type RawMaterialDiffField,
   type Sprint1Formula,
   type Sprint1FormulaLine,
 } from "@/services/sprint1/formulaCoreService";
@@ -41,7 +43,7 @@ import {
   searchMaterialsAutocomplete,
   type Material,
 } from "@/services/sprint2/materialService";
-import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
+import { fetchRawMaterialsByCodes, type RawMaterial } from "@/services/sprint2/rawMaterialService";
 
 type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
 const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
@@ -106,8 +108,9 @@ export function useSprint1FormulaCore() {
   const [rawComponentsMap, setRawComponentsMap] = useState<Map<string, any[]>>(new Map());
   const rawCodeKey = Array.from(new Set(lines.map((l) => l.raw_code).filter(Boolean))).sort().join(",");
 
-  // BOM에 쓰인 원료 중 "주의 원료" 표시가 필요한 것들 - raw_code 집합이 바뀔 때만 다시 조회한다 (구성성분 캐시와 동일 패턴)
-  const [rawCautionMap, setRawCautionMap] = useState<Map<string, { is_caution: boolean; caution_note: string | null }>>(new Map());
+  // BOM에 쓰인 원료들의 "현재" 원료관리 데이터 전체 - raw_code 집합이 바뀔 때만 다시 조회한다 (구성성분 캐시와 동일 패턴)
+  // 주의 원료 표시(is_caution/caution_note)와 "원료 정보 변경됨" 배지(computeRawMaterialDiff) 둘 다 이 맵 하나로 처리한다.
+  const [latestRawDataMap, setLatestRawDataMap] = useState<Map<string, RawMaterial>>(new Map());
 
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
@@ -314,6 +317,8 @@ export function useSprint1FormulaCore() {
         percentage: 0,
         function_kr: "",
         function_en: "",
+        cas_no: "",
+        ec_no: "",
         unit_price: 0,
         cost_per_kg: 0,
       },
@@ -389,6 +394,8 @@ export function useSprint1FormulaCore() {
       inci_en: "",
       function_kr: "",
       function_en: "",
+      cas_no: "",
+      ec_no: "",
       unit_price: 0,
     });
     setActiveRawRow(lineNo);
@@ -420,6 +427,8 @@ export function useSprint1FormulaCore() {
       inci_en: raw.inci_en,
       function_kr: raw.function_kr,
       function_en: raw.function_en,
+      cas_no: raw.cas_no,
+      ec_no: raw.ec_no,
       unit_price: Number(raw.unit_price || 0),
     });
     setRawHits([]);
@@ -527,17 +536,17 @@ export function useSprint1FormulaCore() {
   useEffect(() => {
     const codes = rawCodeKey ? rawCodeKey.split(",") : [];
     if (codes.length === 0) {
-      setRawCautionMap(new Map());
+      setLatestRawDataMap(new Map());
       return;
     }
     let cancelled = false;
     fetchRawMaterialsByCodes(codes)
       .then((materials) => {
         if (cancelled) return;
-        setRawCautionMap(new Map(materials.map((m) => [m.raw_code, { is_caution: !!m.is_caution, caution_note: m.caution_note ?? null }])));
+        setLatestRawDataMap(new Map(materials.map((m) => [m.raw_code, m])));
       })
       .catch(() => {
-        if (!cancelled) setRawCautionMap(new Map());
+        if (!cancelled) setLatestRawDataMap(new Map());
       });
     return () => {
       cancelled = true;
@@ -547,7 +556,7 @@ export function useSprint1FormulaCore() {
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList, mergedInciRows,
-    rawHits, activeRawRow, rawSearchLoading, lineWarnings, rawCautionMap,
+    rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
