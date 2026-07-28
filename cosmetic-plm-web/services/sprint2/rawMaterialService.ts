@@ -48,6 +48,7 @@ export type RawMaterialListItem = {
   inci_display: string | null;
   is_caution: boolean;
   caution_note: string | null;
+  note: string | null;
   updated_at: string;
 };
 
@@ -95,7 +96,7 @@ export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListIt
   if (keyword.trim()) {
     const k = keyword.trim();
     q = q.or(
-      `raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%`
+      `raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`
     );
   }
   const { data, error } = await q;
@@ -110,7 +111,7 @@ export async function searchRawMaterialsAutocomplete(keyword: string): Promise<R
   const { data, error } = await supabaseProductionFinal
     .from("v_plm_raw_material_list")
     .select("*")
-    .or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%`)
+    .or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`)
     .limit(15);
   if (error) throw error;
   return (data || []) as RawMaterialListItem[];

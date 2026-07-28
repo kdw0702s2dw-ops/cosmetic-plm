@@ -374,7 +374,7 @@ export default function RawMaterialManager() {
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12, position: "relative" }}>
           <input className="v50-input" ref={searchInputRef} value={keyword} onChange={(e) => onSearchKeywordChange(e.target.value)}
             onFocus={() => keyword.trim() && setSearchOpen(true)}
-            placeholder="코드/원료명/Trade/INCI 검색" onKeyDown={(e) => e.key === "Enter" && (setSearchOpen(false), load())} style={{ flex: 1 }} />
+            placeholder="코드/원료명/Trade/INCI/비고 검색" onKeyDown={(e) => e.key === "Enter" && (setSearchOpen(false), load())} style={{ flex: 1 }} />
           <button className="v50-button" onClick={() => { setSearchOpen(false); load(); }}>검색</button>
           {searchOpen && searchLoading && (
             <span style={{ position: "absolute", left: 8, top: -18, fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
