@@ -298,8 +298,20 @@ export default function RawMaterialManager() {
     setComps((p) => p.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
   }
   function addRow() { setComps((p) => [...p, { ...emptyComp }]); }
+  // parent_component_no는 1-based 행 번호(저장 시 그 행의 component_no)를 가리킨다.
+  // 삭제된 행을 부모로 삼던 자식은 참조를 해제하고, 삭제된 행보다 뒤에 있던 부모 참조는 1씩 당긴다.
   function delRow(i: number) {
-    setComps((p) => p.filter((_, idx) => idx !== i));
+    const deletedPos = i + 1;
+    setComps((p) =>
+      p
+        .filter((_, idx) => idx !== i)
+        .map((c) => {
+          if (!c.parent_component_no) return c;
+          if (c.parent_component_no === deletedPos) return { ...c, parent_component_no: null };
+          if (c.parent_component_no > deletedPos) return { ...c, parent_component_no: c.parent_component_no - 1 };
+          return c;
+        })
+    );
     setAutoDetectedRows((s) => {
       const next = new Set<number>();
       for (const idx of s) {
@@ -308,6 +320,9 @@ export default function RawMaterialManager() {
       }
       return next;
     });
+  }
+  function updateParentComponent(i: number, value: string) {
+    setComps((p) => p.map((c, idx) => (idx === i ? { ...c, parent_component_no: value ? Number(value) : null } : c)));
   }
 
   async function handleSave() {
@@ -476,9 +491,9 @@ export default function RawMaterialManager() {
               <thead><tr><th>#</th><th>INCI 국문</th><th>INCI 영문</th><th>구성비%</th><th>CAS</th><th>EC</th><th>알러젠</th><th></th></tr></thead>
               <tbody>
                 {comps.map((c, i) => (
-                  <tr key={i}>
-                    <td>{i + 1}</td>
-                    <td>
+                  <tr key={i} style={c.parent_component_no ? { background: "#f8fafc" } : undefined}>
+                    <td>{c.parent_component_no ? `↳ ${i + 1}` : i + 1}</td>
+                    <td style={c.parent_component_no ? { paddingLeft: 20 } : undefined}>
                       <input className="v50-input" ref={(el) => { compInciRefs.current[i] = el; }}
                         value={c.inci_kr || ""} onChange={(e) => onInciSearch(e.target.value, i)} />
                       {activeCell?.row === i && inciSearchLoading && (
@@ -510,6 +525,21 @@ export default function RawMaterialManager() {
                             {allergens.map((a) => (
                               <option key={a.id} value={a.id}>{a.allergen_name_kr || a.allergen_name_en}</option>
                             ))}
+                          </select>
+                        )}
+                        {c.is_allergen && (
+                          <select className="v50-input" style={{ fontSize: 12, padding: "4px 6px" }}
+                            value={c.parent_component_no || ""} onChange={(e) => updateParentComponent(i, e.target.value)}
+                            title="이 성분이 자연 함유된 상위 원료(성분) 행을 지정하면, 구성비 합계 계산에서 이 행은 제외됩니다.">
+                            <option value="">상위 성분 없음(독립 성분)</option>
+                            {comps.map((other, j) => {
+                              if (j === i || other.parent_component_no) return null; // 자기 자신 제외, 이미 자식인 행은 다단계 체인 방지로 후보에서 제외
+                              return (
+                                <option key={j} value={j + 1}>
+                                  {j + 1}. {other.inci_kr || other.inci_en || "(이름 없음)"}
+                                </option>
+                              );
+                            })}
                           </select>
                         )}
                       </div>

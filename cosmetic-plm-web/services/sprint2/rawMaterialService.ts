@@ -65,6 +65,9 @@ export type Component = {
   function_en?: string;
   is_allergen?: boolean;
   allergen_id?: string | null;
+  // 몇 번째 행(1-based, 저장 시 그 행의 component_no가 됨)의 하위 구성요소인지. null이면 독립 성분.
+  // 값이 있으면 "이미 상위 성분의 비율 안에 포함된 것"으로 간주해 구성비 합계에서 제외한다.
+  parent_component_no?: number | null;
 };
 
 export type AllergenMaster = {
@@ -273,6 +276,7 @@ export async function saveComponents(rawCode: string, components: Component[]) {
       function_en: c.function_en ?? "",
       is_allergen: !!c.is_allergen,
       allergen_id: c.allergen_id ?? "",
+      parent_component_no: c.parent_component_no ?? "",
     }));
 
   const { data, error } = await supabaseProductionFinal.rpc("plm_save_components", {
@@ -283,6 +287,8 @@ export async function saveComponents(rawCode: string, components: Component[]) {
   return data as number;
 }
 
+// 상위 성분이 지정된 행(parent_component_no 있음)은 이미 그 상위 행의 비율 안에 포함된 것으로
+// 간주해 합계에서 제외한다 (예: 향료 100% 안에 자연 함유된 알러젠 성분을 별도 행으로 적었을 때 이중계산 방지).
 export function sumComposition(components: Component[]) {
-  return components.reduce((s, c) => s + (Number(c.composition_percent) || 0), 0);
+  return components.reduce((s, c) => s + (c.parent_component_no ? 0 : Number(c.composition_percent) || 0), 0);
 }
