@@ -102,11 +102,11 @@ export default function FormulaCorePanel() {
         </div>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>처방명</th><th>버전</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>버전</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
               {s.formulas.map((f) => (
                 <tr key={`${f.formula_code}-${f.revision}`}>
-                  <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{Number(f.estimated_cost_per_kg || 0).toLocaleString()}</td>
+                  <td>{f.formula_code}</td><td>{f.confirmed_code || "-"}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{Number(f.estimated_cost_per_kg || 0).toLocaleString()}</td>
                   <td><button className="v50-button-light" onClick={() => s.openFormula(f)}>열기</button></td>
                 </tr>
               ))}
