@@ -6,6 +6,7 @@ import InsolubleHgPanel from "@/components/sprint2/InsolubleHgPanel";
 import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
+import ProductionRecordPanel from "@/components/sprint2/ProductionRecordPanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
@@ -39,6 +40,12 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     label: "제조량 검토",
     description: "목표 제조량 대비 재고 관리 대상 원료의 부족량을 계산해 부족 원료를 확인합니다.",
     render: () => <ManufacturingQtyReviewPanel />,
+  },
+  {
+    key: "productionRecord",
+    label: "생산실적 검토",
+    description: "처방별 Lot No. 단위로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록하고 이력을 조회합니다.",
+    render: () => <ProductionRecordPanel />,
   },
 ];
 
