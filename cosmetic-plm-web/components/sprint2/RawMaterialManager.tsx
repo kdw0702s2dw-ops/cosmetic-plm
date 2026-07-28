@@ -718,6 +718,11 @@ function RawSearchDropdown({ hits, onPick, pos }: { hits: RawMaterialListItem[];
             {item.raw_name}{item.is_caution && " ⚠"}
           </span>
           {item.inci_display && <span style={{ color: "#64748b", marginLeft: 8 }}>{item.inci_display}</span>}
+          {item.note && (
+            <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              비고: {item.note}
+            </div>
+          )}
         </div>
       ))}
     </div>
