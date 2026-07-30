@@ -326,6 +326,7 @@ export function kovasMeta(f: any) {
 export function orderSheetMeta(f: any) {
   return {
     "개발번호": f.formula_code ?? "",
+    "샘플번호": f.revision ?? "",
     "확정코드": f.confirmed_code ?? "",
     "제품명": f.formula_name ?? "",
     "연구원 정보": f.assigned_researcher ?? "",
