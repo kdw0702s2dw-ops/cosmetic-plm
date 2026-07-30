@@ -121,12 +121,30 @@ export async function searchRawMaterialsAutocomplete(keyword: string): Promise<R
 }
 
 // 원료코드 중복 체크 (신규 등록/수정 저장 전 확인용). excludeId를 주면 본인 행은 제외하고 검사한다.
+// raw_code는 활성/비활성 무관하게 DB에서 전체 유일해야 하는 제약이라(FK가 raw_code를 참조하고 있어
+// 활성 행만 유일하게 강제하는 부분 유니크 인덱스로 바꿀 수 없음), 삭제(비활성화)된 원료의 코드가
+// 계속 슬롯을 점유해 재사용을 막는 문제가 있었다. 그래서 충돌 행이 "비활성 + 처방 등에서 실사용 이력
+// 없음"인 경우에만, 이 함수가 그 죽은 행을 완전 삭제(하드 삭제)해서 코드를 즉시 재사용 가능하게 만든다.
+// 활성 행과 충돌하거나, 비활성이어도 처방 이력(plm_formula_lines)에서 참조 중이면 계속 차단한다.
 export async function checkRawCodeExists(rawCode: string, excludeId?: string): Promise<boolean> {
-  let q = supabaseProductionFinal.from("plm_raw_materials").select("id").eq("raw_code", rawCode).limit(1);
+  let q = supabaseProductionFinal.from("plm_raw_materials").select("id, is_active").eq("raw_code", rawCode).limit(1);
   if (excludeId) q = q.neq("id", excludeId);
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []).length > 0;
+  const hit = (data || [])[0];
+  if (!hit) return false;
+  if (hit.is_active) return true;
+
+  const { count, error: refError } = await supabaseProductionFinal
+    .from("plm_formula_lines")
+    .select("raw_code", { count: "exact", head: true })
+    .eq("raw_code", rawCode);
+  if (refError) throw refError;
+  if ((count || 0) > 0) return true;
+
+  const { error: delError } = await supabaseProductionFinal.from("plm_raw_materials").delete().eq("id", hit.id);
+  if (delError) throw delError;
+  return false;
 }
 
 // manufacturer_company_id/supplier_company_id가 있으면 plm_companies의 canonical 이름(국문 우선)으로
