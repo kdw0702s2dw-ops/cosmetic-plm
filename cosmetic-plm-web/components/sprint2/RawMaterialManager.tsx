@@ -54,7 +54,7 @@ const emptyRm: RawMaterial = {
   raw_code: "", raw_name: "", trade_name: "", manufacturer: "", supplier: "",
   unit_price: null, moq: "", lead_time: "", origin_country: "",
   inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", is_active: true,
-  is_caution: false, caution_note: "",
+  is_caution: false, caution_note: "", volatility_type: "NONE",
 };
 
 const emptyComp: Component = {
@@ -468,6 +468,14 @@ export default function RawMaterialManager() {
             </label>
             <Field label="주의 사유 (예: 수급불안, 단종 예정 등)">
               <input className="v50-input" value={rm.caution_note || ""} onChange={(e) => setRm({ ...rm, caution_note: e.target.value })} />
+            </Field>
+            <Field label="휘발성 유형 (건조 후 전성분 계산용)">
+              <select className="v50-input" value={rm.volatility_type || "NONE"}
+                onChange={(e) => setRm({ ...rm, volatility_type: e.target.value as RawMaterial["volatility_type"] })}>
+                <option value="NONE">없음</option>
+                <option value="FULL_VOLATILE">완전휘발</option>
+                <option value="PARTIAL_RESIDUAL">부분잔류</option>
+              </select>
             </Field>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>

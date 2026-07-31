@@ -32,6 +32,7 @@ export type RawMaterial = {
   is_active?: boolean;
   is_caution?: boolean;
   caution_note?: string;
+  volatility_type?: "NONE" | "FULL_VOLATILE" | "PARTIAL_RESIDUAL";
 };
 
 // 원료 목록 화면 전용 타입 - v_plm_raw_material_list 뷰 기준 (복합원료는 구성성분 전체가 inci_display에 합쳐져 옴)

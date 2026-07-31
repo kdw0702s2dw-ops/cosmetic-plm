@@ -145,6 +145,11 @@ export default function FormulaCorePanel() {
               <option value="UK">영국</option>
             </select>
           </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            실측 수분율(%) (건조 후 전성분 계산용)
+            <input className="v50-input" type="number" value={s.formula.measured_moisture_percent ?? ""}
+              onChange={(e) => updateFormula("measured_moisture_percent", e.target.value === "" ? null : Number(e.target.value))} />
+          </label>
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
           <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />
@@ -156,8 +161,14 @@ export default function FormulaCorePanel() {
         <p style={{ color: "#64748b", fontSize: 13, marginTop: -8, marginBottom: 10 }}>
           복합원료(premix)는 구성성분으로 전개하고, 동일 INCI는 합산하여 함량 내림차순으로 표시합니다. (문서관리 전성분표와 동일한 로직)
         </p>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <button className={s.inciBasis === "MIX" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("MIX")}>배합 시</button>
+          <button className={s.inciBasis === "DRY" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("DRY")}>건조 후</button>
+        </div>
+        {s.dryInciError && <p style={{ color: "#b45309", fontWeight: 700 }}>{s.dryInciError}</p>}
         <p style={{ lineHeight: 1.8 }}>
           {(() => {
+            if (s.dryInciError) return null;
             const entries = s.mergedInciRows.filter((row) => row.inci_kr || row.inci_en);
             if (entries.length === 0) return "BOM 원료를 추가하면 자동 생성됩니다.";
             return entries.map((row, i) => {

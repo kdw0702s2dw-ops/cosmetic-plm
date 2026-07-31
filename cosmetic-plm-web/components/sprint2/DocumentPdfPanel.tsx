@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSprint2DocumentPdf } from "@/hooks/useSprint2DocumentPdf";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
-import { pct, type DocKind } from "@/services/sprint2/documentPdfService";
+import { pct, type DocBasis, type DocKind } from "@/services/sprint2/documentPdfService";
 import "@/styles/enterprise-v50.css";
 
 const docButtons: { kind: DocKind; label: string }[] = [
@@ -25,7 +25,7 @@ function DocActions({ d, onPreview, onDownload, onPrint }: { d: any; onPreview: 
 // 처방 1건 펼침 영역 안에서 문서 종류(전성분표/복합성분표/단일성분표) 한 줄.
 // "PDF 보기/생성" 버튼은 상태에 따라 라벨/동작이 바뀐다: 미생성 -> 생성(createDoc), 생성됨 -> 보기(preview).
 function DocKindRow({
-  label, kind, formula, existing, s, canExportData,
+  label, kind, formula, existing, s, canExportData, basis,
 }: {
   label: string;
   kind: DocKind;
@@ -33,6 +33,7 @@ function DocKindRow({
   existing: any;
   s: ReturnType<typeof useSprint2DocumentPdf>;
   canExportData: boolean;
+  basis: DocBasis;
 }) {
   const statusText = existing
     ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
@@ -45,12 +46,12 @@ function DocKindRow({
         {existing ? (
           <>
             <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
-            <button className="v50-button-light" onClick={() => s.regenerateDoc(existing, formula, kind)}>재생성</button>
+            <button className="v50-button-light" onClick={() => s.regenerateDoc(existing, formula, kind, basis)}>재생성</button>
           </>
         ) : (
-          <button className="v50-button-light" onClick={() => s.createDoc(formula, kind)}>PDF 생성</button>
+          <button className="v50-button-light" onClick={() => s.createDoc(formula, kind, basis)}>PDF 생성</button>
         )}
-        {canExportData && <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label)}>엑셀 다운로드</button>}
+        {canExportData && <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label, basis)}>엑셀 다운로드</button>}
       </div>
     </div>
   );
@@ -151,6 +152,15 @@ export default function DocumentPdfPanel() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [expandedOlder, setExpandedOlder] = useState<Set<string>>(new Set());
   const [expandedFormulas, setExpandedFormulas] = useState<Set<string>>(new Set());
+  // 처방 카드별 배합시/건조후 기준 - 전성분표/복합성분표/단일성분표 3종에 공통 적용 (원료발주가처방은 대상 아님)
+  const [basisByFormula, setBasisByFormula] = useState<Map<string, DocBasis>>(new Map());
+
+  function getBasis(f: any): DocBasis {
+    return basisByFormula.get(`${f.formula_code}|${f.revision}`) || "MIX";
+  }
+  function setBasis(f: any, basis: DocBasis) {
+    setBasisByFormula((prev) => new Map(prev).set(`${f.formula_code}|${f.revision}`, basis));
+  }
 
   function toggleFormula(key: string) {
     setExpandedFormulas((prev) => {
@@ -224,20 +234,41 @@ export default function DocumentPdfPanel() {
               </button>
               {expanded && (
                 <div style={{ padding: "2px 16px 4px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <span style={{ width: 100, fontWeight: 800 }}>기준</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        className={getBasis(f) === "MIX" ? "v50-button" : "v50-button-light"}
+                        onClick={() => setBasis(f, "MIX")}
+                      >
+                        배합 시
+                      </button>
+                      <button
+                        className={getBasis(f) === "DRY" ? "v50-button" : "v50-button-light"}
+                        onClick={() => setBasis(f, "DRY")}
+                      >
+                        건조 후
+                      </button>
+                    </div>
+                    <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                      (전성분표/복합성분표/단일성분표에 공통 적용 · 원료발주가처방은 배합시 고정)
+                    </span>
+                  </div>
                   {docButtons.map((b) => (
                     <DocKindRow
                       key={b.kind}
                       label={b.label}
                       kind={b.kind}
                       formula={f}
-                      existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}`)}
+                      existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|${b.kind}|${getBasis(f)}`)}
                       s={s}
                       canExportData={auth.canExportData}
+                      basis={getBasis(f)}
                     />
                   ))}
                   <OrderSheetDocRow
                     formula={f}
-                    existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|RAW_MATERIAL_ORDER_SHEET`)}
+                    existing={s.existingDocByKey.get(`${f.formula_code}|${f.revision}|RAW_MATERIAL_ORDER_SHEET|MIX`)}
                     s={s}
                     canExportData={auth.canExportData}
                   />

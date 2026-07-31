@@ -17,6 +17,7 @@ export type Sprint1Formula = {
   exposure_type?: string;
   target_market?: string;
   claim?: string;
+  measured_moisture_percent?: number | null;
 };
 
 export type ProductionBomRow = {

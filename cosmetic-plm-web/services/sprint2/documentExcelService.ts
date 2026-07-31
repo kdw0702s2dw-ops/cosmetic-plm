@@ -7,6 +7,7 @@ import {
   complexRows,
   computeUniformPercentDecimals,
   CONFIDENTIAL,
+  type DocBasis,
   exactDecimalToNumber,
   fetchComponentsByRawCodes,
   fetchFormulaLinesForPdf,
@@ -17,6 +18,7 @@ import {
   orderSheetMeta,
   OrderSheetRow,
   pct,
+  resolveLinesForBasis,
   singleRows,
 } from "@/services/sprint2/documentPdfService";
 
@@ -102,8 +104,9 @@ export async function downloadWorkbook(wb: ExcelJS.Workbook, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-async function loadExpandedRows(formula: any) {
-  const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
+async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
+  const rawLines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
+  const lines = await resolveLinesForBasis(formula, rawLines, basis);
   const components = await fetchComponentsByRawCodes(lines.map((x: any) => x.raw_code));
   return { lines, components };
 }
@@ -111,8 +114,8 @@ async function loadExpandedRows(formula: any) {
 // ============================================================
 // 단일성분표 엑셀: PDF(No/INCI/국문명/%/CAS/EC/Function)와 동일한 컬럼 + 상단정보/하단각주 추가
 // ============================================================
-export async function downloadSingleComponentExcel(formula: any) {
-  const { lines, components } = await loadExpandedRows(formula);
+export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX") {
+  const { lines, components } = await loadExpandedRows(formula, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
   // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
   // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
@@ -125,7 +128,7 @@ export async function downloadSingleComponentExcel(formula: any) {
   const colCount = 7;
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 8 + decimals }, { width: 16 }, { width: 12 }, { width: 20 }];
 
-  writeTitleRow(ws, "Ingredient List (Single)", colCount);
+  writeTitleRow(ws, `Ingredient List (Single)${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "Percentage(%)", "CAS No.", "EC No.", "Function"]);
@@ -148,14 +151,14 @@ export async function downloadSingleComponentExcel(formula: any) {
   });
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}.xlsx`);
+  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
 }
 
 // ============================================================
 // 전성분표 엑셀: PDF(박스 2개 - Ingredient list 영문 / 국문전성분)와 동일한 문장형 레이아웃
 // ============================================================
-export async function downloadInciListExcel(formula: any) {
-  const { lines, components } = await loadExpandedRows(formula);
+export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX") {
+  const { lines, components } = await loadExpandedRows(formula, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
@@ -167,7 +170,7 @@ export async function downloadInciListExcel(formula: any) {
   ws.columns = colWidths.map((width) => ({ width }));
   const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
-  writeTitleRow(ws, "Ingredient List for Development", colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const writeBox = (title: string, content: string) => {
@@ -191,15 +194,15 @@ export async function downloadInciListExcel(formula: any) {
   writeBox("국문전성분", inciKr);
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}.xlsx`);
+  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
 }
 
 // ============================================================
 // 복합성분표 엑셀: PDF와 동일하게 원료 1개 = 1행, 구성성분은 셀 내 줄바꿈(\n + wrapText)
 // buildComplexGroupedRows()를 그대로 재사용 (PDF의 <br> 대신 \n으로 줄바꿈)
 // ============================================================
-export async function downloadComplexComponentExcel(formula: any) {
-  const { lines, components } = await loadExpandedRows(formula);
+export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX") {
+  const { lines, components } = await loadExpandedRows(formula, basis);
   const grouped = buildComplexGroupedRows(lines, components);
 
   const wb = new ExcelJS.Workbook();
@@ -207,7 +210,7 @@ export async function downloadComplexComponentExcel(formula: any) {
   const colCount = 7;
   ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
 
-  writeTitleRow(ws, "Ingredient List for Development", colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "CAS No.", "Function"]);
@@ -242,7 +245,7 @@ export async function downloadComplexComponentExcel(formula: any) {
   });
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}.xlsx`);
+  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
 }
 
 // ============================================================

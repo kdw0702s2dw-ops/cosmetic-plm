@@ -31,11 +31,14 @@ import {
 } from "@/services/sprint2/regulationEngineService";
 import { calculateAllergenAlerts } from "@/services/sprint2/allergenService";
 import {
+  applyDryBasisToLines,
   byRawComponents,
   complexRows,
   fetchComponentsByRawCodes,
   mergeRows,
   singleRows,
+  volatilityMapFromRawMaterials,
+  type DocBasis,
   type ExpandedRow,
 } from "@/services/sprint2/documentPdfService";
 import {
@@ -119,10 +122,31 @@ export function useSprint1FormulaCore() {
   // 문서관리 PDF(단일성분표/전성분표)와 동일한 mergeRows() 파이프라인을 재사용:
   // 복합원료(premix)는 plm_raw_material_components 구성성분으로 전개하고, 단일원료는 라인 자신의 INCI를 사용해 병합한다.
   const rawComponentsForLines = Array.from(rawComponentsMap.values()).flat();
-  const mergedInciRows: ExpandedRow[] = mergeRows([
-    ...complexRows(lines, rawComponentsForLines),
-    ...singleRows(lines, rawComponentsForLines),
-  ]);
+
+  // 자동 전성분 "배합 시 / 건조 후" 토글 - latestRawDataMap(이미 로드된 원료 데이터)을 그대로 재사용해서
+  // volatility_type 맵을 만들고, applyDryBasisToLines()로 lines를 건조후 버전으로 바꾼 뒤 동일한
+  // complexRows/singleRows/mergeRows 파이프라인에 넘긴다 (문서관리 PDF와 동일 로직 공유).
+  const [inciBasis, setInciBasis] = useState<DocBasis>("MIX");
+  let dryInciError: string | null = null;
+  let effectiveLinesForInci = lines;
+  if (inciBasis === "DRY") {
+    if (formula.measured_moisture_percent == null) {
+      dryInciError = "실측 수분율을 처방 기본정보에서 먼저 입력하세요.";
+    } else {
+      try {
+        const volatilityMap = volatilityMapFromRawMaterials(Array.from(latestRawDataMap.values()));
+        effectiveLinesForInci = applyDryBasisToLines(lines, volatilityMap, formula.measured_moisture_percent);
+      } catch (e) {
+        dryInciError = e instanceof Error ? e.message : "건조 후 전성분 계산 오류";
+      }
+    }
+  }
+  const mergedInciRows: ExpandedRow[] = dryInciError
+    ? []
+    : mergeRows([
+        ...complexRows(effectiveLinesForInci, rawComponentsForLines),
+        ...singleRows(effectiveLinesForInci, rawComponentsForLines),
+      ]);
 
   async function loadFormulas(k = keyword) {
     setLoading(true);
@@ -556,6 +580,7 @@ export function useSprint1FormulaCore() {
   return {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList, mergedInciRows,
+    inciBasis, setInciBasis, dryInciError,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,

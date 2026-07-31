@@ -432,6 +432,69 @@ export function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
+export type DocBasis = "MIX" | "DRY";
+export type VolatilityType = "NONE" | "FULL_VOLATILE" | "PARTIAL_RESIDUAL";
+
+export function volatilityMapFromRawMaterials(materials: { raw_code: string; volatility_type?: string | null }[]): Map<string, VolatilityType> {
+  return new Map(materials.map((m) => [m.raw_code, ((m.volatility_type as VolatilityType) || "NONE")]));
+}
+
+// "건조 후" 전성분 계산 (건조형 제형 - 플라스타 등): 완전휘발 원료(제조 중 소실)는 제외하고,
+// 부분잔류 원료(정제수 등, 실측 필요)는 리비전 단위로 입력된 실측 수분율을 배합시 비율에 비례
+// 배분한 값으로 대체하며, 나머지(비휘발) 원료는 scale_factor로 일괄 상향 조정한다.
+// scale_factor = (100 - 실측수분율%) / (100 - 완전휘발원료% - 부분잔류원료%)
+// BOM 라인(lines) 단계에서 적용해서, 이 결과를 complexRows/singleRows/buildComplexGroupedRows
+// 어디에 넘겨도(즉 전성분표·단일성분표·복합성분표·자동 전성분 전부) 동일하게 반영되도록 한다.
+export function applyDryBasisToLines(
+  lines: any[],
+  volatilityByRawCode: Map<string, VolatilityType>,
+  measuredMoisturePercent: number | null | undefined
+): any[] {
+  if (measuredMoisturePercent == null) {
+    throw new Error("실측 수분율을 먼저 입력하세요.");
+  }
+  const moisture = n(measuredMoisturePercent);
+
+  const totalByRawCode = new Map<string, number>();
+  for (const l of lines) {
+    totalByRawCode.set(l.raw_code, (totalByRawCode.get(l.raw_code) || 0) + n(l.percentage));
+  }
+
+  let fullVolatilePercent = 0;
+  let partialResidualPercent = 0;
+  for (const [rawCode, pct] of totalByRawCode) {
+    const v = volatilityByRawCode.get(rawCode) ?? "NONE";
+    if (v === "FULL_VOLATILE") fullVolatilePercent += pct;
+    if (v === "PARTIAL_RESIDUAL") partialResidualPercent += pct;
+  }
+
+  const denom = 100 - fullVolatilePercent - partialResidualPercent;
+  if (denom <= 0) {
+    throw new Error("완전휘발+부분잔류 원료 비율의 합이 100% 이상이라 건조 후 전성분을 계산할 수 없습니다.");
+  }
+  const scaleFactor = (100 - moisture) / denom;
+
+  return lines
+    .filter((l) => (volatilityByRawCode.get(l.raw_code) ?? "NONE") !== "FULL_VOLATILE")
+    .map((l) => {
+      const v = volatilityByRawCode.get(l.raw_code) ?? "NONE";
+      if (v === "PARTIAL_RESIDUAL") {
+        const share = partialResidualPercent > 0 ? n(l.percentage) / partialResidualPercent : 0;
+        return { ...l, percentage: moisture * share };
+      }
+      return { ...l, percentage: n(l.percentage) * scaleFactor };
+    });
+}
+
+// basis="DRY"면 원료의 volatility_type을 조회해서 applyDryBasisToLines()를 적용한 라인을,
+// basis="MIX"(기본값)면 원본 라인을 그대로 반환한다. 전성분표/단일성분표/복합성분표 3종 문서와
+// 엑셀 다운로드가 공통으로 이 함수를 거쳐서 lines를 얻는다.
+export async function resolveLinesForBasis(formula: any, lines: any[], basis: DocBasis): Promise<any[]> {
+  if (basis !== "DRY") return lines;
+  const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
+  return applyDryBasisToLines(lines, volatilityMapFromRawMaterials(materials), formula.measured_moisture_percent);
+}
+
 // mergeRows() 결과(rows)에 대해 문서 전체에서 통일할 소수 자릿수를 구한다:
 // 각 행의 "정확히 끝나는 자리"(minimalScale) 중 최댓값을, 최소 8자리~최대 15자리 사이로 clamp.
 export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals = 8, maxDecimals = 15) {
@@ -557,9 +620,10 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
 // ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
-export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
-  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
-  const grouped = buildComplexGroupedRows(lines, components);
+export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
+  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
+  const grouped = buildComplexGroupedRows(effectiveLines, components);
 
   const body = grouped
     .map((g, i) => {
@@ -582,7 +646,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
     })
     .join("");
 
-  return baseHtml("Ingredient List for Development", kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
@@ -595,10 +659,11 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[]) {
 // ============================================================
 // 단일성분표 (KOVAS): INCI 합산, 함량 내림차순
 // ============================================================
-export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
-  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
+  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
-  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
   // Percentage(%): 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일해서 0-패딩 표시
   const decimals = computeUniformPercentDecimals(rows);
 
@@ -616,7 +681,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
     )
     .join("");
 
-  return baseHtml("Ingredient List (Single)", kovasMeta(f), `
+  return baseHtml(`Ingredient List (Single)${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
@@ -629,14 +694,15 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[]) {
 // ============================================================
 // 전성분표 (KOVAS): 박스 형태 (영문 / 국문)
 // ============================================================
-export async function buildInciListHtml(f: any, lines: any[]) {
-  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
+  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
   // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
-  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
 
-  return baseHtml("Ingredient List for Development", kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
 <div class="box">
   <div class="bt">Ingredient list</div>
   <div class="bb">${e(inciEn || "-")}</div>
@@ -682,16 +748,16 @@ export const DOC_KIND_NAMES: Record<DocKind, string> = {
   RAW_MATERIAL_ORDER_SHEET: "원료발주가처방",
 };
 
-async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[]) {
-  if (kind === "INCI_LIST") return buildInciListHtml(formula, lines);
-  if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines);
-  return buildSingleComponentTableHtml(formula, lines);
+async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[], basis: DocBasis) {
+  if (kind === "INCI_LIST") return buildInciListHtml(formula, lines, basis);
+  if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines, basis);
+  return buildSingleComponentTableHtml(formula, lines, basis);
 }
 
-export async function createFormulaDocument(formula: any, kind: DocKind) {
+export async function createFormulaDocument(formula: any, kind: DocKind, basis: DocBasis = "MIX") {
   const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-  const html = await buildDocumentHtml(formula, kind, lines);
-  const documentCode = `${kind}-${formula.formula_code}-${formula.revision}-${Date.now().toString().slice(-6)}`;
+  const html = await buildDocumentHtml(formula, kind, lines, basis);
+  const documentCode = `${kind}-${formula.formula_code}-${formula.revision}-${basis}-${Date.now().toString().slice(-6)}`;
 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
@@ -700,9 +766,10 @@ export async function createFormulaDocument(formula: any, kind: DocKind) {
       formula_code: formula.formula_code,
       revision: formula.revision,
       document_type: kind,
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}`,
+      basis,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basis === "DRY" ? " (건조 후)" : ""}`,
       status: "CREATED",
-      payload_json: { formula, lines },
+      payload_json: { formula, lines, basis },
       html_content: html,
       created_by: "KOVAS Template Docs",
     })
@@ -714,15 +781,15 @@ export async function createFormulaDocument(formula: any, kind: DocKind) {
 }
 
 // 기존 문서 row를 그대로 UPDATE (새 row를 insert하지 않아 목록에 중복이 쌓이지 않음)
-export async function regenerateFormulaDocument(existingDoc: any, formula: any, kind: DocKind) {
+export async function regenerateFormulaDocument(existingDoc: any, formula: any, kind: DocKind, basis: DocBasis = "MIX") {
   const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-  const html = await buildDocumentHtml(formula, kind, lines);
+  const html = await buildDocumentHtml(formula, kind, lines, basis);
 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
     .update({
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}`,
-      payload_json: { formula, lines },
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basis === "DRY" ? " (건조 후)" : ""}`,
+      payload_json: { formula, lines, basis },
       html_content: html,
       updated_at: new Date().toISOString(),
     })
