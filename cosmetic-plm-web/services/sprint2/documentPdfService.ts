@@ -455,11 +455,24 @@ function isWaterComponent(c: { cas_no?: string | null }) {
   return (c.cas_no || "").trim() === WATER_CAS_NO;
 }
 
+// 원료의 "휘발성 유형"을 명시적으로 지정하지 않은(=없음) 경우, 그 원료의 구성성분 중에 물(CAS 7732-18-5)이
+// 하나라도 있으면 자동으로 "부분잔류"로 취급한다. 완전휘발/부분잔류로 이미 명시한 원료는 그 지정을 그대로 존중한다.
+// → 정제수가 들어간 복합원료마다 일일이 원료관리에서 휘발성 유형을 바꿔주지 않아도, 건조 후 계산 시 자동으로 반영된다.
+function effectiveVolatility(rawCode: string, explicit: VolatilityType, componentsByRawCode: Map<string, any[]>): VolatilityType {
+  if (explicit !== "NONE") return explicit;
+  const comps = componentsByRawCode.get(rawCode) || [];
+  return comps.some(isWaterComponent) ? "PARTIAL_RESIDUAL" : "NONE";
+}
+
 // "건조 후" 전성분 계산 (건조형 제형 - 플라스타 등): 완전휘발 원료(제조 중 소실)는 원료째로 제외한다.
 // 부분잔류 원료는 "원료 전체"가 아니라 그 원료의 구성성분 중 물(CAS 7732-18-5)로 확인되는 성분만 수분으로
 // 취급해서, 리비전 단위로 입력된 실측 수분율을 물 성분들의 배합시 함량 비율에 비례 배분한 값으로 대체한다.
 // 같은 원료 안의 나머지 구성성분(부틸렌글라이콜, 추출물 등 물이 아닌 성분)과, 부분잔류가 아닌 원료는
 // 물이 날아간 만큼 오히려 비율이 올라가야 하므로(농축) 다른 비휘발 원료와 동일하게 scale_factor로 확대한다.
+// 원료의 휘발성 유형을 "없음"(미지정)으로 둔 경우에도, 그 원료 구성성분에 물이 포함돼 있으면
+// effectiveVolatility()가 자동으로 "부분잔류"로 취급한다 - 정제수가 들어간 복합원료마다 매번 원료관리에서
+// 휘발성 유형을 수동으로 바꿔줄 필요 없이 건조 후 계산에 자동 반영된다. 완전휘발/부분잔류로 이미 명시한
+// 원료는 그 지정을 그대로 존중한다.
 // (원료에 구성성분이 하나도 등록되어 있지 않은 예외적인 경우에만 원료 전체를 물로 간주한다.)
 // scale_factor = (100 - 실측수분율%) / (100 - 완전휘발원료% - 부분잔류원료 중 "물" 성분 함량 합계%)
 // BOM 라인(lines)과 구성성분(components)을 함께 조정해서 반환하므로, 이 결과를 그대로 complexRows/
@@ -486,7 +499,7 @@ export function applyDryBasisToLines(
   let waterPercent = 0;
   const waterFinalByRawCode = new Map<string, number>();
   for (const [rawCode, rawPct] of totalByRawCode) {
-    const v = volatilityByRawCode.get(rawCode) ?? "NONE";
+    const v = effectiveVolatility(rawCode, volatilityByRawCode.get(rawCode) ?? "NONE", componentsByRawCode);
     if (v === "FULL_VOLATILE") {
       fullVolatilePercent += rawPct;
       continue;
@@ -510,7 +523,7 @@ export function applyDryBasisToLines(
   const newComponents: any[] = [];
 
   for (const l of lines) {
-    const v = volatilityByRawCode.get(l.raw_code) ?? "NONE";
+    const v = effectiveVolatility(l.raw_code, volatilityByRawCode.get(l.raw_code) ?? "NONE", componentsByRawCode);
     if (v === "FULL_VOLATILE") continue; // 원료째로 제외
 
     if (v !== "PARTIAL_RESIDUAL") {
@@ -552,7 +565,7 @@ export function applyDryBasisToLines(
 
   // 완전휘발/부분잔류가 아닌 원료의 구성성분은 원본 그대로 유지 (구성비 자체는 안 바뀌고 원료 라인%만 확대됨)
   for (const [rawCode, comps] of componentsByRawCode) {
-    const v = volatilityByRawCode.get(rawCode) ?? "NONE";
+    const v = effectiveVolatility(rawCode, volatilityByRawCode.get(rawCode) ?? "NONE", componentsByRawCode);
     if (v === "PARTIAL_RESIDUAL" || v === "FULL_VOLATILE") continue;
     newComponents.push(...comps);
   }
