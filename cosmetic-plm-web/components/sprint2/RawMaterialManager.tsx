@@ -53,9 +53,29 @@ function downloadTextFile(filename: string, content: string) {
 const emptyRm: RawMaterial = {
   raw_code: "", raw_name: "", trade_name: "", manufacturer: "", supplier: "",
   unit_price: null, moq: "", lead_time: "", origin_country: "",
-  inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", is_active: true,
+  inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", function_en: "", is_active: true,
   is_caution: false, caution_note: "", volatility_type: "NONE",
 };
+
+// EU CosIng(Cosmetic Ingredient Database)의 Function 분류 참고 목록.
+// 공식 DB(ec.europa.eu/growth/tools-databases/cosing)에서 실제 사용되는 대표 카테고리를 정리한 것으로,
+// 전체 목록이 수시로 갱신될 수 있어 목록에 없는 값은 직접 입력도 가능하게 함(datalist 방식).
+const COSING_FUNCTIONS = [
+  "ABRASIVE", "ANTICAKING", "ANTICORROSIVE", "ANTIDANDRUFF", "ANTIFOAMING", "ANTIMICROBIAL",
+  "ANTIOXIDANT", "ANTIPERSPIRANT", "ANTIPLAQUE", "ANTISEBORRHOEIC", "ANTISTATIC", "ASTRINGENT",
+  "BINDING", "BLEACHING", "BUFFERING", "BULKING", "CHELATING", "CLEANSING", "DENATURANT",
+  "DEODORANT", "DEPILATORY", "EMOLLIENT", "EMULSIFYING", "EMULSION STABILISING", "EXFOLIANT",
+  "FILM FORMING", "FLAVOURING", "FOAM BOOSTING", "FOAMING", "FRAGRANCE", "GEL FORMING",
+  "HAIR CONDITIONING", "HAIR DYEING", "HAIR FIXING", "HUMECTANT", "HYDROTROPE", "KERATOLYTIC",
+  "LIGHT STABILIZER", "MASKING", "NAIL CONDITIONING", "OPACIFYING", "ORAL CARE", "OXIDISING",
+  "PERFUMING", "PLASTICISER", "PRESERVATIVE", "PROPELLANT", "REDUCING", "REFATTING", "REFRESHING",
+  "SKIN CONDITIONING", "SKIN CONDITIONING - EMOLLIENT", "SKIN CONDITIONING - HUMECTANT",
+  "SKIN CONDITIONING - MISCELLANEOUS", "SKIN CONDITIONING - OCCLUSIVE", "SKIN PROTECTING",
+  "SMOOTHING", "SOLVENT", "SOOTHING", "STABILISING", "SUNSCREEN AGENT", "SURFACTANT",
+  "SURFACTANT - CLEANSING", "SURFACTANT - EMULSIFYING", "SURFACTANT - FOAM BOOSTING",
+  "SURFACTANT - FOAMING", "SURFACTANT - HYDROTROPE", "SURFACTANT - SOLUBILIZING", "TONIC",
+  "UV ABSORBER", "UV FILTER", "VISCOSITY CONTROLLING",
+] as const;
 
 const emptyComp: Component = {
   inci_en: "", inci_kr: "", cas_no: "", ec_no: "", composition_percent: "", function_kr: "",
@@ -479,6 +499,20 @@ export default function RawMaterialManager() {
                 <option value="FULL_VOLATILE">완전휘발</option>
                 <option value="PARTIAL_RESIDUAL">부분잔류</option>
               </select>
+            </Field>
+          </div>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <Field label="Function (COSING 기준, 목록에 없으면 직접 입력)">
+              <input className="v50-input" list="cosing-function-options" style={{ minWidth: 260 }}
+                value={rm.function_en || ""} onChange={(e) => setRm({ ...rm, function_en: e.target.value })}
+                placeholder="예: SKIN CONDITIONING" />
+              <datalist id="cosing-function-options">
+                {COSING_FUNCTIONS.map((f) => <option key={f} value={f} />)}
+              </datalist>
+            </Field>
+            <Field label="Function 국문 (선택)">
+              <input className="v50-input" value={rm.function_kr || ""}
+                onChange={(e) => setRm({ ...rm, function_kr: e.target.value })} placeholder="예: 피부컨디셔닝" />
             </Field>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>

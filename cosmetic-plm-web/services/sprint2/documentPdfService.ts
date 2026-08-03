@@ -607,7 +607,11 @@ export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: n
 // 구성비(원료 고유값)는 그대로 유지한다.
 // PDF(복합성분표)와 엑셀 다운로드가 이 함수를 그대로 공유해서, 원료=1행/구성성분은 셀 내 줄바꿈이라는
 // 동일한 레이아웃 규칙을 두 출력 형식에서 어긋나지 않게 유지한다.
-export function buildComplexGroupedRows(lines: any[], components: any[]): ComplexGroupedRow[] {
+export function buildComplexGroupedRows(
+  lines: any[],
+  components: any[],
+  materialsByRawCode?: Map<string, any>
+): ComplexGroupedRow[] {
   const map = byRawComponents(components);
 
   const byRawCode = new Map<string, any[]>();
@@ -644,11 +648,15 @@ export function buildComplexGroupedRows(lines: any[], components: any[]): Comple
               finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
             },
           ];
+      // Function은 원료관리(plm_raw_materials)에 등록된 현재 값을 최우선으로 쓰고,
+      // 조회가 안 되는 경우에만 BOM 라인에 스냅샷된 값으로 대체한다(과거 라인 호환용).
+      const material = materialsByRawCode?.get(first.raw_code);
+      const func = material?.function_kr || material?.function_en || first.function_kr || first.function_en || "";
       return {
         raw_code: first.raw_code,
         raw_name: first.raw_name,
         input,
-        func: first.function_kr || first.function_en || "",
+        func,
         items,
       };
     })
@@ -720,7 +728,9 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
 // ============================================================
 export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
-  const grouped = buildComplexGroupedRows(effectiveLines, components);
+  const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
+  const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode);
 
   const body = grouped
     .map((g, i) => {

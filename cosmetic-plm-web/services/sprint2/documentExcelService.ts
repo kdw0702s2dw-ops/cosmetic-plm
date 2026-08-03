@@ -1,6 +1,7 @@
 "use client";
 
 import ExcelJS from "exceljs";
+import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 import {
   ALLERGEN_BASE_LINE,
   buildComplexGroupedRows,
@@ -202,7 +203,9 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
 // ============================================================
 export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX") {
   const { lines, components } = await loadExpandedRows(formula, basis);
-  const grouped = buildComplexGroupedRows(lines, components);
+  const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
+  const grouped = buildComplexGroupedRows(lines, components, materialsByRawCode);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
