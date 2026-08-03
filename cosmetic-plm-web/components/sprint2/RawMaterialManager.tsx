@@ -16,6 +16,7 @@ import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import { COSING_FUNCTIONS } from "@/services/sprint2/cosingFunctions";
 import "@/styles/enterprise-v50.css";
 
 // 다운로드/업로드 양식 공통 컬럼 순서 (그대로 다운받아 채워서 재업로드 가능하도록 이름/순서를 맞춤)
@@ -56,26 +57,6 @@ const emptyRm: RawMaterial = {
   inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", function_en: "", is_active: true,
   is_caution: false, caution_note: "", volatility_type: "NONE",
 };
-
-// EU CosIng(Cosmetic Ingredient Database)의 Function 분류 참고 목록.
-// 공식 DB(ec.europa.eu/growth/tools-databases/cosing)에서 실제 사용되는 대표 카테고리를 정리한 것으로,
-// 전체 목록이 수시로 갱신될 수 있어 목록에 없는 값은 직접 입력도 가능하게 함(datalist 방식).
-const COSING_FUNCTIONS = [
-  "ABRASIVE", "ANTICAKING", "ANTICORROSIVE", "ANTIDANDRUFF", "ANTIFOAMING", "ANTIMICROBIAL",
-  "ANTIOXIDANT", "ANTIPERSPIRANT", "ANTIPLAQUE", "ANTISEBORRHOEIC", "ANTISTATIC", "ASTRINGENT",
-  "BINDING", "BLEACHING", "BUFFERING", "BULKING", "CHELATING", "CLEANSING", "DENATURANT",
-  "DEODORANT", "DEPILATORY", "EMOLLIENT", "EMULSIFYING", "EMULSION STABILISING", "EXFOLIANT",
-  "FILM FORMING", "FLAVOURING", "FOAM BOOSTING", "FOAMING", "FRAGRANCE", "GEL FORMING",
-  "HAIR CONDITIONING", "HAIR DYEING", "HAIR FIXING", "HUMECTANT", "HYDROTROPE", "KERATOLYTIC",
-  "LIGHT STABILIZER", "MASKING", "NAIL CONDITIONING", "OPACIFYING", "ORAL CARE", "OXIDISING",
-  "PERFUMING", "PLASTICISER", "PRESERVATIVE", "PROPELLANT", "REDUCING", "REFATTING", "REFRESHING",
-  "SKIN CONDITIONING", "SKIN CONDITIONING - EMOLLIENT", "SKIN CONDITIONING - HUMECTANT",
-  "SKIN CONDITIONING - MISCELLANEOUS", "SKIN CONDITIONING - OCCLUSIVE", "SKIN PROTECTING",
-  "SMOOTHING", "SOLVENT", "SOOTHING", "STABILISING", "SUNSCREEN AGENT", "SURFACTANT",
-  "SURFACTANT - CLEANSING", "SURFACTANT - EMULSIFYING", "SURFACTANT - FOAM BOOSTING",
-  "SURFACTANT - FOAMING", "SURFACTANT - HYDROTROPE", "SURFACTANT - SOLUBILIZING", "TONIC",
-  "UV ABSORBER", "UV FILTER", "VISCOSITY CONTROLLING",
-] as const;
 
 const emptyComp: Component = {
   inci_en: "", inci_kr: "", cas_no: "", ec_no: "", composition_percent: "", function_kr: "",

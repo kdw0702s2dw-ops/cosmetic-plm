@@ -6,6 +6,7 @@ import {
   type IngredientDictionaryItem,
 } from "@/services/sprint2/ingredientDictionaryService";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import { COSING_FUNCTIONS } from "@/services/sprint2/cosingFunctions";
 import "@/styles/enterprise-v50.css";
 
 const PAGE_SIZE = 20;
@@ -163,7 +164,14 @@ export default function IngredientDictionaryManager() {
           <Field label="CAS No"><input className="v50-input" value={item.cas_no || ""} onChange={(e) => setItem({ ...item, cas_no: e.target.value })} /></Field>
           <Field label="EC No"><input className="v50-input" value={item.ec_no || ""} onChange={(e) => setItem({ ...item, ec_no: e.target.value })} /></Field>
           <Field label="효능(국문)"><input className="v50-input" value={item.function_kr || ""} onChange={(e) => setItem({ ...item, function_kr: e.target.value })} /></Field>
-          <Field label="효능(영문)"><input className="v50-input" value={item.function_en || ""} onChange={(e) => setItem({ ...item, function_en: e.target.value })} /></Field>
+          <Field label="효능(영문, COSING 기준 - 목록에 없으면 직접 입력)">
+            <input className="v50-input" list="cosing-function-options-dict"
+              value={item.function_en || ""} onChange={(e) => setItem({ ...item, function_en: e.target.value })}
+              placeholder="예: SKIN CONDITIONING" />
+            <datalist id="cosing-function-options-dict">
+              {COSING_FUNCTIONS.map((f) => <option key={f} value={f} />)}
+            </datalist>
+          </Field>
           <div style={{ gridColumn: "1 / -1" }}>
             <Field label="비고">
               <textarea className="v50-textarea" rows={3}
