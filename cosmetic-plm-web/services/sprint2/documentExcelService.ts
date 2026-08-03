@@ -143,7 +143,9 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     ws.addRow(["", "단일성분 데이터가 없습니다.", "", "", "", "", ""]);
   }
   rows.forEach((x, i) => {
-    const percentValue = x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent));
+    // 건조 후(DRY)는 나눗셈이 섞여 exactPercent(배합시 전용 정확값)가 실제 값과 어긋날 수 있으므로
+    // PDF와 동일하게 항상 final_percent(8자리 반올림)를 쓴다. exactPercent는 MIX 기준일 때만 사용.
+    const percentValue = basis === "DRY" ? Number(pct(x.final_percent)) : (x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent)));
     const row = ws.addRow([i + 1, x.inci_en, x.inci_kr, percentValue, x.cas_no || "-", x.ec_no || "-", x.function_text]);
     row.alignment = { vertical: "middle" };
     row.getCell(4).numFmt = percentNumFmt;

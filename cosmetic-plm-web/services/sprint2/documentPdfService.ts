@@ -377,7 +377,12 @@ export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
         inci_en: comp.inci_en || comp.component_name_en || "",
         inci_kr: comp.inci_kr || comp.component_name_kr || "",
         component_percent: n(comp.composition_percent),
-        final_percent: Number((n(line.percentage) * n(comp.composition_percent) / 100).toFixed(8)),
+        // 건조 후(부분잔류 원료) 계산은 comp._dryFinalPercent에 이미 정확한 최종 함량이 담겨 있다
+        // (물/비물 성분이 서로 다른 비율로 변하므로 line.percentage×composition_percent로는 재현 불가).
+        // 그 외(배합 시, 또는 건조 후라도 영향받지 않은 원료)는 기존 방식 그대로 계산한다.
+        final_percent: Number(
+          (comp._dryFinalPercent != null ? comp._dryFinalPercent : n(line.percentage) * n(comp.composition_percent) / 100).toFixed(8)
+        ),
         cas_no: comp.cas_no || "",
         ec_no: comp.ec_no || "",
         function_text: comp.function_kr || comp.function_en || "",
@@ -558,8 +563,13 @@ export function applyDryBasisToLines(
     }
 
     newLines.push({ ...l, percentage: newLineTotal });
+    // composition_percent(원료 내부 구성비)는 원료관리에 등록된 값 그대로 유지한다 - 물이 증발했다고
+    // 원료 자체의 등록 스펙(예: "이 원료는 정제수 90%로 구성됨")이 바뀌는 게 아니므로, 바이어가 보는
+    // "% Sub Ingredient in Raw Ingredient"는 항상 등록값과 동일해야 신뢰할 수 있다. 대신 건조 후
+    // 실제 최종 함량(물/비물 성분이 서로 다른 비율로 변하는 값)은 _dryFinalPercent에 별도로 담아서,
+    // 이 값을 참조하는 쪽(complexRows/buildComplexGroupedRows)에서 ratio×input 재계산 없이 그대로 쓴다.
     for (const { comp, newFinal } of adjusted) {
-      newComponents.push({ ...comp, composition_percent: newLineTotal > 0 ? (newFinal / newLineTotal) * 100 : 0 });
+      newComponents.push({ ...comp, _dryFinalPercent: newFinal });
     }
   }
 
@@ -631,12 +641,15 @@ export function buildComplexGroupedRows(
       const items: ComplexGroupedItem[] = comps.length
         ? comps.map((c) => {
             const ratio = n(c.composition_percent);
+            // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 건조 후 부분잔류
+            // 계산이 반영된 c._dryFinalPercent가 있으면 그 값을 그대로 쓰고, 없으면 input×ratio로 계산한다.
+            const finalPercent = c._dryFinalPercent != null ? c._dryFinalPercent : (input * ratio) / 100;
             return {
               inci_en: c.inci_en || c.component_name_en || "",
               inci_kr: c.inci_kr || c.component_name_kr || "",
               ratio,
               cas: c.cas_no || "-",
-              finalPercent: (input * ratio) / 100,
+              finalPercent,
             };
           })
         : [
