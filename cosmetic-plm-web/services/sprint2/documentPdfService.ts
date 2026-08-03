@@ -750,8 +750,13 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
   const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
-  // Percentage(%): 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일해서 0-패딩 표시
-  const decimals = computeUniformPercentDecimals(rows);
+  // Percentage(%) 표시 자릿수:
+  // - 배합 시(MIX)는 입력값들의 곱셈만으로 계산되어 항상 "정확히 끝나는" 소수이므로, 그 자리까지
+  //   보여주는 BigInt 기반 정확 표시(exactPercent, 최소 14~최대 15자리)를 그대로 쓴다.
+  // - 건조 후(DRY)는 계산 과정에 나눗셈(scale_factor, 수분 비례 배분)이 들어가서 대부분 딱 떨어지지
+  //   않는 소수가 나온다. 이 경우 exactPercent 기반 자릿수를 그대로 쓰면 76.951399116347567처럼
+  //   의미 없는 긴 소수가 나열되므로, 일반 반올림으로 8자리에 고정해서 깔끔하게 보여준다.
+  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
 
   const body = rows
     .map(
@@ -759,7 +764,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   <td class="center">${i + 1}</td>
   <td>${e(x.inci_en)}</td>
   <td>${e(x.inci_kr)}</td>
-  <td class="right">${e(x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals))}</td>
+  <td class="right">${e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)))}</td>
   <td>${e(x.cas_no || "-")}</td>
   <td>${e(x.ec_no || "-")}</td>
   <td>${e(x.function_text)}</td>

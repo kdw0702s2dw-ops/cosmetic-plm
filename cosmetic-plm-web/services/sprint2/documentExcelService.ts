@@ -118,7 +118,8 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
   // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
   // 엑셀에서는 숫자 그대로라 정렬/필터/수식 계산이 가능함).
-  const decimals = computeUniformPercentDecimals(rows);
+  // 건조 후(DRY)는 나눗셈이 섞여 들어가 딱 떨어지지 않는 소수가 나오므로 PDF와 동일하게 8자리 고정 반올림.
+  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
   const percentNumFmt = "0." + "0".repeat(decimals);
 
   const wb = new ExcelJS.Workbook();
