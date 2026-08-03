@@ -414,10 +414,19 @@ export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
     .sort((a, b) => b.final_percent - a.final_percent);
 }
 
+// 전성분명(국문 우선, 없으면 영문) 비교용 정규화 - 공백/대소문자 차이는 같은 성분으로 취급
+function normalizeIngredientName(s?: string | null) {
+  return (s || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 export function mergeRows(rows: ExpandedRow[]) {
   const map = new Map<string, ExpandedRow>();
   for (const row of rows) {
-    const key = [row.inci_en, row.inci_kr, row.cas_no, row.ec_no, row.function_text].join("|");
+    // 전성분명이 같으면 CAS/EC No.가 다르게 입력되어 있어도(예: CAS 1개 vs 2개 병기) 같은 성분으로 합산한다.
+    // 이름이 아예 비어있는 예외적인 경우에만 기존 방식(이름+CAS+EC+효능)으로 구분해 서로 다른 빈 이름 행이
+    // 잘못 합쳐지는 것을 막는다.
+    const nameKey = normalizeIngredientName(row.inci_kr) || normalizeIngredientName(row.inci_en);
+    const key = nameKey || ["__noname__", row.inci_en, row.inci_kr, row.cas_no, row.ec_no, row.function_text].join("|");
     const old = map.get(key);
     if (old) {
       old.final_percent = Number((old.final_percent + row.final_percent).toFixed(8));
