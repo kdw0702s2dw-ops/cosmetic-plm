@@ -206,13 +206,13 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
-  const colCount = 7;
-  ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
+  const colCount = 8;
+  ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
 
   writeTitleRow(ws, `Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "CAS No.", "Function"]);
+  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "Final % in Formula", "CAS No.", "Function"]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   headerRow.height = 30;
@@ -222,21 +222,24 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   border(ws, headerRow.number, 1, headerRow.number, colCount);
 
   if (grouped.length === 0) {
-    ws.addRow(["", "복합원료 구성성분 데이터가 없습니다.", "", "", "", "", ""]);
+    ws.addRow(["", "복합원료 구성성분 데이터가 없습니다.", "", "", "", "", "", ""]);
   }
 
   grouped.forEach((g, i) => {
     const en = g.items.map((x) => x.inci_en).join("\n");
     const kr = g.items.map((x) => x.inci_kr).join("\n");
-    const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 4)).join("\n");
+    // PDF(buildComplexComponentTableHtml)와 자릿수를 동일하게 맞춘다 (8자리 고정).
+    const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
+    const finalPercent = g.items.map((x) => fixedPct(x.finalPercent, 8)).join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
-    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 6), cas, g.func]);
+    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 8), finalPercent, cas, g.func]);
     row.alignment = { vertical: "middle" };
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
     row.getCell(3).alignment = { vertical: "middle", wrapText: true };
     row.getCell(4).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    row.getCell(6).alignment = { vertical: "middle", wrapText: true };
+    row.getCell(6).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    row.getCell(7).alignment = { vertical: "middle", wrapText: true };
     border(ws, row.number, 1, row.number, colCount);
     // 행 높이를 고정값으로 지정하지 않는다 - Excel이 파일을 열 때 wrapText 셀 내용(개별 항목이
     // 컬럼 폭보다 길어 한 항목이 시각적으로 여러 줄로 접히는 경우 포함)에 맞춰 자동으로 행 높이를

@@ -594,7 +594,11 @@ export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals =
   return Math.min(maxNeeded, maxDecimals);
 }
 
-export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string };
+// finalPercent = 이 구성성분이 처방 전체에서 차지하는 최종 함량(%) = input(원료의 처방 내 비율) × ratio(원료
+// 안에서 이 성분의 구성비) ÷ 100. 단일성분표의 각 INCI 함량은 이 finalPercent를 이름별로 합산한 값과 같다 -
+// 복합성분표에 이 값을 그대로 노출해서, 바이어가 복합성분표만 보고도 단일성분표 숫자가 어떻게 나왔는지
+// (ratio × input = finalPercent) 직접 검산할 수 있게 한다.
+export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string; finalPercent: number };
 export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
@@ -619,25 +623,31 @@ export function buildComplexGroupedRows(lines: any[], components: any[]): Comple
     .map((group) => {
       const first = group[0];
       const comps = map.get(first.raw_code) || [];
+      const input = group.reduce((sum, l) => sum + n(l.percentage), 0);
       const items: ComplexGroupedItem[] = comps.length
-        ? comps.map((c) => ({
-            inci_en: c.inci_en || c.component_name_en || "",
-            inci_kr: c.inci_kr || c.component_name_kr || "",
-            ratio: n(c.composition_percent),
-            cas: c.cas_no || "-",
-          }))
+        ? comps.map((c) => {
+            const ratio = n(c.composition_percent);
+            return {
+              inci_en: c.inci_en || c.component_name_en || "",
+              inci_kr: c.inci_kr || c.component_name_kr || "",
+              ratio,
+              cas: c.cas_no || "-",
+              finalPercent: (input * ratio) / 100,
+            };
+          })
         : [
             {
               inci_en: first.inci_en || first.raw_name || "",
               inci_kr: first.inci_kr || first.raw_name || "",
               ratio: null,
               cas: first.cas_no || "-",
+              finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
             },
           ];
       return {
         raw_code: first.raw_code,
         raw_name: first.raw_name,
-        input: group.reduce((sum, l) => sum + n(l.percentage), 0),
+        input,
         func: first.function_kr || first.function_en || "",
         items,
       };
@@ -720,6 +730,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
+      const finalPercent = eLines(g.items.map((x) => fixedPct(x.finalPercent, 8)));
       const cas = eLines(g.items.map((x) => x.cas));
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -727,6 +738,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <td>${kr}</td>
   <td class="center">${ratio}</td>
   <td class="center">${fixedPct(g.input, 8)}</td>
+  <td class="center">${finalPercent}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
 </tr>`;
@@ -737,9 +749,9 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
-  <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>CAS No.</th><th>Function</th>
+  <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="7">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
+<tbody>${body || `<tr><td colspan="8">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
 </table>`, f);
 }
 
