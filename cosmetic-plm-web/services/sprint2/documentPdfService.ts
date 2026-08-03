@@ -505,8 +505,8 @@ export async function resolveLinesForBasis(formula: any, lines: any[], basis: Do
 }
 
 // mergeRows() 결과(rows)에 대해 문서 전체에서 통일할 소수 자릿수를 구한다:
-// 각 행의 "정확히 끝나는 자리"(minimalScale) 중 최댓값을, 최소 8자리~최대 15자리 사이로 clamp.
-export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals = 8, maxDecimals = 15) {
+// 각 행의 "정확히 끝나는 자리"(minimalScale) 중 최댓값을, 최소 14자리~최대 15자리 사이로 clamp.
+export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals = 14, maxDecimals = 15) {
   let maxNeeded = minDecimals;
   for (const row of rows) {
     if (!row.exactPercent) continue;
