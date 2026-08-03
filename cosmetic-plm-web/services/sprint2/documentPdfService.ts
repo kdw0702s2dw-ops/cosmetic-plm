@@ -641,14 +641,14 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
       const ratio =
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
-          : eLines(g.items.map((x) => fixedPct(x.ratio, 4)));
+          : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
       const cas = eLines(g.items.map((x) => x.cas));
       return `<tr>
   <td class="center">${i + 1}</td>
   <td>${en}</td>
   <td>${kr}</td>
   <td class="center">${ratio}</td>
-  <td class="center">${fixedPct(g.input, 6)}</td>
+  <td class="center">${fixedPct(g.input, 8)}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
 </tr>`;
