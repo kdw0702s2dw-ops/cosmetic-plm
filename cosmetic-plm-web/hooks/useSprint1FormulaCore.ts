@@ -129,13 +129,16 @@ export function useSprint1FormulaCore() {
   const [inciBasis, setInciBasis] = useState<DocBasis>("MIX");
   let dryInciError: string | null = null;
   let effectiveLinesForInci = lines;
+  let effectiveComponentsForInci = rawComponentsForLines;
   if (inciBasis === "DRY") {
     if (formula.measured_moisture_percent == null) {
       dryInciError = "실측 수분율을 처방 기본정보에서 먼저 입력하세요.";
     } else {
       try {
         const volatilityMap = volatilityMapFromRawMaterials(Array.from(latestRawDataMap.values()));
-        effectiveLinesForInci = applyDryBasisToLines(lines, volatilityMap, formula.measured_moisture_percent);
+        const dry = applyDryBasisToLines(lines, rawComponentsForLines, volatilityMap, formula.measured_moisture_percent);
+        effectiveLinesForInci = dry.lines;
+        effectiveComponentsForInci = dry.components;
       } catch (e) {
         dryInciError = e instanceof Error ? e.message : "건조 후 전성분 계산 오류";
       }
@@ -144,8 +147,8 @@ export function useSprint1FormulaCore() {
   const mergedInciRows: ExpandedRow[] = dryInciError
     ? []
     : mergeRows([
-        ...complexRows(effectiveLinesForInci, rawComponentsForLines),
-        ...singleRows(effectiveLinesForInci, rawComponentsForLines),
+        ...complexRows(effectiveLinesForInci, effectiveComponentsForInci),
+        ...singleRows(effectiveLinesForInci, effectiveComponentsForInci),
       ]);
 
   async function loadFormulas(k = keyword) {

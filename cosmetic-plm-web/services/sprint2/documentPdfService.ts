@@ -448,17 +448,28 @@ export function volatilityMapFromRawMaterials(materials: { raw_code: string; vol
   return new Map(materials.map((m) => [m.raw_code, ((m.volatility_type as VolatilityType) || "NONE")]));
 }
 
-// "건조 후" 전성분 계산 (건조형 제형 - 플라스타 등): 완전휘발 원료(제조 중 소실)는 제외하고,
-// 부분잔류 원료(정제수 등, 실측 필요)는 리비전 단위로 입력된 실측 수분율을 배합시 비율에 비례
-// 배분한 값으로 대체하며, 나머지(비휘발) 원료는 scale_factor로 일괄 상향 조정한다.
-// scale_factor = (100 - 실측수분율%) / (100 - 완전휘발원료% - 부분잔류원료%)
-// BOM 라인(lines) 단계에서 적용해서, 이 결과를 complexRows/singleRows/buildComplexGroupedRows
-// 어디에 넘겨도(즉 전성분표·단일성분표·복합성분표·자동 전성분 전부) 동일하게 반영되도록 한다.
+// 물의 CAS No. (정제수/Water/Aqua) - 부분잔류 원료 안에서 "어떤 구성성분이 물인지" 자동으로 판별하는 데 쓴다.
+const WATER_CAS_NO = "7732-18-5";
+
+function isWaterComponent(c: { cas_no?: string | null }) {
+  return (c.cas_no || "").trim() === WATER_CAS_NO;
+}
+
+// "건조 후" 전성분 계산 (건조형 제형 - 플라스타 등): 완전휘발 원료(제조 중 소실)는 원료째로 제외한다.
+// 부분잔류 원료는 "원료 전체"가 아니라 그 원료의 구성성분 중 물(CAS 7732-18-5)로 확인되는 성분만 수분으로
+// 취급해서, 리비전 단위로 입력된 실측 수분율을 물 성분들의 배합시 함량 비율에 비례 배분한 값으로 대체한다.
+// 같은 원료 안의 나머지 구성성분(부틸렌글라이콜, 추출물 등 물이 아닌 성분)과, 부분잔류가 아닌 원료는
+// 물이 날아간 만큼 오히려 비율이 올라가야 하므로(농축) 다른 비휘발 원료와 동일하게 scale_factor로 확대한다.
+// (원료에 구성성분이 하나도 등록되어 있지 않은 예외적인 경우에만 원료 전체를 물로 간주한다.)
+// scale_factor = (100 - 실측수분율%) / (100 - 완전휘발원료% - 부분잔류원료 중 "물" 성분 함량 합계%)
+// BOM 라인(lines)과 구성성분(components)을 함께 조정해서 반환하므로, 이 결과를 그대로 complexRows/
+// singleRows/buildComplexGroupedRows에 넘기면(즉 전성분표·단일성분표·복합성분표·자동 전성분 전부) 동일하게 반영된다.
 export function applyDryBasisToLines(
   lines: any[],
+  components: any[],
   volatilityByRawCode: Map<string, VolatilityType>,
   measuredMoisturePercent: number | null | undefined
-): any[] {
+): { lines: any[]; components: any[] } {
   if (measuredMoisturePercent == null) {
     throw new Error("실측 수분율을 먼저 입력하세요.");
   }
@@ -468,40 +479,95 @@ export function applyDryBasisToLines(
   for (const l of lines) {
     totalByRawCode.set(l.raw_code, (totalByRawCode.get(l.raw_code) || 0) + n(l.percentage));
   }
+  const componentsByRawCode = byRawComponents(components);
 
+  // 1) 완전휘발 합계 + 부분잔류 원료들의 "물" 성분 최종 함량(배합시 기준) 합계를 구한다.
   let fullVolatilePercent = 0;
-  let partialResidualPercent = 0;
-  for (const [rawCode, pct] of totalByRawCode) {
+  let waterPercent = 0;
+  const waterFinalByRawCode = new Map<string, number>();
+  for (const [rawCode, rawPct] of totalByRawCode) {
     const v = volatilityByRawCode.get(rawCode) ?? "NONE";
-    if (v === "FULL_VOLATILE") fullVolatilePercent += pct;
-    if (v === "PARTIAL_RESIDUAL") partialResidualPercent += pct;
+    if (v === "FULL_VOLATILE") {
+      fullVolatilePercent += rawPct;
+      continue;
+    }
+    if (v !== "PARTIAL_RESIDUAL") continue;
+
+    const comps = componentsByRawCode.get(rawCode) || [];
+    const waterRatio = comps.length === 0 ? 100 : comps.filter(isWaterComponent).reduce((s, c) => s + n(c.composition_percent), 0);
+    const waterFinal = rawPct * (waterRatio / 100);
+    waterFinalByRawCode.set(rawCode, waterFinal);
+    waterPercent += waterFinal;
   }
 
-  const denom = 100 - fullVolatilePercent - partialResidualPercent;
+  const denom = 100 - fullVolatilePercent - waterPercent;
   if (denom <= 0) {
-    throw new Error("완전휘발+부분잔류 원료 비율의 합이 100% 이상이라 건조 후 전성분을 계산할 수 없습니다.");
+    throw new Error("완전휘발 원료 + 부분잔류 원료 중 수분 비율의 합이 100% 이상이라 건조 후 전성분을 계산할 수 없습니다.");
   }
   const scaleFactor = (100 - moisture) / denom;
 
-  return lines
-    .filter((l) => (volatilityByRawCode.get(l.raw_code) ?? "NONE") !== "FULL_VOLATILE")
-    .map((l) => {
-      const v = volatilityByRawCode.get(l.raw_code) ?? "NONE";
-      if (v === "PARTIAL_RESIDUAL") {
-        const share = partialResidualPercent > 0 ? n(l.percentage) / partialResidualPercent : 0;
-        return { ...l, percentage: moisture * share };
+  const newLines: any[] = [];
+  const newComponents: any[] = [];
+
+  for (const l of lines) {
+    const v = volatilityByRawCode.get(l.raw_code) ?? "NONE";
+    if (v === "FULL_VOLATILE") continue; // 원료째로 제외
+
+    if (v !== "PARTIAL_RESIDUAL") {
+      newLines.push({ ...l, percentage: n(l.percentage) * scaleFactor });
+      continue;
+    }
+
+    // PARTIAL_RESIDUAL
+    const comps = componentsByRawCode.get(l.raw_code) || [];
+    const waterFinalOriginal = waterFinalByRawCode.get(l.raw_code) || 0;
+    const newWaterFinal = waterPercent > 0 ? moisture * (waterFinalOriginal / waterPercent) : 0;
+
+    if (comps.length === 0) {
+      // 구성성분 미등록 원료: 원료 전체를 물로 간주해 그대로 대체
+      newLines.push({ ...l, percentage: newWaterFinal });
+      continue;
+    }
+
+    const origLinePct = n(l.percentage);
+    let newLineTotal = newWaterFinal; // 물 성분 몫은 먼저 더해두고, 아래 루프에서는 물이 아닌 성분만 더한다
+    const adjusted: { comp: any; newFinal: number }[] = [];
+    for (const c of comps) {
+      const origFinal = origLinePct * (n(c.composition_percent) / 100);
+      if (isWaterComponent(c)) {
+        const share = waterFinalOriginal > 0 ? origFinal / waterFinalOriginal : 0;
+        adjusted.push({ comp: c, newFinal: newWaterFinal * share });
+      } else {
+        const newFinal = origFinal * scaleFactor; // 물이 아닌 성분은 농축(비율 상승)
+        adjusted.push({ comp: c, newFinal });
+        newLineTotal += newFinal;
       }
-      return { ...l, percentage: n(l.percentage) * scaleFactor };
-    });
+    }
+
+    newLines.push({ ...l, percentage: newLineTotal });
+    for (const { comp, newFinal } of adjusted) {
+      newComponents.push({ ...comp, composition_percent: newLineTotal > 0 ? (newFinal / newLineTotal) * 100 : 0 });
+    }
+  }
+
+  // 완전휘발/부분잔류가 아닌 원료의 구성성분은 원본 그대로 유지 (구성비 자체는 안 바뀌고 원료 라인%만 확대됨)
+  for (const [rawCode, comps] of componentsByRawCode) {
+    const v = volatilityByRawCode.get(rawCode) ?? "NONE";
+    if (v === "PARTIAL_RESIDUAL" || v === "FULL_VOLATILE") continue;
+    newComponents.push(...comps);
+  }
+
+  return { lines: newLines, components: newComponents };
 }
 
-// basis="DRY"면 원료의 volatility_type을 조회해서 applyDryBasisToLines()를 적용한 라인을,
-// basis="MIX"(기본값)면 원본 라인을 그대로 반환한다. 전성분표/단일성분표/복합성분표 3종 문서와
-// 엑셀 다운로드가 공통으로 이 함수를 거쳐서 lines를 얻는다.
-export async function resolveLinesForBasis(formula: any, lines: any[], basis: DocBasis): Promise<any[]> {
-  if (basis !== "DRY") return lines;
+// basis="DRY"면 원료의 volatility_type을 조회해서 applyDryBasisToLines()로 lines/components를 모두
+// 건조 후 버전으로 바꿔 반환하고, basis="MIX"(기본값)면 원본 lines와 구성성분을 그대로 반환한다.
+// 전성분표/단일성분표/복합성분표 3종 문서와 엑셀 다운로드가 공통으로 이 함수를 거쳐서 lines/components를 얻는다.
+export async function resolveLinesForBasis(formula: any, lines: any[], basis: DocBasis): Promise<{ lines: any[]; components: any[] }> {
+  const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
+  if (basis !== "DRY") return { lines, components };
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
-  return applyDryBasisToLines(lines, volatilityMapFromRawMaterials(materials), formula.measured_moisture_percent);
+  return applyDryBasisToLines(lines, components, volatilityMapFromRawMaterials(materials), formula.measured_moisture_percent);
 }
 
 // mergeRows() 결과(rows)에 대해 문서 전체에서 통일할 소수 자릿수를 구한다:
@@ -630,8 +696,7 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
 export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
-  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
-  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
+  const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const grouped = buildComplexGroupedRows(effectiveLines, components);
 
   const body = grouped
@@ -669,8 +734,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 // 단일성분표 (KOVAS): INCI 합산, 함량 내림차순
 // ============================================================
 export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
-  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
-  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
+  const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
   const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
   // Percentage(%): 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일해서 0-패딩 표시
@@ -704,8 +768,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
 // 전성분표 (KOVAS): 박스 형태 (영문 / 국문)
 // ============================================================
 export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
-  const effectiveLines = await resolveLinesForBasis(f, lines, basis);
-  const components = await fetchComponentsByRawCodes(effectiveLines.map((x) => x.raw_code));
+  const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
   const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");

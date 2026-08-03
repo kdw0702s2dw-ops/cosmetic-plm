@@ -9,7 +9,6 @@ import {
   CONFIDENTIAL,
   type DocBasis,
   exactDecimalToNumber,
-  fetchComponentsByRawCodes,
   fetchFormulaLinesForPdf,
   fixedPct,
   kovasMeta,
@@ -106,8 +105,7 @@ export async function downloadWorkbook(wb: ExcelJS.Workbook, filename: string) {
 
 async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
   const rawLines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-  const lines = await resolveLinesForBasis(formula, rawLines, basis);
-  const components = await fetchComponentsByRawCodes(lines.map((x: any) => x.raw_code));
+  const { lines, components } = await resolveLinesForBasis(formula, rawLines, basis);
   return { lines, components };
 }
 
