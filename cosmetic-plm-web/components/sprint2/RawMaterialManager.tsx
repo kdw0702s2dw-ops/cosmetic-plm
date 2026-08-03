@@ -64,6 +64,7 @@ const emptyComp: Component = {
 
 export default function RawMaterialManager() {
   const auth = useSprint1Auth();
+  const canWrite = auth.canWriteMaterials;
   const [keyword, setKeyword] = useState("");
   const [list, setList] = useState<RawMaterialListItem[]>([]);
   const [rm, setRm] = useState<RawMaterial>(emptyRm);
@@ -228,6 +229,7 @@ export default function RawMaterialManager() {
   }
 
   async function handleDelete(item: RawMaterialListItem) {
+    if (!canWrite) return;
     if (!confirm(`"${item.raw_name}"(${item.raw_code})을(를) 삭제하시겠습니까?\n(처방에 이미 쓰인 이력을 보존하기 위해 목록에서만 숨겨지고, 완전히 지워지진 않습니다.)`)) return;
     try {
       await deleteRawMaterial(item.raw_code);
@@ -326,6 +328,7 @@ export default function RawMaterialManager() {
   }
 
   async function handleSave() {
+    if (!canWrite) { setMsg("열람 권한만 있어 저장할 수 없습니다."); return; }
     if (!rm.raw_code.trim()) { setMsg("원료코드를 입력하세요."); return; }
     if (!rm.raw_name.trim()) { setMsg("원료명을 입력하세요."); return; }
     setSaving(true); setMsg("");
@@ -364,7 +367,7 @@ export default function RawMaterialManager() {
           <h1 className="v50-title">원료 관리</h1>
           <p className="v50-desc">모든 원료의 INCI는 아래 구성성분 표에서 입력합니다 (단일 성분이면 행 1개만 등록). INCI 국문 입력 시 CAS·EC가 자동완성됩니다.</p>
         </div>
-        <button className="v50-button" onClick={newRm}>+ 새 원료</button>
+        {canWrite && <button className="v50-button" onClick={newRm}>+ 새 원료</button>}
       </section>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -425,8 +428,8 @@ export default function RawMaterialManager() {
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button className="v50-button-light" onClick={() => selectRm(r)}>수정</button>
-                      <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r)}>삭제</button>
+                      <button className="v50-button-light" onClick={() => selectRm(r)}>{canWrite ? "수정" : "보기"}</button>
+                      {canWrite && <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r)}>삭제</button>}
                     </div>
                   </td>
                 </tr>
@@ -562,11 +565,13 @@ export default function RawMaterialManager() {
           <button className="v50-button-light" style={{ marginTop: 8 }} onClick={addRow}>+ 구성성분 행 추가</button>
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <button className="v50-button" onClick={handleSave} disabled={saving}>
-            {saving ? "저장 중…" : "원료 저장"}
-          </button>
-        </div>
+        {canWrite && (
+          <div style={{ marginTop: 18 }}>
+            <button className="v50-button" onClick={handleSave} disabled={saving}>
+              {saving ? "저장 중…" : "원료 저장"}
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -15,7 +15,7 @@ function getSupabaseAdmin(): SupabaseClient {
   return cachedAdmin;
 }
 
-const ALLOWED_ROLES = ["Admin", "Researcher", "QA", "Viewer"];
+const ALLOWED_ROLES = ["Admin", "Researcher", "QA", "Viewer", "Production"];
 
 // Authorization: Bearer <access_token> 을 검증해서 호출자가 활성 Admin인지 확인
 async function requireAdmin(req: NextRequest) {

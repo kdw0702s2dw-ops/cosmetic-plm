@@ -6,6 +6,8 @@ import {
   canManageUsers,
   canView,
   canWriteFormula,
+  canWriteMaterials,
+  isProductionRole,
   ensureMyProfile,
   getCurrentSession,
   signOutPlm,
@@ -57,6 +59,8 @@ export function useSprint1Auth() {
     canWriteFormula: canWriteFormula(profile?.role),
     canManageUsers: canManageUsers(profile?.role),
     canExportData: canExportData(profile?.role),
+    canWriteMaterials: canWriteMaterials(profile?.role),
+    isProductionRole: isProductionRole(profile?.role),
     load,
     logout,
   };

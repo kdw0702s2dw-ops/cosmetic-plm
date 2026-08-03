@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import FormulaCoreWithAuthPanel from "@/components/sprint1/FormulaCoreWithAuthPanel";
 import Sprint0Dashboard from "@/components/platform/Sprint0Dashboard";
 import UserAdminPanel from "@/components/sprint1/UserAdminPanel";
@@ -18,21 +18,34 @@ import "@/styles/enterprise-mobile.css";
 
 type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "regulation" | "users";
 
+// Production 역할은 부자재관리/원료관리/생산관리만 볼 수 있음
+const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production"];
+
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
   const auth = useSprint1Auth();
+  const isProduction = auth.isProductionRole;
+
+  // Production 역할은 허용된 탭 밖에 있으면(초기값 home 포함) 접근 가능한 탭으로 이동
+  useEffect(() => {
+    if (isProduction && !PRODUCTION_ALLOWED_TABS.includes(active)) {
+      setActive("materialManager");
+    }
+  }, [isProduction, active]);
+
+  const effectiveActive: TabKey = isProduction && !PRODUCTION_ALLOWED_TABS.includes(active) ? "materialManager" : active;
 
   function renderActive() {
-    if (active === "sprint0") return <Sprint0Dashboard />;
-    if (active === "ingredientDict") return <IngredientDictionaryManager />;
-    if (active === "rawManager") return <RawMaterialManager />;
-    if (active === "materialManager") return <MaterialManager />;
-    if (active === "companyManager") return <CompanyManager />;
-    if (active === "formula") return <FormulaCoreWithAuthPanel />;
-    if (active === "docs") return <DocumentPdfPanel />;
-    if (active === "production") return <ProductionManagementPanel />;
-    if (active === "regulation") return <RegulationEnginePanel />;
-    if (active === "users") return <UserAdminPanel />;
+    if (effectiveActive === "sprint0") return <Sprint0Dashboard />;
+    if (effectiveActive === "ingredientDict") return <IngredientDictionaryManager />;
+    if (effectiveActive === "rawManager") return <RawMaterialManager />;
+    if (effectiveActive === "materialManager") return <MaterialManager />;
+    if (effectiveActive === "companyManager") return <CompanyManager />;
+    if (effectiveActive === "formula") return <FormulaCoreWithAuthPanel />;
+    if (effectiveActive === "docs") return <DocumentPdfPanel />;
+    if (effectiveActive === "production") return <ProductionManagementPanel />;
+    if (effectiveActive === "regulation") return <RegulationEnginePanel />;
+    if (effectiveActive === "users") return <UserAdminPanel />;
     return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} />;
   }
 
@@ -43,18 +56,18 @@ export default function EnterpriseSprint1Workspace() {
         <nav className="v50-menu">
           <div>
             <div className="v50-menu-label">현재 사용 가능</div>
-            <button className={active === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>
-            <button className={active === "companyManager" ? "active" : ""} onClick={() => setActive("companyManager")}><span>업체관리</span></button>
-            <button className={active === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
-            <button className={active === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>
-            <button className={active === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
-            <button className={active === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>
-            <button className={active === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>
-            <button className={active === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
-            <button className={active === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>
-            <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>
-            <button className={active === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>
-            {auth.canManageUsers && <button className={active === "users" ? "active" : ""} onClick={() => setActive("users")}><span>사용자 권한관리</span></button>}
+            {!isProduction && <button className={effectiveActive === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>}
+            {!isProduction && <button className={effectiveActive === "companyManager" ? "active" : ""} onClick={() => setActive("companyManager")}><span>업체관리</span></button>}
+            <button className={effectiveActive === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
+            {!isProduction && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
+            <button className={effectiveActive === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
+            {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
+            {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>}
+            <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
+            {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
+            {!isProduction && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
+            {!isProduction && <button className={effectiveActive === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>}
+            {!isProduction && auth.canManageUsers && <button className={effectiveActive === "users" ? "active" : ""} onClick={() => setActive("users")}><span>사용자 권한관리</span></button>}
           </div>
           <div>
             <div className="v50-menu-label">내 계정</div>
@@ -67,24 +80,26 @@ export default function EnterpriseSprint1Workspace() {
       <main className="v50-main">
         <header className="v50-topbar">
           <input className="v50-search" placeholder="원료, 처방, 문서, 글로벌 규제검증을 DB 기준으로 사용합니다." readOnly />
-          <div className="v50-top-actions">
-            <button className="v50-button-light" onClick={() => setActive("formula")}>처방관리</button>
-            <button className="v50-button-light" onClick={() => setActive("docs")}>문서관리</button>
-            <button className="v50-button" onClick={() => setActive("regulation")}>규제검증</button>
-          </div>
+          {!isProduction && (
+            <div className="v50-top-actions">
+              <button className="v50-button-light" onClick={() => setActive("formula")}>처방관리</button>
+              <button className="v50-button-light" onClick={() => setActive("docs")}>문서관리</button>
+              <button className="v50-button" onClick={() => setActive("regulation")}>규제검증</button>
+            </div>
+          )}
         </header>
         <nav className="v50-tabs">
-          <div className={`v50-tab ${active === "home" ? "active" : ""}`} onClick={() => setActive("home")}><span>연구원 홈</span></div>
-          <div className={`v50-tab ${active === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>
-          <div className={`v50-tab ${active === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
-          <div className={`v50-tab ${active === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>
-          <div className={`v50-tab ${active === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
-          <div className={`v50-tab ${active === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>
-          <div className={`v50-tab ${active === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리 PDF</span></div>
-          <div className={`v50-tab ${active === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
-          <div className={`v50-tab ${active === "regulation" ? "active" : ""}`} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></div>
-          <div className={`v50-tab ${active === "sprint0" ? "active" : ""}`} onClick={() => setActive("sprint0")}><span>기반 점검</span></div>
-          {auth.canManageUsers && <div className={`v50-tab ${active === "users" ? "active" : ""}`} onClick={() => setActive("users")}><span>사용자 권한관리</span></div>}
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "home" ? "active" : ""}`} onClick={() => setActive("home")}><span>연구원 홈</span></div>}
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>}
+          <div className={`v50-tab ${effectiveActive === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>}
+          <div className={`v50-tab ${effectiveActive === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리 PDF</span></div>}
+          <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "regulation" ? "active" : ""}`} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></div>}
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "sprint0" ? "active" : ""}`} onClick={() => setActive("sprint0")}><span>기반 점검</span></div>}
+          {!isProduction && auth.canManageUsers && <div className={`v50-tab ${effectiveActive === "users" ? "active" : ""}`} onClick={() => setActive("users")}><span>사용자 권한관리</span></div>}
         </nav>
         <section className="v50-content">{renderActive()}</section>
       </main>

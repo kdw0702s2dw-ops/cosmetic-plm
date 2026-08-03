@@ -2,7 +2,7 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-export type PlmRole = "Admin" | "Researcher" | "QA" | "Viewer";
+export type PlmRole = "Admin" | "Researcher" | "QA" | "Viewer" | "Production";
 
 export type PlmUserProfile = {
   id: string;
@@ -111,11 +111,21 @@ export function canManageUsers(role?: string | null) {
 }
 
 export function canView(role?: string | null) {
-  return role === "Admin" || role === "Researcher" || role === "QA" || role === "Viewer";
+  return role === "Admin" || role === "Researcher" || role === "QA" || role === "Viewer" || role === "Production";
 }
 
 export function canExportData(role?: string | null) {
   return role === "Admin" || role === "Researcher" || role === "QA";
+}
+
+// 부자재관리/원료관리: Production 역할은 열람만 가능하고 생성/수정/삭제는 불가 (plm_materials, plm_raw_materials RLS와 동일한 기준)
+export function canWriteMaterials(role?: string | null) {
+  return role === "Admin" || role === "Researcher";
+}
+
+// Production 역할 전용: 사이드바에서 부자재관리/원료관리/생산관리만 노출
+export function isProductionRole(role?: string | null) {
+  return role === "Production";
 }
 
 export async function fetchUserProfiles() {

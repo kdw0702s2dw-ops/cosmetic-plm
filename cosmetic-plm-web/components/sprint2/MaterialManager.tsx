@@ -8,6 +8,7 @@ import {
   type FormulaLinkHit, type Material,
 } from "@/services/sprint2/materialService";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 
 const emptyMaterial: Material = {
@@ -15,6 +16,8 @@ const emptyMaterial: Material = {
 };
 
 export default function MaterialManager() {
+  const auth = useSprint1Auth();
+  const canWrite = auth.canWriteMaterials;
   const [keyword, setKeyword] = useState("");
   const [list, setList] = useState<Material[]>([]);
   const [material, setMaterial] = useState<Material>(emptyMaterial);
@@ -104,6 +107,7 @@ export default function MaterialManager() {
   }
 
   async function handleDelete(item: Material) {
+    if (!canWrite) return;
     if (!confirm(`"${item.material_name}"(${item.material_code})을(를) 삭제하시겠습니까?\n(생산 BOM에 이미 쓰인 이력을 보존하기 위해 목록에서만 숨겨지고, 완전히 지워지진 않습니다.)`)) return;
     try {
       await deleteMaterial(item.material_code);
@@ -116,6 +120,7 @@ export default function MaterialManager() {
   }
 
   async function handleSave() {
+    if (!canWrite) { setMsg("열람 권한만 있어 저장할 수 없습니다."); return; }
     if (!material.material_code.trim()) { setMsg("부자재코드를 입력하세요."); return; }
     if (!material.material_name.trim()) { setMsg("부자재명을 입력하세요."); return; }
     setSaving(true); setMsg("");
@@ -146,7 +151,7 @@ export default function MaterialManager() {
           <h1 className="v50-title">부자재 관리</h1>
           <p className="v50-desc">용기·부자재의 코드/명칭/규격/공급사와 적용 개발번호(Development No.)를 관리합니다. 처방관리 "생산 BOM 전개"의 부자재명 자동완성과 연동됩니다.</p>
         </div>
-        <button className="v50-button" onClick={newMaterial}>+ 새 부자재</button>
+        {canWrite && <button className="v50-button" onClick={newMaterial}>+ 새 부자재</button>}
       </section>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -179,8 +184,8 @@ export default function MaterialManager() {
                   <td style={{ cursor: "pointer" }} onClick={() => selectMaterial(m)}>{m.weight_10x10cm ?? "-"}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button className="v50-button-light" onClick={() => selectMaterial(m)}>수정</button>
-                      <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(m)}>삭제</button>
+                      <button className="v50-button-light" onClick={() => selectMaterial(m)}>{canWrite ? "수정" : "보기"}</button>
+                      {canWrite && <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(m)}>삭제</button>}
                     </div>
                   </td>
                 </tr>
@@ -254,11 +259,13 @@ export default function MaterialManager() {
           </div>
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <button className="v50-button" onClick={handleSave} disabled={saving}>
-            {saving ? "저장 중…" : "부자재 저장"}
-          </button>
-        </div>
+        {canWrite && (
+          <div style={{ marginTop: 18 }}>
+            <button className="v50-button" onClick={handleSave} disabled={saving}>
+              {saving ? "저장 중…" : "부자재 저장"}
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );

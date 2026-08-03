@@ -6,7 +6,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import type { PlmRole } from "@/services/sprint1/authRbacService";
 import "@/styles/enterprise-v50.css";
 
-const roles: PlmRole[] = ["Admin", "Researcher", "QA", "Viewer"];
+const roles: PlmRole[] = ["Admin", "Researcher", "QA", "Viewer", "Production"];
 
 export default function UserAdminPanel() {
   const admin = useSprint1UserAdmin();
