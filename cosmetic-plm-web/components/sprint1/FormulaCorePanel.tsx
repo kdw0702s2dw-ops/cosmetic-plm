@@ -95,8 +95,13 @@ export default function FormulaCorePanel() {
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
-        <h2>처방 목록</h2>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>처방 목록</h2>
+          <button className="v50-button-light" onClick={() => s.loadFormulas()} disabled={s.loading}>
+            {s.loading ? "새로고침 중…" : "새로고침"}
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12 }}>
           <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
         </div>
