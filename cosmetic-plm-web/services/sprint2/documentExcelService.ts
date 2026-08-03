@@ -233,12 +233,15 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   grouped.forEach((g, i) => {
     const en = g.items.map((x) => x.inci_en).join("\n");
     const kr = g.items.map((x) => x.inci_kr).join("\n");
-    // PDF(buildComplexComponentTableHtml)와 자릿수를 동일하게 맞춘다 (8자리 고정).
+    // PDF(buildComplexComponentTableHtml)와 자릿수를 동일하게 맞춘다: ratio/Final %는 8자리 고정.
+    // %Raw Ingredient in Formula(g.input)는 표시만 4자리로 축약 - 건조 후 계산 특성상 8자리로 보이면
+    // 표가 지나치게 복잡해 보인다는 피드백에 따른 조정. g.input 값 자체는 반올림하지 않으므로 Final %
+    // 정확도에는 영향이 없다.
     const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
     const finalPercent = g.items.map((x) => fixedPct(x.finalPercent, 8)).join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
-    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 8), finalPercent, cas, g.func]);
+    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 4), finalPercent, cas, g.func]);
     row.alignment = { vertical: "middle" };
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
     row.getCell(3).alignment = { vertical: "middle", wrapText: true };

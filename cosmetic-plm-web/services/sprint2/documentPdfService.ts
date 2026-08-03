@@ -755,12 +755,16 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
       const finalPercent = eLines(g.items.map((x) => fixedPct(x.finalPercent, 8)));
       const cas = eLines(g.items.map((x) => x.cas));
+      // %Raw Ingredient in Formula(g.input)만 4자리로 표시 자릿수를 줄인다 - 건조 후 계산은 나눗셈이
+      // 섞여 있어 8자리로 보이면 표가 지나치게 복잡해 보인다는 피드백에 따른 조정. ratio/Final %는
+      // 바이어 검증에 쓰이는 핵심 수치라 그대로 8자리를 유지하고, 실제 계산에 쓰이는 g.input 값 자체는
+      // 전혀 반올림하지 않으므로(표시만 축약) Final % 정확도에는 영향이 없다.
       return `<tr>
   <td class="center">${i + 1}</td>
   <td>${en}</td>
   <td>${kr}</td>
   <td class="center">${ratio}</td>
-  <td class="center">${fixedPct(g.input, 8)}</td>
+  <td class="center">${fixedPct(g.input, 4)}</td>
   <td class="center">${finalPercent}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
