@@ -609,7 +609,10 @@ export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals =
 // 복합성분표에 이 값을 그대로 노출해서, 바이어가 복합성분표만 보고도 단일성분표 숫자가 어떻게 나왔는지
 // (ratio × input = finalPercent) 직접 검산할 수 있게 한다.
 export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string; finalPercent: number };
-export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
+// hasVolatilityMix: 이 원료 안에 물/비물 성분이 섞여 건조 시 서로 다른 비율로 변하는 경우(true) -
+// 이런 원료는 ratio(고정 등록값) × input이 개별 성분의 Final %와 정확히 곱해떨어지지 않을 수 있다
+// (반올림 문제가 아니라 화학적으로 실제 그렇다). 문서에 †로 표시해서 이유를 안내한다.
+export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; hasVolatilityMix: boolean; func: string; items: ComplexGroupedItem[] };
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
 // 같은 raw_code가 여러 Phase/라인에 나뉘어 등록된 경우 하나의 행으로 합친다 - INCI명이 아니라
@@ -637,12 +640,18 @@ export function buildComplexGroupedRows(
     .map((group) => {
       const first = group[0];
       const comps = map.get(first.raw_code) || [];
+      // input(%Raw Ingredient in Formula)은 반올림하지 않고 정밀값을 그대로 쓴다 - 이래야
+      // ① ratio×input=Final %가 항상 정확히 성립하고(자체 일관성, 버이어가 표시된 숫자끼리 직접
+      // 곱해서 검산 가능), ② 여러 원료를 합산한 하단 합계(Total)가 반올림 누적오차 없이 정확히
+      // 100%로 나온다(실측 확인됨: 원료별로 독립 반올림하면 합계가 100.01%처럼 미세하게 어긋남).
       const input = group.reduce((sum, l) => sum + n(l.percentage), 0);
+      const hasVolatilityMix = comps.some((c) => c._dryFinalPercent != null);
       const items: ComplexGroupedItem[] = comps.length
         ? comps.map((c) => {
             const ratio = n(c.composition_percent);
-            // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 건조 후 부분잔류
-            // 계산이 반영된 c._dryFinalPercent가 있으면 그 값을 그대로 쓰고, 없으면 input×ratio로 계산한다.
+            // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 물/비물이 섞여
+            // 건조 시 서로 다른 비율로 변하는 원료(c._dryFinalPercent 존재)만 그 실측값을 그대로 쓰고,
+            // 그 외에는 정밀한 input×ratio로 계산한다.
             const finalPercent = c._dryFinalPercent != null ? c._dryFinalPercent : (input * ratio) / 100;
             return {
               inci_en: c.inci_en || c.component_name_en || "",
@@ -669,6 +678,7 @@ export function buildComplexGroupedRows(
         raw_code: first.raw_code,
         raw_name: first.raw_name,
         input,
+        hasVolatilityMix,
         func,
         items,
       };
@@ -744,27 +754,27 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode);
+  const hasVolatilityMixRow = grouped.some((g) => g.hasVolatilityMix);
 
   const body = grouped
     .map((g, i) => {
       const en = eLines(g.items.map((x) => x.inci_en));
-      const kr = eLines(g.items.map((x) => x.inci_kr));
+      const kr = eLines(g.items.map((x) => x.inci_kr)) + (g.hasVolatilityMix ? " †" : "");
       const ratio =
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
       const finalPercent = eLines(g.items.map((x) => fixedPct(x.finalPercent, 8)));
       const cas = eLines(g.items.map((x) => x.cas));
-      // %Raw Ingredient in Formula(g.input)만 4자리로 표시 자릿수를 줄인다 - 건조 후 계산은 나눗셈이
-      // 섞여 있어 8자리로 보이면 표가 지나치게 복잡해 보인다는 피드백에 따른 조정. ratio/Final %는
-      // 바이어 검증에 쓰이는 핵심 수치라 그대로 8자리를 유지하고, 실제 계산에 쓰이는 g.input 값 자체는
-      // 전혀 반올림하지 않으므로(표시만 축약) Final % 정확도에는 영향이 없다.
+      // %Raw Ingredient in Formula(g.input)는 반올림하지 않은 정밀값 그대로 표시한다(ratio/Final %와
+      // 동일하게 8자리) - 물/비물이 섞이지 않은 원료는 표에 인쇄된 ratio×input을 그대로 곱하면 인쇄된
+      // Final %와 정확히 일치하고, 여러 원료를 합산해도 반올림 누적오차 없이 합계가 정확히 100%가 된다.
       return `<tr>
   <td class="center">${i + 1}</td>
   <td>${en}</td>
   <td>${kr}</td>
   <td class="center">${ratio}</td>
-  <td class="center">${fixedPct(g.input, 4)}</td>
+  <td class="center">${fixedPct(g.input, 8)}</td>
   <td class="center">${finalPercent}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
@@ -772,14 +782,37 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
     })
     .join("");
 
+  // Final % in Formula 합계 - 전체 배합이 실제로 100%(건조 후 기준)로 맞아떨어지는지 buyer가
+  // 한눈에 확인할 수 있게 한다.
+  const totalFinalPercent = grouped.reduce(
+    (sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0),
+    0
+  );
+  const totalRow = grouped.length
+    ? `<tr style="font-weight:800;background:#f8fafc">
+  <td colspan="5" class="right">합계 (Total)</td>
+  <td class="center">${fixedPct(totalFinalPercent, 8)}</td>
+  <td colspan="2"></td>
+</tr>`
+    : "";
+
+  const footnote = hasVolatilityMixRow
+    ? `<p style="font-size:10px;color:#64748b;margin-top:6px">
+† 표시 원료는 하나의 원료 안에 수분(정제수)과 비수분 성분이 함께 들어있어, 건조 시 수분은 실측 수분율만큼만 남고
+비수분 성분은 오히려 농축되는 등 성분마다 서로 다른 비율로 변화합니다. 이 경우 Final % in Formula는 각 성분의
+실제 건조 후 함량을 개별적으로 산출한 값이며, 원료 자체의 등록된 배합비(% Sub Ingredient in Raw Ingredient)는
+계산 편의상 변경하지 않고 그대로 표기합니다.
+</p>`
+    : "";
+
   return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
   <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="8">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}</tbody>
-</table>`, f);
+<tbody>${body || `<tr><td colspan="8">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
+</table>${footnote}`, f);
 }
 
 // ============================================================

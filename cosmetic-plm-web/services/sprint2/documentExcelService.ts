@@ -208,6 +208,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(lines, components, materialsByRawCode);
+  const hasVolatilityMixRow = grouped.some((g) => g.hasVolatilityMix);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
@@ -232,16 +233,15 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 
   grouped.forEach((g, i) => {
     const en = g.items.map((x) => x.inci_en).join("\n");
-    const kr = g.items.map((x) => x.inci_kr).join("\n");
-    // PDF(buildComplexComponentTableHtml)와 자릿수를 동일하게 맞춘다: ratio/Final %는 8자리 고정.
-    // %Raw Ingredient in Formula(g.input)는 표시만 4자리로 축약 - 건조 후 계산 특성상 8자리로 보이면
-    // 표가 지나치게 복잡해 보인다는 피드백에 따른 조정. g.input 값 자체는 반올림하지 않으므로 Final %
-    // 정확도에는 영향이 없다.
+    const kr = g.items.map((x) => x.inci_kr).join("\n") + (g.hasVolatilityMix ? " †" : "");
+    // ratio/input/Final %는 모두 반올림하지 않은 정밀값을 8자리로 표시한다 - 물/비물이 섞이지 않은
+    // 원료는 표에 인쇄된 ratio×input을 그대로 곱하면 인쇄된 Final %와 정확히 일치하고, 합산해도
+    // 반올림 누적오차 없이 합계가 정확히 100%가 된다.
     const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
     const finalPercent = g.items.map((x) => fixedPct(x.finalPercent, 8)).join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
-    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 4), finalPercent, cas, g.func]);
+    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, 8), finalPercent, cas, g.func]);
     row.alignment = { vertical: "middle" };
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
     row.getCell(3).alignment = { vertical: "middle", wrapText: true };
@@ -253,6 +253,32 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     // 컬럼 폭보다 길어 한 항목이 시각적으로 여러 줄로 접히는 경우 포함)에 맞춰 자동으로 행 높이를
     // 재계산하므로, 고정 높이를 주면 오히려 마지막 줄이 다음 행과 겹쳐 잘려 보이는 문제가 생긴다.
   });
+
+  // Final % in Formula 합계 - 전체 배합이 실제로 100%(건조 후 기준)로 맞아떨어지는지 buyer가
+  // 한눈에 확인할 수 있게 한다.
+  if (grouped.length > 0) {
+    const totalFinalPercent = grouped.reduce(
+      (sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0),
+      0
+    );
+    const totalRow = ws.addRow(["합계 (Total)", "", "", "", "", fixedPct(totalFinalPercent, 8), "", ""]);
+    ws.mergeCells(totalRow.number, 1, totalRow.number, 5);
+    totalRow.font = { bold: true };
+    totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+    totalRow.getCell(1).alignment = { horizontal: "right" };
+    totalRow.getCell(6).alignment = { horizontal: "center" };
+    border(ws, totalRow.number, 1, totalRow.number, colCount);
+
+    if (hasVolatilityMixRow) {
+      const noteRow = ws.addRow([
+        "† 표시 원료는 하나의 원료 안에 수분(정제수)과 비수분 성분이 함께 들어있어, 건조 시 수분은 실측 수분율만큼만 남고 " +
+          "비수분 성분은 오히려 농축되는 등 성분마다 서로 다른 비율로 변화합니다. 이 경우 Final % in Formula는 각 성분의 실제 건조 후 함량을 " +
+          "개별적으로 산출한 값이며, 원료 자체의 등록된 배합비(% Sub Ingredient in Raw Ingredient)는 계산 편의상 변경하지 않고 그대로 표기합니다.",
+      ]);
+      ws.mergeCells(noteRow.number, 1, noteRow.number, colCount);
+      noteRow.getCell(1).font = { italic: true, size: 9, color: { argb: "FF475569" } };
+    }
+  }
 
   writeFooterNotes(ws, colCount);
   await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
