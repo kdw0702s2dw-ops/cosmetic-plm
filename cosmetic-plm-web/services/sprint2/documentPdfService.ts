@@ -609,10 +609,7 @@ export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals =
 // 복합성분표에 이 값을 그대로 노출해서, 바이어가 복합성분표만 보고도 단일성분표 숫자가 어떻게 나왔는지
 // (ratio × input = finalPercent) 직접 검산할 수 있게 한다.
 export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string; finalPercent: number };
-// hasVolatilityMix: 이 원료 안에 물/비물 성분이 섞여 건조 시 서로 다른 비율로 변하는 경우(true) -
-// 이런 원료는 ratio(고정 등록값) × input이 개별 성분의 Final %와 정확히 곱해떨어지지 않을 수 있다
-// (반올림 문제가 아니라 화학적으로 실제 그렇다). 문서에 †로 표시해서 이유를 안내한다.
-export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; hasVolatilityMix: boolean; func: string; items: ComplexGroupedItem[] };
+export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
 // 같은 raw_code가 여러 Phase/라인에 나뉘어 등록된 경우 하나의 행으로 합친다 - INCI명이 아니라
@@ -620,10 +617,21 @@ export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: n
 // 구성비(원료 고유값)는 그대로 유지한다.
 // PDF(복합성분표)와 엑셀 다운로드가 이 함수를 그대로 공유해서, 원료=1행/구성성분은 셀 내 줄바꿈이라는
 // 동일한 레이아웃 규칙을 두 출력 형식에서 어긋나지 않게 유지한다.
+//
+// %Raw Ingredient in Formula(input) 표시 규칙: 표를 보기 좋게 하려고 소수 2자리로 반올림해서 그대로
+// 계산에도 쓴다(단순 원료는 이 반올림된 값이 곧 Final %). 원료별로 독립적으로 반올림하면 그 오차가
+// 누적되어 전체 합계가 100%에서 어긋나므로(실측 확인: 최대 0.01%p 수준 벗어남), 정제수(순수 물,
+// CAS 7732-18-5, 구성성분 미등록) 원료가 있으면 그 원료의 %Raw Ingredient in Formula가 나머지
+// 반올림 오차를 전부 흡수하도록 조정한다 - 실측 수분율 기준값과 아주 약간 달라질 수 있음을 감수하고,
+// 대신 표의 모든 숫자가 짧고 깔끔하게 보이면서 합계는 항상 100%에 최대한 가깝게 맞는다.
+// 물/비물이 섞인 복합원료(예: 폴리머 수용액)는 이 반올림 대상에서 제외한다 - 그 원료의 Final %는
+// c._dryFinalPercent(건조 시 물/비물이 각각 다르게 변하는 실측값)를 그대로 쓰고, input은 표시만
+// 반올림한다(그 원료 자체의 finalPercent 합계는 반올림 전 input과 정확히 같으므로 왜곡되지 않는다).
 export function buildComplexGroupedRows(
   lines: any[],
   components: any[],
-  materialsByRawCode?: Map<string, any>
+  materialsByRawCode?: Map<string, any>,
+  basis: DocBasis = "MIX"
 ): ComplexGroupedRow[] {
   const map = byRawComponents(components);
 
@@ -636,53 +644,69 @@ export function buildComplexGroupedRows(
     byRawCode.set(key, arr);
   });
 
-  return Array.from(byRawCode.values())
-    .map((group) => {
-      const first = group[0];
-      const comps = map.get(first.raw_code) || [];
-      // input(%Raw Ingredient in Formula)은 반올림하지 않고 정밀값을 그대로 쓴다 - 이래야
-      // ① ratio×input=Final %가 항상 정확히 성립하고(자체 일관성, 버이어가 표시된 숫자끼리 직접
-      // 곱해서 검산 가능), ② 여러 원료를 합산한 하단 합계(Total)가 반올림 누적오차 없이 정확히
-      // 100%로 나온다(실측 확인됨: 원료별로 독립 반올림하면 합계가 100.01%처럼 미세하게 어긋남).
-      const input = group.reduce((sum, l) => sum + n(l.percentage), 0);
-      const hasVolatilityMix = comps.some((c) => c._dryFinalPercent != null);
-      const items: ComplexGroupedItem[] = comps.length
-        ? comps.map((c) => {
-            const ratio = n(c.composition_percent);
-            // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 물/비물이 섞여
-            // 건조 시 서로 다른 비율로 변하는 원료(c._dryFinalPercent 존재)만 그 실측값을 그대로 쓰고,
-            // 그 외에는 정밀한 input×ratio로 계산한다.
-            const finalPercent = c._dryFinalPercent != null ? c._dryFinalPercent : (input * ratio) / 100;
-            return {
-              inci_en: c.inci_en || c.component_name_en || "",
-              inci_kr: c.inci_kr || c.component_name_kr || "",
-              ratio,
-              cas: c.cas_no || "-",
-              finalPercent,
-            };
-          })
-        : [
-            {
-              inci_en: first.inci_en || first.raw_name || "",
-              inci_kr: first.inci_kr || first.raw_name || "",
-              ratio: null,
-              cas: first.cas_no || "-",
-              finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
-            },
-          ];
-      // Function은 원료관리(plm_raw_materials)에 등록된 현재 값을 최우선으로 쓰고,
-      // 조회가 안 되는 경우에만 BOM 라인에 스냅샷된 값으로 대체한다(과거 라인 호환용).
-      const material = materialsByRawCode?.get(first.raw_code);
-      const func = material?.function_kr || material?.function_en || first.function_kr || first.function_en || "";
-      return {
-        raw_code: first.raw_code,
-        raw_name: first.raw_name,
-        input,
-        hasVolatilityMix,
-        func,
-        items,
-      };
-    })
+  type Raw = ComplexGroupedRow & { isPureWater: boolean };
+
+  const raw: Raw[] = Array.from(byRawCode.values()).map((group) => {
+    const first = group[0];
+    const comps = map.get(first.raw_code) || [];
+    const input = group.reduce((sum, l) => sum + n(l.percentage), 0);
+    const material = materialsByRawCode?.get(first.raw_code);
+    const isPureWater = comps.length === 0 && (material?.cas_no || first.cas_no || "").trim() === WATER_CAS_NO;
+    const items: ComplexGroupedItem[] = comps.length
+      ? comps.map((c) => {
+          const ratio = n(c.composition_percent);
+          // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 물/비물이 섞여
+          // 건조 시 서로 다른 비율로 변하는 원료(c._dryFinalPercent 존재)만 그 실측값을 그대로 쓰고,
+          // 그 외에는 input×ratio로 계산한다(아래에서 input이 반올림된 뒤 다시 계산됨).
+          const finalPercent = c._dryFinalPercent != null ? c._dryFinalPercent : (input * ratio) / 100;
+          return {
+            inci_en: c.inci_en || c.component_name_en || "",
+            inci_kr: c.inci_kr || c.component_name_kr || "",
+            ratio,
+            cas: c.cas_no || "-",
+            finalPercent,
+          };
+        })
+      : [
+          {
+            inci_en: first.inci_en || first.raw_name || "",
+            inci_kr: first.inci_kr || first.raw_name || "",
+            ratio: null,
+            cas: first.cas_no || "-",
+            finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
+          },
+        ];
+    const func = material?.function_kr || material?.function_en || first.function_kr || first.function_en || "";
+    return { raw_code: first.raw_code, raw_name: first.raw_name, input, func, items, isPureWater };
+  });
+
+  // %Raw Ingredient in Formula를 소수 2자리로 반올림 - 정제수(순수 물) 원료를 제외한 나머지 전부.
+  // MIX(배합 시)는 사용자가 직접 입력한 값 그대로라 반올림하지 않는다(건조 후 계산에서만 적용).
+  if (basis === "DRY") {
+    const pureWater = raw.find((r) => r.isPureWater);
+    let residual = 0;
+    for (const r of raw) {
+      if (r === pureWater) continue;
+      const rounded = Number(r.input.toFixed(2));
+      residual += r.input - rounded;
+      r.input = rounded;
+      // 단순 단일원료(구성성분 미등록, ratio=null)는 input이 곧 Final %이므로 함께 갱신한다.
+      // 복합원료(구성성분 등록됨)는 items의 finalPercent를 그대로 두어(물/비물 실측값 또는 등록
+      // ratio 기반 계산 결과) 왜곡하지 않는다.
+      if (r.items.length === 1 && r.items[0].ratio === null) {
+        r.items[0].finalPercent = rounded;
+      }
+    }
+    // 정제수 원료가 있으면 나머지 반올림 오차를 전부 흡수해서 합계가 100%에 최대한 가깝게 맞도록 한다.
+    if (pureWater) {
+      const rounded = Number((pureWater.input + residual).toFixed(2));
+      pureWater.input = rounded;
+      pureWater.items[0].finalPercent = rounded;
+    }
+  }
+
+  return raw
+    .map(({ isPureWater: _isPureWater, ...rest }) => rest)
     .sort((a, b) => b.input - a.input);
 }
 
@@ -753,28 +777,25 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
-  const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode);
-  const hasVolatilityMixRow = grouped.some((g) => g.hasVolatilityMix);
+  const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
+  const inputDecimals = basis === "DRY" ? 2 : 8;
 
   const body = grouped
     .map((g, i) => {
       const en = eLines(g.items.map((x) => x.inci_en));
-      const kr = eLines(g.items.map((x) => x.inci_kr)) + (g.hasVolatilityMix ? " †" : "");
+      const kr = eLines(g.items.map((x) => x.inci_kr));
       const ratio =
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
       const finalPercent = eLines(g.items.map((x) => fixedPct(x.finalPercent, 8)));
       const cas = eLines(g.items.map((x) => x.cas));
-      // %Raw Ingredient in Formula(g.input)는 반올림하지 않은 정밀값 그대로 표시한다(ratio/Final %와
-      // 동일하게 8자리) - 물/비물이 섞이지 않은 원료는 표에 인쇄된 ratio×input을 그대로 곱하면 인쇄된
-      // Final %와 정확히 일치하고, 여러 원료를 합산해도 반올림 누적오차 없이 합계가 정확히 100%가 된다.
       return `<tr>
   <td class="center">${i + 1}</td>
   <td>${en}</td>
   <td>${kr}</td>
   <td class="center">${ratio}</td>
-  <td class="center">${fixedPct(g.input, 8)}</td>
+  <td class="center">${fixedPct(g.input, inputDecimals)}</td>
   <td class="center">${finalPercent}</td>
   <td>${cas}</td>
   <td>${e(g.func)}</td>
@@ -782,27 +803,16 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
     })
     .join("");
 
-  // Final % in Formula 합계 - 전체 배합이 실제로 100%(건조 후 기준)로 맞아떨어지는지 buyer가
-  // 한눈에 확인할 수 있게 한다.
-  const totalFinalPercent = grouped.reduce(
-    (sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0),
-    0
-  );
+  // %Raw Ingredient in Formula 합계 - 원료별 투입 비율(g.input)을 그대로 더한 값이라, 향료 안의
+  // 알러젠처럼 한 원료 안에 중첩 표기된 성분이 있어도 이중 집계되지 않는다. 건조 후 기준으로
+  // 전체 배합이 실제로 100%에 맞는지 buyer가 한눈에 확인할 수 있게 한다.
+  const totalInput = grouped.reduce((sum, g) => sum + g.input, 0);
   const totalRow = grouped.length
     ? `<tr style="font-weight:800;background:#f8fafc">
-  <td colspan="5" class="right">합계 (Total)</td>
-  <td class="center">${fixedPct(totalFinalPercent, 8)}</td>
-  <td colspan="2"></td>
+  <td colspan="4" class="right">합계 (Total)</td>
+  <td class="center">${fixedPct(totalInput, inputDecimals)}</td>
+  <td colspan="3"></td>
 </tr>`
-    : "";
-
-  const footnote = hasVolatilityMixRow
-    ? `<p style="font-size:10px;color:#64748b;margin-top:6px">
-† 표시 원료는 하나의 원료 안에 수분(정제수)과 비수분 성분이 함께 들어있어, 건조 시 수분은 실측 수분율만큼만 남고
-비수분 성분은 오히려 농축되는 등 성분마다 서로 다른 비율로 변화합니다. 이 경우 Final % in Formula는 각 성분의
-실제 건조 후 함량을 개별적으로 산출한 값이며, 원료 자체의 등록된 배합비(% Sub Ingredient in Raw Ingredient)는
-계산 편의상 변경하지 않고 그대로 표기합니다.
-</p>`
     : "";
 
   return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
@@ -812,7 +822,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="8">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
-</table>${footnote}`, f);
+</table>`, f);
 }
 
 // ============================================================
