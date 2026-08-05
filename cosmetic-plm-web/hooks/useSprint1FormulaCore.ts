@@ -38,6 +38,7 @@ import {
   mergeRows,
   singleRows,
   volatilityMapFromRawMaterials,
+  WATER_CAS_NO,
   type DocBasis,
   type ExpandedRow,
 } from "@/services/sprint2/documentPdfService";
@@ -118,6 +119,22 @@ export function useSprint1FormulaCore() {
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
   const inciList = buildSprint1InciList(lines);
+
+  // BOM 작성 중 "나머지를 정제수로 채우면 몇 %가 되는지" 자동 계산 - CAS(7732-18-5)로 정제수 라인을
+  // 찾아서(원료 선택 시 자동으로 채워지는 값), 그 라인을 제외한 나머지 합계를 100에서 뺀 값을 보여준다.
+  // 매번 손으로 "100 - 나머지 합" 계산하지 않아도 되게, 처방관리 화면에서 참고값으로 노출한다.
+  const waterLine = lines.find((l) => (l.cas_no || "").trim() === WATER_CAS_NO) || null;
+  const otherLinesTotal = waterLine
+    ? Number((total - Number(waterLine.percentage || 0)).toFixed(4))
+    : null;
+  const waterFillPercentage = waterLine != null && otherLinesTotal != null
+    ? Number((100 - otherLinesTotal).toFixed(4))
+    : null;
+
+  function applyWaterFillPercentage() {
+    if (waterLine == null || waterFillPercentage == null) return;
+    updateLine(waterLine.line_no, { percentage: waterFillPercentage });
+  }
 
   // 문서관리 PDF(단일성분표/전성분표)와 동일한 mergeRows() 파이프라인을 재사용:
   // 복합원료(premix)는 plm_raw_material_components 구성성분으로 전개하고, 단일원료는 라인 자신의 INCI를 사용해 병합한다.
@@ -584,6 +601,7 @@ export function useSprint1FormulaCore() {
     formulas, lines, formula, setFormula, keyword, setKeyword,
     selected, message, loading, total, cost, inciList, mergedInciRows,
     inciBasis, setInciBasis, dryInciError,
+    waterLine, waterFillPercentage, applyWaterFillPercentage,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,

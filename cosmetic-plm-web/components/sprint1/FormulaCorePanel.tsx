@@ -192,9 +192,25 @@ export default function FormulaCorePanel() {
       </section>
 
       <section className="v50-panel">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <h2 style={{ margin: 0 }}>BOM 편집</h2>
-          <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: Math.abs(s.total - 100) < 0.01 ? "#16a34a" : "#dc2626" }}>
+              합계 {s.total}%
+            </span>
+            {s.waterLine && s.waterFillPercentage != null && (
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, background: "#eff6ff", padding: "4px 8px", borderRadius: 8 }}>
+                <span style={{ color: "#1d4ed8" }}>
+                  정제수 to 100: <b>{s.waterFillPercentage}%</b>
+                </span>
+                <button type="button" className="v50-button-light" style={{ padding: "2px 8px", fontSize: 11 }}
+                  onClick={s.applyWaterFillPercentage} title="정제수 라인 함량을 이 값으로 채웁니다">
+                  적용
+                </button>
+              </span>
+            )}
+            <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
+          </div>
         </div>
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
         <div className="v50-table-wrap">

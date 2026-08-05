@@ -454,7 +454,7 @@ export function volatilityMapFromRawMaterials(materials: { raw_code: string; vol
 }
 
 // 물의 CAS No. (정제수/Water/Aqua) - 부분잔류 원료 안에서 "어떤 구성성분이 물인지" 자동으로 판별하는 데 쓴다.
-const WATER_CAS_NO = "7732-18-5";
+export const WATER_CAS_NO = "7732-18-5";
 
 function isWaterComponent(c: { cas_no?: string | null }) {
   return (c.cas_no || "").trim() === WATER_CAS_NO;
