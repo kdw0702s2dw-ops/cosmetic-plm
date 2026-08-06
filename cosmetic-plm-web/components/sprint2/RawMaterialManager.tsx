@@ -328,6 +328,35 @@ export default function RawMaterialManager() {
     setComps((p) => p.map((c, idx) => (idx === i ? { ...c, parent_component_no: value ? Number(value) : null } : c)));
   }
 
+  // 구성성분 순서를 위/아래로 바꾼다(처방관리 BOM 편집의 ▲▼와 동일한 패턴).
+  // parent_component_no는 행의 1-based 위치를 가리키는 참조라서, 두 행을 맞바꿀 때 그 위치를
+  // 참조하던 다른 행들의 parent_component_no도 함께 맞바꿔줘야 "상위 성분" 연결이 깨지지 않는다.
+  function moveComp(i: number, direction: "up" | "down") {
+    const j = direction === "up" ? i - 1 : i + 1;
+    if (j < 0 || j >= comps.length) return;
+    const posA = i + 1;
+    const posB = j + 1;
+    setComps((prev) => {
+      const next = prev.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next.map((c) => {
+        if (c.parent_component_no === posA) return { ...c, parent_component_no: posB };
+        if (c.parent_component_no === posB) return { ...c, parent_component_no: posA };
+        return c;
+      });
+    });
+    // "자동 감지" 배지도 내용(행)을 따라가도록 인덱스를 함께 맞바꾼다.
+    setAutoDetectedRows((s) => {
+      const hasI = s.has(i);
+      const hasJ = s.has(j);
+      if (hasI === hasJ) return s;
+      const next = new Set(s);
+      if (hasI) { next.delete(i); next.add(j); }
+      else { next.delete(j); next.add(i); }
+      return next;
+    });
+  }
+
   async function handleSave() {
     if (!canWrite) { setMsg("열람 권한만 있어 저장할 수 없습니다."); return; }
     if (!rm.raw_code.trim()) { setMsg("원료코드를 입력하세요."); return; }
@@ -518,7 +547,17 @@ export default function RawMaterialManager() {
               <tbody>
                 {comps.map((c, i) => (
                   <tr key={i} style={c.parent_component_no ? { background: "#f8fafc" } : undefined}>
-                    <td>{c.parent_component_no ? `↳ ${i + 1}` : i + 1}</td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>{c.parent_component_no ? `↳ ${i + 1}` : i + 1}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <button type="button" className="v50-button-light" style={{ padding: "0 5px", fontSize: 10, lineHeight: "14px" }}
+                            disabled={i === 0} onClick={() => moveComp(i, "up")}>▲</button>
+                          <button type="button" className="v50-button-light" style={{ padding: "0 5px", fontSize: 10, lineHeight: "14px" }}
+                            disabled={i === comps.length - 1} onClick={() => moveComp(i, "down")}>▼</button>
+                        </div>
+                      </div>
+                    </td>
                     <td style={c.parent_component_no ? { paddingLeft: 20 } : undefined}>
                       <input className="v50-input" ref={(el) => { compInciRefs.current[i] = el; }}
                         value={c.inci_kr || ""} onChange={(e) => onInciSearch(e.target.value, i)} />
