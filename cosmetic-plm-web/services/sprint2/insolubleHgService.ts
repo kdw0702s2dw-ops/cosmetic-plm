@@ -110,3 +110,24 @@ export async function deleteInsolubleHgSheet(id: string) {
   const { error } = await supabaseProductionFinal.from("plm_insoluble_hg_sheets").delete().eq("id", id);
   if (error) throw error;
 }
+
+// "10×10㎠ 도포량 기준(부자재 제외)" 참고값 - 처방/이력과 무관하게 딱 하나만 저장되는 전역 기준값.
+// 매번 계산할 때마다 새로 찾아 입력하지 않도록, 화면을 열 때 항상 마지막 저장값이 채워져 있게 한다.
+export type InsolubleHgReferenceSettings = { coat_amount_10x10_g: number | null; thickness_mm: number | null };
+
+export async function fetchInsolubleHgReferenceSettings(): Promise<InsolubleHgReferenceSettings> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_insoluble_hg_reference_settings")
+    .select("coat_amount_10x10_g, thickness_mm")
+    .eq("id", "default")
+    .maybeSingle();
+  if (error) throw error;
+  return { coat_amount_10x10_g: data?.coat_amount_10x10_g ?? null, thickness_mm: data?.thickness_mm ?? null };
+}
+
+export async function saveInsolubleHgReferenceSettings(settings: InsolubleHgReferenceSettings) {
+  const { error } = await supabaseProductionFinal
+    .from("plm_insoluble_hg_reference_settings")
+    .upsert({ id: "default", ...settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  if (error) throw error;
+}

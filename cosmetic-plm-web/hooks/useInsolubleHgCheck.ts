@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import {
   calcHeader, calcSummaryRows, deleteInsolubleHgSheet, fetchInsolubleHgSheets, saveInsolubleHgSheet,
-  LOSS_RATE_PRESETS, type InsolubleHgHeaderInput, type InsolubleHgSheet,
+  fetchInsolubleHgReferenceSettings, saveInsolubleHgReferenceSettings,
+  LOSS_RATE_PRESETS, type InsolubleHgHeaderInput, type InsolubleHgSheet, type InsolubleHgReferenceSettings,
 } from "@/services/sprint2/insolubleHgService";
 import { downloadInsolubleHgExcel, printInsolubleHgSheet } from "@/services/sprint2/insolubleHgDocService";
 
@@ -34,6 +35,38 @@ export function useInsolubleHgCheck() {
     () => calcSummaryRows(headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut),
     [headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut]
   );
+
+  // "10×10㎠ 도포량 기준(부자재 제외)" 참고값 - 처방 선택/이력 불러오기와 무관하게 화면을 열 때마다
+  // 마지막으로 저장된 값이 항상 채워져 있어야 해서(매번 찾아 입력하는 비효율 방지), 별도 전역 설정으로
+  // 관리한다. 입력 즉시 로컬 상태에 반영하고, 타이핑이 멈추면(0.6초) 자동으로 DB에 저장한다.
+  const [referenceSettings, setReferenceSettings] = useState<InsolubleHgReferenceSettings>({
+    coat_amount_10x10_g: null, thickness_mm: null,
+  });
+  const [referenceSettingsLoading, setReferenceSettingsLoading] = useState(true);
+  const referenceSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchInsolubleHgReferenceSettings()
+      .then((s) => { if (!cancelled) setReferenceSettings(s); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setReferenceSettingsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  function updateReferenceSetting(key: keyof InsolubleHgReferenceSettings, value: string) {
+    const num = value === "" ? null : Number(value);
+    setReferenceSettings((prev) => {
+      const next = { ...prev, [key]: num };
+      if (referenceSaveTimer.current) clearTimeout(referenceSaveTimer.current);
+      referenceSaveTimer.current = setTimeout(() => {
+        saveInsolubleHgReferenceSettings(next).catch(() => {
+          setMessage("10×10㎠ 도포량 기준 저장 오류");
+        });
+      }, 600);
+      return next;
+    });
+  }
 
   async function search() {
     setSearching(true);
@@ -163,6 +196,7 @@ export function useInsolubleHgCheck() {
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateHeaderField, updateTextField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
+    referenceSettings, referenceSettingsLoading, updateReferenceSetting,
     summaryRows,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,

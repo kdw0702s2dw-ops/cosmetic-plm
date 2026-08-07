@@ -73,6 +73,27 @@ export default function InsolubleHgPanel() {
       <MaterialLookupCard />
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>10×10㎠ 도포량 기준(부자재 제외)</h2>
+        <p style={{ color: "#64748b", fontSize: 13 }}>
+          한 번 입력하면 저장되어 다음에 이 화면을 열 때도 항상 채워져 있습니다. 값을 바꾸면 자동으로 저장됩니다.
+        </p>
+        <div className="v50-grid-2">
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            도포량(g)
+            <input className="v50-input" type="number" placeholder={s.referenceSettingsLoading ? "불러오는 중..." : ""}
+              value={s.referenceSettings.coat_amount_10x10_g ?? ""}
+              onChange={(e) => s.updateReferenceSetting("coat_amount_10x10_g", e.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            두께(㎜)
+            <input className="v50-input" type="number" placeholder={s.referenceSettingsLoading ? "불러오는 중..." : ""}
+              value={s.referenceSettings.thickness_mm ?? ""}
+              onChange={(e) => s.updateReferenceSetting("thickness_mm", e.target.value)} />
+          </label>
+        </div>
+      </section>
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>입력값 - 관리기준 2개</h2>
         <div className="v50-grid-2">
           {COMPONENTS.map((c) => (
