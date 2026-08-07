@@ -75,22 +75,38 @@ export default function InsolubleHgPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>10×10㎠ 도포량 기준(부자재 제외)</h2>
         <p style={{ color: "#64748b", fontSize: 13 }}>
-          한 번 입력하면 저장되어 다음에 이 화면을 열 때도 항상 채워져 있습니다. 값을 바꾸면 자동으로 저장됩니다.
+          라인을 추가해 여러 기준값을 저장할 수 있습니다. 한 번 입력하면 저장되어 다음에 이 화면을 열 때도 항상 그대로 채워져 있고, 값을 바꾸면 자동으로 저장됩니다.
         </p>
-        <div className="v50-grid-2">
-          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            도포량(g)
-            <input className="v50-input" type="number" placeholder={s.referenceSettingsLoading ? "불러오는 중..." : ""}
-              value={s.referenceSettings.coat_amount_10x10_g ?? ""}
-              onChange={(e) => s.updateReferenceSetting("coat_amount_10x10_g", e.target.value)} />
-          </label>
-          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            두께(㎜)
-            <input className="v50-input" type="number" placeholder={s.referenceSettingsLoading ? "불러오는 중..." : ""}
-              value={s.referenceSettings.thickness_mm ?? ""}
-              onChange={(e) => s.updateReferenceSetting("thickness_mm", e.target.value)} />
-          </label>
+        <div className="v50-table-wrap" style={{ marginTop: 8 }}>
+          <table className="v50-table">
+            <thead><tr><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 80 }}></th></tr></thead>
+            <tbody>
+              {s.referenceLines.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <input className="v50-input" placeholder="구분(선택)" value={row.label ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "label", e.target.value)} />
+                  </td>
+                  <td>
+                    <input className="v50-input" type="number" value={row.coat_amount_10x10_g ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", e.target.value)} />
+                  </td>
+                  <td>
+                    <input className="v50-input" type="number" value={row.thickness_mm ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "thickness_mm", e.target.value)} />
+                  </td>
+                  <td>
+                    <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeReferenceLine(row.id)}>삭제</button>
+                  </td>
+                </tr>
+              ))}
+              {s.referenceLines.length === 0 && (
+                <tr><td colSpan={4}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
+        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine}>+ 라인 추가</button>
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
