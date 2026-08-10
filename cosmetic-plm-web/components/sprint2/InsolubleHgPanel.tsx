@@ -79,10 +79,16 @@ export default function InsolubleHgPanel() {
         </p>
         <div className="v50-table-wrap" style={{ marginTop: 8 }}>
           <table className="v50-table">
-            <thead><tr><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 80 }}></th></tr></thead>
+            <thead><tr><th style={{ width: 60 }}></th><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 80 }}></th></tr></thead>
             <tbody>
-              {s.referenceLines.map((row) => (
+              {s.referenceLines.map((row, i) => (
                 <tr key={row.id}>
+                  <td>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button className="v50-button-light" disabled={i === 0} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
+                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
+                    </div>
+                  </td>
                   <td>
                     <input className="v50-input" placeholder="구분(선택)" value={row.label ?? ""}
                       onChange={(e) => s.updateReferenceLine(row.id, "label", e.target.value)} />
@@ -101,7 +107,7 @@ export default function InsolubleHgPanel() {
                 </tr>
               ))}
               {s.referenceLines.length === 0 && (
-                <tr><td colSpan={4}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
+                <tr><td colSpan={5}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
               )}
             </tbody>
           </table>

@@ -84,6 +84,31 @@ export function useInsolubleHgCheck() {
     }
   }
 
+  async function moveReferenceLine(id: string, direction: "up" | "down") {
+    const idx = referenceLines.findIndex((r) => r.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= referenceLines.length) return;
+
+    const a = referenceLines[idx];
+    const b = referenceLines[swapIdx];
+    const updatedA: InsolubleHgReferenceLine = { ...a, sort_order: b.sort_order };
+    const updatedB: InsolubleHgReferenceLine = { ...b, sort_order: a.sort_order };
+
+    setReferenceLines((prev) => {
+      const next = prev.slice();
+      next[idx] = updatedB;
+      next[swapIdx] = updatedA;
+      return next;
+    });
+
+    try {
+      await Promise.all([saveInsolubleHgReferenceLine(updatedA), saveInsolubleHgReferenceLine(updatedB)]);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 순서 변경 오류");
+    }
+  }
+
   async function removeReferenceLine(id: string) {
     if (!confirm("이 기준값 줄을 삭제하시겠습니까?")) return;
     try {
@@ -226,7 +251,7 @@ export function useInsolubleHgCheck() {
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateHeaderField, updateTextField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
-    referenceLines, referenceSettingsLoading, updateReferenceLine, addReferenceLine, removeReferenceLine,
+    referenceLines, referenceSettingsLoading, updateReferenceLine, addReferenceLine, removeReferenceLine, moveReferenceLine,
     summaryRows,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
