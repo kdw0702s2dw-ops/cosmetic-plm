@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import {
   calcHeader, deleteSolubleHgSheet, fetchSolubleHgSheets, saveSolubleHgSheet,
-  type SolubleHgHeaderInput, type SolubleHgSheet,
+  fetchSolubleHgReferenceLines, addSolubleHgReferenceLine, saveSolubleHgReferenceLine, deleteSolubleHgReferenceLine,
+  type SolubleHgHeaderInput, type SolubleHgSheet, type SolubleHgReferenceLine,
 } from "@/services/sprint2/solubleHgService";
 import { downloadSolubleHgExcel, printSolubleHgSheet } from "@/services/sprint2/solubleHgDocService";
 
@@ -33,6 +34,93 @@ export function useSolubleHgCheck() {
   const [message, setMessage] = useState("");
 
   const headerResult = useMemo(() => calcHeader(headerInput), [headerInput]);
+
+  // "10×10㎠ 도포량 기준(부자재 제외)" 참고값 - 처방 선택/이력 불러오기와 무관하게 화면을 열 때마다
+  // 마지막으로 저장된 줄들이 항상 그대로 채워져 있어야 해서(매번 찾아 입력하는 비효율 방지), 별도 전역
+  // 목록으로 관리한다(불용성 HG와는 별도 데이터). 여러 줄을 추가할 수 있고, 입력 즉시 로컬 상태에
+  // 반영하며 타이핑이 멈추면(0.6초) 줄 단위로 자동 DB 저장한다.
+  const [referenceLines, setReferenceLines] = useState<SolubleHgReferenceLine[]>([]);
+  const [referenceSettingsLoading, setReferenceSettingsLoading] = useState(true);
+  const referenceSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSolubleHgReferenceLines()
+      .then((rows) => { if (!cancelled) setReferenceLines(rows); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setReferenceSettingsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  function updateReferenceLine(id: string, key: "label" | "coat_amount_10x10_g" | "thickness_mm", value: string) {
+    setReferenceLines((prev) => {
+      const next = prev.map((row) => {
+        if (row.id !== id) return row;
+        const updated: SolubleHgReferenceLine = key === "label"
+          ? { ...row, label: value === "" ? null : value }
+          : { ...row, [key]: value === "" ? null : Number(value) };
+        const timers = referenceSaveTimers.current;
+        const existing = timers.get(id);
+        if (existing) clearTimeout(existing);
+        timers.set(id, setTimeout(() => {
+          saveSolubleHgReferenceLine(updated).catch(() => {
+            setMessage("10×10㎠ 도포량 기준 저장 오류");
+          });
+        }, 600));
+        return updated;
+      });
+      return next;
+    });
+  }
+
+  async function addReferenceLine() {
+    try {
+      const sortOrder = referenceLines.length;
+      const created = await addSolubleHgReferenceLine(sortOrder);
+      setReferenceLines((prev) => [...prev, created]);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 줄 추가 오류");
+    }
+  }
+
+  async function moveReferenceLine(id: string, direction: "up" | "down") {
+    const idx = referenceLines.findIndex((r) => r.id === id);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= referenceLines.length) return;
+
+    const a = referenceLines[idx];
+    const b = referenceLines[swapIdx];
+    const updatedA: SolubleHgReferenceLine = { ...a, sort_order: b.sort_order };
+    const updatedB: SolubleHgReferenceLine = { ...b, sort_order: a.sort_order };
+
+    setReferenceLines((prev) => {
+      const next = prev.slice();
+      next[idx] = updatedB;
+      next[swapIdx] = updatedA;
+      return next;
+    });
+
+    try {
+      await Promise.all([saveSolubleHgReferenceLine(updatedA), saveSolubleHgReferenceLine(updatedB)]);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 순서 변경 오류");
+    }
+  }
+
+  async function removeReferenceLine(id: string) {
+    if (!confirm("이 기준값 줄을 삭제하시겠습니까?")) return;
+    try {
+      const timers = referenceSaveTimers.current;
+      const existing = timers.get(id);
+      if (existing) clearTimeout(existing);
+      timers.delete(id);
+      await deleteSolubleHgReferenceLine(id);
+      setReferenceLines((prev) => prev.filter((row) => row.id !== id));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 줄 삭제 오류");
+    }
+  }
 
   async function search() {
     setSearching(true);
@@ -151,6 +239,7 @@ export function useSolubleHgCheck() {
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateNumericField, updateTextField, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
+    referenceLines, referenceSettingsLoading, updateReferenceLine, addReferenceLine, removeReferenceLine, moveReferenceLine,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
     printCurrent, downloadExcelCurrent, printHistoryItem, downloadExcelHistoryItem,

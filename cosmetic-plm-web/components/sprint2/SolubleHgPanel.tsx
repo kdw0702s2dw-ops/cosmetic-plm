@@ -68,6 +68,49 @@ export default function SolubleHgPanel() {
       <MaterialLookupCard />
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>10×10㎠ 도포량 기준(부자재 제외)</h2>
+        <p style={{ color: "#64748b", fontSize: 13 }}>
+          라인을 추가해 여러 기준값을 저장할 수 있습니다. 한 번 입력하면 저장되어 다음에 이 화면을 열 때도 항상 그대로 채워져 있고, 값을 바꾸면 자동으로 저장됩니다.
+        </p>
+        <div className="v50-table-wrap" style={{ marginTop: 8 }}>
+          <table className="v50-table">
+            <thead><tr><th style={{ width: 60 }}></th><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 80 }}></th></tr></thead>
+            <tbody>
+              {s.referenceLines.map((row, i) => (
+                <tr key={row.id}>
+                  <td>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button className="v50-button-light" disabled={i === 0} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
+                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
+                    </div>
+                  </td>
+                  <td>
+                    <input className="v50-input" placeholder="구분(선택)" value={row.label ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "label", e.target.value)} />
+                  </td>
+                  <td>
+                    <input className="v50-input" type="number" value={row.coat_amount_10x10_g ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", e.target.value)} />
+                  </td>
+                  <td>
+                    <input className="v50-input" type="number" value={row.thickness_mm ?? ""}
+                      onChange={(e) => s.updateReferenceLine(row.id, "thickness_mm", e.target.value)} />
+                  </td>
+                  <td>
+                    <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeReferenceLine(row.id)}>삭제</button>
+                  </td>
+                </tr>
+              ))}
+              {s.referenceLines.length === 0 && (
+                <tr><td colSpan={5}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine}>+ 라인 추가</button>
+      </section>
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>입력값 - 관리기준 3개</h2>
         <div className="v50-grid-2">
           {COMPONENTS.map((c) => (

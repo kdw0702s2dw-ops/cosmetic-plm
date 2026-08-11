@@ -97,3 +97,48 @@ export async function deleteSolubleHgSheet(id: string) {
   const { error } = await supabaseProductionFinal.from("plm_soluble_hg_sheets").delete().eq("id", id);
   if (error) throw error;
 }
+
+// "10×10㎠ 도포량 기준(부자재 제외)" 참고값 - 처방/이력과 무관하게 여러 줄을 저장할 수 있는 전역 기준값 목록.
+// 불용성 HG와는 별도 데이터로 관리한다(공정이 달라 기준값이 다를 수 있음). 매번 계산할 때마다 새로 찾아
+// 입력하지 않도록, 화면을 열 때 항상 마지막 저장된 줄들이 그대로 채워져 있게 한다.
+export type SolubleHgReferenceLine = {
+  id: string;
+  label: string | null;
+  coat_amount_10x10_g: number | null;
+  thickness_mm: number | null;
+  sort_order: number;
+};
+
+export async function fetchSolubleHgReferenceLines(): Promise<SolubleHgReferenceLine[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_soluble_hg_reference_settings")
+    .select("id, label, coat_amount_10x10_g, thickness_mm, sort_order")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data || []) as SolubleHgReferenceLine[];
+}
+
+export async function addSolubleHgReferenceLine(sortOrder: number): Promise<SolubleHgReferenceLine> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_soluble_hg_reference_settings")
+    .insert({ label: null, coat_amount_10x10_g: null, thickness_mm: null, sort_order: sortOrder })
+    .select("id, label, coat_amount_10x10_g, thickness_mm, sort_order")
+    .single();
+  if (error) throw error;
+  return data as SolubleHgReferenceLine;
+}
+
+export async function saveSolubleHgReferenceLine(line: SolubleHgReferenceLine) {
+  const { id, ...rest } = line;
+  const { error } = await supabaseProductionFinal
+    .from("plm_soluble_hg_reference_settings")
+    .update({ ...rest, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteSolubleHgReferenceLine(id: string) {
+  const { error } = await supabaseProductionFinal.from("plm_soluble_hg_reference_settings").delete().eq("id", id);
+  if (error) throw error;
+}
