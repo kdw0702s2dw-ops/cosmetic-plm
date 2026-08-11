@@ -848,7 +848,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <td class="center">${fixedPct(g.input, inputDecimals)}</td>
   <td class="center">${finalPercent}</td>
   <td>${cas}</td>
-  <td>${e(g.func)}</td>
+  <td style="vertical-align:middle">${e(g.func)}</td>
 </tr>`;
     })
     .join("");
