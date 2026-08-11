@@ -543,7 +543,7 @@ export default function RawMaterialManager() {
           </div>
           <div className="v50-table-wrap" style={{ marginTop: 8 }}>
             <table className="v50-table">
-              <thead><tr><th>#</th><th>INCI 국문</th><th>INCI 영문</th><th>구성비%</th><th>CAS</th><th>EC</th><th>알러젠</th><th></th></tr></thead>
+              <thead><tr><th>#</th><th>INCI 국문</th><th>INCI 영문</th><th>구성비%</th><th>CAS</th><th>EC</th><th>Function</th><th>알러젠</th><th></th></tr></thead>
               <tbody>
                 {comps.map((c, i) => (
                   <tr key={i} style={c.parent_component_no ? { background: "#f8fafc" } : undefined}>
@@ -571,6 +571,11 @@ export default function RawMaterialManager() {
                     <td><input className="v50-input" type="number" style={{ width: 72 }} value={c.composition_percent as any || ""} onChange={(e) => updateComp(i, "composition_percent", e.target.value)} /></td>
                     <td><input className="v50-input" value={c.cas_no || ""} onChange={(e) => updateCompDetect(i, "cas_no", e.target.value)} /></td>
                     <td><input className="v50-input" value={c.ec_no || ""} onChange={(e) => updateComp(i, "ec_no", e.target.value)} /></td>
+                    <td>
+                      <input className="v50-input" list="cosing-function-options" style={{ minWidth: 160 }}
+                        value={c.function_en || ""} onChange={(e) => updateComp(i, "function_en", e.target.value)}
+                        placeholder="예: SKIN CONDITIONING" />
+                    </td>
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
                         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, flexWrap: "wrap" }}>
@@ -612,7 +617,7 @@ export default function RawMaterialManager() {
                     <td><button className="v50-button-light" onClick={() => delRow(i)}>삭제</button></td>
                   </tr>
                 ))}
-                {comps.length === 0 && <tr><td colSpan={8} style={{ color: "#94a3b8" }}>등록된 성분이 없습니다. 아래 버튼으로 성분을 추가하세요 (단일 성분이면 1개만 등록).</td></tr>}
+                {comps.length === 0 && <tr><td colSpan={9} style={{ color: "#94a3b8" }}>등록된 성분이 없습니다. 아래 버튼으로 성분을 추가하세요 (단일 성분이면 1개만 등록).</td></tr>}
               </tbody>
             </table>
           </div>
