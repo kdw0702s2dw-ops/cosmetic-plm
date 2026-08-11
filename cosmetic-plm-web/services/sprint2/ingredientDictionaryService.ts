@@ -50,6 +50,20 @@ export async function fetchIngredientDictionary(params: {
   return { items: (data || []) as IngredientDictionaryItem[], total: count || 0 };
 }
 
+// 단일성분표 Function 컬럼 채우기 전용 - 효능(영문)이 등록된 활성 성분만 가볍게 통째로 가져온다.
+// (전성분관리 전체가 수백 건 수준이라 처방 단위로 CAS 필터링하지 않고 한 번에 캐시해도 충분히 가볍다.)
+export async function fetchIngredientFunctionEntries(): Promise<
+  Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "function_en">>
+> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_ingredient_dictionary")
+    .select("cas_no, inci_en, inci_kr, function_en")
+    .eq("is_active", true)
+    .not("function_en", "is", null);
+  if (error) throw error;
+  return (data || []) as Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "function_en">>;
+}
+
 export async function fetchIngredientById(id: string): Promise<IngredientDictionaryItem> {
   const { data, error } = await supabaseProductionFinal
     .from("plm_ingredient_dictionary")

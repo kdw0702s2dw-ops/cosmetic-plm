@@ -2,9 +2,11 @@
 
 import ExcelJS from "exceljs";
 import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
+import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
 import {
   ALLERGEN_BASE_LINE,
   buildComplexGroupedRows,
+  buildIngredientFunctionLookup,
   complexRows,
   computeUniformPercentDecimals,
   CONFIDENTIAL,
@@ -115,7 +117,8 @@ async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
 // ============================================================
 export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX") {
   const { lines, components } = await loadExpandedRows(formula, basis);
-  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
+  const rows = mergeRows([...complexRows(lines, components, functionLookup), ...singleRows(lines, components, functionLookup)]);
   // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
   // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
   // 엑셀에서는 숫자 그대로라 정렬/필터/수식 계산이 가능함).

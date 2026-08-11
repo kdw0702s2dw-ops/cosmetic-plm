@@ -3,6 +3,7 @@
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { fetchAllergenAlerts } from "@/services/sprint2/allergenService";
 import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
+import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
 
 export type DocKind =
   | "INCI_LIST"
@@ -361,7 +362,54 @@ export function byRawComponents(components: any[]) {
   return map;
 }
 
-export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
+// 단일성분표 Function 컬럼: 전성분관리(plm_ingredient_dictionary)에 등록된 효능 정보를 CAS No. 우선,
+// 없으면 INCI명(영문/국문)으로 조회해 채운다. 원료관리의 구성성분/BOM 라인에 남아있는 자체 function
+// 필드는 입력 UI가 없어 사실상 항상 비어있으므로 더 이상 참조하지 않는다. 국문 효능은 쓰지 않고 항상
+// 영문(function_en)만 노출한다 - 바이어용 문서라 영문 표준 용어만 필요하다는 요청에 따른 것.
+function splitCasTokensForLookup(casNo?: string | null): string[] {
+  return (casNo || "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export type IngredientFunctionLookup = { casMap: Map<string, string>; nameMap: Map<string, string> };
+
+export function buildIngredientFunctionLookup(
+  entries: Array<{ cas_no?: string | null; inci_en?: string | null; inci_kr?: string | null; function_en?: string | null }>
+): IngredientFunctionLookup {
+  const casMap = new Map<string, string>();
+  const nameMap = new Map<string, string>();
+  for (const item of entries) {
+    const fn = (item.function_en || "").trim();
+    if (!fn) continue;
+    for (const tok of splitCasTokensForLookup(item.cas_no)) {
+      if (!casMap.has(tok)) casMap.set(tok, fn);
+    }
+    const enKey = normalizeIngredientName(item.inci_en);
+    if (enKey && !nameMap.has(enKey)) nameMap.set(enKey, fn);
+    const krKey = normalizeIngredientName(item.inci_kr);
+    if (krKey && !nameMap.has(krKey)) nameMap.set(krKey, fn);
+  }
+  return { casMap, nameMap };
+}
+
+function lookupIngredientFunctionEn(
+  lookup: IngredientFunctionLookup | undefined,
+  casNo?: string | null,
+  inciEn?: string | null,
+  inciKr?: string | null
+): string {
+  if (!lookup) return "";
+  for (const tok of splitCasTokensForLookup(casNo)) {
+    const hit = lookup.casMap.get(tok);
+    if (hit) return hit;
+  }
+  const enKey = normalizeIngredientName(inciEn);
+  if (enKey && lookup.nameMap.has(enKey)) return lookup.nameMap.get(enKey)!;
+  const krKey = normalizeIngredientName(inciKr);
+  if (krKey && lookup.nameMap.has(krKey)) return lookup.nameMap.get(krKey)!;
+  return "";
+}
+
+export function complexRows(lines: any[], components: any[], functionLookup?: IngredientFunctionLookup): ExpandedRow[] {
   const map = byRawComponents(components);
   const rows: ExpandedRow[] = [];
 
@@ -385,7 +433,7 @@ export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
         ),
         cas_no: comp.cas_no || "",
         ec_no: comp.ec_no || "",
-        function_text: comp.function_kr || comp.function_en || "",
+        function_text: lookupIngredientFunctionEn(functionLookup, comp.cas_no, comp.inci_en, comp.inci_kr),
         line_no: line.line_no,
         exactPercent: exactDivideByPow10(
           exactMultiply(toExactDecimal(n(line.percentage)), toExactDecimal(n(comp.composition_percent))),
@@ -398,7 +446,7 @@ export function complexRows(lines: any[], components: any[]): ExpandedRow[] {
   return rows.sort((a, b) => b.final_percent - a.final_percent);
 }
 
-export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
+export function singleRows(lines: any[], components: any[], functionLookup?: IngredientFunctionLookup): ExpandedRow[] {
   const complexRawCodes = new Set(components.map((c) => c.raw_code));
   return lines
     .filter((line) => !complexRawCodes.has(line.raw_code))
@@ -412,7 +460,7 @@ export function singleRows(lines: any[], components: any[]): ExpandedRow[] {
       final_percent: n(line.percentage),
       cas_no: line.cas_no || "",
       ec_no: line.ec_no || "",
-      function_text: line.function_kr || line.function_en || "",
+      function_text: lookupIngredientFunctionEn(functionLookup, line.cas_no, line.inci_en, line.inci_kr),
       line_no: line.line_no,
       exactPercent: toExactDecimal(n(line.percentage)),
     }))
@@ -676,7 +724,9 @@ export function buildComplexGroupedRows(
             finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
           },
         ];
-    const func = material?.function_kr || material?.function_en || first.function_kr || first.function_en || "";
+    // 복합성분표 Function 컬럼: 원료관리(plm_raw_materials)에 등록된 원료 자체의 효능(영문)만 쓴다.
+    // 국문 효능이나 BOM 라인 스냅샷 값은 참조하지 않는다(영문 표준 용어만 필요하다는 요청에 따른 것).
+    const func = material?.function_en || "";
     return { raw_code: first.raw_code, raw_name: first.raw_name, input, func, items, isPureWater };
   });
 
@@ -830,8 +880,9 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 // ============================================================
 export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
+  const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
-  const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
+  const rows = mergeRows([...complexRows(effectiveLines, components, functionLookup), ...singleRows(effectiveLines, components, functionLookup)]);
   // Percentage(%) 표시 자릿수:
   // - 배합 시(MIX)는 입력값들의 곱셈만으로 계산되어 항상 "정확히 끝나는" 소수이므로, 그 자리까지
   //   보여주는 BigInt 기반 정확 표시(exactPercent, 최소 14~최대 15자리)를 그대로 쓴다.
