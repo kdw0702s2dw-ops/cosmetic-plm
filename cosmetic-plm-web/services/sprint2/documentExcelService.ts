@@ -8,10 +8,13 @@ import {
   buildComplexGroupedRows,
   buildIngredientFunctionLookup,
   complexRows,
+  computeUniformFinalPercentDecimals,
   computeUniformPercentDecimals,
   CONFIDENTIAL,
   type DocBasis,
+  exactAdd,
   exactDecimalToNumber,
+  exactDecimalToString,
   fetchFormulaLinesForPdf,
   fixedPct,
   kovasMeta,
@@ -22,6 +25,7 @@ import {
   pct,
   resolveLinesForBasis,
   singleRows,
+  toExactDecimal,
 } from "@/services/sprint2/documentPdfService";
 
 const THIN_BORDER: Partial<ExcelJS.Borders> = {
@@ -212,6 +216,8 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(lines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
+  // PDF와 동일한 규칙: 건조 후(DRY)는 8자리 고정, 배합 시(MIX)는 정확히 끝나는 자리까지 동적으로 늘림
+  const finalPercentDecimals = basis === "MIX" ? computeUniformFinalPercentDecimals(grouped) : 8;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
@@ -238,7 +244,13 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     const en = g.items.map((x) => x.inci_en).join("\n");
     const kr = g.items.map((x) => x.inci_kr).join("\n");
     const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
-    const finalPercent = g.items.map((x) => fixedPct(x.finalPercent, 8)).join("\n");
+    const finalPercent = g.items
+      .map((x) =>
+        basis === "MIX" && x.exactFinalPercent
+          ? exactDecimalToString(x.exactFinalPercent, finalPercentDecimals)
+          : fixedPct(x.finalPercent, finalPercentDecimals)
+      )
+      .join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
     const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, inputDecimals), finalPercent, cas, g.func]);
@@ -259,12 +271,26 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   // 전체 배합이 실제로 100%에 맞는지 buyer가 한눈에 확인할 수 있게 한다.
   if (grouped.length > 0) {
     const totalInput = grouped.reduce((sum, g) => sum + g.input, 0);
-    const totalRow = ws.addRow(["합계 (Total)", "", "", "", fixedPct(totalInput, inputDecimals), "", "", ""]);
+    const totalFinalPercentDisplay =
+      basis === "MIX"
+        ? exactDecimalToString(
+            grouped.reduce(
+              (acc, g) => g.items.reduce((a, x) => (x.exactFinalPercent ? exactAdd(a, x.exactFinalPercent) : a), acc),
+              toExactDecimal(0)
+            ),
+            finalPercentDecimals
+          )
+        : fixedPct(
+            grouped.reduce((sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0), 0),
+            finalPercentDecimals
+          );
+    const totalRow = ws.addRow(["합계 (Total)", "", "", "", fixedPct(totalInput, inputDecimals), totalFinalPercentDisplay, "", ""]);
     ws.mergeCells(totalRow.number, 1, totalRow.number, 4);
     totalRow.font = { bold: true };
     totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
     totalRow.getCell(1).alignment = { horizontal: "right" };
     totalRow.getCell(5).alignment = { horizontal: "center" };
+    totalRow.getCell(6).alignment = { horizontal: "center" };
     border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 

@@ -656,7 +656,17 @@ export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals =
 // 안에서 이 성분의 구성비) ÷ 100. 단일성분표의 각 INCI 함량은 이 finalPercent를 이름별로 합산한 값과 같다 -
 // 복합성분표에 이 값을 그대로 노출해서, 바이어가 복합성분표만 보고도 단일성분표 숫자가 어떻게 나왔는지
 // (ratio × input = finalPercent) 직접 검산할 수 있게 한다.
-export type ComplexGroupedItem = { inci_en: string; inci_kr: string; ratio: number | null; cas: string; finalPercent: number };
+export type ComplexGroupedItem = {
+  inci_en: string;
+  inci_kr: string;
+  ratio: number | null;
+  cas: string;
+  finalPercent: number;
+  // 배합 시(MIX) 한정 - input×ratio÷100은 둘 다 유한소수라 오차 없이 정확히 끝나는 값을 구할 수 있다
+  // (단일성분표 exactPercent와 동일한 BigInt 연산). 건조 후(DRY)는 나눗셈이 섞여 대부분 안 끝나므로
+  // 계산하지 않는다(_dryFinalPercent 기반 항목은 undefined로 둠).
+  exactFinalPercent?: ExactDecimal;
+};
 export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
@@ -707,12 +717,16 @@ export function buildComplexGroupedRows(
           // 건조 시 서로 다른 비율로 변하는 원료(c._dryFinalPercent 존재)만 그 실측값을 그대로 쓰고,
           // 그 외에는 input×ratio로 계산한다(아래에서 input이 반올림된 뒤 다시 계산됨).
           const finalPercent = c._dryFinalPercent != null ? c._dryFinalPercent : (input * ratio) / 100;
+          const exactFinalPercent = c._dryFinalPercent != null
+            ? undefined
+            : exactDivideByPow10(exactMultiply(toExactDecimal(input), toExactDecimal(ratio)), 2);
           return {
             inci_en: c.inci_en || c.component_name_en || "",
             inci_kr: c.inci_kr || c.component_name_kr || "",
             ratio,
             cas: c.cas_no || "-",
             finalPercent,
+            exactFinalPercent,
           };
         })
       : [
@@ -722,6 +736,7 @@ export function buildComplexGroupedRows(
             ratio: null,
             cas: first.cas_no || "-",
             finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
+            exactFinalPercent: toExactDecimal(input),
           },
         ];
     // 복합성분표 Function 컬럼: 원료관리(plm_raw_materials)에 등록된 원료 자체의 효능(영문)만 쓴다.
@@ -820,6 +835,20 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
   });
 }
 
+// Final % in Formula(배합 시 한정) 자릿수 - 기본 8자리를 유지하되, 어떤 성분이든 exactFinalPercent가
+// 8자리에서 끝나지 않으면(예: 0.001234567%처럼 더 잘게 나뉘는 원료) 그 값이 정확히 끝나는 자리까지
+// 표 전체 자릿수를 함께 늘려서 잘림 없이 보여준다(최대 15자리).
+export function computeUniformFinalPercentDecimals(grouped: ComplexGroupedRow[], minDecimals = 8, maxDecimals = 15) {
+  let maxNeeded = minDecimals;
+  for (const g of grouped) {
+    for (const x of g.items) {
+      if (!x.exactFinalPercent) continue;
+      maxNeeded = Math.max(maxNeeded, minimalScale(x.exactFinalPercent, maxDecimals));
+    }
+  }
+  return Math.min(maxNeeded, maxDecimals);
+}
+
 // ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
@@ -829,6 +858,9 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
+  // 건조 후(DRY)는 나눗셈이 섞여 대부분 딱 안 끝나므로 기존처럼 8자리 고정 반올림을 유지하고,
+  // 배합 시(MIX)만 정확히 끝나는 자리까지 동적으로 늘린다.
+  const finalPercentDecimals = basis === "MIX" ? computeUniformFinalPercentDecimals(grouped) : 8;
 
   const body = grouped
     .map((g, i) => {
@@ -838,7 +870,13 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
-      const finalPercent = eLines(g.items.map((x) => fixedPct(x.finalPercent, 8)));
+      const finalPercent = eLines(
+        g.items.map((x) =>
+          basis === "MIX" && x.exactFinalPercent
+            ? exactDecimalToString(x.exactFinalPercent, finalPercentDecimals)
+            : fixedPct(x.finalPercent, finalPercentDecimals)
+        )
+      );
       const cas = eLines(g.items.map((x) => x.cas));
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -857,11 +895,28 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   // 알러젠처럼 한 원료 안에 중첩 표기된 성분이 있어도 이중 집계되지 않는다. 건조 후 기준으로
   // 전체 배합이 실제로 100%에 맞는지 buyer가 한눈에 확인할 수 있게 한다.
   const totalInput = grouped.reduce((sum, g) => sum + g.input, 0);
+  // Final % in Formula 합계도 함께 노출 - 모든 구성성분(중첩 없이 개별 항목 그대로)을 더한 값이라
+  // %Raw Ingredient in Formula 합계와 마찬가지로 100%에 최대한 가깝게 맞는지 바로 검산할 수 있다.
+  // 배합 시(MIX)는 BigInt 정확 덧셈으로 더해 부동소수점 오차 없이 합산한다.
+  const totalFinalPercentDisplay =
+    basis === "MIX"
+      ? exactDecimalToString(
+          grouped.reduce(
+            (acc, g) => g.items.reduce((a, x) => (x.exactFinalPercent ? exactAdd(a, x.exactFinalPercent) : a), acc),
+            toExactDecimal(0)
+          ),
+          finalPercentDecimals
+        )
+      : fixedPct(
+          grouped.reduce((sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0), 0),
+          finalPercentDecimals
+        );
   const totalRow = grouped.length
     ? `<tr style="font-weight:800;background:#f8fafc">
   <td colspan="4" class="right">합계 (Total)</td>
   <td class="center">${fixedPct(totalInput, inputDecimals)}</td>
-  <td colspan="3"></td>
+  <td class="center">${totalFinalPercentDisplay}</td>
+  <td colspan="2"></td>
 </tr>`
     : "";
 
