@@ -272,9 +272,11 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 
     const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, inputDecimals), finalPercent, cas, g.func]);
     row.alignment = { vertical: "middle" };
+    row.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
     row.getCell(3).alignment = { vertical: "middle", wrapText: true };
     row.getCell(4).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    row.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
     row.getCell(6).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     row.getCell(7).alignment = { vertical: "middle", wrapText: true };
     border(ws, row.number, 1, row.number, colCount);
