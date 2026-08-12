@@ -89,23 +89,52 @@ export type IngredientHit = {
   function_en: string | null;
 };
 
+// 원료 자체의 inci_kr/inci_en은 구성성분 1번 행만 동기화되어 있어서(대표 INCI 입력란이 없어진 뒤로,
+// RawMaterialManager가 저장 시 1번 행 값만 원료 상위 필드로 복사함), 2번째 이후 구성성분으로만 등록된
+// 전성분(예: 복합원료 안에 두 번째로 들어있는 INCI)은 원료 필드 검색으로는 찾을 수 없다. 그래서 검색어와
+// plm_raw_material_components(INCI 국문/영문/CAS)를 별도로 대조해서, 거기서만 걸리는 raw_code를 보완한다.
+export async function findRawCodesByComponentKeyword(keyword: string): Promise<Set<string>> {
+  const k = keyword.trim();
+  if (!k) return new Set();
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_material_components")
+    .select("raw_code")
+    .or(`inci_en.ilike.%${k}%,inci_kr.ilike.%${k}%,cas_no.ilike.%${k}%`);
+  if (error) throw error;
+  return new Set((data || []).map((r) => r.raw_code).filter(Boolean));
+}
+
 // 목록 화면용: v_plm_raw_material_list 뷰 사용 (INCI 컬럼에 복합원료 전성분이 합쳐져서 나옴)
 export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListItem[]> {
+  const k = keyword.trim();
   let q = supabaseProductionFinal
     .from("v_plm_raw_material_list")
     .select("*")
     .order("updated_at", { ascending: false })
     .limit(100);
 
-  if (keyword.trim()) {
-    const k = keyword.trim();
+  if (k) {
     q = q.or(
       `raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`
     );
   }
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []) as RawMaterialListItem[];
+  let results = (data || []) as RawMaterialListItem[];
+
+  if (k) {
+    const already = new Set(results.map((r) => r.raw_code));
+    const extraCodes = Array.from(await findRawCodesByComponentKeyword(k)).filter((c) => !already.has(c));
+    if (extraCodes.length > 0) {
+      const { data: extraData, error: extraError } = await supabaseProductionFinal
+        .from("v_plm_raw_material_list")
+        .select("*")
+        .in("raw_code", extraCodes)
+        .order("updated_at", { ascending: false });
+      if (!extraError && extraData) results = [...results, ...(extraData as RawMaterialListItem[])];
+    }
+  }
+  return results;
 }
 
 // 원료 목록 검색창 자동완성 (원료코드/원료명/INCI 국문·영문 매칭, ilike라 대소문자 구분 없음)
@@ -118,7 +147,21 @@ export async function searchRawMaterialsAutocomplete(keyword: string): Promise<R
     .or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`)
     .limit(15);
   if (error) throw error;
-  return (data || []) as RawMaterialListItem[];
+  let results = (data || []) as RawMaterialListItem[];
+
+  if (results.length < 15) {
+    const already = new Set(results.map((r) => r.raw_code));
+    const extraCodes = Array.from(await findRawCodesByComponentKeyword(k)).filter((c) => !already.has(c));
+    if (extraCodes.length > 0) {
+      const { data: extraData, error: extraError } = await supabaseProductionFinal
+        .from("v_plm_raw_material_list")
+        .select("*")
+        .in("raw_code", extraCodes)
+        .limit(15 - results.length);
+      if (!extraError && extraData) results = [...results, ...(extraData as RawMaterialListItem[])];
+    }
+  }
+  return results;
 }
 
 // 원료코드 중복 체크 (신규 등록/수정 저장 전 확인용). excludeId를 주면 본인 행은 제외하고 검사한다.

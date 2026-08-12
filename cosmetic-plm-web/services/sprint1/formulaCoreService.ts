@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import { findRawCodesByComponentKeyword } from "@/services/sprint2/rawMaterialService";
 
 export type Sprint1Formula = {
   formula_code: string;
@@ -123,6 +124,7 @@ export async function fetchSprint1FormulaLines(formulaCode: string, revision: st
 }
 
 export async function fetchSprint1RawOptions(keyword = "") {
+  const k = keyword.trim();
   let query = supabaseProductionFinal
     .from("plm_raw_materials")
     .select("*")
@@ -130,14 +132,31 @@ export async function fetchSprint1RawOptions(keyword = "") {
     .order("raw_code", { ascending: true })
     .limit(100);
 
-  if (keyword.trim()) {
-    const k = keyword.trim();
+  if (k) {
     query = query.or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,inci_en.ilike.%${k}%,inci_kr.ilike.%${k}%`);
   }
 
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  let results = data || [];
+
+  // 원료 자체 필드로는 못 찾았지만(예: 복합원료의 두 번째 이후 구성성분으로만 등록된 INCI)
+  // 구성성분에 등록된 전성분/CAS로는 걸리는 원료를 보완해서 함께 보여준다.
+  if (k) {
+    const already = new Set(results.map((r) => r.raw_code));
+    const extraCodes = Array.from(await findRawCodesByComponentKeyword(k)).filter((c) => !already.has(c));
+    if (extraCodes.length > 0) {
+      const { data: extraData, error: extraError } = await supabaseProductionFinal
+        .from("plm_raw_materials")
+        .select("*")
+        .eq("is_active", true)
+        .in("raw_code", extraCodes)
+        .order("raw_code", { ascending: true });
+      if (!extraError && extraData) results = [...results, ...extraData];
+    }
+  }
+
+  return results;
 }
 
 export async function upsertSprint1Formula(formula: Sprint1Formula) {
