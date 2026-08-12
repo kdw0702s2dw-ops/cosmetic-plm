@@ -159,6 +159,23 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     border(ws, row.number, 1, row.number, colCount);
   });
 
+  // 합계(Total) 행 - PDF와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
+  // final_percent를 그대로 더한다.
+  if (rows.length > 0) {
+    const totalValue =
+      basis === "MIX"
+        ? exactDecimalToNumber(rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)))
+        : Number(rows.reduce((sum, x) => sum + x.final_percent, 0).toFixed(decimals));
+    const totalRow = ws.addRow(["합계 (Total)", "", "", totalValue, "", "", ""]);
+    ws.mergeCells(totalRow.number, 1, totalRow.number, 3);
+    totalRow.font = { bold: true };
+    totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+    totalRow.getCell(1).alignment = { horizontal: "right" };
+    totalRow.getCell(4).numFmt = percentNumFmt;
+    totalRow.getCell(4).alignment = { horizontal: "right" };
+    border(ws, totalRow.number, 1, totalRow.number, colCount);
+  }
+
   writeFooterNotes(ws, colCount);
   await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
 }

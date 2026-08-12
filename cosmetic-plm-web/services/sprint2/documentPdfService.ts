@@ -960,13 +960,30 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
     )
     .join("");
 
+  // 합계(Total) 행 - 복합성분표와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
+  // final_percent를 그대로 더한다. 전체 성분 함량이 100%에 얼마나 가까운지 바로 검산할 수 있게 한다.
+  const totalDisplay =
+    basis === "MIX"
+      ? exactDecimalToString(
+          rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
+          decimals
+        )
+      : fixedPct(rows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
+  const totalRow = rows.length
+    ? `<tr style="font-weight:800;background:#f8fafc">
+  <td colspan="3" class="right">합계 (Total)</td>
+  <td class="right">${totalDisplay}</td>
+  <td colspan="3"></td>
+</tr>`
+    : "";
+
   return baseHtml(`Ingredient List (Single)${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
   <th>Percentage(%)</th><th>CAS No.</th><th>EC No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="7">단일성분 데이터가 없습니다.</td></tr>`}</tbody>
+<tbody>${body || `<tr><td colspan="7">단일성분 데이터가 없습니다.</td></tr>`}${totalRow}</tbody>
 </table>`, f);
 }
 
