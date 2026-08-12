@@ -602,7 +602,7 @@ export function useSprint1FormulaCore() {
     selected, message, loading, total, cost, inciList, mergedInciRows,
     inciBasis, setInciBasis, dryInciError,
     waterLine, waterFillPercentage, applyWaterFillPercentage,
-    rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap,
+    rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap, rawComponentsMap,
     loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,

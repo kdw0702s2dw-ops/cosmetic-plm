@@ -290,6 +290,27 @@ export default function FormulaCorePanel() {
                         />,
                         document.body
                       )}
+                    {/* 복합원료(구성성분이 등록된 원료)를 선택하면 그 안의 전성분을 텍스트로 바로 보여준다 -
+                        문서를 따로 열지 않아도 BOM 편집 화면에서 바로 내용물을 확인할 수 있게 하기 위함. */}
+                    {line.raw_code && (() => {
+                      const comps = s.rawComponentsMap.get(line.raw_code) || [];
+                      if (comps.length === 0) return null;
+                      const text = [...comps]
+                        .sort((a, b) => Number(b.composition_percent || 0) - Number(a.composition_percent || 0))
+                        .map((c) => {
+                          const name = c.inci_kr || c.inci_en || c.component_name_kr || c.component_name_en || "";
+                          if (!name) return null;
+                          const pct = c.composition_percent != null && c.composition_percent !== "" ? `${Number(c.composition_percent)}%` : "";
+                          return pct ? `${name}(${pct})` : name;
+                        })
+                        .filter(Boolean)
+                        .join(", ");
+                      return text ? (
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
+                          전성분: {text}
+                        </div>
+                      ) : null;
+                    })()}
                   </td>
                   <td><input className="v50-input bom-percent-input" style={{ width: 96 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
