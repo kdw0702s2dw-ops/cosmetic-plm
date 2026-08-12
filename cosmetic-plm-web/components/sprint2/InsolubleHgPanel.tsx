@@ -20,8 +20,8 @@ function fmtDisplay(v: number | null | undefined) {
 
 const NUMERIC_FIELDS: { key: "total_weight" | "cutting_area_a4_weight" | "a4_10x10_weight"; label: string }[] = [
   { key: "total_weight", label: "총중량" },
-  { key: "cutting_area_a4_weight", label: "칼선면적 A4(종이) 중량" },
-  { key: "a4_10x10_weight", label: "10x10cm A4(종이) 중량" },
+  { key: "cutting_area_a4_weight", label: "칼선면적 중량" },
+  { key: "a4_10x10_weight", label: "10x10㎠ 중량" },
 ];
 
 const COMPONENTS: { codeKey: "fabric_material_code" | "film_material_code"; weightKey: "fabric_standard_weight" | "film_standard_weight"; label: string }[] = [
@@ -76,13 +76,14 @@ export default function InsolubleHgPanel() {
         <h2>10×10㎠ 도포량 기준(부자재 제외)</h2>
         <p style={{ color: "#64748b", fontSize: 13 }}>
           라인을 추가해 여러 기준값을 저장할 수 있습니다. 한 번 입력하면 저장되어 다음에 이 화면을 열 때도 항상 그대로 채워져 있고, 값을 바꾸면 자동으로 저장됩니다.
+          기준값 하나를 선택하면 아래 &quot;입력값 - 나머지&quot;의 총중량이 (선택한 도포량 + 원단 관리기준 중량 + 필름 관리기준 중량)으로 자동 계산됩니다.
         </p>
         <div className="v50-table-wrap" style={{ marginTop: 8 }}>
           <table className="v50-table">
-            <thead><tr><th style={{ width: 60 }}></th><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 80 }}></th></tr></thead>
+            <thead><tr><th style={{ width: 60 }}></th><th>구분</th><th>도포량(g)</th><th>두께(㎜)</th><th style={{ width: 90 }}></th><th style={{ width: 80 }}></th></tr></thead>
             <tbody>
               {s.referenceLines.map((row, i) => (
-                <tr key={row.id}>
+                <tr key={row.id} style={row.id === s.selectedReferenceLineId ? { background: "#eff6ff" } : undefined}>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className="v50-button-light" disabled={i === 0} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
@@ -102,12 +103,21 @@ export default function InsolubleHgPanel() {
                       onChange={(e) => s.updateReferenceLine(row.id, "thickness_mm", e.target.value)} />
                   </td>
                   <td>
+                    <button
+                      className={row.id === s.selectedReferenceLineId ? "v50-button" : "v50-button-light"}
+                      disabled={row.coat_amount_10x10_g === null || row.coat_amount_10x10_g === undefined}
+                      onClick={() => s.selectReferenceLine(row.id)}
+                    >
+                      {row.id === s.selectedReferenceLineId ? "선택됨" : "선택"}
+                    </button>
+                  </td>
+                  <td>
                     <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeReferenceLine(row.id)}>삭제</button>
                   </td>
                 </tr>
               ))}
               {s.referenceLines.length === 0 && (
-                <tr><td colSpan={5}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
+                <tr><td colSpan={6}>{s.referenceSettingsLoading ? "불러오는 중..." : "저장된 기준값이 없습니다."}</td></tr>
               )}
             </tbody>
           </table>

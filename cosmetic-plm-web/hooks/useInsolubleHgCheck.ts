@@ -44,6 +44,15 @@ export function useInsolubleHgCheck() {
   const [referenceSettingsLoading, setReferenceSettingsLoading] = useState(true);
   const referenceSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // "10×10㎠ 도포량 기준" 목록 중 하나를 선택하면, 그 도포량(g)에 원단/필름 관리기준 중량을
+  // 더한 값을 "입력값 - 나머지"의 총중량에 자동으로 채워 넣는다. 선택 상태는 화면 세션에서만
+  // 유지되며(별도 저장 없음), 선택된 이후 원단/필름 중량이나 기준값이 바뀌면 총중량도 함께 갱신된다.
+  const [selectedReferenceLineId, setSelectedReferenceLineId] = useState<string | null>(null);
+
+  function selectReferenceLine(id: string | null) {
+    setSelectedReferenceLineId((prev) => (prev === id ? null : id));
+  }
+
   useEffect(() => {
     let cancelled = false;
     fetchInsolubleHgReferenceLines()
@@ -52,6 +61,14 @@ export function useInsolubleHgCheck() {
       .finally(() => { if (!cancelled) setReferenceSettingsLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!selectedReferenceLineId) return;
+    const line = referenceLines.find((r) => r.id === selectedReferenceLineId);
+    if (!line || line.coat_amount_10x10_g === null || line.coat_amount_10x10_g === undefined) return;
+    const sum = Number(line.coat_amount_10x10_g) + Number(headerInput.fabric_standard_weight || 0) + Number(headerInput.film_standard_weight || 0);
+    setHeaderInput((prev) => (prev.total_weight === sum ? prev : { ...prev, total_weight: sum }));
+  }, [selectedReferenceLineId, referenceLines, headerInput.fabric_standard_weight, headerInput.film_standard_weight]);
 
   function updateReferenceLine(id: string, key: "label" | "coat_amount_10x10_g" | "thickness_mm", value: string) {
     setReferenceLines((prev) => {
@@ -118,6 +135,7 @@ export function useInsolubleHgCheck() {
       timers.delete(id);
       await deleteInsolubleHgReferenceLine(id);
       setReferenceLines((prev) => prev.filter((row) => row.id !== id));
+      setSelectedReferenceLineId((prev) => (prev === id ? null : prev));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 줄 삭제 오류");
     }
@@ -206,6 +224,7 @@ export function useInsolubleHgCheck() {
   }
 
   function loadFromHistory(sheet: InsolubleHgSheet) {
+    setSelectedReferenceLineId(null);
     setHeaderInput({
       fabric_material_code: sheet.fabric_material_code || "",
       fabric_standard_weight: sheet.fabric_standard_weight,
@@ -252,6 +271,7 @@ export function useInsolubleHgCheck() {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateHeaderField, updateTextField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
     referenceLines, referenceSettingsLoading, updateReferenceLine, addReferenceLine, removeReferenceLine, moveReferenceLine,
+    selectedReferenceLineId, selectReferenceLine,
     summaryRows,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
