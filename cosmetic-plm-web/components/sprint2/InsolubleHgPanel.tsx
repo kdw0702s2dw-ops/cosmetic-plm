@@ -86,8 +86,8 @@ export default function InsolubleHgPanel() {
                 <tr key={row.id} style={row.id === s.selectedReferenceLineId ? { background: "#eff6ff" } : undefined}>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className="v50-button-light" disabled={i === 0} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
-                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
+                      <button className="v50-button-light" disabled={i === 0 || s.referenceLineBusy} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
+                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1 || s.referenceLineBusy} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
                     </div>
                   </td>
                   <td>
@@ -122,7 +122,7 @@ export default function InsolubleHgPanel() {
             </tbody>
           </table>
         </div>
-        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine}>+ 라인 추가</button>
+        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine} disabled={s.referenceLineBusy}>+ 라인 추가</button>
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>

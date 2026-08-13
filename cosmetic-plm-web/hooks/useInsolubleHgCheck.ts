@@ -42,6 +42,7 @@ export function useInsolubleHgCheck() {
   // 줄 단위로 자동 DB 저장한다.
   const [referenceLines, setReferenceLines] = useState<InsolubleHgReferenceLine[]>([]);
   const [referenceSettingsLoading, setReferenceSettingsLoading] = useState(true);
+  const [referenceLineBusy, setReferenceLineBusy] = useState(false);
   const referenceSaveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // "10×10㎠ 도포량 기준" 목록 중 하나를 선택하면, 그 도포량(g)에 원단/필름 관리기준 중량을
@@ -92,37 +93,44 @@ export function useInsolubleHgCheck() {
   }
 
   async function addReferenceLine() {
+    if (referenceLineBusy) return;
+    setReferenceLineBusy(true);
     try {
-      const sortOrder = referenceLines.length;
-      const created = await addInsolubleHgReferenceLine(sortOrder);
+      // 줄 개수(length)를 기준으로 sort_order를 정하면, 클릭이 겹치거나 기존 값에 결측/중복이
+      // 있을 때 같은 sort_order가 중복 부여되어 순서 이동이 저장 후 원상복구되는 문제가 있었다.
+      // 항상 "현재 가장 큰 sort_order + 1"로 계산해 중복을 방지한다.
+      const maxSortOrder = referenceLines.reduce((max, r) => Math.max(max, r.sort_order ?? -1), -1);
+      const created = await addInsolubleHgReferenceLine(maxSortOrder + 1);
       setReferenceLines((prev) => [...prev, created]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 줄 추가 오류");
+    } finally {
+      setReferenceLineBusy(false);
     }
   }
 
   async function moveReferenceLine(id: string, direction: "up" | "down") {
+    if (referenceLineBusy) return;
     const idx = referenceLines.findIndex((r) => r.id === id);
     if (idx < 0) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= referenceLines.length) return;
 
-    const a = referenceLines[idx];
-    const b = referenceLines[swapIdx];
-    const updatedA: InsolubleHgReferenceLine = { ...a, sort_order: b.sort_order };
-    const updatedB: InsolubleHgReferenceLine = { ...b, sort_order: a.sort_order };
+    const reordered = referenceLines.slice();
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    // 기존에 sort_order가 중복/결측되어 있어도 항상 바로잡히도록, 이동 후 전체 줄을 화면
+    // 순서(0..n-1)로 다시 번호를 매겨 전부 저장한다. (단순히 두 줄의 sort_order만 맞바꾸면,
+    // 두 줄이 이미 같은 sort_order를 갖고 있던 경우 저장해도 값이 그대로라 새로고침 시 원위치된다.)
+    const renumbered = reordered.map((row, i) => ({ ...row, sort_order: i }));
 
-    setReferenceLines((prev) => {
-      const next = prev.slice();
-      next[idx] = updatedB;
-      next[swapIdx] = updatedA;
-      return next;
-    });
-
+    setReferenceLines(renumbered);
+    setReferenceLineBusy(true);
     try {
-      await Promise.all([saveInsolubleHgReferenceLine(updatedA), saveInsolubleHgReferenceLine(updatedB)]);
+      await Promise.all(renumbered.map((row) => saveInsolubleHgReferenceLine(row)));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "10×10㎠ 도포량 기준 순서 변경 오류");
+    } finally {
+      setReferenceLineBusy(false);
     }
   }
 
@@ -270,7 +278,7 @@ export function useInsolubleHgCheck() {
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateHeaderField, updateTextField, setCuttingLineNo, selectLossRatePreset, updateCustomLossRate, updateManualNoticeCoatAmount, headerResult,
-    referenceLines, referenceSettingsLoading, updateReferenceLine, addReferenceLine, removeReferenceLine, moveReferenceLine,
+    referenceLines, referenceSettingsLoading, referenceLineBusy, updateReferenceLine, addReferenceLine, removeReferenceLine, moveReferenceLine,
     selectedReferenceLineId, selectReferenceLine,
     summaryRows,
     note, setNote,

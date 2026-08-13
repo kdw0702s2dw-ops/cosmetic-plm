@@ -80,8 +80,8 @@ export default function SolubleHgPanel() {
                 <tr key={row.id}>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className="v50-button-light" disabled={i === 0} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
-                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
+                      <button className="v50-button-light" disabled={i === 0 || s.referenceLineBusy} onClick={() => s.moveReferenceLine(row.id, "up")}>▲</button>
+                      <button className="v50-button-light" disabled={i === s.referenceLines.length - 1 || s.referenceLineBusy} onClick={() => s.moveReferenceLine(row.id, "down")}>▼</button>
                     </div>
                   </td>
                   <td>
@@ -107,7 +107,7 @@ export default function SolubleHgPanel() {
             </tbody>
           </table>
         </div>
-        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine}>+ 라인 추가</button>
+        <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.addReferenceLine} disabled={s.referenceLineBusy}>+ 라인 추가</button>
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
@@ -144,11 +144,11 @@ export default function SolubleHgPanel() {
             <input className="v50-input" value={s.headerInput.cutting_line_no} onChange={(e) => s.updateTextField("cutting_line_no", e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            칼선면적 A4(종이) 중량
+            칼선면적 중량
             <input className="v50-input" type="number" value={s.headerInput.cutting_area_a4_weight || ""} onChange={(e) => s.updateNumericField("cutting_area_a4_weight", e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            10x10cm A4(종이) 중량
+            10x10㎠ 중량
             <input className="v50-input" type="number" value={s.headerInput.a4_10x10_weight || ""} onChange={(e) => s.updateNumericField("a4_10x10_weight", e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
