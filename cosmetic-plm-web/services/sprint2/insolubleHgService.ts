@@ -38,7 +38,14 @@ export type InsolubleHgHeaderResult = {
   dcap_weight_half_cut: number;
 };
 
-export type SummaryRow = { loss_rate: number; loss_adjusted_coat_amount: number; dcap_weight: number; weight_97pct: number };
+export type SummaryRow = {
+  loss_rate: number;
+  loss_adjusted_coat_amount: number;
+  dcap_weight: number;
+  weight_97pct: number;
+  dcap_weight_half_cut: number;
+  weight_97pct_half_cut: number;
+};
 
 // 첨부 시트("51554 약손명가")의 수식을 그대로 재현한다. 반올림/단순화 없이 그대로 연쇄 계산.
 export function calcHeader(input: InsolubleHgHeaderInput): InsolubleHgHeaderResult {
@@ -61,12 +68,14 @@ export function calcHeader(input: InsolubleHgHeaderInput): InsolubleHgHeaderResu
 
 // 하단 비교표: 로스율 10%/15%를 각각 적용했을 때의 결과를 실시간으로 계산 (시트의 정적 숫자를 재현하는 게 아님)
 const SUMMARY_LOSS_RATES = [0.1, 0.15];
-export function calcSummaryRows(cuttingLineCoatAmount: number, nonwovenWeight: number, filmWeightFullCut: number): SummaryRow[] {
+export function calcSummaryRows(cuttingLineCoatAmount: number, nonwovenWeight: number, filmWeightFullCut: number, filmWeightHalfCut: number): SummaryRow[] {
   return SUMMARY_LOSS_RATES.map((rate) => {
     const loss_adjusted_coat_amount = cuttingLineCoatAmount - cuttingLineCoatAmount * rate;
     const dcap_weight = loss_adjusted_coat_amount + nonwovenWeight + filmWeightFullCut;
     const weight_97pct = dcap_weight * 0.97;
-    return { loss_rate: rate, loss_adjusted_coat_amount, dcap_weight, weight_97pct };
+    const dcap_weight_half_cut = loss_adjusted_coat_amount + nonwovenWeight + filmWeightHalfCut;
+    const weight_97pct_half_cut = dcap_weight_half_cut * 0.97;
+    return { loss_rate: rate, loss_adjusted_coat_amount, dcap_weight, weight_97pct, dcap_weight_half_cut, weight_97pct_half_cut };
   });
 }
 

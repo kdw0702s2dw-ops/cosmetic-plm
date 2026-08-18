@@ -32,8 +32,8 @@ export function useInsolubleHgCheck() {
 
   const headerResult = useMemo(() => calcHeader(headerInput), [headerInput]);
   const summaryRows = useMemo(
-    () => calcSummaryRows(headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut),
-    [headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut]
+    () => calcSummaryRows(headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut, headerResult.film_weight_half_cut),
+    [headerResult.cutting_line_coat_amount, headerResult.nonwoven_weight, headerResult.film_weight_full_cut, headerResult.film_weight_half_cut]
   );
 
   // "10×10㎠ 도포량 기준(부자재 제외)" 참고값 - 처방 선택/이력 불러오기와 무관하게 화면을 열 때마다

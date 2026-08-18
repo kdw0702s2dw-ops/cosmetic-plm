@@ -41,8 +41,8 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
     [`필름 관리기준 (${sheet.film_material_code || "-"})`, fmt(sheet.film_standard_weight)],
     ["총중량", fmt(sheet.total_weight)],
     ["칼선(No.)", sheet.cutting_line_no || "-"],
-    ["칼선면적 A4(종이) 중량", fmt(sheet.cutting_area_a4_weight)],
-    ["10x10cm A4(종이) 중량", fmt(sheet.a4_10x10_weight)],
+    ["칼선면적 중량", fmt(sheet.cutting_area_a4_weight)],
+    ["10x10㎠ 중량", fmt(sheet.a4_10x10_weight)],
     ["로스율", lossRateLabel(sheet)],
     ["문안용 도포량", fmt(sheet.manual_notice_coat_amount)],
     ["가로(cm) (반칼)", fmt(sheet.half_cut_width_cm)],
@@ -52,8 +52,8 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
     .join("");
 
   const resultRows = [
-    ["총중량 상한", fmt(sheet.total_weight_max)],
-    ["도포량", fmt(sheet.coat_amount)],
+    ["총중량 하한", fmt(sheet.total_weight_max)],
+    ["도포량 하한", fmt(sheet.coat_amount)],
     ["도포량 상한", fmt(sheet.coat_amount_max)],
     ["면적비(R)", fmt(sheet.area_ratio)],
     ["칼선도포량", fmt(sheet.cutting_line_coat_amount)],
@@ -74,6 +74,8 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
   <td class="right">${escapeHtml(fmt(r.loss_adjusted_coat_amount))}</td>
   <td class="right">${escapeHtml(fmt(r.dcap_weight))}</td>
   <td class="right">${escapeHtml(fmt(r.weight_97pct))}</td>
+  <td class="right">${escapeHtml(fmt(r.dcap_weight_half_cut))}</td>
+  <td class="right">${escapeHtml(fmt(r.weight_97pct_half_cut))}</td>
 </tr>`
     )
     .join("");
@@ -115,8 +117,8 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 
 <div class="sectiontitle">로스율별 비교</div>
 <table class="grid">
-<thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량</th></tr></thead>
-<tbody>${summaryRows || `<tr><td colspan="4">비교 데이터가 없습니다.</td></tr>`}</tbody>
+<thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량(완칼)</th><th>성형품 중량(반칼)</th><th>97%중량(반칼)</th></tr></thead>
+<tbody>${summaryRows || `<tr><td colspan="6">비교 데이터가 없습니다.</td></tr>`}</tbody>
 </table>
 
 <div class="confidential">${escapeHtml(CONFIDENTIAL)}</div>
@@ -133,8 +135,8 @@ export function printInsolubleHgSheet(sheet: InsolubleHgSheet) {
 export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("불용성 HG");
-  const colCount = 4;
-  ws.columns = [{ width: 20 }, { width: 18 }, { width: 16 }, { width: 16 }];
+  const colCount = 6;
+  ws.columns = [{ width: 20 }, { width: 18 }, { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 }];
 
   writeTitleRow(ws, "불용성 HG 도포량 계산", colCount);
   writeMetaRows(ws, insolubleHgMeta(sheet), colCount);
@@ -148,8 +150,8 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
     [`필름 관리기준 (${sheet.film_material_code || "-"})`, sheet.film_standard_weight],
     ["총중량", sheet.total_weight],
     ["칼선(No.)", sheet.cutting_line_no || "-"],
-    ["칼선면적 A4(종이) 중량", sheet.cutting_area_a4_weight],
-    ["10x10cm A4(종이) 중량", sheet.a4_10x10_weight],
+    ["칼선면적 중량", sheet.cutting_area_a4_weight],
+    ["10x10㎠ 중량", sheet.a4_10x10_weight],
     ["로스율", lossRateLabel(sheet)],
     ["문안용 도포량", sheet.manual_notice_coat_amount ?? null],
     ["가로(cm) (반칼)", sheet.half_cut_width_cm],
@@ -166,8 +168,8 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   resultHeaderRow.getCell(1).font = { bold: true };
 
   const resultPairs: [string, number | null | undefined][] = [
-    ["총중량 상한", sheet.total_weight_max],
-    ["도포량", sheet.coat_amount],
+    ["총중량 하한", sheet.total_weight_max],
+    ["도포량 하한", sheet.coat_amount],
     ["도포량 상한", sheet.coat_amount_max],
     ["면적비(R)", sheet.area_ratio],
     ["칼선도포량", sheet.cutting_line_coat_amount],
@@ -184,7 +186,7 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   }
 
   ws.addRow([]);
-  const summaryHeaderRow = ws.addRow(["로스율", "로스반영 도포량", "성형품 중량(완칼)", "97%중량"]);
+  const summaryHeaderRow = ws.addRow(["로스율", "로스반영 도포량", "성형품 중량(완칼)", "97%중량(완칼)", "성형품 중량(반칼)", "97%중량(반칼)"]);
   summaryHeaderRow.font = { bold: true };
   summaryHeaderRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -192,7 +194,14 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   border(ws, summaryHeaderRow.number, 1, summaryHeaderRow.number, colCount);
 
   sheet.summary_rows.forEach((r) => {
-    const row = ws.addRow([`${(r.loss_rate * 100).toFixed(0)}%`, r.loss_adjusted_coat_amount, r.dcap_weight, r.weight_97pct]);
+    const row = ws.addRow([
+      `${(r.loss_rate * 100).toFixed(0)}%`,
+      r.loss_adjusted_coat_amount,
+      r.dcap_weight,
+      r.weight_97pct,
+      r.dcap_weight_half_cut,
+      r.weight_97pct_half_cut,
+    ]);
     border(ws, row.number, 1, row.number, colCount);
   });
 

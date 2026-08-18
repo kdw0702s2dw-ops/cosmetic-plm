@@ -191,8 +191,8 @@ export default function InsolubleHgPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>계산 결과</h2>
         <div className="v50-grid-4">
-          <Kpi label="총중량 상한" value={fmtDisplay(s.headerResult.total_weight_max)} />
-          <Kpi label="도포량" value={fmtDisplay(s.headerResult.coat_amount)} />
+          <Kpi label="총중량 하한" value={fmtDisplay(s.headerResult.total_weight_max)} />
+          <Kpi label="도포량 하한" value={fmtDisplay(s.headerResult.coat_amount)} />
           <Kpi label="도포량 상한" value={fmtDisplay(s.headerResult.coat_amount_max)} />
           <Kpi label="면적비(R)" value={fmtDisplay(s.headerResult.area_ratio)} />
           <Kpi label="칼선도포량" value={fmtDisplay(s.headerResult.cutting_line_coat_amount)} />
@@ -209,7 +209,7 @@ export default function InsolubleHgPanel() {
         <h2>로스율별 비교</h2>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량</th></tr></thead>
+            <thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량(완칼)</th><th>성형품 중량(반칼)</th><th>97%중량(반칼)</th></tr></thead>
             <tbody>
               {s.summaryRows.map((r, i) => (
                 <tr key={i}>
@@ -217,6 +217,8 @@ export default function InsolubleHgPanel() {
                   <td style={{ color: "#2563eb" }}>{fmtDisplay(r.loss_adjusted_coat_amount)}</td>
                   <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight)}</td>
                   <td>{fmtDisplay(r.weight_97pct)}</td>
+                  <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight_half_cut)}</td>
+                  <td>{fmtDisplay(r.weight_97pct_half_cut)}</td>
                 </tr>
               ))}
             </tbody>
