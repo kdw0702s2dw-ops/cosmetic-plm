@@ -221,7 +221,7 @@ export default function InsolubleHgPanel() {
                   <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight)}</td>
                   <td style={{ fontWeight: r.loss_rate === 0.1 ? 800 : undefined }}>{fmtDisplay(r.weight_97pct)}</td>
                   <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight_half_cut)}</td>
-                  <td>{fmtDisplay(r.weight_97pct_half_cut)}</td>
+                  <td style={{ fontWeight: r.loss_rate === 0.1 ? 800 : undefined }}>{fmtDisplay(r.weight_97pct_half_cut)}</td>
                 </tr>
               ))}
             </tbody>
