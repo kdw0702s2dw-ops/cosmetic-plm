@@ -214,9 +214,9 @@ export default function InsolubleHgPanel() {
               {s.summaryRows.map((r, i) => (
                 <tr key={i}>
                   <td>{(r.loss_rate * 100).toFixed(0)}%</td>
-                  <td style={{ color: "#2563eb" }}>{fmtDisplay(r.loss_adjusted_coat_amount)}</td>
+                  <td style={{ color: "#2563eb", fontWeight: r.loss_rate === 0.15 ? 800 : undefined }}>{fmtDisplay(r.loss_adjusted_coat_amount)}</td>
                   <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight)}</td>
-                  <td>{fmtDisplay(r.weight_97pct)}</td>
+                  <td style={{ fontWeight: r.loss_rate === 0.1 ? 800 : undefined }}>{fmtDisplay(r.weight_97pct)}</td>
                   <td style={{ color: "#dc2626" }}>{fmtDisplay(r.dcap_weight_half_cut)}</td>
                   <td>{fmtDisplay(r.weight_97pct_half_cut)}</td>
                 </tr>
