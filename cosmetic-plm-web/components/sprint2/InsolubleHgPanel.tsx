@@ -207,6 +207,9 @@ export default function InsolubleHgPanel() {
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>로스율별 비교</h2>
+        <p style={{ color: "#64748b", fontSize: 13 }}>
+          성형품 중량은 부자재 무게가 포함된 결과입니다.
+        </p>
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead><tr><th>로스율</th><th>로스반영 도포량</th><th>성형품 중량(완칼)</th><th>97%중량(완칼)</th><th>성형품 중량(반칼)</th><th>97%중량(반칼)</th></tr></thead>
