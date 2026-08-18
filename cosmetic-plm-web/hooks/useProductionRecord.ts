@@ -25,6 +25,7 @@ export function useProductionRecord() {
   const [coatingQty, setCoatingQty] = useState<string>("");
   const [moldedQty, setMoldedQty] = useState<string>("");
   const [productionDate, setProductionDate] = useState(today());
+  const [expDate, setExpDate] = useState("");
   const [note, setNote] = useState("");
 
   const [history, setHistory] = useState<ProductionRecord[]>([]);
@@ -70,6 +71,7 @@ export function useProductionRecord() {
     setCoatingQty("");
     setMoldedQty("");
     setProductionDate(today());
+    setExpDate("");
     setNote("");
   }
 
@@ -95,6 +97,7 @@ export function useProductionRecord() {
         coating_qty: coatingQty === "" ? null : Number(coatingQty),
         molded_qty: moldedQty === "" ? null : Number(moldedQty),
         production_date: productionDate,
+        exp_date: expDate === "" ? null : expDate,
         note,
         created_by: auth.profile?.email || undefined,
       });
@@ -131,7 +134,7 @@ export function useProductionRecord() {
     auth,
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
-    productionDate, setProductionDate, note, setNote,
+    productionDate, setProductionDate, expDate, setExpDate, note, setNote,
     history, loading, saving, message, save, removeHistory, downloadExcel,
   };
 }

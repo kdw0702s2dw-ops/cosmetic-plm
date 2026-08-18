@@ -13,6 +13,7 @@ export type ProductionRecord = {
   coating_qty: number | null;
   molded_qty: number | null;
   production_date: string; // YYYY-MM-DD
+  exp_date?: string | null; // YYYY-MM-DD
   note?: string;
   created_by?: string;
   created_at?: string;

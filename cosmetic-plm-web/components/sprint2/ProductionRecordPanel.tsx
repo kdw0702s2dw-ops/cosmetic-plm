@@ -65,6 +65,10 @@ export default function ProductionRecordPanel() {
             <input className="v50-input" type="date" value={s.productionDate} onChange={(e) => s.setProductionDate(e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            EXP (유효기한)
+            <input className="v50-input" type="date" value={s.expDate} onChange={(e) => s.setExpDate(e.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             코팅량 (실측)
             <input className="v50-input" type="number" value={s.coatingQty} onChange={(e) => s.setCoatingQty(e.target.value)} />
           </label>
@@ -94,13 +98,14 @@ export default function ProductionRecordPanel() {
             <table className="v50-table">
               <thead>
                 <tr>
-                  <th>생산일자</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량</th><th>성형품 수량</th><th>등록자</th><th>비고</th><th style={{ width: 90 }}>작업</th>
+                  <th>생산일자</th><th>EXP</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량</th><th>성형품 수량</th><th>등록자</th><th>비고</th><th style={{ width: 90 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
                 {s.history.map((h) => (
                   <tr key={h.id}>
                     <td>{h.production_date}</td>
+                    <td>{h.exp_date || "-"}</td>
                     <td>{h.lot_no}</td>
                     <td>{fmt(h.target_qty_kg)}</td>
                     <td>{fmt(h.coating_qty)}</td>
@@ -112,7 +117,7 @@ export default function ProductionRecordPanel() {
                     </td>
                   </tr>
                 ))}
-                {s.history.length === 0 && <tr><td colSpan={8}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
+                {s.history.length === 0 && <tr><td colSpan={9}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
           </div>
