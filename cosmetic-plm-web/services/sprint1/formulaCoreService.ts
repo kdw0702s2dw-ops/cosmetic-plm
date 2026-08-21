@@ -55,6 +55,7 @@ export type Sprint1FormulaLine = {
   ec_no?: string;
   unit_price?: number;
   cost_per_kg?: number;
+  moq?: string;
   note?: string;
 };
 
@@ -72,6 +73,7 @@ export function computeRawMaterialDiff(line: Sprint1FormulaLine, latest: any | u
     { key: "function_en", label: "효능(영문)", savedRaw: line.function_en, latestRaw: latest.function_en },
     { key: "cas_no", label: "CAS No", savedRaw: line.cas_no, latestRaw: latest.cas_no },
     { key: "ec_no", label: "EC No", savedRaw: line.ec_no, latestRaw: latest.ec_no },
+    { key: "moq", label: "MOQ", savedRaw: line.moq, latestRaw: latest.moq },
   ];
 
   const diffs: RawMaterialDiffField[] = [];

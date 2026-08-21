@@ -218,9 +218,9 @@ export default function FormulaCorePanel() {
             <colgroup>
               <col className="col-no" /><col className="col-phase" /><col className="col-seq" />
               <col className="col-rawcode" /><col className="col-rawname" /><col className="col-percent" />
-              <col className="col-price" /><col className="col-cost" /><col className="col-reg" /><col className="col-del" />
+              <col className="col-price" /><col className="col-cost" /><col className="col-moq" /><col className="col-reg" /><col className="col-del" />
             </colgroup>
-            <thead><tr><th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>규제</th><th>삭제</th></tr></thead>
+            <thead><tr><th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th><th>함량%</th><th>단가</th><th>원가</th><th>MOQ</th><th>규제</th><th>삭제</th></tr></thead>
             <tbody>
               {sortedLines.map((line, idx) => {
                 const phase = line.phase || "A";
@@ -315,6 +315,7 @@ export default function FormulaCorePanel() {
                   <td><input className="v50-input bom-percent-input" style={{ width: 96 }} type="number" step="0.0001" value={line.percentage ?? 0} onChange={(e) => s.updateLine(line.line_no, { percentage: e.target.value })} /></td>
                   <td>{Number(line.unit_price || 0).toLocaleString()}</td>
                   <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
+                  <td>{line.moq || "-"}</td>
                   <td>
                     {(() => {
                       const hits = s.lineWarnings[line.line_no] || [];
@@ -335,7 +336,7 @@ export default function FormulaCorePanel() {
                 </tr>
                 );
               })}
-              {s.lines.length === 0 && <tr><td colSpan={10}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
+              {s.lines.length === 0 && <tr><td colSpan={11}>"+ 라인 추가"로 원료 라인을 만들고 원료명을 검색하세요.</td></tr>}
             </tbody>
             {s.lines.length > 0 && (
               <tfoot>
@@ -344,6 +345,7 @@ export default function FormulaCorePanel() {
                   <td>{s.total}%</td>
                   <td></td>
                   <td>{s.cost.toLocaleString()}원</td>
+                  <td></td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>

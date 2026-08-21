@@ -182,6 +182,7 @@
 .bom-lines-table .col-percent { width:110px; }
 .bom-lines-table .col-price { width:90px; }
 .bom-lines-table .col-cost { width:90px; }
+.bom-lines-table .col-moq { width:90px; }
 .bom-lines-table .col-reg { width:90px; }
 .bom-lines-table .col-del { width:70px; }
 .v50-table-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:white; }

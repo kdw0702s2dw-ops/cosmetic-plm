@@ -365,6 +365,7 @@ export function useSprint1FormulaCore() {
         ec_no: "",
         unit_price: 0,
         cost_per_kg: 0,
+        moq: "",
       },
     ]);
   }
@@ -441,6 +442,7 @@ export function useSprint1FormulaCore() {
       cas_no: "",
       ec_no: "",
       unit_price: 0,
+      moq: "",
     });
     setActiveRawRow(lineNo);
 
@@ -474,6 +476,7 @@ export function useSprint1FormulaCore() {
       cas_no: raw.cas_no,
       ec_no: raw.ec_no,
       unit_price: Number(raw.unit_price || 0),
+      moq: raw.moq || "",
     });
     setRawHits([]);
     setActiveRawRow(null);
