@@ -1,8 +1,10 @@
 "use client";
 
 import { useResearcherHome } from "@/hooks/useResearcherHome";
+import { useSourcingSchedule } from "@/hooks/useSourcingSchedule";
 import "@/styles/enterprise-v50.css";
 import AIChatSection from "@/components/home/AIChatSection";
+import SourcingScheduleSection from "@/components/home/SourcingScheduleSection";
 
 export default function ResearcherHomePanel({
   openRaw,
@@ -14,6 +16,7 @@ export default function ResearcherHomePanel({
   openDocs: () => void;
 }) {
   const h = useResearcherHome();
+  const sourcing = useSourcingSchedule();
 
   return (
     <div className="v50-page">
@@ -24,6 +27,14 @@ export default function ResearcherHomePanel({
             원료, 처방, 문서 데이터를 실시간으로 불러와 오늘 해야 할 업무를 바로 확인합니다.
           </p>
           <p style={{ color: "#2563eb", fontWeight: 900 }}>{h.message}</p>
+          {sourcing.alertCount > 0 && (
+            <a href="#sourcing-schedule" style={{
+              display: "inline-block", marginTop: 6, color: "#dc2626", fontWeight: 800,
+              background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 999, padding: "4px 12px", fontSize: 13,
+            }}>
+              ⚠ 원료 소싱 {sourcing.alertCount}건 입고 지연/임박 확인 필요
+            </a>
+          )}
         </div>
         <div className="v50-flow">
           <button onClick={openRaw}>원료 등록</button>
@@ -36,6 +47,11 @@ export default function ResearcherHomePanel({
       {/* AI 업무 어시스턴트 - 최상단으로 이동 */}
       <section style={{ marginBottom: 18 }}>
         <AIChatSection />
+      </section>
+
+      {/* 원료 소싱 일정관리 - 개발 착수 전 원료 소싱 진행 상황을 처방 단위로 칸반 추적 */}
+      <section style={{ marginBottom: 18 }}>
+        <SourcingScheduleSection s={sourcing} />
       </section>
 
       {/* 최근 등록/수정 원료 - 전체 너비, 가로 스크롤 없이 세로 카드 배치 */}
