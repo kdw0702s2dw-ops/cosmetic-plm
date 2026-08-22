@@ -321,6 +321,75 @@ export function useSprint1FormulaCore() {
     }
   }
 
+  // 이미 저장된(=selected가 있는) 처방에서 Revision 입력란을 직접 고쳐 저장하면 (formula_code,revision)
+  // 키가 바뀌어 기존 행은 그대로 남긴 채 새 행이 하나 더 쌓이는 문제가 있었다. 그래서 Revision 수정은
+  // 화면에서 잠가두고, 새 Revision이 필요할 때는 이 함수를 통해서만 명시적으로 만들도록 한다.
+  // 현재 화면에 있는 처방 기본정보/BOM 라인/생산 BOM을 그대로 복사해서 새 Revision으로 저장한다
+  // (기존 Revision 행은 건드리지 않음 - 처방코드가 바뀔 때만 새 처방이 생긴다는 원칙과 동일하게,
+  // Revision도 이 명시적인 액션을 통해서만 새로 생긴다).
+  async function createNewRevision(newRevision: string): Promise<{ ok: boolean; message: string }> {
+    const trimmed = newRevision.trim();
+    if (!formula.formula_code) {
+      const msg = "처방을 먼저 여세요.";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+    if (!trimmed) {
+      const msg = "새 Revision 값을 입력하세요.";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+    if (trimmed === formula.revision) {
+      const msg = "현재 Revision과 다른 값을 입력하세요.";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+    if (formulas.some((f) => f.formula_code === formula.formula_code && f.revision === trimmed)) {
+      const msg = `이미 존재하는 Revision입니다: ${trimmed}`;
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+
+    setLoading(true);
+    try {
+      const nextFormula: Sprint1Formula = { ...formula, revision: trimmed };
+      const saved = await upsertSprint1Formula(nextFormula);
+      setFormula(nextFormula);
+      setSelected(saved);
+
+      const linesToSave = lines
+        .filter((l) => l.raw_code && l.raw_name)
+        .map((l) => ({ ...l, formula_code: nextFormula.formula_code, revision: trimmed }));
+      if (linesToSave.length > 0) {
+        await upsertSprint1FormulaLines(linesToSave);
+      }
+      await recalcSprint1Formula(nextFormula.formula_code, trimmed);
+
+      const nextLines = (await fetchSprint1FormulaLines(nextFormula.formula_code, trimmed)) as Sprint1FormulaLine[];
+      setLines(nextLines);
+      setSavedLineNos(nextLines.map((x) => x.line_no));
+      setDeletedLineNos([]);
+
+      try {
+        const savedBomRows = await saveProductionBomRows(nextFormula.formula_code, trimmed, productionBomRows);
+        setProductionBomRows(savedBomRows);
+      } catch {
+        // 생산 BOM 복사 실패는 Revision 생성 자체를 막지 않음
+      }
+
+      await loadFormulas();
+      const okMsg = `새 Revision(${trimmed}) 생성 완료`;
+      setMessage(okMsg);
+      return { ok: true, message: okMsg };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Revision 생성 오류";
+      setMessage(errMsg);
+      return { ok: false, message: errMsg };
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function removeFormula() {
     if (!formula.formula_code) return;
     if (!confirm("처방을 삭제 처리하시겠습니까?")) return;
@@ -606,7 +675,7 @@ export function useSprint1FormulaCore() {
     inciBasis, setInciBasis, dryInciError,
     waterLine, waterFillPercentage, applyWaterFillPercentage,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap, rawComponentsMap,
-    loadFormulas, openFormula, newFormula, saveFormula, removeFormula,
+    loadFormulas, openFormula, newFormula, saveFormula, createNewRevision, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
     materialHits, activeMaterialCell, materialSearchLoading, materialsByCode,

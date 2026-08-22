@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import { computeRawMaterialDiff, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
@@ -61,6 +61,20 @@ export default function FormulaCorePanel() {
     setToast({ type: result.ok ? "success" : "error", text: result.ok ? "저장되었습니다" : `저장 실패: ${result.message}` });
   }
 
+  // "새 Revision 생성" 인라인 입력 - 처방코드가 바뀔 때만 새 처방이 생기는 것과 동일한 원칙으로,
+  // Revision은 이 흐름을 통해서만 새로 만들어지고 직접 수정 저장으로는 새 행이 생기지 않는다.
+  const [showNewRevision, setShowNewRevision] = useState(false);
+  const [newRevisionDraft, setNewRevisionDraft] = useState("");
+
+  async function handleCreateRevision() {
+    const result = await s.createNewRevision(newRevisionDraft);
+    setToast({ type: result.ok ? "success" : "error", text: result.ok ? result.message : `Revision 생성 실패: ${result.message}` });
+    if (result.ok) {
+      setShowNewRevision(false);
+      setNewRevisionDraft("");
+    }
+  }
+
   function updateFormula(key: string, value: any) {
     s.setFormula({ ...s.formula, [key]: value });
   }
@@ -68,6 +82,19 @@ export default function FormulaCorePanel() {
   // BOM 표시 순서: Phase 오름차순 -> 그 안에서 phase_seq 오름차순(없으면 line_no로 대체).
   // s.lines 자체는 건드리지 않고(저장 로직/line_no와 무관), 화면 표시용으로만 정렬한다.
   const sortedLines = sortLinesForDisplay(s.lines);
+
+  // 처방 목록: 처방코드 1개당 1행으로 묶어서 목록이 Revision마다 계속 쌓여 지저분해지는 것을 막는다.
+  // s.formulas는 updated_at 내림차순으로 오므로, 처방코드별 첫 항목이 가장 최근 Revision(대표행)이 된다.
+  const groupedFormulas = useMemo(() => {
+    const map = new Map<string, { rep: any; revisions: any[] }>();
+    for (const f of s.formulas) {
+      const g = map.get(f.formula_code);
+      if (g) g.revisions.push(f);
+      else map.set(f.formula_code, { rep: f, revisions: [f] });
+    }
+    return Array.from(map.values());
+  }, [s.formulas]);
+  const [revisionPick, setRevisionPick] = useState<Record<string, string>>({});
 
   return (
     <div className="v50-page">
@@ -77,7 +104,7 @@ export default function FormulaCorePanel() {
           <p className="v50-desc">처방을 등록·수정하고 BOM을 편집하면 합계·원가·전성분이 자동으로 계산됩니다.</p>
         </div>
         <div className="v50-flow">
-          <button onClick={s.newFormula}>신규 처방</button>
+          <button onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.newFormula(); }}>신규 처방</button>
           <button onClick={handleSaveClick} disabled={s.loading}>저장</button>
           <button onClick={s.removeFormula} disabled={!s.formula.formula_code || s.loading}>삭제</button>
         </div>
@@ -107,14 +134,32 @@ export default function FormulaCorePanel() {
         </div>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>버전</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
-              {s.formulas.map((f) => (
-                <tr key={`${f.formula_code}-${f.revision}`}>
-                  <td>{f.formula_code}</td><td>{f.confirmed_code || "-"}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{Number(f.estimated_cost_per_kg || 0).toLocaleString()}</td>
-                  <td><button className="v50-button-light" onClick={() => s.openFormula(f)}>열기</button></td>
+              {groupedFormulas.map(({ rep, revisions }) => {
+                const pickedRevision = revisionPick[rep.formula_code] ?? rep.revision;
+                const pickedRow = revisions.find((r) => r.revision === pickedRevision) || rep;
+                return (
+                <tr key={rep.formula_code}>
+                  <td>{rep.formula_code}</td><td>{rep.confirmed_code || "-"}</td><td>{rep.formula_name}</td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <select
+                        className="v50-input"
+                        style={{ width: "auto" }}
+                        value={pickedRevision}
+                        onChange={(e) => setRevisionPick((prev) => ({ ...prev, [rep.formula_code]: e.target.value }))}
+                      >
+                        {revisions.map((r) => <option key={r.revision} value={r.revision}>{r.revision}</option>)}
+                      </select>
+                      {revisions.length > 1 && <span style={{ color: "#64748b", fontSize: 12 }}>({revisions.length}개)</span>}
+                    </div>
+                  </td>
+                  <td>{pickedRow.total_percent}%</td><td>{Number(pickedRow.estimated_cost_per_kg || 0).toLocaleString()}</td>
+                  <td><button className="v50-button-light" onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.openFormula(pickedRow); }}>열기</button></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -125,7 +170,17 @@ export default function FormulaCorePanel() {
         <div className="v50-grid-2">
           <Input label="처방코드" value={s.formula.formula_code} onChange={(v) => updateFormula("formula_code", v)} />
           <Input label="확정코드" value={s.formula.confirmed_code} onChange={(v) => updateFormula("confirmed_code", v)} />
-          <Input label="Revision" value={s.formula.revision} onChange={(v) => updateFormula("revision", v)} />
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            Revision
+            {s.selected ? (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input className="v50-input" value={s.formula.revision || ""} disabled style={{ background: "#f1f5f9", color: "#64748b" }} />
+                <button type="button" className="v50-button-light" onClick={() => setShowNewRevision((v) => !v)}>새 Revision 생성</button>
+              </div>
+            ) : (
+              <input className="v50-input" value={s.formula.revision || ""} onChange={(e) => updateFormula("revision", e.target.value)} />
+            )}
+          </label>
           <Input label="처방명" value={s.formula.formula_name} onChange={(v) => updateFormula("formula_name", v)} />
           <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
           <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
@@ -156,6 +211,15 @@ export default function FormulaCorePanel() {
               onChange={(e) => updateFormula("measured_moisture_percent", e.target.value === "" ? null : Number(e.target.value))} />
           </label>
         </div>
+        {showNewRevision && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, padding: 10, background: "#eff6ff", borderRadius: 10 }}>
+            <span style={{ fontWeight: 800, fontSize: 13 }}>새 Revision 값</span>
+            <input className="v50-input" style={{ maxWidth: 200 }} placeholder="예: V2" value={newRevisionDraft} onChange={(e) => setNewRevisionDraft(e.target.value)} />
+            <button className="v50-button" onClick={handleCreateRevision} disabled={s.loading}>생성</button>
+            <button className="v50-button-light" onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); }}>취소</button>
+            <span style={{ color: "#64748b", fontSize: 12 }}>현재 화면의 처방 정보와 BOM을 그대로 복사해 새 Revision으로 저장합니다.</span>
+          </div>
+        )}
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>컨셉/클레임
           <textarea className="v50-textarea" value={s.formula.claim || ""} onChange={(e) => updateFormula("claim", e.target.value)} />
         </label>
