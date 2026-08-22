@@ -2,15 +2,16 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-// 연구원 홈 "원료 소싱 일정관리" 전용 - 개발 착수 전 원료 소싱 진행 상황을 처방 단위로 4단계
-// 칸반(소싱 요청 → 견적 대기 → 입고 대기 → 발송 완료)으로 추적한다.
-// 발송 완료(SENT) 상태가 되어도 완전히 사라지지 않고 마지막 칼럼에 최근 항목 위주로 남는다
+// 연구원 홈 "원료 소싱 및 바이어 요청사항 일정 관리" 전용 - 개발 착수 전 원료 소싱 진행 상황을
+// 처방 단위로 4단계 칸반(소싱 요청 → 입고 대기 → 바이어 논의 중 → 견본 준비 중)으로 추적한다.
+// 상태 키(REQUESTED/QUOTE_WAIT/ARRIVAL_WAIT/SENT)는 기존 DB 값을 그대로 유지하고 화면에 보이는
+// 라벨만 바꾼 것 - 마지막 단계(SENT)가 되어도 완전히 사라지지 않고 마지막 칼럼에 최근 항목 위주로 남는다
 // (화면에서는 최신순으로 일부만 노출 - fetchSourcingBoardItems의 limit/슬라이스로 처리).
 export const SOURCING_STATUSES = [
   { key: "REQUESTED", label: "소싱 요청" },
-  { key: "QUOTE_WAIT", label: "견적 대기" },
-  { key: "ARRIVAL_WAIT", label: "입고 대기" },
-  { key: "SENT", label: "발송 완료" },
+  { key: "QUOTE_WAIT", label: "입고 대기" },
+  { key: "ARRIVAL_WAIT", label: "바이어 논의 중" },
+  { key: "SENT", label: "견본 준비 중" },
 ] as const;
 export type SourcingStatus = (typeof SOURCING_STATUSES)[number]["key"];
 
