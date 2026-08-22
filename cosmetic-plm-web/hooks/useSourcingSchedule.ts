@@ -22,7 +22,9 @@ const SENT_COLUMN_LIMIT = 15;
 
 export function useSourcingSchedule() {
   const auth = useSprint1Auth();
-  const myEmail = auth.profile?.email || "";
+  // "나로 지정" 버튼과 "내 담당 건만 보기" 필터는 담당자를 이메일이 아니라 연구원 성함(표시 이름)
+  // 기준으로 다룬다 - 표시 이름이 없는 계정은 이메일로 대체한다.
+  const myName = auth.profile?.display_name || auth.profile?.email || "";
 
   const [keyword, setKeyword] = useState("");
   const [hits, setHits] = useState<FormulaRef[]>([]);
@@ -57,8 +59,8 @@ export function useSourcingSchedule() {
   }, []);
 
   const visibleItems = useMemo(
-    () => (onlyMine ? items.filter((i) => i.assignee && i.assignee === myEmail) : items),
-    [items, onlyMine, myEmail]
+    () => (onlyMine ? items.filter((i) => i.assignee && i.assignee === myName) : items),
+    [items, onlyMine, myName]
   );
 
   // 칼럼별로 묶기 - SENT 칼럼은 최신순으로 상위 N개만.
@@ -134,7 +136,7 @@ export function useSourcingSchedule() {
   }
 
   function assignToMe() {
-    setAssignee(myEmail);
+    setAssignee(myName);
   }
 
   function reset() {
@@ -205,7 +207,7 @@ export function useSourcingSchedule() {
     keyword, setKeyword, hits, searching, search, selectFormula,
     selectedFormula, editingItem, note, setNote, saving, save, reset, editItem,
     requestedDate, setRequestedDate, expectedArrivalDate, setExpectedArrivalDate,
-    assignee, setAssignee, assignToMe, myEmail,
+    assignee, setAssignee, assignToMe, myName,
     onlyMine, setOnlyMine,
     items, board, loading, message, moveStatus, removeItem, alertCount,
     statuses: SOURCING_STATUSES,

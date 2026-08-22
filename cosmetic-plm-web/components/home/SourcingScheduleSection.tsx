@@ -110,7 +110,7 @@ export default function SourcingScheduleSection({ s }: { s: Sourcing }) {
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               담당자
               <div style={{ display: "flex", gap: 6 }}>
-                <input className="v50-input" value={s.assignee} onChange={(e) => s.setAssignee(e.target.value)} placeholder="담당자 이메일" />
+                <input className="v50-input" value={s.assignee} onChange={(e) => s.setAssignee(e.target.value)} placeholder="연구원 성함 입력" />
                 <button type="button" className="v50-button-light" onClick={s.assignToMe}>나로 지정</button>
               </div>
             </label>
