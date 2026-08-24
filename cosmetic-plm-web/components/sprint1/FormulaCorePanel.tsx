@@ -85,9 +85,10 @@ export default function FormulaCorePanel() {
 
   // 처방 목록: 처방코드 1개당 1행으로 묶어서 목록이 Revision마다 계속 쌓여 지저분해지는 것을 막는다.
   // s.formulas는 updated_at 내림차순으로 오므로, 각 처방코드의 revisions 배열도 최신순이다.
-  // 대표행(rep)은 "가장 최근에 수정된 Revision"이 아니라 "확정코드가 있는 Revision 중 가장 최근 것"을
-  // 우선한다 - 그래야 확정코드가 이미 생성된 처방이 목록에서 "-"로 가려지지 않는다. 확정된 Revision이
-  // 하나도 없으면 기존처럼 가장 최근 Revision을 대표행으로 쓴다.
+  // 단, 확정코드가 부여된 Revision은 처방코드가 같아도 서로 다른 개발 건(다른 고객/제품)일 수 있으므로
+  // 한 그룹으로 묶지 않고 각각 독립된 행으로 노출한다 - 아직 확정되지 않은(확정코드 없는) Revision들만
+  // 기존처럼 하나의 행에 모아서 Revision 선택 드롭다운으로 보여준다. 같은 처방코드 아래 여러 확정 건이
+  // 생기는 패턴이 다시 나와도 이 규칙이 자동으로 분리해준다.
   const groupedFormulas = useMemo(() => {
     const map = new Map<string, any[]>();
     for (const f of s.formulas) {
@@ -95,10 +96,18 @@ export default function FormulaCorePanel() {
       if (g) g.push(f);
       else map.set(f.formula_code, [f]);
     }
-    return Array.from(map.values()).map((revisions) => {
-      const confirmed = revisions.find((r) => r.confirmed_code);
-      return { rep: confirmed || revisions[0], revisions };
-    });
+    const rows: { key: string; rep: any; revisions: any[] }[] = [];
+    for (const [code, revisions] of map.entries()) {
+      const confirmedRevisions = revisions.filter((r) => r.confirmed_code);
+      const draftRevisions = revisions.filter((r) => !r.confirmed_code);
+      for (const r of confirmedRevisions) {
+        rows.push({ key: `${code}::${r.revision}`, rep: r, revisions: [r] });
+      }
+      if (draftRevisions.length > 0) {
+        rows.push({ key: `${code}::__DRAFT__`, rep: draftRevisions[0], revisions: draftRevisions });
+      }
+    }
+    return rows;
   }, [s.formulas]);
   const [revisionPick, setRevisionPick] = useState<Record<string, string>>({});
 
@@ -142,11 +151,11 @@ export default function FormulaCorePanel() {
           <table className="v50-table">
             <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
-              {groupedFormulas.map(({ rep, revisions }) => {
-                const pickedRevision = revisionPick[rep.formula_code] ?? rep.revision;
+              {groupedFormulas.map(({ key, rep, revisions }) => {
+                const pickedRevision = revisionPick[key] ?? rep.revision;
                 const pickedRow = revisions.find((r) => r.revision === pickedRevision) || rep;
                 return (
-                <tr key={rep.formula_code}>
+                <tr key={key}>
                   <td>{rep.formula_code}</td><td>{rep.confirmed_code || "-"}</td><td>{rep.formula_name}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -154,7 +163,7 @@ export default function FormulaCorePanel() {
                         className="v50-input"
                         style={{ width: "auto" }}
                         value={pickedRevision}
-                        onChange={(e) => setRevisionPick((prev) => ({ ...prev, [rep.formula_code]: e.target.value }))}
+                        onChange={(e) => setRevisionPick((prev) => ({ ...prev, [key]: e.target.value }))}
                       >
                         {revisions.map((r) => <option key={r.revision} value={r.revision}>{r.revision}</option>)}
                       </select>
