@@ -84,15 +84,21 @@ export default function FormulaCorePanel() {
   const sortedLines = sortLinesForDisplay(s.lines);
 
   // 처방 목록: 처방코드 1개당 1행으로 묶어서 목록이 Revision마다 계속 쌓여 지저분해지는 것을 막는다.
-  // s.formulas는 updated_at 내림차순으로 오므로, 처방코드별 첫 항목이 가장 최근 Revision(대표행)이 된다.
+  // s.formulas는 updated_at 내림차순으로 오므로, 각 처방코드의 revisions 배열도 최신순이다.
+  // 대표행(rep)은 "가장 최근에 수정된 Revision"이 아니라 "확정코드가 있는 Revision 중 가장 최근 것"을
+  // 우선한다 - 그래야 확정코드가 이미 생성된 처방이 목록에서 "-"로 가려지지 않는다. 확정된 Revision이
+  // 하나도 없으면 기존처럼 가장 최근 Revision을 대표행으로 쓴다.
   const groupedFormulas = useMemo(() => {
-    const map = new Map<string, { rep: any; revisions: any[] }>();
+    const map = new Map<string, any[]>();
     for (const f of s.formulas) {
       const g = map.get(f.formula_code);
-      if (g) g.revisions.push(f);
-      else map.set(f.formula_code, { rep: f, revisions: [f] });
+      if (g) g.push(f);
+      else map.set(f.formula_code, [f]);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).map((revisions) => {
+      const confirmed = revisions.find((r) => r.confirmed_code);
+      return { rep: confirmed || revisions[0], revisions };
+    });
   }, [s.formulas]);
   const [revisionPick, setRevisionPick] = useState<Record<string, string>>({});
 
