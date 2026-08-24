@@ -113,6 +113,23 @@ export async function fetchSprint1Formulas(keyword = "") {
   return data || [];
 }
 
+// 확정코드는 처방(formula_code+revision) 하나를 유일하게 가리켜야 하므로, 저장 직전에 같은 확정코드를
+// 이미 쓰고 있는 다른 처방(자기 자신 제외)이 있는지 확인한다. DB에도 부분 유니크 인덱스가 있어
+// 동시 저장 경합(같은 확정코드를 동시에 입력하는 경우)도 최종적으로 막힌다.
+export async function findFormulaByConfirmedCode(confirmedCode: string, excludeFormulaCode: string, excludeRevision: string) {
+  const code = confirmedCode.trim();
+  if (!code) return null;
+  // 필터 문자열에 코드값을 직접 조립하지 않고 클라이언트에서 자기 자신(formula_code+revision)만
+  // 걸러내서, 처방코드/Revision 값에 특수문자가 있어도 안전하게 동작한다.
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, formula_name")
+    .eq("is_active", true)
+    .eq("confirmed_code", code);
+  if (error) throw error;
+  return (data || []).find((row) => !(row.formula_code === excludeFormulaCode && row.revision === excludeRevision)) || null;
+}
+
 export async function fetchSprint1FormulaLines(formulaCode: string, revision: string) {
   const { data, error } = await supabaseProductionFinal
     .from("plm_formula_lines")

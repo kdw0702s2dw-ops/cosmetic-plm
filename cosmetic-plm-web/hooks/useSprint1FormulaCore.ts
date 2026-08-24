@@ -9,6 +9,7 @@ import {
   fetchSprint1FormulaLines,
   fetchSprint1Formulas,
   fetchSprint1RawOptions,
+  findFormulaByConfirmedCode,
   nextSprint1LineNo,
   nextPhaseSeq,
   normalizeDuplicatePhaseSeq,
@@ -255,6 +256,21 @@ export function useSprint1FormulaCore() {
       }
     }
 
+    // 확정코드는 처방 하나를 유일하게 가리켜야 하므로, 다른 처방(다른 formula_code/revision)이
+    // 이미 같은 확정코드를 쓰고 있으면 저장 자체를 막고 어느 처방에서 쓰고 있는지 알려준다.
+    if (formula.confirmed_code && formula.confirmed_code.trim()) {
+      try {
+        const dup = await findFormulaByConfirmedCode(formula.confirmed_code, formula.formula_code, formula.revision);
+        if (dup) {
+          const msg = `확정코드 "${formula.confirmed_code.trim()}"는 이미 처방 ${dup.formula_code} (Rev ${dup.revision})에서 사용 중입니다. 다른 확정코드를 입력하세요.`;
+          setMessage(msg);
+          return { ok: false, message: msg };
+        }
+      } catch {
+        // 중복 확인 자체가 실패해도 저장을 막지는 않음 (DB의 유니크 인덱스가 최종 안전장치)
+      }
+    }
+
     setLoading(true);
     try {
       const saved = await upsertSprint1Formula(formula);
@@ -313,7 +329,13 @@ export function useSprint1FormulaCore() {
       setMessage(okMsg);
       return { ok: true, message: okMsg };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : "처방 저장 오류";
+      // 저장 직전 중복 확인을 통과했더라도 동시에 같은 확정코드를 저장하는 경합이 있을 수 있는데,
+      // 그 경우 DB의 부분 유니크 인덱스가 최종적으로 막아준다 - 원본 에러 대신 안내 메시지로 바꿔준다.
+      const isDupConfirmedCode = (error as { code?: string; message?: string })?.code === "23505"
+        && /confirmed_code/i.test((error as { message?: string })?.message || "");
+      const errMsg = isDupConfirmedCode
+        ? `확정코드 "${formula.confirmed_code}"가 다른 처방에서 이미 사용 중입니다. 다른 확정코드를 입력하세요.`
+        : error instanceof Error ? error.message : "처방 저장 오류";
       setMessage(errMsg);
       return { ok: false, message: errMsg };
     } finally {
@@ -352,7 +374,9 @@ export function useSprint1FormulaCore() {
 
     setLoading(true);
     try {
-      const nextFormula: Sprint1Formula = { ...formula, revision: trimmed };
+      // 확정코드는 자동으로 복사하지 않는다 - 새 Revision은 아직 확정되지 않은 상태로 시작해야
+      // 이전 Revision의 확정코드를 그대로 넘겨받아 중복 확정코드가 생기는 것을 막을 수 있다.
+      const nextFormula: Sprint1Formula = { ...formula, revision: trimmed, confirmed_code: "" };
       const saved = await upsertSprint1Formula(nextFormula);
       setFormula(nextFormula);
       setSelected(saved);
