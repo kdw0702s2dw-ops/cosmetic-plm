@@ -48,11 +48,11 @@ function Card({ item, s }: { item: SourcingScheduleNote; s: Sourcing }) {
 export default function SourcingScheduleSection({ s }: { s: Sourcing }) {
   return (
     <article className="v50-panel" id="sourcing-schedule">
-      <h2>원료 소싱 및 바이어 요청사항 일정 관리</h2>
+      <h2>개발/생산 일정관리</h2>
       <p style={{ color: "#64748b", fontSize: 13 }}>
         처방코드 또는 확정코드를 검색해서 선택하면 처방코드·확정코드·처방명·Revision이 자동으로 채워집니다.
         요청일·예상입고일·담당자·비고를 작성/수정하고 저장하면 아래 칸반 보드에 반영됩니다.
-        칼럼(단계)은 카드의 선택박스로 바로 옮길 수 있고, &quot;견본 준비 중&quot;으로 옮기면 최근 항목 위주로만 노출됩니다.
+        칼럼(단계)은 카드의 선택박스로 바로 옮길 수 있고, &quot;생산 예정&quot;으로 옮기면 최근 항목 위주로만 노출됩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 

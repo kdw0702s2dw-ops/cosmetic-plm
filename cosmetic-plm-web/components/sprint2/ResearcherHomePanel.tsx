@@ -49,7 +49,7 @@ export default function ResearcherHomePanel({
         <AIChatSection />
       </section>
 
-      {/* 원료 소싱 및 바이어 요청사항 일정 관리 - 개발 착수 전 원료 소싱 진행 상황을 처방 단위로 칸반 추적 */}
+      {/* 개발/생산 일정관리 - 개발 착수 전 원료 소싱 진행 상황을 처방 단위로 칸반 추적 */}
       <section style={{ marginBottom: 18 }}>
         <SourcingScheduleSection s={sourcing} />
       </section>
