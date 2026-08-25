@@ -112,11 +112,11 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
             <div className="v50-table-wrap">
               <table className="v50-table">
                 <thead>
-                  <tr><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th></tr>
+                  <tr><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>이메일</th><th>전화번호</th></tr>
                 </thead>
                 <tbody>
                   {m.rows.length === 0 ? (
-                    <tr><td colSpan={5}>BOM 데이터가 없습니다.</td></tr>
+                    <tr><td colSpan={7}>BOM 데이터가 없습니다.</td></tr>
                   ) : (
                     m.rows.map((r, i) => (
                       <tr key={r.raw_code}>
@@ -127,6 +127,9 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
                           <input type="checkbox" checked={r.isNew} onChange={(e) => s.updateOrderSheetRowIsNew(i, e.target.checked)} />
                         </td>
                         <td>{r.supplier || "-"}</td>
+                        {/* 이메일/전화번호는 신규 체크된 원료에만 문서에 실제로 출력된다 - 미리보기도 동일 규칙 */}
+                        <td style={{ color: r.isNew ? undefined : "#94a3b8" }}>{r.isNew ? (r.email || "-") : "-"}</td>
+                        <td style={{ color: r.isNew ? undefined : "#94a3b8" }}>{r.isNew ? (r.phone || "-") : "-"}</td>
                       </tr>
                     ))
                   )}

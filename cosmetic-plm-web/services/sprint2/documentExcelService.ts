@@ -324,13 +324,13 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: OrderSheetRow[], personInCharge: string) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("원료발주가처방");
-  const colCount = 7;
-  ws.columns = [{ width: 6 }, { width: 18 }, { width: 30 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 16 }];
+  const colCount = 9;
+  ws.columns = [{ width: 6 }, { width: 18 }, { width: 30 }, { width: 12 }, { width: 12 }, { width: 22 }, { width: 24 }, { width: 16 }, { width: 16 }];
 
   writeTitleRow(ws, "원료발주가처방", colCount);
   writeMetaRows(ws, orderSheetMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "연구 담당자"]);
+  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "이메일", "전화번호", "연구 담당자"]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.eachCell((cell) => {
@@ -339,10 +339,14 @@ export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: Ord
   border(ws, headerRow.number, 1, headerRow.number, colCount);
 
   if (rows.length === 0) {
-    ws.addRow(["", "BOM 데이터가 없습니다.", "", "", "", "", ""]);
+    ws.addRow(["", "BOM 데이터가 없습니다.", "", "", "", "", "", "", ""]);
   }
+  // 이메일/전화번호는 신규 체크된 원료에 한해서만 채운다 - PDF와 동일한 규칙.
   rows.forEach((r, i) => {
-    const row = ws.addRow([i + 1, r.raw_code, r.raw_name, Number(pct(r.percent)), r.isNew ? "O" : "", r.supplier || "-", personInCharge || "-"]);
+    const row = ws.addRow([
+      i + 1, r.raw_code, r.raw_name, Number(pct(r.percent)), r.isNew ? "O" : "", r.supplier || "-",
+      r.isNew ? (r.email || "-") : "", r.isNew ? (r.phone || "-") : "", personInCharge || "-",
+    ]);
     row.alignment = { vertical: "middle" };
     row.getCell(4).alignment = { vertical: "middle", horizontal: "right" };
     row.getCell(5).alignment = { vertical: "middle", horizontal: "center" };

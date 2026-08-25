@@ -14,6 +14,8 @@ export type RawMaterial = {
   manufacturer_company_id?: string | null;
   supplier?: string;
   supplier_company_id?: string | null;
+  email?: string;
+  phone?: string;
   unit_price?: number | null;
   currency?: string;
   moq?: string;

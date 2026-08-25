@@ -806,6 +806,8 @@ export type OrderSheetRow = {
   percent: number;
   supplier: string;
   isNew: boolean;
+  email?: string;
+  phone?: string;
 };
 
 // 원료발주가처방 표 데이터 계산: buildComplexGroupedRows()로 raw_code 그룹핑/합산/내림차순 정렬을
@@ -831,6 +833,8 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
       percent: g.input,
       supplier: m?.supplier || "",
       isNew: !usedElsewhere.has(g.raw_code as string),
+      email: m?.email || "",
+      phone: m?.phone || "",
     };
   });
 }
@@ -1013,6 +1017,8 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
 // (계산은 computeOrderSheetRows()에서 이미 끝난 상태 - buildComplexGroupedRows() 재사용)
 // ============================================================
 export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow[], personInCharge: string) {
+  // 이메일/전화번호는 신규 체크된 원료에 한해서만 노출한다 - 기존에 발주 이력이 있는 원료는
+  // 담당자가 이미 공급사 연락처를 알고 있으므로 문서를 불필요하게 채우지 않는다.
   const body = rows
     .map(
       (r, i) => `<tr>
@@ -1022,6 +1028,8 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
   <td class="right">${pct(r.percent)}</td>
   <td class="center">${r.isNew ? "☑" : "☐"}</td>
   <td>${e(r.supplier || "-")}</td>
+  <td>${r.isNew ? e(r.email || "-") : ""}</td>
+  <td>${r.isNew ? e(r.phone || "-") : ""}</td>
   <td>${e(personInCharge || "-")}</td>
 </tr>`
     )
@@ -1030,9 +1038,9 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
   return baseHtml("원료발주가처방", orderSheetMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>연구 담당자</th>
+  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>이메일</th><th>전화번호</th><th>연구 담당자</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="7">BOM 데이터가 없습니다.</td></tr>`}</tbody>
+<tbody>${body || `<tr><td colspan="9">BOM 데이터가 없습니다.</td></tr>`}</tbody>
 </table>`, f);
 }
 

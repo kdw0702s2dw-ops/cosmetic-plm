@@ -53,6 +53,7 @@ function downloadTextFile(filename: string, content: string) {
 
 const emptyRm: RawMaterial = {
   raw_code: "", raw_name: "", trade_name: "", manufacturer: "", supplier: "",
+  email: "", phone: "",
   unit_price: null, moq: "", lead_time: "", origin_country: "",
   inci_kr: "", inci_en: "", cas_no: "", ec_no: "", function_kr: "", function_en: "", is_active: true,
   is_caution: false, caution_note: "", volatility_type: "NONE",
@@ -490,6 +491,8 @@ export default function RawMaterialManager() {
             value={rm.supplier || ""} companyId={rm.supplier_company_id}
             onChange={(patch) => setRm({ ...rm, supplier: patch.value, supplier_company_id: patch.companyId })}
           />
+          <Field label="이메일"><input className="v50-input" type="email" value={rm.email || ""} onChange={(e) => setRm({ ...rm, email: e.target.value })} /></Field>
+          <Field label="전화번호"><input className="v50-input" value={rm.phone || ""} onChange={(e) => setRm({ ...rm, phone: e.target.value })} /></Field>
           <Field label="단가"><input className="v50-input" type="number" value={rm.unit_price ?? ""} onChange={(e) => setRm({ ...rm, unit_price: e.target.value === "" ? null : Number(e.target.value) })} /></Field>
           <Field label="MOQ"><input className="v50-input" value={rm.moq || ""} onChange={(e) => setRm({ ...rm, moq: e.target.value })} /></Field>
           <Field label="Lead time"><input className="v50-input" value={rm.lead_time || ""} onChange={(e) => setRm({ ...rm, lead_time: e.target.value })} /></Field>
