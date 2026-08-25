@@ -174,6 +174,7 @@ export default function SolubleHgPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>계산 결과</h2>
         <div className="v50-grid-4">
+          <Kpi label="총중량 하한" value={fmtDisplay(s.headerInput.total_weight)} />
           <Kpi label="총중량 상한" value={fmtDisplay(s.headerResult.total_weight_max)} />
           <Kpi label="도포량" value={fmtDisplay(s.headerResult.coat_amount)} />
           <Kpi label="도포량 상한" value={fmtDisplay(s.headerResult.coat_amount_max)} />
