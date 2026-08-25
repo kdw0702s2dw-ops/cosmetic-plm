@@ -122,6 +122,8 @@ export default function FormulaCorePanel() {
           <button onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.newFormula(); }}>신규 처방</button>
           <button onClick={handleSaveClick} disabled={s.loading}>저장</button>
           <button onClick={s.removeFormula} disabled={!s.formula.formula_code || s.loading}>삭제</button>
+          {/* 처방 목록이 길어져 스크롤이 길어지는 문제 대응 - 처방 기본정보 섹션으로 바로 이동 */}
+          <a href="#formula-basic-info">처방 기본정보로 이동</a>
         </div>
       </section>
 
@@ -183,7 +185,7 @@ export default function FormulaCorePanel() {
         </div>
       </section>
 
-      <section className="v50-panel">
+      <section className="v50-panel" id="formula-basic-info">
         <h2>처방 기본정보</h2>
         <div className="v50-grid-2">
           <Input label="처방코드" value={s.formula.formula_code} onChange={(v) => updateFormula("formula_code", v)} />
