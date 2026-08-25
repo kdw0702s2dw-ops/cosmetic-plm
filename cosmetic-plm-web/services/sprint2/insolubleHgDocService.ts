@@ -52,7 +52,8 @@ export function buildInsolubleHgHtml(sheet: InsolubleHgSheet): string {
     .join("");
 
   const resultRows = [
-    ["총중량 하한", fmt(sheet.total_weight_max)],
+    ["총중량 하한", fmt(sheet.total_weight)],
+    ["총중량 상한", fmt(sheet.total_weight_max)],
     ["도포량 하한", fmt(sheet.coat_amount)],
     ["도포량 상한", fmt(sheet.coat_amount_max)],
     ["면적비(R)", fmt(sheet.area_ratio)],
@@ -168,7 +169,8 @@ export async function downloadInsolubleHgExcel(sheet: InsolubleHgSheet) {
   resultHeaderRow.getCell(1).font = { bold: true };
 
   const resultPairs: [string, number | null | undefined][] = [
-    ["총중량 하한", sheet.total_weight_max],
+    ["총중량 하한", sheet.total_weight],
+    ["총중량 상한", sheet.total_weight_max],
     ["도포량 하한", sheet.coat_amount],
     ["도포량 상한", sheet.coat_amount_max],
     ["면적비(R)", sheet.area_ratio],
