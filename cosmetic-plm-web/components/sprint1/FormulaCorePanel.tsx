@@ -249,8 +249,8 @@ export default function FormulaCorePanel() {
           복합원료(premix)는 구성성분으로 전개하고, 동일 INCI는 합산하여 함량 내림차순으로 표시합니다. (문서관리 전성분표와 동일한 로직)
         </p>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          <button className={s.inciBasis === "MIX" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("MIX")}>배합 시</button>
-          <button className={s.inciBasis === "DRY" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("DRY")}>건조 후</button>
+          <button className={s.inciBasis === "MIX" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("MIX")}>원처방</button>
+          <button className={s.inciBasis === "DRY" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("DRY")}>공개처방</button>
         </div>
         {s.dryInciError && <p style={{ color: "#b45309", fontWeight: 700 }}>{s.dryInciError}</p>}
         <p style={{ lineHeight: 1.8 }}>
