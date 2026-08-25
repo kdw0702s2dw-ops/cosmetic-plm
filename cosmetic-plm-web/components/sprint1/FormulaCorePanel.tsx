@@ -149,7 +149,7 @@ export default function FormulaCorePanel() {
         </div>
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
               {groupedFormulas.map(({ key, rep, revisions }) => {
                 const pickedRevision = revisionPick[key] ?? rep.revision;
@@ -157,6 +157,9 @@ export default function FormulaCorePanel() {
                 return (
                 <tr key={key}>
                   <td>{rep.formula_code}</td><td>{rep.confirmed_code || "-"}</td><td>{rep.formula_name}</td>
+                  {/* 담당 연구원은 처방 기본정보(assigned_researcher)에서 그대로 가져온다 - 현재 선택된
+                      Revision 기준으로 보여준다(Revision마다 담당자가 다를 수 있음) */}
+                  <td>{pickedRow.assigned_researcher || "-"}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <select
