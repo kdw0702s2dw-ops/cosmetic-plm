@@ -5,6 +5,8 @@ import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService"
 import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
 import {
   ALLERGEN_BASE_LINE,
+  basisFileSuffix,
+  basisTitleSuffix,
   buildComplexGroupedRows,
   buildIngredientFunctionLookup,
   complexRows,
@@ -135,7 +137,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   const colCount = 7;
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 8 + decimals }, { width: 16 }, { width: 12 }, { width: 20 }];
 
-  writeTitleRow(ws, `Ingredient List (Single)${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
+  writeTitleRow(ws, `Ingredient List (Single)${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "Percentage(%)", "CAS No.", "EC No.", "Function"]);
@@ -163,7 +165,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   // final_percent를 그대로 더한다.
   if (rows.length > 0) {
     const totalValue =
-      basis === "MIX"
+      basis !== "DRY"
         ? exactDecimalToNumber(rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)))
         : Number(rows.reduce((sum, x) => sum + x.final_percent, 0).toFixed(decimals));
     const totalRow = ws.addRow(["합계 (Total)", "", "", totalValue, "", "", ""]);
@@ -177,7 +179,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   }
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
+  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
 }
 
 // ============================================================
@@ -196,7 +198,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   ws.columns = colWidths.map((width) => ({ width }));
   const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
-  writeTitleRow(ws, `Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const writeBox = (title: string, content: string) => {
@@ -220,7 +222,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   writeBox("국문전성분", inciKr);
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
+  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
 }
 
 // ============================================================
@@ -233,15 +235,15 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(lines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
-  // PDF와 동일한 규칙: 건조 후(DRY)는 8자리 고정, 배합 시(MIX)는 정확히 끝나는 자리까지 동적으로 늘림
-  const finalPercentDecimals = basis === "MIX" ? computeUniformFinalPercentDecimals(grouped) : 8;
+  // PDF와 동일한 규칙: 건조 후(DRY)는 8자리 고정, 배합 시(MIX)/공개처방(일반, PUBLIC)은 정확히 끝나는 자리까지 동적으로 늘림
+  const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
   const colCount = 8;
   ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
 
-  writeTitleRow(ws, `Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "Final % in Formula", "CAS No.", "Function"]);
@@ -263,7 +265,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
     const finalPercent = g.items
       .map((x) =>
-        basis === "MIX" && x.exactFinalPercent
+        basis !== "DRY" && x.exactFinalPercent
           ? exactDecimalToString(x.exactFinalPercent, finalPercentDecimals)
           : fixedPct(x.finalPercent, finalPercentDecimals)
       )
@@ -291,7 +293,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   if (grouped.length > 0) {
     const totalInput = grouped.reduce((sum, g) => sum + g.input, 0);
     const totalFinalPercentDisplay =
-      basis === "MIX"
+      basis !== "DRY"
         ? exactDecimalToString(
             grouped.reduce(
               (acc, g) => g.items.reduce((a, x) => (x.exactFinalPercent ? exactAdd(a, x.exactFinalPercent) : a), acc),
@@ -314,7 +316,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   }
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basis === "DRY" ? "_건조후" : ""}.xlsx`);
+  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
 }
 
 // ============================================================

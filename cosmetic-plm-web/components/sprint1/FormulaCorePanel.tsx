@@ -252,7 +252,10 @@ export default function FormulaCorePanel() {
         </p>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           <button className={s.inciBasis === "MIX" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("MIX")}>원처방</button>
-          <button className={s.inciBasis === "DRY" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("DRY")}>공개처방</button>
+          {/* 공개처방(일반)은 원처방과 계산 로직이 완전히 동일(MIX 기준) - 문서관리에서 별도 문서로
+              생성·추적하기 위한 라벨일 뿐, 이 미리보기 화면에서는 원처방과 같은 값을 보여준다. */}
+          <button className={s.inciBasis === "PUBLIC" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("PUBLIC")}>공개처방(일반)</button>
+          <button className={s.inciBasis === "DRY" ? "v50-button" : "v50-button-light"} onClick={() => s.setInciBasis("DRY")}>공개처방(건조)</button>
         </div>
         {s.dryInciError && <p style={{ color: "#b45309", fontWeight: 700 }}>{s.dryInciError}</p>}
         <p style={{ lineHeight: 1.8 }}>

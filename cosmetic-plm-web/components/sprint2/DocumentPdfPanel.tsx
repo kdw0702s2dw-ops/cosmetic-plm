@@ -244,17 +244,25 @@ export default function DocumentPdfPanel() {
                         className={getBasis(f) === "MIX" ? "v50-button" : "v50-button-light"}
                         onClick={() => setBasis(f, "MIX")}
                       >
-                        배합 시
+                        원처방
+                      </button>
+                      {/* 공개처방(일반)은 원처방과 계산 로직이 완전히 동일(MIX 기준) - 원처방과 별개로
+                          문서를 생성·추적할 수 있도록 basis="PUBLIC"으로 저장되는 별도 문서다. */}
+                      <button
+                        className={getBasis(f) === "PUBLIC" ? "v50-button" : "v50-button-light"}
+                        onClick={() => setBasis(f, "PUBLIC")}
+                      >
+                        공개처방(일반)
                       </button>
                       <button
                         className={getBasis(f) === "DRY" ? "v50-button" : "v50-button-light"}
                         onClick={() => setBasis(f, "DRY")}
                       >
-                        건조 후
+                        공개처방(건조)
                       </button>
                     </div>
                     <span style={{ fontSize: 12, color: "#94a3b8" }}>
-                      (전성분표/복합성분표/단일성분표에 공통 적용 · 원료발주가처방은 배합시 고정)
+                      (전성분표/복합성분표/단일성분표에 공통 적용 · 원료발주가처방은 원처방 기준 고정)
                     </span>
                   </div>
                   {docButtons.map((b) => (

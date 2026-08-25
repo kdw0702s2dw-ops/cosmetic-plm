@@ -494,7 +494,22 @@ export function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
-export type DocBasis = "MIX" | "DRY";
+// PUBLIC(공개처방·일반)은 계산 로직이 MIX(원처방)와 완전히 동일하다 - 아래 모든 basis 분기는
+// "DRY일 때만" 다르게 처리하고 그 외(MIX/PUBLIC)는 동일 경로를 타도록 되어 있다. PUBLIC은 오직
+// 문서관리에서 원처방과 별개로 생성·추적되는 문서(제목/파일명 접미사, DB basis 값)로만 구분된다.
+export type DocBasis = "MIX" | "DRY" | "PUBLIC";
+
+// 문서 제목/엑셀 파일명에 붙는 기준별 접미사 - PDF·엑셀 공통으로 사용한다.
+export function basisTitleSuffix(basis: DocBasis): string {
+  if (basis === "DRY") return " (건조 후)";
+  if (basis === "PUBLIC") return " (공개처방)";
+  return "";
+}
+export function basisFileSuffix(basis: DocBasis): string {
+  if (basis === "DRY") return "_건조후";
+  if (basis === "PUBLIC") return "_공개처방";
+  return "";
+}
 export type VolatilityType = "NONE" | "FULL_VOLATILE" | "PARTIAL_RESIDUAL";
 
 export function volatilityMapFromRawMaterials(materials: { raw_code: string; volatility_type?: string | null }[]): Map<string, VolatilityType> {
@@ -863,8 +878,8 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
   // 건조 후(DRY)는 나눗셈이 섞여 대부분 딱 안 끝나므로 기존처럼 8자리 고정 반올림을 유지하고,
-  // 배합 시(MIX)만 정확히 끝나는 자리까지 동적으로 늘린다.
-  const finalPercentDecimals = basis === "MIX" ? computeUniformFinalPercentDecimals(grouped) : 8;
+  // 배합 시(MIX)/공개처방(일반, PUBLIC)만 정확히 끝나는 자리까지 동적으로 늘린다.
+  const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
 
   const body = grouped
     .map((g, i) => {
@@ -876,7 +891,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
           : eLines(g.items.map((x) => fixedPct(x.ratio, 8)));
       const finalPercent = eLines(
         g.items.map((x) =>
-          basis === "MIX" && x.exactFinalPercent
+          basis !== "DRY" && x.exactFinalPercent
             ? exactDecimalToString(x.exactFinalPercent, finalPercentDecimals)
             : fixedPct(x.finalPercent, finalPercentDecimals)
         )
@@ -903,7 +918,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   // %Raw Ingredient in Formula 합계와 마찬가지로 100%에 최대한 가깝게 맞는지 바로 검산할 수 있다.
   // 배합 시(MIX)는 BigInt 정확 덧셈으로 더해 부동소수점 오차 없이 합산한다.
   const totalFinalPercentDisplay =
-    basis === "MIX"
+    basis !== "DRY"
       ? exactDecimalToString(
           grouped.reduce(
             (acc, g) => g.items.reduce((a, x) => (x.exactFinalPercent ? exactAdd(a, x.exactFinalPercent) : a), acc),
@@ -924,7 +939,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
@@ -967,7 +982,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   // 합계(Total) 행 - 복합성분표와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
   // final_percent를 그대로 더한다. 전체 성분 함량이 100%에 얼마나 가까운지 바로 검산할 수 있게 한다.
   const totalDisplay =
-    basis === "MIX"
+    basis !== "DRY"
       ? exactDecimalToString(
           rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
           decimals
@@ -981,7 +996,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List (Single)${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List (Single)${basisTitleSuffix(basis)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
@@ -1001,7 +1016,7 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
 
-  return baseHtml(`Ingredient List for Development${basis === "DRY" ? " (건조 후)" : ""}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
 <div class="box">
   <div class="bt">Ingredient list</div>
   <div class="bb">${e(inciEn || "-")}</div>
@@ -1070,7 +1085,7 @@ export async function createFormulaDocument(formula: any, kind: DocKind, basis: 
       revision: formula.revision,
       document_type: kind,
       basis,
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basis === "DRY" ? " (건조 후)" : ""}`,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
       status: "CREATED",
       payload_json: { formula, lines, basis },
       html_content: html,
@@ -1091,7 +1106,7 @@ export async function regenerateFormulaDocument(existingDoc: any, formula: any, 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
     .update({
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basis === "DRY" ? " (건조 후)" : ""}`,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
       payload_json: { formula, lines, basis },
       html_content: html,
       updated_at: new Date().toISOString(),
