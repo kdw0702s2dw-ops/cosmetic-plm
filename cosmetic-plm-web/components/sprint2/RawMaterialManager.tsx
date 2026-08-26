@@ -10,7 +10,7 @@ import {
   type RawMaterial, type RawMaterialListItem, type Component, type IngredientHit, type AllergenMaster,
 } from "@/services/sprint2/rawMaterialService";
 import {
-  searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
+  fetchCompanyById, searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
 } from "@/services/sprint2/companyService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
@@ -667,8 +667,13 @@ function CompanyAutocompleteField({
   const [hits, setHits] = useState<Company[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [quickAdd, setQuickAdd] = useState<{ name_kr: string; name_en: string; country: string; phone: string; email: string } | null>(null);
+  // id가 있으면 "기존 업체 수정"(saveCompany가 UPDATE로 처리), 없으면 "새 업체 등록"(INSERT).
+  // category는 신규 등록 시에는 이 필드가 속한 preferredCategory 하나로 시작하지만, 기존 업체를
+  // 수정할 때는 그 업체가 이미 갖고 있던 구분을 그대로 보존해야 다른 화면(예: 제조사로도 등록된
+  // 업체)에 영향을 주지 않는다.
+  const [quickAdd, setQuickAdd] = useState<{ id?: string; category: string[]; name_kr: string; name_en: string; country: string; phone: string; email: string } | null>(null);
   const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showDropdown = open && !quickAdd && value.trim().length > 0;
@@ -676,7 +681,7 @@ function CompanyAutocompleteField({
   // useAnchorPosition은 hits 배열의 "길이"만 위치 추정에 쓰지만 참조 자체를 의존성으로 보므로,
   // 매 렌더마다 새 배열 리터럴을 넘기면 effect가 매번 재실행되어 무한 렌더 루프에 빠진다 - 길이가 실제로
   // 바뀔 때만 새 배열을 만들도록 useMemo로 참조를 고정한다.
-  const estimateCount = showQuickAdd ? 6 : showDropdown ? hits.length + 1 : 0;
+  const estimateCount = showQuickAdd ? 7 : showDropdown ? hits.length + 1 : 0;
   const estimateItems = useMemo(() => new Array(estimateCount).fill(0), [estimateCount]);
   const pos = useAnchorPosition(showDropdown || showQuickAdd ? "open" : null, () => inputRef.current, estimateItems);
 
@@ -705,7 +710,27 @@ function CompanyAutocompleteField({
   }
 
   function openQuickAdd() {
-    setQuickAdd({ name_kr: value.trim(), name_en: "", country: "", phone: "", email: "" });
+    setQuickAdd({ category: [preferredCategory], name_kr: value.trim(), name_en: "", country: "", phone: "", email: "" });
+  }
+
+  // 이미 업체관리와 연동된(companyId가 있는) 필드 옆의 "수정" 버튼 - 그 업체의 최신 정보를 불러와
+  // 같은 팝업(퀵애드와 동일 UI)에 채워서 바로 고칠 수 있게 한다. 별도 화면(업체관리)으로 이동할 필요 없음.
+  async function openEditCompany() {
+    if (!companyId) return;
+    setEditLoading(true);
+    try {
+      const c = await fetchCompanyById(companyId);
+      setQuickAdd({
+        id: c.id, category: c.category || [preferredCategory],
+        name_kr: c.name_kr || "", name_en: c.name_en || "", country: c.country || "",
+        phone: c.phone || "", email: c.email || "",
+      });
+      setOpen(true);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "업체 정보 조회 오류");
+    } finally {
+      setEditLoading(false);
+    }
   }
 
   async function saveQuickAdd() {
@@ -714,7 +739,8 @@ function CompanyAutocompleteField({
     setQuickAddSaving(true);
     try {
       const saved = await saveCompany({
-        category: [preferredCategory],
+        id: quickAdd.id,
+        category: quickAdd.category,
         name_kr: quickAdd.name_kr.trim(),
         name_en: quickAdd.name_en.trim(),
         country: quickAdd.country.trim(),
@@ -738,7 +764,20 @@ function CompanyAutocompleteField({
           onChange={(e) => onInputChange(e.target.value)}
           onFocus={() => value.trim() && setOpen(true)}
           placeholder={`${preferredCategory} 검색 또는 직접 입력`} />
-        {companyId && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>업체관리와 연동됨</span>}
+        {companyId && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>업체관리와 연동됨</span>
+            <button
+              type="button" onClick={openEditCompany} disabled={editLoading}
+              style={{
+                fontSize: 11, color: "#2563eb", fontWeight: 700, background: "none", border: "none",
+                padding: 0, cursor: editLoading ? "default" : "pointer", textDecoration: "underline",
+              }}
+            >
+              {editLoading ? "불러오는 중…" : "수정"}
+            </button>
+          </span>
+        )}
         {showDropdown && loading && <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>}
         {showDropdown && pos && createPortal(
           <SearchDropdown<CompanyOrAddNew>
@@ -770,7 +809,9 @@ function CompanyAutocompleteField({
             background: "white", border: "1px solid #cbd5e1", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
             padding: 10, display: "grid", gap: 6,
           }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#334155" }}>새 업체 등록 ({preferredCategory})</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#334155" }}>
+              {quickAdd!.id ? `업체 정보 수정 (${preferredCategory})` : `새 업체 등록 (${preferredCategory})`}
+            </div>
             <input className="v50-input" placeholder="업체명 국문" value={quickAdd!.name_kr} onChange={(e) => setQuickAdd({ ...quickAdd!, name_kr: e.target.value })} />
             <input className="v50-input" placeholder="업체명 영문" value={quickAdd!.name_en} onChange={(e) => setQuickAdd({ ...quickAdd!, name_en: e.target.value })} />
             <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
@@ -797,7 +838,7 @@ function CompanyAutocompleteField({
                   cursor: quickAddSaving ? "default" : "pointer", opacity: quickAddSaving ? 0.7 : 1,
                 }}
               >
-                {quickAddSaving ? "저장 중…" : "등록"}
+                {quickAddSaving ? "저장 중…" : quickAdd!.id ? "저장" : "등록"}
               </button>
             </div>
           </div>,
