@@ -489,7 +489,15 @@ export default function RawMaterialManager() {
           <CompanyAutocompleteField
             label="Supplier" preferredCategory="공급사"
             value={rm.supplier || ""} companyId={rm.supplier_company_id}
-            onChange={(patch) => setRm({ ...rm, supplier: patch.value, supplier_company_id: patch.companyId })}
+            // 공급사를 선택(또는 그 자리에서 신규 등록)하면, 그 업체에 등록된 이메일/전화번호를
+            // 원료의 이메일/전화번호 칸에 자동으로 채운다 - 업체에 값이 없으면 기존 입력값을 유지한다.
+            onChange={(patch) => setRm({
+              ...rm,
+              supplier: patch.value,
+              supplier_company_id: patch.companyId,
+              email: patch.email ?? rm.email,
+              phone: patch.phone ?? rm.phone,
+            })}
           />
           <Field label="이메일"><input className="v50-input" type="email" value={rm.email || ""} onChange={(e) => setRm({ ...rm, email: e.target.value })} /></Field>
           <Field label="전화번호"><input className="v50-input" value={rm.phone || ""} onChange={(e) => setRm({ ...rm, phone: e.target.value })} /></Field>
@@ -651,13 +659,15 @@ function CompanyAutocompleteField({
   preferredCategory: CompanyCategory;
   value: string;
   companyId?: string | null;
-  onChange: (patch: { value: string; companyId: string | null }) => void;
+  // email/phone은 업체(공급사 등)에 등록된 연락처를 선택 시점에 함께 넘겨서, 호출부(원료 폼)가
+  // 원료 자체의 이메일/전화번호 칸을 자동으로 채울 수 있게 한다 (업체에 값이 없으면 undefined).
+  onChange: (patch: { value: string; companyId: string | null; email?: string; phone?: string }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [hits, setHits] = useState<Company[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [quickAdd, setQuickAdd] = useState<{ name_kr: string; name_en: string; country: string; contact: string } | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ name_kr: string; name_en: string; country: string; phone: string; email: string } | null>(null);
   const [quickAddSaving, setQuickAddSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -689,13 +699,13 @@ function CompanyAutocompleteField({
     const matchedKr = !!hit.name_kr && hit.name_kr.toLowerCase().includes(kw);
     const matchedEn = !!hit.name_en && hit.name_en.toLowerCase().includes(kw);
     const chosen = matchedKr ? hit.name_kr! : matchedEn ? hit.name_en! : hit.name_kr || hit.name_en || "";
-    onChange({ value: chosen, companyId: hit.id! });
+    onChange({ value: chosen, companyId: hit.id!, email: hit.email || undefined, phone: hit.phone || undefined });
     setOpen(false);
     setHits([]);
   }
 
   function openQuickAdd() {
-    setQuickAdd({ name_kr: value.trim(), name_en: "", country: "", contact: "" });
+    setQuickAdd({ name_kr: value.trim(), name_en: "", country: "", phone: "", email: "" });
   }
 
   async function saveQuickAdd() {
@@ -708,9 +718,10 @@ function CompanyAutocompleteField({
         name_kr: quickAdd.name_kr.trim(),
         name_en: quickAdd.name_en.trim(),
         country: quickAdd.country.trim(),
-        contact: quickAdd.contact.trim(),
+        phone: quickAdd.phone.trim(),
+        email: quickAdd.email.trim(),
       });
-      onChange({ value: saved.name_kr || saved.name_en || "", companyId: saved.id! });
+      onChange({ value: saved.name_kr || saved.name_en || "", companyId: saved.id!, email: saved.email || undefined, phone: saved.phone || undefined });
       setOpen(false);
       setQuickAdd(null);
     } catch (e) {
@@ -763,7 +774,8 @@ function CompanyAutocompleteField({
             <input className="v50-input" placeholder="업체명 국문" value={quickAdd!.name_kr} onChange={(e) => setQuickAdd({ ...quickAdd!, name_kr: e.target.value })} />
             <input className="v50-input" placeholder="업체명 영문" value={quickAdd!.name_en} onChange={(e) => setQuickAdd({ ...quickAdd!, name_en: e.target.value })} />
             <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
-            <input className="v50-input" placeholder="담당자 연락처 (선택)" value={quickAdd!.contact} onChange={(e) => setQuickAdd({ ...quickAdd!, contact: e.target.value })} />
+            <input className="v50-input" placeholder="이메일 (선택)" type="email" value={quickAdd!.email} onChange={(e) => setQuickAdd({ ...quickAdd!, email: e.target.value })} />
+            <input className="v50-input" placeholder="전화번호 (선택)" value={quickAdd!.phone} onChange={(e) => setQuickAdd({ ...quickAdd!, phone: e.target.value })} />
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               {/* 이 팝업은 createPortal로 document.body에 붙어서 .v50-root 밖으로 나가기 때문에,
                   .v50-button 등 클래스가 의존하는 CSS 변수(--blue/--text/--line)를 상속받지 못해

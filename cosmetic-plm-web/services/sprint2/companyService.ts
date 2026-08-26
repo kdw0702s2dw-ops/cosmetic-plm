@@ -11,7 +11,8 @@ export type Company = {
   name_kr?: string;
   name_en?: string;
   country?: string;
-  contact?: string;
+  phone?: string;
+  email?: string;
   note?: string;
   is_active?: boolean;
 };
@@ -27,7 +28,7 @@ export async function fetchCompanies(keyword = ""): Promise<Company[]> {
 
   if (keyword.trim()) {
     const k = keyword.trim();
-    q = q.or(`name_kr.ilike.%${k}%,name_en.ilike.%${k}%,country.ilike.%${k}%,contact.ilike.%${k}%`);
+    q = q.or(`name_kr.ilike.%${k}%,name_en.ilike.%${k}%,country.ilike.%${k}%,phone.ilike.%${k}%,email.ilike.%${k}%`);
   }
   const { data, error } = await q;
   if (error) throw error;

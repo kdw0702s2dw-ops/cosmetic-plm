@@ -9,7 +9,7 @@ import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const emptyCompany: Company = {
-  category: [], name_kr: "", name_en: "", country: "", contact: "", note: "", is_active: true,
+  category: [], name_kr: "", name_en: "", country: "", phone: "", email: "", note: "", is_active: true,
 };
 
 export default function CompanyManager() {
@@ -107,12 +107,12 @@ export default function CompanyManager() {
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12 }}>
           <input className="v50-input" value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder="업체명(국문/영문)/국가/담당자 검색" onKeyDown={(e) => e.key === "Enter" && load()} style={{ flex: 1 }} />
+            placeholder="업체명(국문/영문)/국가/전화번호/이메일 검색" onKeyDown={(e) => e.key === "Enter" && load()} style={{ flex: 1 }} />
           <button className="v50-button" onClick={() => load()}>검색</button>
         </div>
         <div className="v50-table-wrap" style={{ maxHeight: 420, overflow: "auto" }}>
           <table className="v50-table">
-            <thead><tr><th>구분</th><th>업체명(국문)</th><th>업체명(영문)</th><th>국가</th><th>담당자 연락처</th><th style={{ width: 120 }}>액션</th></tr></thead>
+            <thead><tr><th>구분</th><th>업체명(국문)</th><th>업체명(영문)</th><th>국가</th><th>전화번호</th><th>이메일</th><th style={{ width: 120 }}>액션</th></tr></thead>
             <tbody>
               {list.map((c) => (
                 <tr key={c.id} style={{ background: company.id === c.id ? "#eff6ff" : undefined }}>
@@ -120,7 +120,8 @@ export default function CompanyManager() {
                   <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.name_kr || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.name_en || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.country || "-"}</td>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.contact || "-"}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.phone || "-"}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectCompany(c)}>{c.email || "-"}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="v50-button-light" onClick={() => selectCompany(c)}>수정</button>
@@ -129,7 +130,7 @@ export default function CompanyManager() {
                   </td>
                 </tr>
               ))}
-              {list.length === 0 && <tr><td colSpan={6}>업체가 없습니다.</td></tr>}
+              {list.length === 0 && <tr><td colSpan={7}>업체가 없습니다.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -159,8 +160,11 @@ export default function CompanyManager() {
           <Field label="국가/지역">
             <input className="v50-input" value={company.country || ""} onChange={(e) => setCompany({ ...company, country: e.target.value })} />
           </Field>
-          <Field label="담당자 연락처">
-            <input className="v50-input" value={company.contact || ""} onChange={(e) => setCompany({ ...company, contact: e.target.value })} />
+          <Field label="전화번호">
+            <input className="v50-input" value={company.phone || ""} onChange={(e) => setCompany({ ...company, phone: e.target.value })} />
+          </Field>
+          <Field label="이메일">
+            <input className="v50-input" type="email" value={company.email || ""} onChange={(e) => setCompany({ ...company, email: e.target.value })} />
           </Field>
           <div style={{ gridColumn: "1 / -1" }}>
             <Field label="비고">
