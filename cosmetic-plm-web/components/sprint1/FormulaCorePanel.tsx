@@ -46,6 +46,10 @@ export default function FormulaCorePanel() {
   const activeMaterialKey = s.activeMaterialCell ? `${s.activeMaterialCell.rowIndex}-${s.activeMaterialCell.field}` : null;
   const materialAnchorPos = useAnchorPosition(activeMaterialKey, () => (activeMaterialKey ? materialInputRefs.current[activeMaterialKey] : null), s.materialHits);
 
+  // "원료로 처방 검색" 자동완성 드롭다운 위치
+  const rawUsageInputRef = useRef<HTMLInputElement | null>(null);
+  const rawUsageAnchorPos = useAnchorPosition(s.rawUsageHits.length > 0 ? "open" : null, () => rawUsageInputRef.current, s.rawUsageHits);
+
   // "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버 - 자동 반영 없음, 확인만 가능
   const [diffPopover, setDiffPopover] = useState<{ lineNo: number; diffs: RawMaterialDiffField[] } | null>(null);
   const diffBadgeRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -149,6 +153,91 @@ export default function FormulaCorePanel() {
           <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
         </div>
+
+        {/* 원료로 처방 검색 - 원료코드/원료명을 입력하면 자동완성 + 원료명/성분을 보여주고, 함량(선택)을
+            같이 입력하면 그 원료가 그 함량 그대로 쓰인 처방만 아래 결과에 나열한다. */}
+        <div style={{ borderTop: "1px dashed #e2e8f0", paddingTop: 12, marginBottom: 12 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>원료로 처방 검색</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: "1 1 260px" }}>
+              <input
+                ref={rawUsageInputRef}
+                className="v50-input"
+                value={s.rawUsageKeyword}
+                onChange={(e) => s.searchRawUsageOptions(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && s.runRawUsageSearch()}
+                placeholder="원료코드 또는 원료명 검색"
+              />
+              {s.rawUsageSearchLoading && <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>}
+              {rawUsageAnchorPos && s.rawUsageHits.length > 0 &&
+                createPortal(
+                  <SearchDropdown
+                    hits={s.rawUsageHits}
+                    pos={rawUsageAnchorPos}
+                    keyExtractor={(raw: any) => raw.raw_code}
+                    onPick={(raw: any) => s.pickRawUsageMaterial(raw)}
+                    renderItem={(raw: any) => (
+                      <div>
+                        <b>{raw.raw_name}</b>{" "}
+                        <span style={{ color: "#64748b" }}>{raw.raw_code}</span>
+                      </div>
+                    )}
+                  />,
+                  document.body
+                )}
+            </div>
+            <input
+              className="v50-input"
+              style={{ width: 140 }}
+              type="number"
+              step="0.0001"
+              value={s.rawUsagePercentage}
+              onChange={(e) => s.setRawUsagePercentage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && s.runRawUsageSearch()}
+              placeholder="함량(%) (선택)"
+            />
+            <button className="v50-button" onClick={() => s.runRawUsageSearch()} disabled={s.rawUsageSearching}>
+              {s.rawUsageSearching ? "검색 중…" : "검색"}
+            </button>
+          </div>
+          {s.rawUsageSelected && (
+            <div style={{ fontSize: 12, color: "#334155", marginTop: 8 }}>
+              <b>{s.rawUsageSelected.raw_name}</b> ({s.rawUsageSelected.raw_code})
+              {s.rawUsageComponents.length > 0 && (
+                <div style={{ color: "#64748b", marginTop: 2 }}>
+                  전성분: {[...s.rawUsageComponents]
+                    .sort((a: any, b: any) => Number(b.composition_percent || 0) - Number(a.composition_percent || 0))
+                    .map((c: any) => {
+                      const name = c.inci_kr || c.inci_en || c.component_name_kr || c.component_name_en || "";
+                      if (!name) return null;
+                      const pct = c.composition_percent != null && c.composition_percent !== "" ? `${Number(c.composition_percent)}%` : "";
+                      return pct ? `${name}(${pct})` : name;
+                    })
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+          {s.rawUsageMessage && <p style={{ color: "#2563eb", fontWeight: 700, fontSize: 13, marginTop: 6 }}>{s.rawUsageMessage}</p>}
+          {s.rawUsageResults.length > 0 && (
+            <div className="v50-table-wrap" style={{ marginTop: 8 }}>
+              <table className="v50-table">
+                <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>Revision</th><th>담당 연구원</th><th>함량(%)</th><th>열기</th></tr></thead>
+                <tbody>
+                  {s.rawUsageResults.map((r) => (
+                    <tr key={`${r.formula_code}-${r.revision}-${r.line_no}`}>
+                      <td>{r.formula_code}</td><td>{r.confirmed_code || "-"}</td><td>{r.formula_name}</td>
+                      <td>{r.revision}</td><td>{r.assigned_researcher || "-"}</td><td>{r.percentage}%</td>
+                      <td><button className="v50-button-light" onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.openRawUsageResult(r); }}>열기</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>

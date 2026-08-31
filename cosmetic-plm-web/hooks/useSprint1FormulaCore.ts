@@ -6,6 +6,7 @@ import {
   computeRawMaterialDiff,
   deleteSprint1FormulaLines,
   fetchProductionBomRows,
+  fetchSprint1FormulaByKey,
   fetchSprint1FormulaLines,
   fetchSprint1Formulas,
   fetchSprint1RawOptions,
@@ -15,12 +16,14 @@ import {
   normalizeDuplicatePhaseSeq,
   recalcSprint1Formula,
   saveProductionBomRows,
+  searchFormulasByRawCode,
   softDeleteSprint1Formula,
   sortLinesForDisplay,
   upsertSprint1Formula,
   upsertSprint1FormulaLines,
   type ProductionBomRow,
   type RawMaterialDiffField,
+  type RawUsageRow,
   type Sprint1Formula,
   type Sprint1FormulaLine,
 } from "@/services/sprint1/formulaCoreService";
@@ -92,6 +95,19 @@ export function useSprint1FormulaCore() {
   const [activeRawRow, setActiveRawRow] = useState<number | null>(null);
   const [rawSearchLoading, setRawSearchLoading] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 처방 목록 상단 "원료로 처방 검색" - 원료코드/원료명 입력 시 자동완성 + 원료명/성분 미리보기를
+  // 보여주고, 검색을 누르면 그 원료가 쓰인 처방 목록(함량 입력 시 그 함량만)을 별도로 조회한다.
+  const [rawUsageKeyword, setRawUsageKeywordState] = useState("");
+  const [rawUsageHits, setRawUsageHits] = useState<any[]>([]);
+  const [rawUsageSearchLoading, setRawUsageSearchLoading] = useState(false);
+  const [rawUsageSelected, setRawUsageSelected] = useState<any | null>(null);
+  const [rawUsageComponents, setRawUsageComponents] = useState<any[]>([]);
+  const [rawUsagePercentage, setRawUsagePercentage] = useState("");
+  const [rawUsageResults, setRawUsageResults] = useState<RawUsageRow[]>([]);
+  const [rawUsageSearching, setRawUsageSearching] = useState(false);
+  const [rawUsageMessage, setRawUsageMessage] = useState("");
+  const rawUsageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 규제 즉시 대조 상태 (target_country 기준 규정 캐시 + 라인별 판정 결과)
   const [regulationRules, setRegulationRules] = useState<any[]>([]);
@@ -575,6 +591,88 @@ export function useSprint1FormulaCore() {
     setActiveRawRow(null);
   }
 
+  // "원료로 처방 검색" 입력 자동완성 - BOM 라인 원료 검색과 동일한 fetchSprint1RawOptions를 재사용한다.
+  function searchRawUsageOptions(value: string) {
+    setRawUsageKeywordState(value);
+    setRawUsageSelected(null);
+    setRawUsageComponents([]);
+    setRawUsageResults([]);
+    setRawUsageMessage("");
+    if (rawUsageTimer.current) clearTimeout(rawUsageTimer.current);
+    if (!value.trim()) {
+      setRawUsageHits([]);
+      setRawUsageSearchLoading(false);
+      return;
+    }
+    setRawUsageSearchLoading(true);
+    rawUsageTimer.current = setTimeout(async () => {
+      try {
+        setRawUsageHits(await fetchSprint1RawOptions(value.trim()));
+      } catch {
+        setRawUsageHits([]);
+      } finally {
+        setRawUsageSearchLoading(false);
+      }
+    }, 250);
+  }
+
+  // 자동완성에서 원료를 고르면 그 즉시 검색까지 실행한다 (직접 타이핑 후 검색 버튼을 누르는 것과 동일한 결과).
+  function pickRawUsageMaterial(raw: any) {
+    setRawUsageKeywordState(raw.raw_code);
+    setRawUsageHits([]);
+    runRawUsageSearch(raw.raw_code);
+  }
+
+  // 원료코드(자동완성으로 고르지 않고 직접 입력했어도 동작)로 원료명/성분 미리보기와 그 원료를 쓰는
+  // 처방 목록을 함께 조회한다. 함량을 입력했으면 그 함량과 정확히 일치하는 사용처만 걸러진다.
+  async function runRawUsageSearch(codeOverride?: string) {
+    const code = (codeOverride ?? rawUsageKeyword).trim();
+    if (!code) {
+      setRawUsageMessage("원료코드를 입력하세요.");
+      return;
+    }
+    const pctTrim = rawUsagePercentage.trim();
+    const pct = pctTrim === "" ? null : Number(pctTrim);
+    if (pctTrim !== "" && Number.isNaN(pct)) {
+      setRawUsageMessage("함량은 숫자로 입력하세요.");
+      return;
+    }
+    setRawUsageSearching(true);
+    setRawUsageHits([]);
+    try {
+      const [materials, components, results] = await Promise.all([
+        fetchRawMaterialsByCodes([code]),
+        fetchComponentsByRawCodes([code]),
+        searchFormulasByRawCode(code, pct),
+      ]);
+      const material = materials.find((m) => m.raw_code === code) || null;
+      setRawUsageSelected(material);
+      setRawUsageComponents(components);
+      setRawUsageResults(results);
+      setRawUsageMessage(
+        material
+          ? `${results.length}건 조회됨`
+          : `등록된 원료가 아닙니다 (원료코드: ${code}) - ${results.length}건 조회됨`
+      );
+    } catch (e) {
+      setRawUsageMessage(e instanceof Error ? e.message : "원료 사용 처방 검색 오류");
+    } finally {
+      setRawUsageSearching(false);
+    }
+  }
+
+  // 검색 결과에서 "열기"를 누르면, 목록에 캡핑되어(최근 100건) 빠져 있을 수도 있는 처방을 formula_code+
+  // revision으로 정확히 다시 조회해서 연다 - 부분 필드만 있는 RawUsageRow를 그대로 열면 다른 필드가
+  // 빈 값으로 덮여 저장 시 데이터가 유실될 위험이 있어, 반드시 전체 행을 새로 가져온다.
+  async function openRawUsageResult(row: RawUsageRow) {
+    try {
+      const full = await fetchSprint1FormulaByKey(row.formula_code, row.revision);
+      await openFormula(full);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "처방 열기 오류");
+    }
+  }
+
   function addProductionBomRow() {
     setProductionBomRows((prev) => [...prev, {}]);
   }
@@ -701,6 +799,9 @@ export function useSprint1FormulaCore() {
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap, rawComponentsMap,
     loadFormulas, openFormula, newFormula, saveFormula, createNewRevision, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
+    rawUsageKeyword, rawUsageHits, rawUsageSearchLoading, rawUsageSelected, rawUsageComponents,
+    rawUsagePercentage, setRawUsagePercentage, rawUsageResults, rawUsageSearching, rawUsageMessage,
+    searchRawUsageOptions, pickRawUsageMaterial, runRawUsageSearch, openRawUsageResult,
     productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
     materialHits, activeMaterialCell, materialSearchLoading, materialsByCode,
     searchMaterialForBomCell, pickMaterialForBomCell,

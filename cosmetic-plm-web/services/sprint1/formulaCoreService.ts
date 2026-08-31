@@ -130,6 +130,78 @@ export async function findFormulaByConfirmedCode(confirmedCode: string, excludeF
   return (data || []).find((row) => !(row.formula_code === excludeFormulaCode && row.revision === excludeRevision)) || null;
 }
 
+export type RawUsageRow = {
+  formula_code: string;
+  revision: string;
+  formula_name: string;
+  confirmed_code?: string;
+  assigned_researcher?: string;
+  percentage: number;
+  line_no: number;
+};
+
+// 원료코드(+선택적으로 함량)로 그 원료가 쓰인 처방을 검색한다. 소프트삭제(is_active=false)된 처방은
+// 결과에서 제외한다. 함량은 사용자가 입력한 값과 저장된 값의 부동소수점 오차를 감안해 소수 4자리로
+// 반올림한 값이 완전히 같을 때만 매칭으로 본다(범위/근사 검색이 아니라 "그 함량 그대로"를 찾는 용도).
+export async function searchFormulasByRawCode(rawCode: string, percentage?: number | null): Promise<RawUsageRow[]> {
+  const code = rawCode.trim();
+  if (!code) return [];
+
+  const { data: lineRows, error: lineErr } = await supabaseProductionFinal
+    .from("plm_formula_lines")
+    .select("formula_code, revision, line_no, percentage")
+    .eq("raw_code", code);
+  if (lineErr) throw lineErr;
+
+  let rows = lineRows || [];
+  if (percentage != null && !Number.isNaN(percentage)) {
+    const target = Math.round(percentage * 10000) / 10000;
+    rows = rows.filter((r) => Math.round(Number(r.percentage) * 10000) / 10000 === target);
+  }
+  if (rows.length === 0) return [];
+
+  const codes = Array.from(new Set(rows.map((r) => r.formula_code)));
+  const { data: formulaRows, error: fErr } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, formula_name, confirmed_code, assigned_researcher")
+    .in("formula_code", codes)
+    .eq("is_active", true);
+  if (fErr) throw fErr;
+
+  const formulaMap = new Map((formulaRows || []).map((f) => [`${f.formula_code}|${f.revision}`, f]));
+
+  return rows
+    .map((r) => {
+      const f = formulaMap.get(`${r.formula_code}|${r.revision}`);
+      if (!f) return null;
+      return {
+        formula_code: r.formula_code,
+        revision: r.revision,
+        formula_name: f.formula_name,
+        confirmed_code: f.confirmed_code,
+        assigned_researcher: f.assigned_researcher,
+        percentage: Number(r.percentage),
+        line_no: r.line_no,
+      } as RawUsageRow;
+    })
+    .filter((x): x is RawUsageRow => x != null)
+    .sort((a, b) => b.percentage - a.percentage);
+}
+
+// 원료 사용처 검색 결과에서 처방을 열 때 사용 - fetchSprint1Formulas는 최근 100건으로 캡핑되어 있어
+// 검색된 처방이 그 안에 없을 수 있으므로, formula_code+revision으로 정확히 한 건만 조회한다.
+export async function fetchSprint1FormulaByKey(formulaCode: string, revision: string) {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("*")
+    .eq("formula_code", formulaCode)
+    .eq("revision", revision)
+    .eq("is_active", true)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchSprint1FormulaLines(formulaCode: string, revision: string) {
   const { data, error } = await supabaseProductionFinal
     .from("plm_formula_lines")
