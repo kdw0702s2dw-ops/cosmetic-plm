@@ -12,6 +12,7 @@ import {
 import {
   fetchCompanyById, searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
 } from "@/services/sprint2/companyService";
+import RawMaterialDocUploader from "@/components/sprint2/RawMaterialDocUploader";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
@@ -543,6 +544,14 @@ export default function RawMaterialManager() {
             </Field>
           </div>
         </div>
+
+        {/* COA/MSDS — 이미 저장된(원료코드 발급된) 원료만 업로드 가능. 신규 등록 중(rm.id 없음)에는
+            아직 raw_material_id가 없어 표시하지 않는다(먼저 저장 후 다시 열면 나타남). */}
+        {rm.id && (
+          <div style={{ marginTop: 18 }}>
+            <RawMaterialDocUploader rawMaterialId={rm.id} rawCode={rm.raw_code} uploadedBy={auth.profile?.email} canWrite={canWrite} />
+          </div>
+        )}
 
         {/* 구성성분 — 모든 원료(단일/복합 공통)의 INCI를 여기서 입력. 단일 성분이면 행 1개(구성비 100%)만 등록 */}
         <div style={{ marginTop: 18 }}>

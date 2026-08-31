@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSprint2DocumentPdf } from "@/hooks/useSprint2DocumentPdf";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { pct, type DocBasis, type DocKind } from "@/services/sprint2/documentPdfService";
+import FormulaDocumentZipDownload from "@/components/documents/FormulaDocumentZipDownload";
 import "@/styles/enterprise-v50.css";
 
 const docButtons: { kind: DocKind; label: string }[] = [
@@ -289,6 +290,12 @@ export default function DocumentPdfPanel() {
                     <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
                       {auth.canExportData && <button className="v50-button" onClick={() => s.downloadLabJournal(f)}>엑셀 다운로드</button>}
                     </div>
+                  </div>
+
+                  {/* COA/MSDS — 이 처방 BOM에 쓰인 원료들의 COA/MSDS 보유 여부를 보여주고, 선택한 파일을 zip으로 묶어 다운로드 */}
+                  <div style={{ padding: "12px 0 4px" }}>
+                    <div style={{ fontWeight: 800, marginBottom: 8 }}>COA/MSDS</div>
+                    <FormulaDocumentZipDownload formulaCode={f.formula_code} revision={f.revision} />
                   </div>
                 </div>
               )}
