@@ -5,7 +5,7 @@ import {
   computeOrderSheetRows, createFormulaDocument, createRawMaterialOrderSheetDocument,
   downloadHtmlDocument, fetchDocumentFormulas, fetchFormulaLinesForPdf, fetchPdfDocuments,
   openPrintDocument, regenerateFormulaDocument, regenerateRawMaterialOrderSheetDocument,
-  type DocBasis, type DocKind, type OrderSheetRow,
+  type DocBasis, type DocKind, type DocLang, type OrderSheetRow,
 } from "@/services/sprint2/documentPdfService";
 import { downloadLabJournalDocument } from "@/services/sprint2/labJournalExcelService";
 import {
@@ -56,7 +56,7 @@ function groupDocuments(docs: any[]): FormulaDocGroup[] {
       });
     }
     const group = byFormula.get(d.formula_code)!;
-    const typeKey = `${d.formula_code}|${d.revision}|${d.document_type}|${d.basis || "MIX"}`;
+    const typeKey = `${d.formula_code}|${d.revision}|${d.document_type}|${d.basis || "MIX"}|${d.lang || "BOTH"}`;
     if (!seenTypeKeys.has(typeKey)) {
       seenTypeKeys.add(typeKey);
       group.latestDocs.push(d);
@@ -90,10 +90,10 @@ export function useSprint2DocumentPdf() {
     }
   }
 
-  async function createDoc(formula: any, kind: DocKind, basis: DocBasis = "MIX") {
+  async function createDoc(formula: any, kind: DocKind, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
     setLoading(true);
     try {
-      const doc = await createFormulaDocument(formula, kind, basis);
+      const doc = await createFormulaDocument(formula, kind, basis, lang);
       setSelected(doc);
       await load();
       setMessage(`${doc.title} 생성 완료`);
@@ -104,11 +104,11 @@ export function useSprint2DocumentPdf() {
     }
   }
 
-  async function regenerateDoc(existingDoc: any, formula: any, kind: DocKind, basis: DocBasis = "MIX") {
+  async function regenerateDoc(existingDoc: any, formula: any, kind: DocKind, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
     if (!confirm("이미 생성된 문서를 덮어쓸까요?")) return;
     setLoading(true);
     try {
-      const doc = await regenerateFormulaDocument(existingDoc, formula, kind, basis);
+      const doc = await regenerateFormulaDocument(existingDoc, formula, kind, basis, lang);
       setSelected(doc);
       await load();
       setMessage(`${doc.title} 재생성 완료`);
@@ -131,12 +131,12 @@ export function useSprint2DocumentPdf() {
     }
   }
 
-  async function downloadDocExcel(formula: any, kind: DocKind, label: string, basis: DocBasis = "MIX") {
+  async function downloadDocExcel(formula: any, kind: DocKind, label: string, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
     setLoading(true);
     try {
-      if (kind === "INCI_LIST") await downloadInciListExcel(formula, basis);
-      else if (kind === "COMPLEX_COMPONENT_TABLE") await downloadComplexComponentExcel(formula, basis);
-      else await downloadSingleComponentExcel(formula, basis);
+      if (kind === "INCI_LIST") await downloadInciListExcel(formula, basis, lang);
+      else if (kind === "COMPLEX_COMPONENT_TABLE") await downloadComplexComponentExcel(formula, basis, lang);
+      else await downloadSingleComponentExcel(formula, basis, lang);
       setMessage(`${label} 엑셀 다운로드 완료`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류");
@@ -213,7 +213,7 @@ export function useSprint2DocumentPdf() {
   const existingDocByKey = useMemo(() => {
     const map = new Map<string, any>();
     for (const d of documents) {
-      const key = `${d.formula_code}|${d.revision}|${d.document_type}|${d.basis || "MIX"}`;
+      const key = `${d.formula_code}|${d.revision}|${d.document_type}|${d.basis || "MIX"}|${d.lang || "BOTH"}`;
       const current = map.get(key);
       if (!current || new Date(d.created_at).getTime() > new Date(current.created_at).getTime()) {
         map.set(key, d);

@@ -510,6 +510,21 @@ export function basisFileSuffix(basis: DocBasis): string {
   if (basis === "PUBLIC") return "_공개처방";
   return "";
 }
+
+// 전성분표/복합성분표/단일성분표 전용 - 국문/영문 표기를 선택해서 출력할 수 있게 한다.
+// KR=국문만, EN=영문만, BOTH=국문+영문(기존 동작, 기본값).
+export type DocLang = "KR" | "EN" | "BOTH";
+
+export function langTitleSuffix(lang: DocLang): string {
+  if (lang === "KR") return " (국문)";
+  if (lang === "EN") return " (영문)";
+  return "";
+}
+export function langFileSuffix(lang: DocLang): string {
+  if (lang === "KR") return "_국문";
+  if (lang === "EN") return "_영문";
+  return "";
+}
 export type VolatilityType = "NONE" | "FULL_VOLATILE" | "PARTIAL_RESIDUAL";
 
 export function volatilityMapFromRawMaterials(materials: { raw_code: string; volatility_type?: string | null }[]): Map<string, VolatilityType> {
@@ -871,12 +886,18 @@ export function computeUniformFinalPercentDecimals(grouped: ComplexGroupedRow[],
 // ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
-export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
+  // 국문/영문 중 선택된 쪽만 컬럼으로 넣는다 - No. + (선택된 언어 컬럼 수) + %Sub Ingredient in Raw Ingredient...
+  const langColCount = lang === "BOTH" ? 2 : 1;
+  const langHeaders = [
+    lang !== "KR" ? "<th>EU/USA INCI name</th>" : "",
+    lang !== "EN" ? "<th>국문명</th>" : "",
+  ].join("");
   // 건조 후(DRY)는 나눗셈이 섞여 대부분 딱 안 끝나므로 기존처럼 8자리 고정 반올림을 유지하고,
   // 배합 시(MIX)/공개처방(일반, PUBLIC)만 정확히 끝나는 자리까지 동적으로 늘린다.
   const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
@@ -897,10 +918,13 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         )
       );
       const cas = eLines(g.items.map((x) => x.cas));
+      const langCells = [
+        lang !== "KR" ? `<td>${en}</td>` : "",
+        lang !== "EN" ? `<td>${kr}</td>` : "",
+      ].join("");
       return `<tr>
   <td class="center">${i + 1}</td>
-  <td>${en}</td>
-  <td>${kr}</td>
+  ${langCells}
   <td class="center">${ratio}</td>
   <td class="center">${fixedPct(g.input, inputDecimals)}</td>
   <td class="center">${finalPercent}</td>
@@ -932,29 +956,34 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         );
   const totalRow = grouped.length
     ? `<tr style="font-weight:800;background:#f8fafc">
-  <td colspan="4" class="right">합계 (Total)</td>
+  <td colspan="${2 + langColCount}" class="right">합계 (Total)</td>
   <td class="center">${fixedPct(totalInput, inputDecimals)}</td>
   <td class="center">${totalFinalPercentDisplay}</td>
   <td colspan="2"></td>
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
+  <th>No.</th>${langHeaders}
   <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="8">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
+<tbody>${body || `<tr><td colspan="${6 + langColCount}">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
 </table>`, f);
 }
 
 // ============================================================
 // 단일성분표 (KOVAS): INCI 합산, 함량 내림차순
 // ============================================================
-export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
+  const langColCount = lang === "BOTH" ? 2 : 1;
+  const langHeaders = [
+    lang !== "KR" ? "<th>EU/USA INCI name</th>" : "",
+    lang !== "EN" ? "<th>국문명</th>" : "",
+  ].join("");
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
   const rows = mergeRows([...complexRows(effectiveLines, components, functionLookup), ...singleRows(effectiveLines, components, functionLookup)]);
   // Percentage(%) 표시 자릿수:
@@ -966,17 +995,20 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
 
   const body = rows
-    .map(
-      (x, i) => `<tr>
+    .map((x, i) => {
+      const langCells = [
+        lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
+        lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
+      ].join("");
+      return `<tr>
   <td class="center">${i + 1}</td>
-  <td>${e(x.inci_en)}</td>
-  <td>${e(x.inci_kr)}</td>
+  ${langCells}
   <td class="right">${e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)))}</td>
   <td>${e(x.cas_no || "-")}</td>
   <td>${e(x.ec_no || "-")}</td>
   <td>${e(x.function_text)}</td>
-</tr>`
-    )
+</tr>`;
+    })
     .join("");
 
   // 합계(Total) 행 - 복합성분표와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
@@ -990,41 +1022,42 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
       : fixedPct(rows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
   const totalRow = rows.length
     ? `<tr style="font-weight:800;background:#f8fafc">
-  <td colspan="3" class="right">합계 (Total)</td>
+  <td colspan="${1 + langColCount}" class="right">합계 (Total)</td>
   <td class="right">${totalDisplay}</td>
   <td colspan="3"></td>
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List (Single)${basisTitleSuffix(basis)}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List (Single)${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th><th>EU/USA INCI name</th><th>국문명</th>
+  <th>No.</th>${langHeaders}
   <th>Percentage(%)</th><th>CAS No.</th><th>EC No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="7">단일성분 데이터가 없습니다.</td></tr>`}${totalRow}</tbody>
+<tbody>${body || `<tr><td colspan="${5 + langColCount}">단일성분 데이터가 없습니다.</td></tr>`}${totalRow}</tbody>
 </table>`, f);
 }
 
 // ============================================================
 // 전성분표 (KOVAS): 박스 형태 (영문 / 국문)
 // ============================================================
-export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = "MIX") {
+export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
   const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
-<div class="box">
+  const enBox = lang !== "KR" ? `<div class="box">
   <div class="bt">Ingredient list</div>
   <div class="bb">${e(inciEn || "-")}</div>
-</div>
-<div class="box">
+</div>` : "";
+  const krBox = lang !== "EN" ? `<div class="box">
   <div class="bt">국문전성분</div>
   <div class="bb">${e(inciKr || "-")}</div>
-</div>`, f);
+</div>` : "";
+
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `${enBox}${krBox}`, f);
 }
 
 // ============================================================
@@ -1066,16 +1099,16 @@ export const DOC_KIND_NAMES: Record<DocKind, string> = {
   RAW_MATERIAL_ORDER_SHEET: "원료발주가처방",
 };
 
-async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[], basis: DocBasis) {
-  if (kind === "INCI_LIST") return buildInciListHtml(formula, lines, basis);
-  if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines, basis);
-  return buildSingleComponentTableHtml(formula, lines, basis);
+async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[], basis: DocBasis, lang: DocLang) {
+  if (kind === "INCI_LIST") return buildInciListHtml(formula, lines, basis, lang);
+  if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines, basis, lang);
+  return buildSingleComponentTableHtml(formula, lines, basis, lang);
 }
 
-export async function createFormulaDocument(formula: any, kind: DocKind, basis: DocBasis = "MIX") {
+export async function createFormulaDocument(formula: any, kind: DocKind, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-  const html = await buildDocumentHtml(formula, kind, lines, basis);
-  const documentCode = `${kind}-${formula.formula_code}-${formula.revision}-${basis}-${Date.now().toString().slice(-6)}`;
+  const html = await buildDocumentHtml(formula, kind, lines, basis, lang);
+  const documentCode = `${kind}-${formula.formula_code}-${formula.revision}-${basis}-${lang}-${Date.now().toString().slice(-6)}`;
 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
@@ -1085,9 +1118,10 @@ export async function createFormulaDocument(formula: any, kind: DocKind, basis: 
       revision: formula.revision,
       document_type: kind,
       basis,
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
+      lang,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`,
       status: "CREATED",
-      payload_json: { formula, lines, basis },
+      payload_json: { formula, lines, basis, lang },
       html_content: html,
       created_by: "KOVAS Template Docs",
     })
@@ -1099,15 +1133,16 @@ export async function createFormulaDocument(formula: any, kind: DocKind, basis: 
 }
 
 // 기존 문서 row를 그대로 UPDATE (새 row를 insert하지 않아 목록에 중복이 쌓이지 않음)
-export async function regenerateFormulaDocument(existingDoc: any, formula: any, kind: DocKind, basis: DocBasis = "MIX") {
+export async function regenerateFormulaDocument(existingDoc: any, formula: any, kind: DocKind, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const lines = await fetchFormulaLinesForPdf(formula.formula_code, formula.revision);
-  const html = await buildDocumentHtml(formula, kind, lines, basis);
+  const html = await buildDocumentHtml(formula, kind, lines, basis, lang);
 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
     .update({
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
-      payload_json: { formula, lines, basis },
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`,
+      lang,
+      payload_json: { formula, lines, basis, lang },
       html_content: html,
       updated_at: new Date().toISOString(),
     })

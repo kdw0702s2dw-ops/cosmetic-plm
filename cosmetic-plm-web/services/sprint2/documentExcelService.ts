@@ -14,12 +14,15 @@ import {
   computeUniformPercentDecimals,
   CONFIDENTIAL,
   type DocBasis,
+  type DocLang,
   exactAdd,
   exactDecimalToNumber,
   exactDecimalToString,
   fetchFormulaLinesForPdf,
   fixedPct,
   kovasMeta,
+  langFileSuffix,
+  langTitleSuffix,
   mergeRows,
   NOTES,
   orderSheetMeta,
@@ -121,7 +124,7 @@ async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
 // ============================================================
 // 단일성분표 엑셀: PDF(No/INCI/국문명/%/CAS/EC/Function)와 동일한 컬럼 + 상단정보/하단각주 추가
 // ============================================================
-export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX") {
+export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
   const rows = mergeRows([...complexRows(lines, components, functionLookup), ...singleRows(lines, components, functionLookup)]);
@@ -131,16 +134,36 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   // 건조 후(DRY)는 나눗셈이 섞여 들어가 딱 떨어지지 않는 소수가 나오므로 PDF와 동일하게 8자리 고정 반올림.
   const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
   const percentNumFmt = "0." + "0".repeat(decimals);
+  const showEn = lang !== "KR";
+  const showKr = lang !== "EN";
+  const langColCount = (showEn ? 1 : 0) + (showKr ? 1 : 0);
+  const percentColIndex = 1 + langColCount + 1;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("단일성분표");
-  const colCount = 7;
-  ws.columns = [{ width: 6 }, { width: 30 }, { width: 20 }, { width: 8 + decimals }, { width: 16 }, { width: 12 }, { width: 20 }];
+  const colCount = 5 + langColCount;
+  ws.columns = [
+    { width: 6 },
+    ...(showEn ? [{ width: 30 }] : []),
+    ...(showKr ? [{ width: 20 }] : []),
+    { width: 8 + decimals },
+    { width: 16 },
+    { width: 12 },
+    { width: 20 },
+  ];
 
-  writeTitleRow(ws, `Ingredient List (Single)${basisTitleSuffix(basis)}`, colCount);
+  writeTitleRow(ws, `Ingredient List (Single)${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "Percentage(%)", "CAS No.", "EC No.", "Function"]);
+  const headerRow = ws.addRow([
+    "No.",
+    ...(showEn ? ["EU/USA INCI name"] : []),
+    ...(showKr ? ["국문명"] : []),
+    "Percentage(%)",
+    "CAS No.",
+    "EC No.",
+    "Function",
+  ]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.eachCell((cell) => {
@@ -149,15 +172,23 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   border(ws, headerRow.number, 1, headerRow.number, colCount);
 
   if (rows.length === 0) {
-    ws.addRow(["", "단일성분 데이터가 없습니다.", "", "", "", "", ""]);
+    ws.addRow(["", "단일성분 데이터가 없습니다.", ...Array(colCount - 2).fill("")]);
   }
   rows.forEach((x, i) => {
     // 건조 후(DRY)는 나눗셈이 섞여 exactPercent(배합시 전용 정확값)가 실제 값과 어긋날 수 있으므로
     // PDF와 동일하게 항상 final_percent(8자리 반올림)를 쓴다. exactPercent는 MIX 기준일 때만 사용.
     const percentValue = basis === "DRY" ? Number(pct(x.final_percent)) : (x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent)));
-    const row = ws.addRow([i + 1, x.inci_en, x.inci_kr, percentValue, x.cas_no || "-", x.ec_no || "-", x.function_text]);
+    const row = ws.addRow([
+      i + 1,
+      ...(showEn ? [x.inci_en] : []),
+      ...(showKr ? [x.inci_kr] : []),
+      percentValue,
+      x.cas_no || "-",
+      x.ec_no || "-",
+      x.function_text,
+    ]);
     row.alignment = { vertical: "middle" };
-    row.getCell(4).numFmt = percentNumFmt;
+    row.getCell(percentColIndex).numFmt = percentNumFmt;
     border(ws, row.number, 1, row.number, colCount);
   });
 
@@ -168,28 +199,30 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
       basis !== "DRY"
         ? exactDecimalToNumber(rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)))
         : Number(rows.reduce((sum, x) => sum + x.final_percent, 0).toFixed(decimals));
-    const totalRow = ws.addRow(["합계 (Total)", "", "", totalValue, "", "", ""]);
-    ws.mergeCells(totalRow.number, 1, totalRow.number, 3);
+    const totalRow = ws.addRow(["합계 (Total)", ...Array(langColCount).fill(""), totalValue, "", "", ""]);
+    ws.mergeCells(totalRow.number, 1, totalRow.number, 1 + langColCount);
     totalRow.font = { bold: true };
     totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
     totalRow.getCell(1).alignment = { horizontal: "right" };
-    totalRow.getCell(4).numFmt = percentNumFmt;
-    totalRow.getCell(4).alignment = { horizontal: "right" };
+    totalRow.getCell(percentColIndex).numFmt = percentNumFmt;
+    totalRow.getCell(percentColIndex).alignment = { horizontal: "right" };
     border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
+  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
 // ============================================================
 // 전성분표 엑셀: PDF(박스 2개 - Ingredient list 영문 / 국문전성분)와 동일한 문장형 레이아웃
 // ============================================================
-export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX") {
+export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
   const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
   const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+  const showEn = lang !== "KR";
+  const showKr = lang !== "EN";
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("전성분표");
@@ -198,7 +231,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   ws.columns = colWidths.map((width) => ({ width }));
   const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
-  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const writeBox = (title: string, content: string) => {
@@ -218,18 +251,18 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
     ws.getRow(bodyRow.number).height = estimateWrappedRowHeight(content || "-", totalColWidth);
   };
 
-  writeBox("Ingredient list", inciEn);
-  writeBox("국문전성분", inciKr);
+  if (showEn) writeBox("Ingredient list", inciEn);
+  if (showKr) writeBox("국문전성분", inciKr);
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
+  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
 // ============================================================
 // 복합성분표 엑셀: PDF와 동일하게 원료 1개 = 1행, 구성성분은 셀 내 줄바꿈(\n + wrapText)
 // buildComplexGroupedRows()를 그대로 재사용 (PDF의 <br> 대신 \n으로 줄바꿈)
 // ============================================================
-export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX") {
+export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
@@ -237,16 +270,42 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const inputDecimals = basis === "DRY" ? 2 : 8;
   // PDF와 동일한 규칙: 건조 후(DRY)는 8자리 고정, 배합 시(MIX)/공개처방(일반, PUBLIC)은 정확히 끝나는 자리까지 동적으로 늘림
   const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
+  const showEn = lang !== "KR";
+  const showKr = lang !== "EN";
+  const langColCount = (showEn ? 1 : 0) + (showKr ? 1 : 0);
+  // 언어 컬럼 뒤에 오는 고정 컬럼들의 1-based 인덱스 (No.=1 다음부터 언어 컬럼, 그 다음 %Sub~Function)
+  const ratioCol = 1 + langColCount + 1;
+  const inputCol = ratioCol + 1;
+  const finalCol = inputCol + 1;
+  const casCol = finalCol + 1;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("복합성분표");
-  const colCount = 8;
-  ws.columns = [{ width: 6 }, { width: 40 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 24 }, { width: 20 }];
+  const colCount = 6 + langColCount;
+  ws.columns = [
+    { width: 6 },
+    ...(showEn ? [{ width: 40 }] : []),
+    ...(showKr ? [{ width: 30 }] : []),
+    { width: 18 },
+    { width: 18 },
+    { width: 18 },
+    { width: 24 },
+    { width: 20 },
+  ];
 
-  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "EU/USA INCI name", "국문명", "% Sub Ingredient in Raw Ingredient", "%Raw Ingredient in Formula", "Final % in Formula", "CAS No.", "Function"]);
+  const headerRow = ws.addRow([
+    "No.",
+    ...(showEn ? ["EU/USA INCI name"] : []),
+    ...(showKr ? ["국문명"] : []),
+    "% Sub Ingredient in Raw Ingredient",
+    "%Raw Ingredient in Formula",
+    "Final % in Formula",
+    "CAS No.",
+    "Function",
+  ]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
   headerRow.height = 30;
@@ -256,7 +315,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   border(ws, headerRow.number, 1, headerRow.number, colCount);
 
   if (grouped.length === 0) {
-    ws.addRow(["", "복합원료 구성성분 데이터가 없습니다.", "", "", "", "", "", ""]);
+    ws.addRow(["", "복합원료 구성성분 데이터가 없습니다.", ...Array(colCount - 2).fill("")]);
   }
 
   grouped.forEach((g, i) => {
@@ -272,15 +331,25 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
       .join("\n");
     const cas = g.items.map((x) => x.cas).join("\n");
 
-    const row = ws.addRow([i + 1, en, kr, ratio, fixedPct(g.input, inputDecimals), finalPercent, cas, g.func]);
+    const row = ws.addRow([
+      i + 1,
+      ...(showEn ? [en] : []),
+      ...(showKr ? [kr] : []),
+      ratio,
+      fixedPct(g.input, inputDecimals),
+      finalPercent,
+      cas,
+      g.func,
+    ]);
     row.alignment = { vertical: "middle" };
     row.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
-    row.getCell(2).alignment = { vertical: "middle", wrapText: true };
-    row.getCell(3).alignment = { vertical: "middle", wrapText: true };
-    row.getCell(4).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    row.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
-    row.getCell(6).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    row.getCell(7).alignment = { vertical: "middle", wrapText: true };
+    let col = 2;
+    if (showEn) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
+    if (showKr) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
+    row.getCell(ratioCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    row.getCell(inputCol).alignment = { vertical: "middle", horizontal: "center" };
+    row.getCell(finalCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    row.getCell(casCol).alignment = { vertical: "middle", wrapText: true };
     border(ws, row.number, 1, row.number, colCount);
     // 행 높이를 고정값으로 지정하지 않는다 - Excel이 파일을 열 때 wrapText 셀 내용(개별 항목이
     // 컬럼 폭보다 길어 한 항목이 시각적으로 여러 줄로 접히는 경우 포함)에 맞춰 자동으로 행 높이를
@@ -305,18 +374,18 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
             grouped.reduce((sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0), 0),
             finalPercentDecimals
           );
-    const totalRow = ws.addRow(["합계 (Total)", "", "", "", fixedPct(totalInput, inputDecimals), totalFinalPercentDisplay, "", ""]);
-    ws.mergeCells(totalRow.number, 1, totalRow.number, 4);
+    const totalRow = ws.addRow(["합계 (Total)", ...Array(langColCount).fill(""), "", fixedPct(totalInput, inputDecimals), totalFinalPercentDisplay, "", ""]);
+    ws.mergeCells(totalRow.number, 1, totalRow.number, ratioCol);
     totalRow.font = { bold: true };
     totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
     totalRow.getCell(1).alignment = { horizontal: "right" };
-    totalRow.getCell(5).alignment = { horizontal: "center" };
-    totalRow.getCell(6).alignment = { horizontal: "center" };
+    totalRow.getCell(inputCol).alignment = { horizontal: "center" };
+    totalRow.getCell(finalCol).alignment = { horizontal: "center" };
     border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
   writeFooterNotes(ws, colCount);
-  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}.xlsx`);
+  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
 // ============================================================
