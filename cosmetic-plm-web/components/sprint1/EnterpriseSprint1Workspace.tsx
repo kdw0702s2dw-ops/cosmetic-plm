@@ -10,13 +10,14 @@ import CompanyManager from "@/components/sprint2/CompanyManager";
 import IngredientDictionaryManager from "@/components/sprint2/IngredientDictionaryManager";
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 import ProductionManagementPanel from "@/components/sprint2/ProductionManagementPanel";
+import StabilityTestPanel from "@/components/sprint2/StabilityTestPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "quality" | "regulation" | "users";
 
 // Production 역할은 부자재관리/원료관리/생산관리만 볼 수 있음
 const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production"];
@@ -44,6 +45,7 @@ export default function EnterpriseSprint1Workspace() {
     if (effectiveActive === "formula") return <FormulaCoreWithAuthPanel />;
     if (effectiveActive === "docs") return <DocumentPdfPanel />;
     if (effectiveActive === "production") return <ProductionManagementPanel />;
+    if (effectiveActive === "quality") return <StabilityTestPanel />;
     if (effectiveActive === "regulation") return <RegulationEnginePanel />;
     if (effectiveActive === "users") return <UserAdminPanel />;
     return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} />;
@@ -64,6 +66,7 @@ export default function EnterpriseSprint1Workspace() {
             {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
             {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>}
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
+            {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
             {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
             {!isProduction && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
             {!isProduction && <button className={effectiveActive === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>}
@@ -97,6 +100,7 @@ export default function EnterpriseSprint1Workspace() {
           {!isProduction && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
           {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리 PDF</span></div>}
           <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>}
           {!isProduction && <div className={`v50-tab ${effectiveActive === "regulation" ? "active" : ""}`} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></div>}
           {!isProduction && <div className={`v50-tab ${effectiveActive === "sprint0" ? "active" : ""}`} onClick={() => setActive("sprint0")}><span>기반 점검</span></div>}
           {!isProduction && auth.canManageUsers && <div className={`v50-tab ${effectiveActive === "users" ? "active" : ""}`} onClick={() => setActive("users")}><span>사용자 권한관리</span></div>}
