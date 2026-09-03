@@ -10,7 +10,7 @@ import CompanyManager from "@/components/sprint2/CompanyManager";
 import IngredientDictionaryManager from "@/components/sprint2/IngredientDictionaryManager";
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 import ProductionManagementPanel from "@/components/sprint2/ProductionManagementPanel";
-import StabilityTestPanel from "@/components/sprint2/StabilityTestPanel";
+import QualityManagementPanel from "@/components/sprint2/QualityManagementPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
@@ -45,10 +45,10 @@ export default function EnterpriseSprint1Workspace() {
     if (effectiveActive === "formula") return <FormulaCoreWithAuthPanel />;
     if (effectiveActive === "docs") return <DocumentPdfPanel />;
     if (effectiveActive === "production") return <ProductionManagementPanel />;
-    if (effectiveActive === "quality") return <StabilityTestPanel />;
+    if (effectiveActive === "quality") return <QualityManagementPanel />;
     if (effectiveActive === "regulation") return <RegulationEnginePanel />;
     if (effectiveActive === "users") return <UserAdminPanel />;
-    return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} />;
+    return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} openQuality={() => setActive("quality")} />;
   }
 
   return (

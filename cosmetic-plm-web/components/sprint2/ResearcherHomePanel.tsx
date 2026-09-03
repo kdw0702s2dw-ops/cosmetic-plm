@@ -2,6 +2,7 @@
 
 import { useResearcherHome } from "@/hooks/useResearcherHome";
 import { useSourcingSchedule } from "@/hooks/useSourcingSchedule";
+import { useStabilityHome } from "@/hooks/useStabilityHome";
 import "@/styles/enterprise-v50.css";
 import AIChatSection from "@/components/home/AIChatSection";
 import SourcingScheduleSection from "@/components/home/SourcingScheduleSection";
@@ -10,13 +11,18 @@ export default function ResearcherHomePanel({
   openRaw,
   openFormula,
   openDocs,
+  openQuality,
 }: {
   openRaw: () => void;
   openFormula: () => void;
   openDocs: () => void;
+  openQuality: () => void;
 }) {
   const h = useResearcherHome();
   const sourcing = useSourcingSchedule();
+  // 안정성시험 지연/임박 알림 배너용 - 품질관리 홈과 동일한 훅을 재사용해 판정 로직이 어긋나지 않게 한다.
+  const stability = useStabilityHome();
+  const stabilityAlertCount = stability.myOverdueCount + stability.myDueSoonCount;
 
   return (
     <div className="v50-page">
@@ -29,11 +35,23 @@ export default function ResearcherHomePanel({
           <p style={{ color: "#2563eb", fontWeight: 900 }}>{h.message}</p>
           {sourcing.alertCount > 0 && (
             <a href="#sourcing-schedule" style={{
-              display: "inline-block", marginTop: 6, color: "#dc2626", fontWeight: 800,
+              display: "inline-block", marginTop: 6, marginRight: 8, color: "#dc2626", fontWeight: 800,
               background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 999, padding: "4px 12px", fontSize: 13,
             }}>
               ⚠ 원료 소싱 {sourcing.alertCount}건 입고 지연/임박 확인 필요
             </a>
+          )}
+          {stabilityAlertCount > 0 && (
+            <button
+              type="button"
+              onClick={openQuality}
+              style={{
+                display: "inline-block", marginTop: 6, color: "#dc2626", fontWeight: 800,
+                background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 999, padding: "4px 12px", fontSize: 13, cursor: "pointer",
+              }}
+            >
+              ⚠ 안정성시험 {stabilityAlertCount}건 지연/임박 확인 필요 (지연 {stability.myOverdueCount}건, 임박 {stability.myDueSoonCount}건)
+            </button>
           )}
         </div>
         <div className="v50-flow">

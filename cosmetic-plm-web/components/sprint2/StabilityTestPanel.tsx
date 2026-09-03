@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useStabilityTest } from "@/hooks/useStabilityTest";
 import {
   STABILITY_CONDITION_PRESETS,
@@ -248,8 +248,22 @@ function ConditionCard({ condition, s }: { condition: StabilityConditionWithChec
   );
 }
 
-export default function StabilityTestPanel() {
+export default function StabilityTestPanel({
+  focusTestId, onFocusHandled,
+}: {
+  focusTestId?: string | null;
+  onFocusHandled?: () => void;
+} = {}) {
   const s = useStabilityTest();
+
+  // 품질관리 홈(달력)에서 "열기"를 눌러 특정 시료로 바로 이동해 왔을 때 - 목록에서 자동으로 그 시료를 선택한다.
+  useEffect(() => {
+    if (focusTestId) {
+      s.selectTest(focusTestId);
+      onFocusHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTestId]);
 
   return (
     <div>

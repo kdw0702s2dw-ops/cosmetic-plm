@@ -84,6 +84,24 @@ export type StabilityCheckpoint = {
 
 export type StabilityConditionWithCheckpoints = StabilityCondition & { checkpoints: StabilityCheckpoint[] };
 
+// 품질관리 홈(달력/알림)에서 쓰는 형태 - 체크포인트 하나에 그 상위 조건/시료 정보까지 함께 담아,
+// 어느 처방/시료의 몇 번째 시점인지, 담당자가 누구인지를 한 번에 보여줄 수 있게 한다.
+export type CheckpointWithContext = StabilityCheckpoint & {
+  condition: {
+    id: string;
+    condition_label: string;
+    condition_type: StabilityConditionType;
+    test: {
+      id: string;
+      formula_code: string;
+      sample_name: string | null;
+      formula_name: string | null;
+      assignee: string | null;
+      status: StabilityTestStatus;
+    } | null;
+  } | null;
+};
+
 // 조건 프리셋 - 시작일 기준 체크포인트 일정을 자동 생성하는 데 쓰는 오프셋(일수) 목록.
 // ODM(콜마/코스맥스 등) 관행에 맞춰 장기보존/가속은 월단위, 가혹은 주단위, 냉동해동은 사이클단위로 구성.
 export const STABILITY_CONDITION_PRESETS: { type: StabilityConditionType; label: string; checkpointOffsets: { label: string; days: number }[] }[] = [
@@ -157,6 +175,17 @@ export function isCheckpointOverdue(cp: StabilityCheckpoint): boolean {
   return new Date(`${cp.due_date}T00:00:00`).getTime() < today.getTime();
 }
 
+// 아직 지연은 아니지만 예정일이 days일 이내로 임박했으면 true - 지연되기 전에 미리 알 수 있게 하기 위함
+// (원료 소싱 일정관리의 isDueSoonOrOverdue와 같은 취지, 여기서는 지연/임박을 분리해서 색상을 다르게 쓴다).
+export function isCheckpointDueSoon(cp: StabilityCheckpoint, days = 3): boolean {
+  if (cp.status === "완료") return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${cp.due_date}T00:00:00`);
+  const diffDays = Math.floor((target.getTime() - today.getTime()) / 86400000);
+  return diffDays >= 0 && diffDays <= days;
+}
+
 // 체크포인트 결과 항목들의 종합판정 - 하나라도 부적합이면 부적합, 하나라도 관찰필요면 관찰필요, 전부 적합이면 적합.
 export function computeOverallJudgement(results: StabilityResultItem[]): "적합" | "부적합" | "관찰필요" | "미입력" {
   if (!results || results.length === 0) return "미입력";
@@ -215,6 +244,35 @@ export async function deleteStabilityTest(id: string) {
   // ON DELETE CASCADE로 하위 조건/체크포인트도 함께 삭제된다.
   const { error } = await supabaseProductionFinal.from("plm_stability_tests").delete().eq("id", id);
   if (error) throw error;
+}
+
+const CHECKPOINT_CONTEXT_SELECT =
+  "*, condition:plm_stability_conditions(id, condition_label, condition_type, test:plm_stability_tests(id, formula_code, sample_name, formula_name, assignee, status))";
+
+// 품질관리 홈 달력용 - 특정 월(from~to, YYYY-MM-DD, inclusive)에 예정일이 있는 체크포인트를 시료/조건 정보와
+// 함께 전부 가져온다. 시료 전체를 대상으로 하므로(하나의 시료만 보는 fetchStabilityConditions와 다름) 별도 함수로 둔다.
+export async function fetchAllStabilityCheckpoints(from: string, to: string): Promise<CheckpointWithContext[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_stability_checkpoints")
+    .select(CHECKPOINT_CONTEXT_SELECT)
+    .gte("due_date", from)
+    .lte("due_date", to)
+    .order("due_date", { ascending: true });
+  if (error) throw error;
+  return (data || []) as unknown as CheckpointWithContext[];
+}
+
+// 품질관리 홈 알림 배너/뱃지용 - 아직 완료되지 않은(예정) 체크포인트를 월과 무관하게 전부 가져온다.
+// 지연/임박 판정과 "내 담당만" 필터링은 호출부(훅)에서 한다 - 날짜 계산은 클라이언트 로컬 시간 기준이 맞기 때문.
+export async function fetchOpenStabilityAlerts(): Promise<CheckpointWithContext[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_stability_checkpoints")
+    .select(CHECKPOINT_CONTEXT_SELECT)
+    .eq("status", "예정")
+    .order("due_date", { ascending: true })
+    .limit(500);
+  if (error) throw error;
+  return (data || []) as unknown as CheckpointWithContext[];
 }
 
 export async function fetchStabilityConditions(testId: string): Promise<StabilityConditionWithCheckpoints[]> {
