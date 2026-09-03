@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
-import { computeRawMaterialDiff, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
+import { computeRawMaterialDiff, buildRawMaterialSyncPatch, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
@@ -51,7 +51,7 @@ export default function FormulaCorePanel() {
   const rawUsageAnchorPos = useAnchorPosition(s.rawUsageHits.length > 0 ? "open" : null, () => rawUsageInputRef.current, s.rawUsageHits);
 
   // "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버 - 자동 반영 없음, 확인만 가능
-  const [diffPopover, setDiffPopover] = useState<{ lineNo: number; diffs: RawMaterialDiffField[] } | null>(null);
+  const [diffPopover, setDiffPopover] = useState<{ lineNo: number; diffs: RawMaterialDiffField[]; onApply: () => void } | null>(null);
   const diffBadgeRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const diffAnchorPos = useAnchorPosition(
     diffPopover?.lineNo ?? null,
@@ -86,6 +86,19 @@ export default function FormulaCorePanel() {
   // BOM 표시 순서: Phase 오름차순 -> 그 안에서 phase_seq 오름차순(없으면 line_no로 대체).
   // s.lines 자체는 건드리지 않고(저장 로직/line_no와 무관), 화면 표시용으로만 정렬한다.
   const sortedLines = sortLinesForDisplay(s.lines);
+
+  // 변경된 원료 정보가 있는 라인 목록 - "변경된 원료정보 일괄 반영" 버튼 노출 여부/개수 표시, 클릭 시 한 번에 반영.
+  const outdatedRawLines = sortedLines.filter((line) => {
+    const latest = line.raw_code ? s.latestRawDataMap.get(line.raw_code) : undefined;
+    return latest && computeRawMaterialDiff(line, latest).length > 0;
+  });
+  function applyAllRawMaterialUpdates() {
+    for (const line of outdatedRawLines) {
+      const latest = s.latestRawDataMap.get(line.raw_code!);
+      if (latest) s.updateLine(line.line_no, buildRawMaterialSyncPatch(latest));
+    }
+    setDiffPopover(null);
+  }
 
   // 처방 목록: 처방코드 1개당 1행으로 묶어서 목록이 Revision마다 계속 쌓여 지저분해지는 것을 막는다.
   // s.formulas는 updated_at 내림차순으로 오므로, 각 처방코드의 revisions 배열도 최신순이다.
@@ -385,6 +398,17 @@ export default function FormulaCorePanel() {
                 </button>
               </span>
             )}
+            {outdatedRawLines.length > 0 && (
+              <button
+                type="button"
+                className="v50-button-light"
+                style={{ background: "#fef3c7", color: "#d97706", fontWeight: 700 }}
+                onClick={applyAllRawMaterialUpdates}
+                title="원료관리에서 변경된 원료 정보를 이 처방의 모든 라인에 한 번에 반영합니다"
+              >
+                ⚠ 변경된 원료정보 일괄 반영 ({outdatedRawLines.length})
+              </button>
+            )}
             <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
           </div>
         </div>
@@ -433,7 +457,11 @@ export default function FormulaCorePanel() {
                             <button
                               type="button"
                               ref={(el) => { diffBadgeRefs.current[line.line_no] = el; }}
-                              onClick={() => setDiffPopover({ lineNo: line.line_no, diffs })}
+                              onClick={() => setDiffPopover({
+                                lineNo: line.line_no,
+                                diffs,
+                                onApply: () => s.updateLine(line.line_no, buildRawMaterialSyncPatch(latest)),
+                              })}
                               title={`원료 정보 변경됨: ${diffs.map((d) => d.label).join(", ")}`}
                               style={{
                                 border: "none", background: "#fef3c7", color: "#d97706", fontWeight: 700,
@@ -572,20 +600,27 @@ export default function FormulaCorePanel() {
 
       {diffPopover && diffAnchorPos &&
         createPortal(
-          <RawMaterialDiffPopover diffs={diffPopover.diffs} pos={diffAnchorPos} onClose={() => setDiffPopover(null)} />,
+          <RawMaterialDiffPopover
+            diffs={diffPopover.diffs}
+            pos={diffAnchorPos}
+            onClose={() => setDiffPopover(null)}
+            onApply={() => { diffPopover.onApply(); setDiffPopover(null); }}
+          />,
           document.body
         )}
     </div>
   );
 }
 
-// "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버. 자동 반영 버튼 없음 - 확인만 가능.
+// "원료 정보 변경됨" 배지 클릭 시 뜨는 저장값 vs 최신값 비교 팝오버. "적용"을 누르면 이 라인의 스냅샷
+// 필드가 원료관리의 최신 값으로 즉시 바뀐다(화면 상태만 - 최종 반영은 여전히 "저장" 버튼을 눌러야 함).
 function RawMaterialDiffPopover({
-  diffs, pos, onClose,
+  diffs, pos, onClose, onApply,
 }: {
   diffs: RawMaterialDiffField[];
   pos: { left: number; width: number; top?: number; bottom?: number };
   onClose: () => void;
+  onApply: () => void;
 }) {
   return (
     <div
@@ -613,8 +648,9 @@ function RawMaterialDiffPopover({
           ))}
         </tbody>
       </table>
-      <div style={{ textAlign: "right", marginTop: 10 }}>
-        <button type="button" className="v50-button-light" onClick={onClose}>확인</button>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+        <button type="button" className="v50-button-light" onClick={onClose}>닫기</button>
+        <button type="button" className="v50-button" onClick={onApply}>최신값 적용</button>
       </div>
     </div>
   );

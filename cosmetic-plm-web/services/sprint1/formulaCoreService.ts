@@ -63,36 +63,55 @@ export type Sprint1FormulaLine = {
 // 값이 하나도 다르지 않으면 빈 배열 - 호출부에서 length===0이면 배지를 숨긴다.
 export type RawMaterialDiffField = { key: string; label: string; saved: string; latest: string };
 
+// 비교/반영 대상 필드 목록 - computeRawMaterialDiff와 buildRawMaterialSyncPatch가 이 하나의 목록을 함께 쓴다
+// (필드를 늘릴 때 두 곳에 따로 추가하다가 서로 어긋나는 실수를 막기 위함).
+const RAW_DIFF_FIELDS: { key: string; label: string }[] = [
+  { key: "raw_name", label: "원료명" },
+  { key: "unit_price", label: "단가" },
+  { key: "inci_kr", label: "INCI(국문)" },
+  { key: "inci_en", label: "INCI(영문)" },
+  { key: "function_kr", label: "효능(국문)" },
+  { key: "function_en", label: "효능(영문)" },
+  { key: "cas_no", label: "CAS No" },
+  { key: "ec_no", label: "EC No" },
+  { key: "moq", label: "MOQ" },
+];
+
 export function computeRawMaterialDiff(line: Sprint1FormulaLine, latest: any | undefined): RawMaterialDiffField[] {
   if (!latest) return [];
-  const fields: { key: string; label: string; savedRaw: any; latestRaw: any }[] = [
-    { key: "unit_price", label: "단가", savedRaw: line.unit_price, latestRaw: latest.unit_price },
-    { key: "inci_kr", label: "INCI(국문)", savedRaw: line.inci_kr, latestRaw: latest.inci_kr },
-    { key: "inci_en", label: "INCI(영문)", savedRaw: line.inci_en, latestRaw: latest.inci_en },
-    { key: "function_kr", label: "효능(국문)", savedRaw: line.function_kr, latestRaw: latest.function_kr },
-    { key: "function_en", label: "효능(영문)", savedRaw: line.function_en, latestRaw: latest.function_en },
-    { key: "cas_no", label: "CAS No", savedRaw: line.cas_no, latestRaw: latest.cas_no },
-    { key: "ec_no", label: "EC No", savedRaw: line.ec_no, latestRaw: latest.ec_no },
-    { key: "moq", label: "MOQ", savedRaw: line.moq, latestRaw: latest.moq },
-  ];
-
   const diffs: RawMaterialDiffField[] = [];
-  for (const f of fields) {
+  for (const f of RAW_DIFF_FIELDS) {
+    const savedRaw = (line as any)[f.key];
+    const latestRaw = latest[f.key];
     if (f.key === "unit_price") {
-      const savedNum = Number(f.savedRaw || 0);
-      const latestNum = Number(f.latestRaw || 0);
+      const savedNum = Number(savedRaw || 0);
+      const latestNum = Number(latestRaw || 0);
       if (savedNum !== latestNum) {
         diffs.push({ key: f.key, label: f.label, saved: savedNum.toLocaleString(), latest: latestNum.toLocaleString() });
       }
       continue;
     }
-    const savedText = (f.savedRaw || "").toString().trim();
-    const latestText = (f.latestRaw || "").toString().trim();
+    const savedText = (savedRaw || "").toString().trim();
+    const latestText = (latestRaw || "").toString().trim();
     if (savedText !== latestText) {
       diffs.push({ key: f.key, label: f.label, saved: savedText || "-", latest: latestText || "-" });
     }
   }
   return diffs;
+}
+
+// "적용" 버튼(단건/일괄)이 BOM 라인에 그대로 patch 로 넘길 수 있는 객체를 만든다 - 원료관리의 최신 값으로
+// 스냅샷 필드를 전부 채운다. unit_price는 숫자로, 나머지는 원본 그대로(빈 값이면 빈 문자열)를 넣는다.
+export function buildRawMaterialSyncPatch(latest: any): Partial<Sprint1FormulaLine> {
+  const patch: Partial<Sprint1FormulaLine> = {};
+  for (const f of RAW_DIFF_FIELDS) {
+    if (f.key === "unit_price") {
+      patch.unit_price = Number(latest.unit_price || 0);
+    } else {
+      (patch as any)[f.key] = latest[f.key] || "";
+    }
+  }
+  return patch;
 }
 
 export async function fetchSprint1Formulas(keyword = "") {
