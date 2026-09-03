@@ -22,7 +22,6 @@ import {
   fixedPct,
   kovasMeta,
   langFileSuffix,
-  langTitleSuffix,
   mergeRows,
   NOTES,
   orderSheetMeta,
@@ -152,7 +151,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     { width: 20 },
   ];
 
-  writeTitleRow(ws, `Ingredient List (Single)${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
+  writeTitleRow(ws, `Ingredient List (Single)${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow([
@@ -231,7 +230,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   ws.columns = colWidths.map((width) => ({ width }));
   const totalColWidth = colWidths.reduce((s, w) => s + w, 0);
 
-  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const writeBox = (title: string, content: string) => {
@@ -293,7 +292,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     { width: 20 },
   ];
 
-  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow([

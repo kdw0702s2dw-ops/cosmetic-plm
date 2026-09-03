@@ -920,7 +920,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
       const cas = eLines(g.items.map((x) => x.cas));
       const langCells = [
         lang !== "KR" ? `<td>${en}</td>` : "",
-        lang !== "EN" ? `<td>${kr}</td>` : "",
+        lang !== "EN" ? `<td class="center">${kr}</td>` : "",
       ].join("");
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -963,7 +963,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th>${langHeaders}
@@ -998,7 +998,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
     .map((x, i) => {
       const langCells = [
         lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
-        lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
+        lang !== "EN" ? `<td class="center">${e(x.inci_kr)}</td>` : "",
       ].join("");
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -1028,7 +1028,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List (Single)${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List (Single)${basisTitleSuffix(basis)}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
   <th>No.</th>${langHeaders}
@@ -1057,7 +1057,7 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
   <div class="bb">${e(inciKr || "-")}</div>
 </div>` : "";
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`, kovasMeta(f), `${enBox}${krBox}`, f);
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `${enBox}${krBox}`, f);
 }
 
 // ============================================================
@@ -1119,7 +1119,7 @@ export async function createFormulaDocument(formula: any, kind: DocKind, basis: 
       document_type: kind,
       basis,
       lang,
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
       status: "CREATED",
       payload_json: { formula, lines, basis, lang },
       html_content: html,
@@ -1140,7 +1140,7 @@ export async function regenerateFormulaDocument(existingDoc: any, formula: any, 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
     .update({
-      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}${langTitleSuffix(lang)}`,
+      title: `${formula.formula_name} ${DOC_KIND_NAMES[kind]}${basisTitleSuffix(basis)}`,
       lang,
       payload_json: { formula, lines, basis, lang },
       html_content: html,
