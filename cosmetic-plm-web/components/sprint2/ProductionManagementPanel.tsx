@@ -20,13 +20,13 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
   },
   {
     key: "insolubleHg",
-    label: "불용성 HG",
+    label: "(연구) 불용성 HG",
     description: "원단/필름 관리기준과 칼선 조건으로 도포량·면적비·DCAP중량을 계산합니다.",
     render: () => <InsolubleHgPanel />,
   },
   {
     key: "solubleHg",
-    label: "수용성 HG",
+    label: "(연구) 수용성 HG",
     description: "관리기준 3개(필름1/원단/필름2)와 칼선 조건으로 도포량·부자재중량을 계산합니다.",
     render: () => <SolubleHgPanel />,
   },
@@ -38,19 +38,19 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
   },
   {
     key: "rawMaterialStock",
-    label: "원료재고 검토",
+    label: "(칭량/구매) 원료재고 검토",
     description: "재고 관리 대상 원료의 날짜별 현재재고량/금일사용량/최종재고량을 원장으로 관리합니다.",
     render: () => <RawMaterialStockPanel />,
   },
   {
     key: "manufacturingQtyReview",
-    label: "제조량 검토",
+    label: "(생산/구매) 제조량 검토",
     description: "목표 제조량 대비 재고 관리 대상 원료의 부족량을 계산해 부족 원료를 확인합니다.",
     render: () => <ManufacturingQtyReviewPanel />,
   },
   {
     key: "productionRecord",
-    label: "생산실적 검토",
+    label: "(생산) 생산실적 검토",
     description: "처방별 Lot No. 단위로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록하고 이력을 조회합니다.",
     render: () => <ProductionRecordPanel />,
   },
