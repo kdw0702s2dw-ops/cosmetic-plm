@@ -2,11 +2,11 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-// 생산관리 "생산일정관리" 전용 - 처방(제품) 단위로 제조/타공/포장/출고 4개 공정의 날짜를
+// 생산관리 "생산일정관리" 전용 - 처방(제품) 단위로 칭량/제조/도포/타공/포장/출고 6개 공정의 날짜를
 // 달력으로 관리한다. 처방 검색은 원료 소싱 일정관리(useSourcingSchedule)와 동일한 함수를 재사용한다.
 export { searchFormulasByCodeOrConfirmedCode } from "./sourcingScheduleService";
 
-export const SCHEDULE_TYPES = ["제조", "타공", "포장", "출고"] as const;
+export const SCHEDULE_TYPES = ["칭량", "제조", "도포", "타공", "포장", "출고"] as const;
 export type ScheduleType = (typeof SCHEDULE_TYPES)[number];
 
 export const SCHEDULE_STATUSES = ["예정", "진행중", "완료", "지연"] as const;
@@ -14,10 +14,12 @@ export type ScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
 
 // 유형별 색상 - 달력 점/뱃지/목록 테두리에 일관되게 사용
 export const SCHEDULE_TYPE_COLORS: Record<ScheduleType, string> = {
+  칭량: "#0891b2",
   제조: "#2563eb",
+  도포: "#7c3aed",
   타공: "#d97706",
   포장: "#16a34a",
-  출고: "#7c3aed",
+  출고: "#db2777",
 };
 
 export type ProductionSchedule = {

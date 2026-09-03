@@ -82,7 +82,7 @@ export default function ProductionSchedulePanel() {
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
-        처방을 검색해서 등록하면 제조·타공·포장·출고 4개 공정 일정을 달력에서 관리할 수 있습니다.
+        처방을 검색해서 등록하면 칭량·제조·도포·타공·포장·출고 6개 공정 일정을 달력에서 관리할 수 있습니다.
         날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}

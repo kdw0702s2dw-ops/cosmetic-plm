@@ -15,7 +15,7 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
   {
     key: "schedule",
     label: "생산일정관리",
-    description: "처방별 제조·타공·포장·출고 일정을 달력으로 등록하고 관리합니다.",
+    description: "처방별 칭량·제조·도포·타공·포장·출고 일정을 달력으로 등록하고 관리합니다.",
     render: () => <ProductionSchedulePanel />,
   },
   {
