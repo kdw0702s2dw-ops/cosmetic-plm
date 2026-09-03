@@ -7,10 +7,17 @@ import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
 import ProductionRecordPanel from "@/components/sprint2/ProductionRecordPanel";
+import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
 const TOOLS: { key: string; label: string; description: string; render: () => React.ReactNode }[] = [
+  {
+    key: "schedule",
+    label: "생산일정관리",
+    description: "처방별 제조·타공·포장·출고 일정을 달력으로 등록하고 관리합니다.",
+    render: () => <ProductionSchedulePanel />,
+  },
   {
     key: "insolubleHg",
     label: "불용성 HG",
