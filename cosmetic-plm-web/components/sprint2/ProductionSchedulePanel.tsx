@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useProductionSchedule } from "@/hooks/useProductionSchedule";
 import { SCHEDULE_TYPE_COLORS, type ProductionSchedule, type ScheduleStatus, type ScheduleType } from "@/services/sprint2/productionScheduleService";
 import "@/styles/enterprise-v50.css";
@@ -25,7 +26,7 @@ function buildCalendarCells(year: number, month: number): (string | null)[] {
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function DayCell({ date, s }: { date: string | null; s: S }) {
-  if (!date) return <div style={{ minHeight: 76 }} />;
+  if (!date) return <div style={{ minHeight: 100 }} />;
   const dayItems = s.itemsByDate.get(date) || [];
   const typesPresent = Array.from(new Set(dayItems.map((i) => i.schedule_type)));
   const isToday = date === todayStr();
@@ -36,8 +37,8 @@ function DayCell({ date, s }: { date: string | null; s: S }) {
     <div
       onClick={() => s.selectDate(date)}
       style={{
-        minHeight: 76,
-        padding: 6,
+        minHeight: 100,
+        padding: 8,
         borderRadius: 8,
         cursor: "pointer",
         border: isSelected ? "2px solid #2563eb" : "1px solid #e2e8f0",
@@ -78,6 +79,12 @@ function StatusSelect({ item, s }: { item: ProductionSchedule; s: S }) {
 export default function ProductionSchedulePanel() {
   const s = useProductionSchedule();
   const monthLabel = `${s.year}년 ${s.month}월`;
+  // 일정 등록 폼은 기본적으로 접어둔다 - 달력을 전체 폭으로 크게 보는 것이 기본 화면이고,
+  // "수정"을 누르거나 "+ 일정 등록"을 누르면 그때만 위쪽에 펼쳐진다.
+  const [showForm, setShowForm] = useState(false);
+  useEffect(() => {
+    if (s.editingId) setShowForm(true);
+  }, [s.editingId]);
 
   return (
     <div>
@@ -87,81 +94,12 @@ export default function ProductionSchedulePanel() {
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)", gap: 18, alignItems: "start" }}>
-        <section className="v50-panel">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button className="v50-button-light" onClick={s.prevMonth}>◀</button>
-              <h2 style={{ margin: 0, fontSize: 16 }}>{monthLabel}</h2>
-              <button className="v50-button-light" onClick={s.nextMonth}>▶</button>
-              <button className="v50-button-light" onClick={s.goToday}>오늘</button>
-            </div>
-            <div style={{ display: "flex", gap: 10, fontSize: 12, color: "#64748b", flexWrap: "wrap" }}>
-              {s.types.map((t) => (
-                <span key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[t] }} />
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        <button className="v50-button" onClick={() => setShowForm((v) => !v)}>{showForm ? "일정 등록 폼 접기" : "+ 일정 등록"}</button>
+      </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 12 }}>
-            {WEEKDAYS.map((w) => (
-              <div key={w} style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>{w}</div>
-            ))}
-            {buildCalendarCells(s.year, s.month).map((date, i) => (
-              <DayCell key={date || `empty-${i}`} date={date} s={s} />
-            ))}
-          </div>
-
-          {s.selectedDate && (
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 800 }}>{s.selectedDate} 일정</span>
-              <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.selectDate(s.selectedDate!)}>전체 보기로</button>
-            </div>
-          )}
-
-          <div className="v50-table-wrap" style={{ marginTop: 10 }}>
-            <table className="v50-table">
-              <thead>
-                <tr><th>날짜</th><th>유형</th><th>처방코드</th><th>처방명</th><th>수량</th><th>담당자</th><th>상태</th><th></th></tr>
-              </thead>
-              <tbody>
-                {s.listItems.map((item) => {
-                  const overdue = s.isScheduleOverdue(item);
-                  return (
-                    <tr key={item.id}>
-                      <td style={{ color: overdue ? "#dc2626" : undefined, fontWeight: overdue ? 800 : undefined }}>
-                        {item.schedule_date}{overdue && " (지연)"}
-                      </td>
-                      <td>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[item.schedule_type] }} />
-                          {item.schedule_type}
-                        </span>
-                      </td>
-                      <td>{item.formula_code}</td>
-                      <td>{item.formula_name || "-"}</td>
-                      <td>{item.quantity ?? "-"}</td>
-                      <td>{item.assignee || "-"}</td>
-                      <td><StatusSelect item={item} s={s} /></td>
-                      <td style={{ display: "flex", gap: 4 }}>
-                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.editItem(item)}>수정</button>
-                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.id!)}>삭제</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {s.listItems.length === 0 && (
-                  <tr><td colSpan={8} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="v50-panel">
+      {showForm && (
+        <section className="v50-panel" style={{ marginBottom: 18 }}>
           <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>{s.editingId ? "일정 수정" : "일정 등록"}</h2>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -174,7 +112,7 @@ export default function ProductionSchedulePanel() {
               style={{ maxWidth: 220 }}
             />
             <button className="v50-button" onClick={s.search} disabled={s.searching}>{s.searching ? "검색 중…" : "검색"}</button>
-            {s.editingId && <button className="v50-button-light" onClick={s.resetForm}>취소</button>}
+            {s.editingId && <button className="v50-button-light" onClick={() => { s.resetForm(); setShowForm(false); }}>취소</button>}
           </div>
 
           {s.hits.length > 0 && (
@@ -246,6 +184,81 @@ export default function ProductionSchedulePanel() {
 
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button className="v50-button" onClick={s.save} disabled={s.saving}>{s.saving ? "저장 중…" : "저장"}</button>
+          </div>
+        </section>
+      )}
+
+      <div>
+        <section className="v50-panel">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button className="v50-button-light" onClick={s.prevMonth}>◀</button>
+              <h2 style={{ margin: 0, fontSize: 16 }}>{monthLabel}</h2>
+              <button className="v50-button-light" onClick={s.nextMonth}>▶</button>
+              <button className="v50-button-light" onClick={s.goToday}>오늘</button>
+            </div>
+            <div style={{ display: "flex", gap: 10, fontSize: 12, color: "#64748b", flexWrap: "wrap" }}>
+              {s.types.map((t) => (
+                <span key={t} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[t] }} />
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 12 }}>
+            {WEEKDAYS.map((w) => (
+              <div key={w} style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>{w}</div>
+            ))}
+            {buildCalendarCells(s.year, s.month).map((date, i) => (
+              <DayCell key={date || `empty-${i}`} date={date} s={s} />
+            ))}
+          </div>
+
+          {s.selectedDate && (
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>{s.selectedDate} 일정</span>
+              <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.selectDate(s.selectedDate!)}>전체 보기로</button>
+            </div>
+          )}
+
+          <div className="v50-table-wrap" style={{ marginTop: 10 }}>
+            <table className="v50-table">
+              <thead>
+                <tr><th>날짜</th><th>유형</th><th>처방코드</th><th>처방명</th><th>수량</th><th>담당자</th><th>상태</th><th></th></tr>
+              </thead>
+              <tbody>
+                {s.listItems.map((item) => {
+                  const overdue = s.isScheduleOverdue(item);
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ color: overdue ? "#dc2626" : undefined, fontWeight: overdue ? 800 : undefined }}>
+                        {item.schedule_date}{overdue && " (지연)"}
+                      </td>
+                      <td>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[item.schedule_type] }} />
+                          {item.schedule_type}
+                        </span>
+                      </td>
+                      <td>{item.formula_code}</td>
+                      <td>{item.formula_name || "-"}</td>
+                      <td>{item.quantity ?? "-"}</td>
+                      <td>{item.assignee || "-"}</td>
+                      <td><StatusSelect item={item} s={s} /></td>
+                      <td style={{ display: "flex", gap: 4 }}>
+                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.editItem(item)}>수정</button>
+                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.id!)}>삭제</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {s.listItems.length === 0 && (
+                  <tr><td colSpan={8} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>

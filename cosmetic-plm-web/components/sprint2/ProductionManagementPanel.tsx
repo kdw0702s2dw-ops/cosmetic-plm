@@ -69,26 +69,21 @@ export default function ProductionManagementPanel() {
         </div>
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 18, alignItems: "start" }}>
-        <section className="v50-panel" style={{ padding: 10 }}>
-          <h2 style={{ fontSize: 14, margin: "4px 8px 10px" }}>도구</h2>
-          <div style={{ display: "grid", gap: 6 }}>
-            {TOOLS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTool(t.key)}
-                className={activeTool === t.key ? "v50-button" : "v50-button-light"}
-                style={{ textAlign: "left", justifyContent: "flex-start" }}
-                title={t.description}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div>{current.render()}</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        {TOOLS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTool(t.key)}
+            className={activeTool === t.key ? "v50-button" : "v50-button-light"}
+            title={t.description}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+      <p style={{ color: "#64748b", fontSize: 12, marginTop: 0, marginBottom: 14 }}>{current.description}</p>
+
+      <div>{current.render()}</div>
     </div>
   );
 }
