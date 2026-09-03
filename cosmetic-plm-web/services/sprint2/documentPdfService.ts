@@ -920,7 +920,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
       const cas = eLines(g.items.map((x) => x.cas));
       const langCells = [
         lang !== "KR" ? `<td>${en}</td>` : "",
-        lang !== "EN" ? `<td class="center">${kr}</td>` : "",
+        lang !== "EN" ? `<td>${kr}</td>` : "",
       ].join("");
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -998,7 +998,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
     .map((x, i) => {
       const langCells = [
         lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
-        lang !== "EN" ? `<td class="center">${e(x.inci_kr)}</td>` : "",
+        lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
       ].join("");
       return `<tr>
   <td class="center">${i + 1}</td>
