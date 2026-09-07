@@ -328,6 +328,40 @@ export async function deleteStabilityCondition(id: string) {
   if (error) throw error;
 }
 
+// 조건 수정 - 라벨/시작일/평가항목을 갱신한다. 시작일이 바뀌면, 프리셋 오프셋과 라벨이 일치하고 아직
+// 완료되지 않은 체크포인트만 새 시작일 기준으로 예정일을 함께 재계산한다. 이미 완료된 체크포인트나
+// 프리셋에 없는(수동으로 추가한) 체크포인트는 과거 기록 보존을 위해 건드리지 않는다.
+export async function updateStabilityCondition(
+  condition: StabilityConditionWithCheckpoints,
+  patch: { condition_label: string; start_date: string; item_templates: StabilityItemTemplate[] }
+): Promise<void> {
+  const { error: updErr } = await supabaseProductionFinal
+    .from("plm_stability_conditions")
+    .update({
+      condition_label: patch.condition_label,
+      start_date: patch.start_date,
+      item_templates: patch.item_templates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", condition.id);
+  if (updErr) throw updErr;
+
+  if (patch.start_date !== condition.start_date) {
+    const preset = STABILITY_CONDITION_PRESETS.find((p) => p.type === condition.condition_type);
+    const offsetByLabel = new Map((preset?.checkpointOffsets || []).map((o) => [o.label, o.days]));
+    const toShift = (condition.checkpoints || []).filter(
+      (cp) => cp.status !== "완료" && offsetByLabel.has(cp.checkpoint_label)
+    );
+    for (const cp of toShift) {
+      const { error } = await supabaseProductionFinal
+        .from("plm_stability_checkpoints")
+        .update({ due_date: addDays(patch.start_date, offsetByLabel.get(cp.checkpoint_label)!), updated_at: new Date().toISOString() })
+        .eq("id", cp.id);
+      if (error) throw error;
+    }
+  }
+}
+
 // 커스텀 조건(또는 프리셋에 없던 시점)에 체크포인트를 수동으로 추가할 때 사용.
 export async function addStabilityCheckpoint(conditionId: string, label: string, dueDate: string): Promise<StabilityCheckpoint> {
   const { data, error } = await supabaseProductionFinal

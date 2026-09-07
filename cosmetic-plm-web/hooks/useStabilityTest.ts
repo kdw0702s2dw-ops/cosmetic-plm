@@ -9,6 +9,7 @@ import {
   deleteStabilityTest,
   fetchStabilityConditions,
   addStabilityCondition,
+  updateStabilityCondition,
   deleteStabilityCondition,
   addStabilityCheckpoint,
   deleteStabilityCheckpoint,
@@ -69,8 +70,9 @@ export function useStabilityTest() {
   const [savingTest, setSavingTest] = useState(false);
   const [showTestForm, setShowTestForm] = useState(false);
 
-  // 조건 추가 폼
+  // 조건 추가/수정 폼 (editingConditionId가 있으면 수정 모드 - 같은 입력 상태를 재사용한다)
   const [showAddCondition, setShowAddCondition] = useState(false);
+  const [editingConditionId, setEditingConditionId] = useState<string | null>(null);
   const [conditionType, setConditionType] = useState<StabilityConditionType>("장기보존");
   const [conditionLabel, setConditionLabel] = useState(STABILITY_CONDITION_PRESETS[0].label);
   const [conditionStartDate, setConditionStartDate] = useState(todayStr());
@@ -255,6 +257,32 @@ export function useStabilityTest() {
     setItemTemplates((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // "+ 시험조건 추가" 클릭 시 - 수정 모드 상태를 확실히 비우고 기본값으로 새로 시작한다
+  // (이전에 조건 수정 중이던 값이 새 조건 추가에 그대로 남아있지 않도록).
+  function openAddConditionForm() {
+    setEditingConditionId(null);
+    setConditionType("장기보존");
+    setConditionLabel(STABILITY_CONDITION_PRESETS[0].label);
+    setConditionStartDate(todayStr());
+    setItemTemplates(STABILITY_ITEM_PRESETS.map((x) => ({ ...x })));
+    setShowAddCondition(true);
+  }
+
+  // 기존 조건의 "수정" 버튼 - 현재 값으로 폼을 채우고 같은 폼을 수정 모드로 연다.
+  function startEditCondition(condition: StabilityConditionWithCheckpoints) {
+    setEditingConditionId(condition.id);
+    setConditionType(condition.condition_type);
+    setConditionLabel(condition.condition_label);
+    setConditionStartDate(condition.start_date);
+    setItemTemplates(condition.item_templates.map((x) => ({ ...x })));
+    setShowAddCondition(true);
+  }
+
+  function cancelConditionForm() {
+    setShowAddCondition(false);
+    setEditingConditionId(null);
+  }
+
   async function submitAddCondition() {
     if (!selectedTestId) return;
     if (itemTemplates.length === 0) {
@@ -276,6 +304,34 @@ export function useStabilityTest() {
       await reloadConditions();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "시험조건 추가 오류");
+    } finally {
+      setSavingCondition(false);
+    }
+  }
+
+  // 시작일을 바꾸면 아직 완료되지 않은 체크포인트의 예정일도 함께 재계산된다(서비스 함수 참고).
+  async function submitEditCondition() {
+    if (!editingConditionId) return;
+    if (itemTemplates.length === 0) {
+      setMessage("평가 항목을 1개 이상 구성하세요.");
+      return;
+    }
+    const original = conditions.find((c) => c.id === editingConditionId);
+    if (!original) return;
+    setSavingCondition(true);
+    setMessage("");
+    try {
+      await updateStabilityCondition(original, {
+        condition_label: conditionLabel,
+        start_date: conditionStartDate,
+        item_templates: itemTemplates,
+      });
+      setMessage("시험조건이 수정되었습니다.");
+      setShowAddCondition(false);
+      setEditingConditionId(null);
+      await reloadConditions();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "시험조건 수정 오류");
     } finally {
       setSavingCondition(false);
     }
@@ -403,6 +459,7 @@ export function useStabilityTest() {
     showAddCondition, setShowAddCondition, conditionType, selectConditionType, conditionLabel, setConditionLabel,
     conditionStartDate, setConditionStartDate, itemTemplates, addItemTemplateRow, updateItemTemplate, removeItemTemplate,
     savingCondition, submitAddCondition, removeCondition,
+    editingConditionId, openAddConditionForm, startEditCondition, cancelConditionForm, submitEditCondition,
     addExtraCheckpoint, removeCheckpoint,
     activeCheckpoint, activeConditionForCheckpoint, openCheckpointForm, closeCheckpointForm,
     resultDraft, updateResultValue, updateResultJudgement, photoDraft, addPhotoToDraft, removePhotoFromDraft, uploadingPhoto,

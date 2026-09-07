@@ -83,19 +83,25 @@ function TestForm({ s }: { s: S }) {
 }
 
 function AddConditionForm({ s }: { s: S }) {
+  const editing = !!s.editingConditionId;
   return (
     <div className="v50-card" style={{ padding: 14, marginTop: 10 }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {STABILITY_CONDITION_PRESETS.map((p) => (
-          <button
-            key={p.type} type="button"
-            className={s.conditionType === p.type ? "v50-button" : "v50-button-light"}
-            onClick={() => s.selectConditionType(p.type as StabilityConditionType)}
-          >
-            {p.type}
-          </button>
-        ))}
+      <div style={{ fontWeight: 800, fontSize: 13, marginBottom: editing ? 8 : 0 }}>
+        {editing ? "시험조건 수정" : "새 시험조건 추가"}
       </div>
+      {!editing && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {STABILITY_CONDITION_PRESETS.map((p) => (
+            <button
+              key={p.type} type="button"
+              className={s.conditionType === p.type ? "v50-button" : "v50-button-light"}
+              onClick={() => s.selectConditionType(p.type as StabilityConditionType)}
+            >
+              {p.type}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="v50-grid-2" style={{ marginTop: 10 }}>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>조건 라벨<input className="v50-input" value={s.conditionLabel} onChange={(e) => s.setConditionLabel(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>시작일<input className="v50-input" type="date" value={s.conditionStartDate} onChange={(e) => s.setConditionStartDate(e.target.value)} /></label>
@@ -139,8 +145,10 @@ function AddConditionForm({ s }: { s: S }) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button className="v50-button" onClick={s.submitAddCondition} disabled={s.savingCondition}>{s.savingCondition ? "추가 중…" : "조건 추가"}</button>
-        <button className="v50-button-light" onClick={() => s.setShowAddCondition(false)}>취소</button>
+        <button className="v50-button" onClick={editing ? s.submitEditCondition : s.submitAddCondition} disabled={s.savingCondition}>
+          {s.savingCondition ? (editing ? "수정 중…" : "추가 중…") : (editing ? "조건 수정 저장" : "조건 추가")}
+        </button>
+        <button className="v50-button-light" onClick={s.cancelConditionForm}>취소</button>
       </div>
     </div>
   );
@@ -214,7 +222,12 @@ function ConditionCard({ condition, s }: { condition: StabilityConditionWithChec
           <b style={{ fontSize: 14 }}>{condition.condition_label}</b>
           <span style={{ color: "#64748b", fontSize: 12, marginLeft: 8 }}>시작일 {condition.start_date}</span>
         </div>
-        {s.canWrite && <button className="v50-button-light" style={{ color: "#dc2626", fontSize: 11 }} onClick={() => s.removeCondition(condition.id)}>조건 삭제</button>}
+        {s.canWrite && (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="v50-button-light" style={{ fontSize: 11 }} onClick={() => s.startEditCondition(condition)}>수정</button>
+            <button className="v50-button-light" style={{ color: "#dc2626", fontSize: 11 }} onClick={() => s.removeCondition(condition.id)}>조건 삭제</button>
+          </div>
+        )}
       </div>
       <div className="v50-table-wrap" style={{ marginTop: 8 }}>
         <table className="v50-table">
@@ -322,7 +335,7 @@ export default function StabilityTestPanel({
                 {s.selectedTest.memo && <p style={{ fontSize: 12, color: "#334155", marginTop: 8, whiteSpace: "pre-wrap" }}>{s.selectedTest.memo}</p>}
 
                 {s.canWrite && !s.showAddCondition && (
-                  <button className="v50-button-light" style={{ marginTop: 10 }} onClick={() => s.setShowAddCondition(true)}>+ 시험조건 추가</button>
+                  <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.openAddConditionForm}>+ 시험조건 추가</button>
                 )}
                 {s.showAddCondition && <AddConditionForm s={s} />}
               </section>
