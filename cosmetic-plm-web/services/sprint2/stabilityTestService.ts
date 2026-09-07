@@ -161,10 +161,17 @@ export const STABILITY_ITEM_PRESETS: StabilityItemTemplate[] = [
   { key: "microbial_pathogen", label: "특정세균(대장균/녹농균/황색포도상구균)", type: "text", spec_text: "불검출" },
 ];
 
+// toISOString()은 항상 UTC 기준으로 변환한다 - 한국(UTC+9)에서는 로컬 자정이 UTC로는 "전날 15:00"이
+// 되어버려서, 여기서 그냥 toISOString().slice(0,10)을 쓰면 계산된 날짜가 하루 앞으로 당겨지는 버그가
+// 생긴다(예: 시작일 09-08 + 0일 -> 09-07로 표시됨). UTC 변환 없이 로컬 기준 연/월/일을 그대로 문자열로
+// 만들어서 이 문제를 피한다.
 function addDays(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 // 완료가 아닌데 예정일이 지났으면 지연으로 본다(생산일정관리와 동일한 판정 방식).
