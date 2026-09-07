@@ -844,10 +844,13 @@ export type OrderSheetRow = {
 // 그대로 재사용하고(새 로직 작성 없음), 원료명·공급사는 plm_raw_materials에서, 신규 여부는
 // plm_formula_lines 실사용 이력에서 채운다. 미리보기 팝업이 이 결과를 초기값으로 보여주고,
 // 사용자가 신규체크/담당자를 확정한 뒤에만 실제 문서가 생성된다.
+// BOM 편집에서 수동으로 "신규" 체크한 라인(is_new_material)이 있으면, 실사용 이력 기반 자동판정과
+// 무관하게 항상 신규로 표시한다(OR 결합) - 담당자가 수기로 표기한 값을 자동판정이 덮어쓰지 않도록.
 export async function computeOrderSheetRows(formula: any, lines: any[]): Promise<OrderSheetRow[]> {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
   const grouped = buildComplexGroupedRows(lines, components).filter((g) => g.raw_code);
   const codes = grouped.map((g) => g.raw_code as string);
+  const manuallyFlaggedNew = new Set(lines.filter((l) => l.is_new_material).map((l) => l.raw_code));
 
   const [materials, usedElsewhere] = await Promise.all([
     fetchRawMaterialsByCodes(codes),
@@ -862,7 +865,7 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
       raw_name: m?.raw_name || g.raw_name || "",
       percent: g.input,
       supplier: m?.supplier || "",
-      isNew: !usedElsewhere.has(g.raw_code as string),
+      isNew: manuallyFlaggedNew.has(g.raw_code as string) || !usedElsewhere.has(g.raw_code as string),
       email: m?.email || "",
       phone: m?.phone || "",
     };

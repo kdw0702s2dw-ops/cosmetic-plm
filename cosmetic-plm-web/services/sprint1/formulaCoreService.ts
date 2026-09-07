@@ -57,6 +57,7 @@ export type Sprint1FormulaLine = {
   cost_per_kg?: number;
   moq?: string;
   note?: string;
+  is_new_material?: boolean; // 신규 원료 수동 체크 - 원료발주가처방의 "신규 체크" 자동판정에 반영됨
 };
 
 // BOM 라인에 저장된 스냅샷과 원료관리의 현재 값을 비교해서 달라진 필드 목록을 반환한다.
