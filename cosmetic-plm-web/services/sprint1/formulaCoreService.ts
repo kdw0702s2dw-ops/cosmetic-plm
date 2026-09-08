@@ -308,6 +308,10 @@ export async function upsertSprint1FormulaLines(lines: Sprint1FormulaLine[]) {
     return {
       ...rest,
       phase: rest.phase || "A",
+      // "+ 라인 추가"로 새로 만든 라인은 is_new_material 키 자체가 없다(addLine()이 안 채움). 배치의
+      // 각 행마다 키 구성이 다르면 PostgREST가 없는 컬럼을 NULL로 채워 보내서 NOT NULL 제약을
+      // 위반한다(is_new_material은 DEFAULT false NOT NULL) - 여기서 항상 값을 명시해 방지한다.
+      is_new_material: rest.is_new_material ?? false,
       cost_per_kg: Number(((Number(rest.percentage || 0) / 100) * Number(rest.unit_price || 0)).toFixed(4)),
       updated_at: new Date().toISOString(),
     };
