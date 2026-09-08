@@ -486,6 +486,7 @@ export default function FormulaCorePanel() {
                           keyExtractor={(raw: any) => raw.raw_code}
                           renderItem={(raw: any) => (
                             <div title={raw.is_caution ? (raw.caution_note || "주의 원료") : undefined}>
+                              <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: 12 }}>{raw.raw_code || "-"}</span>{" "}
                               <b style={raw.is_caution ? { color: "#dc2626" } : undefined}>{raw.raw_name}{raw.is_caution && " ⚠"}</b>{" "}
                               <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
                               <span style={{ color: "#16a34a", marginLeft: 8 }}>{Number(raw.unit_price || 0).toLocaleString()}원/kg</span>
