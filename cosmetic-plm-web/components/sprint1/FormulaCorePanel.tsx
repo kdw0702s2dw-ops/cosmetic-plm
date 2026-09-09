@@ -130,6 +130,33 @@ export default function FormulaCorePanel() {
   }, [s.formulas]);
   const [revisionPick, setRevisionPick] = useState<Record<string, string>>({});
 
+  // 진행상태 필터 - 목록에 표시 중인(=현재 선택된 Revision 기준) 진행상태로 좁혀서 본다. "전체"가 기본값.
+  const [statusFilter, setStatusFilter] = useState<string>("전체");
+  const rowsWithPickedRevision = useMemo(
+    () =>
+      groupedFormulas.map(({ key, rep, revisions }) => {
+        const pickedRevision = revisionPick[key] ?? rep.revision;
+        const pickedRow = revisions.find((r) => r.revision === pickedRevision) || rep;
+        return { key, rep, revisions, pickedRevision, pickedRow };
+      }),
+    [groupedFormulas, revisionPick]
+  );
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const { pickedRow } of rowsWithPickedRevision) {
+      const st = pickedRow.progress_status || "미지정";
+      counts[st] = (counts[st] || 0) + 1;
+    }
+    return counts;
+  }, [rowsWithPickedRevision]);
+  const visibleRows = useMemo(
+    () =>
+      statusFilter === "전체"
+        ? rowsWithPickedRevision
+        : rowsWithPickedRevision.filter(({ pickedRow }) => (pickedRow.progress_status || "미지정") === statusFilter),
+    [rowsWithPickedRevision, statusFilter]
+  );
+
   return (
     <div className="v50-page">
       <section className="v50-hero">
@@ -253,13 +280,44 @@ export default function FormulaCorePanel() {
           )}
         </div>
 
+        {/* 진행상태 필터 - 각 처방은 현재 선택된 Revision의 진행상태 기준으로 걸러진다 */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          <button
+            type="button"
+            className={statusFilter === "전체" ? "v50-button" : "v50-button-light"}
+            onClick={() => setStatusFilter("전체")}
+          >
+            전체 ({rowsWithPickedRevision.length})
+          </button>
+          {PROGRESS_STATUSES.map((st) => (
+            <button
+              key={st}
+              type="button"
+              className={statusFilter === st ? "v50-button" : "v50-button-light"}
+              onClick={() => setStatusFilter(st)}
+            >
+              {st} ({statusCounts[st] || 0})
+            </button>
+          ))}
+          {statusCounts["미지정"] > 0 && (
+            <button
+              type="button"
+              className={statusFilter === "미지정" ? "v50-button" : "v50-button-light"}
+              onClick={() => setStatusFilter("미지정")}
+            >
+              미지정 ({statusCounts["미지정"]})
+            </button>
+          )}
+        </div>
+
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>진행상태</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
-              {groupedFormulas.map(({ key, rep, revisions }) => {
-                const pickedRevision = revisionPick[key] ?? rep.revision;
-                const pickedRow = revisions.find((r) => r.revision === pickedRevision) || rep;
+              {visibleRows.length === 0 && (
+                <tr><td colSpan={9} style={{ color: "#94a3b8" }}>해당 진행상태의 처방이 없습니다.</td></tr>
+              )}
+              {visibleRows.map(({ key, rep, revisions, pickedRevision, pickedRow }) => {
                 return (
                 <tr key={key}>
                   <td>{rep.formula_code}</td><td>{rep.confirmed_code || "-"}</td><td>{rep.formula_name}</td>
