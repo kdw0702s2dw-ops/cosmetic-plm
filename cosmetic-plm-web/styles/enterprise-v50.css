@@ -214,6 +214,7 @@
 .v50-badge.ok { background:rgba(5,150,105,.12); color:var(--green); }
 .v50-badge.warn { background:rgba(217,119,6,.12); color:var(--orange); }
 .v50-badge.danger { background:rgba(220,38,38,.12); color:var(--red); }
+.v50-badge.muted { background:#f1f5f9; color:#64748b; }
 .v50-flow { display:flex; flex-wrap:wrap; gap:8px; }
 .v50-flow button,.v50-flow a {
   border:1px solid rgba(37,99,235,.18);

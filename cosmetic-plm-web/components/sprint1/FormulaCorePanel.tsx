@@ -12,8 +12,8 @@ import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
 const PROGRESS_STATUSES = ["준비중", "개발중", "컨펌", "생산완료", "보류"];
-// 처방 목록에서 진행상태를 배지 색으로 구분 - 개발중은 기본색, 컨펌/생산완료는 초록, 보류는 주황.
-const PROGRESS_STATUS_BADGE_CLASS: Record<string, string> = { 컨펌: "ok", 생산완료: "ok", 보류: "warn" };
+// 처방 목록에서 진행상태를 배지 색으로 구분 - 준비중은 회색, 개발중은 기본색(파랑), 컨펌/생산완료는 초록, 보류는 주황.
+const PROGRESS_STATUS_BADGE_CLASS: Record<string, string> = { 준비중: "muted", 컨펌: "ok", 생산완료: "ok", 보류: "warn" };
 
 const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
 const STATUS_LABEL: Record<string, string> = { BANNED: "금지", LIMITED: "제한", REVIEW_REQUIRED: "검토필요" };
