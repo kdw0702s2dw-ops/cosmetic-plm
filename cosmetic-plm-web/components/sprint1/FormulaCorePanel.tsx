@@ -11,7 +11,9 @@ import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
-const PROGRESS_STATUSES = ["개발중", "컨펌", "생산완료", "보류"];
+const PROGRESS_STATUSES = ["준비중", "개발중", "컨펌", "생산완료", "보류"];
+// 처방 목록에서 진행상태를 배지 색으로 구분 - 개발중은 기본색, 컨펌/생산완료는 초록, 보류는 주황.
+const PROGRESS_STATUS_BADGE_CLASS: Record<string, string> = { 컨펌: "ok", 생산완료: "ok", 보류: "warn" };
 
 const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
 const STATUS_LABEL: Record<string, string> = { BANNED: "금지", LIMITED: "제한", REVIEW_REQUIRED: "검토필요" };
@@ -253,7 +255,7 @@ export default function FormulaCorePanel() {
 
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>진행상태</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
               {groupedFormulas.map(({ key, rep, revisions }) => {
                 const pickedRevision = revisionPick[key] ?? rep.revision;
@@ -276,6 +278,15 @@ export default function FormulaCorePanel() {
                       </select>
                       {revisions.length > 1 && <span style={{ color: "#64748b", fontSize: 12 }}>({revisions.length}개)</span>}
                     </div>
+                  </td>
+                  <td>
+                    {pickedRow.progress_status ? (
+                      <span className={`v50-badge ${PROGRESS_STATUS_BADGE_CLASS[pickedRow.progress_status] || ""}`}>
+                        {pickedRow.progress_status}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>-</span>
+                    )}
                   </td>
                   <td>{pickedRow.total_percent}%</td><td>{Number(pickedRow.estimated_cost_per_kg || 0).toLocaleString()}</td>
                   <td><button className="v50-button-light" onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.openFormula(pickedRow); }}>열기</button></td>
