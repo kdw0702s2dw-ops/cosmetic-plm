@@ -50,6 +50,7 @@ function CertificateForm({ s }: { s: S }) {
       )}
 
       <div className="v50-grid-2" style={{ marginTop: 10 }}>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>문서번호<input className="v50-input" value={s.docNo} onChange={(e) => s.setDocNo(e.target.value)} placeholder="예: QA-QS-COA-26P5065" /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>품목코드<input className="v50-input" value={s.itemCode} onChange={(e) => s.setItemCode(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>제조번호<input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} placeholder="예: 5065 EXP20290811" /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, gridColumn: "1 / -1" }}>고객사/제품명<input className="v50-input" value={s.customerProduct} onChange={(e) => s.setCustomerProduct(e.target.value)} /></label>
@@ -200,14 +201,15 @@ export default function TestCertificatePanel() {
       <div className="v50-table-wrap">
         <table className="v50-table">
           <thead>
-            <tr><th>유형</th><th>품목코드</th><th>제조번호</th><th>고객사/제품명</th><th>종합판정</th><th>작성일</th><th></th></tr>
+            <tr><th>유형</th><th>문서번호</th><th>품목코드</th><th>제조번호</th><th>고객사/제품명</th><th>종합판정</th><th>작성일</th><th></th></tr>
           </thead>
           <tbody>
-            {s.listLoading && <tr><td colSpan={7} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>}
-            {!s.listLoading && s.list.length === 0 && <tr><td colSpan={7} style={{ color: "#94a3b8" }}>등록된 성적서가 없습니다.</td></tr>}
+            {s.listLoading && <tr><td colSpan={8} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>}
+            {!s.listLoading && s.list.length === 0 && <tr><td colSpan={8} style={{ color: "#94a3b8" }}>등록된 성적서가 없습니다.</td></tr>}
             {s.list.map((cert) => (
               <tr key={cert.id}>
                 <td>{cert.product_type}</td>
+                <td>{cert.doc_no || "-"}</td>
                 <td>{cert.item_code || "-"}</td>
                 <td>{cert.lot_no || "-"}</td>
                 <td>{cert.customer_product || "-"}</td>

@@ -32,6 +32,7 @@ export type CertItem = {
 export type TestCertificate = {
   id?: string;
   product_type: CertificateProductType;
+  doc_no?: string | null;
   formula_id?: string | null;
   formula_code?: string | null;
   revision?: string | null;
@@ -157,6 +158,7 @@ export async function createCertificate(cert: TestCertificate) {
     .from("plm_test_certificates")
     .insert({
       product_type: cert.product_type,
+      doc_no: cert.doc_no || "",
       formula_id: cert.formula_id || null,
       formula_code: cert.formula_code || null,
       revision: cert.revision || null,

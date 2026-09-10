@@ -44,6 +44,7 @@ export function useTestCertificate() {
   const [formulaSearching, setFormulaSearching] = useState(false);
   const [selectedFormula, setSelectedFormula] = useState<FormulaRef | null>(null);
 
+  const [docNo, setDocNo] = useState("");
   const [itemCode, setItemCode] = useState("");
   const [lotNo, setLotNo] = useState("");
   const [customerProduct, setCustomerProduct] = useState("");
@@ -96,6 +97,7 @@ export function useTestCertificate() {
     setSelectedFormula(null);
     setFormulaKeyword("");
     setFormulaHits([]);
+    setDocNo("");
     setItemCode("");
     setLotNo("");
     setCustomerProduct("");
@@ -117,6 +119,7 @@ export function useTestCertificate() {
       setSelectedFormula(cert.formula_id ? { id: cert.formula_id, formula_code: cert.formula_code || "", revision: cert.revision || "" } : null);
       setFormulaKeyword("");
       setFormulaHits([]);
+      setDocNo(cert.doc_no || "");
       setItemCode(cert.item_code || "");
       setLotNo(cert.lot_no || "");
       setCustomerProduct(cert.customer_product || "");
@@ -172,6 +175,7 @@ export function useTestCertificate() {
       formula_id: selectedFormula?.id || null,
       formula_code: selectedFormula?.formula_code || null,
       revision: selectedFormula?.revision || null,
+      doc_no: docNo,
       item_code: itemCode,
       lot_no: lotNo,
       customer_product: customerProduct,
@@ -240,6 +244,7 @@ export function useTestCertificate() {
     editingId, showForm, saving,
     productType, setProductType,
     formulaKeyword, setFormulaKeyword, formulaHits, formulaSearching, searchFormulas, selectedFormula, pickFormula,
+    docNo, setDocNo,
     itemCode, setItemCode, lotNo, setLotNo, customerProduct, setCustomerProduct,
     testDept, setTestDept, overallVerdict, setOverallVerdict,
     writerName, setWriterName, reviewerName, setReviewerName, approverName, setApproverName,
