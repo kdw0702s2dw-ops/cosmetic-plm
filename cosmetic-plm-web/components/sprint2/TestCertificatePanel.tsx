@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, CSSProperties } from "react";
 import { useTestCertificate } from "@/hooks/useTestCertificate";
 import type { CertificateProductType } from "@/services/sprint2/testCertificateService";
 import "@/styles/enterprise-v50.css";
@@ -87,6 +87,31 @@ function ApprovalWorkflow({ s }: { s: S }) {
   );
 }
 
+const ITEM_DIVIDER = "2px solid #dbe3ef";
+const SUBGROUP_DIVIDER = "1px dashed #cbd5e1";
+
+function itemBg(no: number) {
+  return no % 2 === 0 ? "#f8fafc" : "#ffffff";
+}
+
+function NoBadge({ no }: { no: number }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 26, height: 26, borderRadius: "50%", background: "#eef2ff",
+        color: "#4338ca", fontWeight: 800, fontSize: 12,
+      }}
+    >
+      {no}
+    </span>
+  );
+}
+
+const ITEM_TABLE_TH: CSSProperties = {
+  background: "#eef1f6", color: "#1e293b", fontWeight: 800, borderBottom: "2px solid #cbd5e1",
+};
+
 function CertificateForm({ s }: { s: S }) {
   return (
     <div className="v50-card" style={{ padding: 14, marginTop: 10 }}>
@@ -150,45 +175,53 @@ function CertificateForm({ s }: { s: S }) {
         <table className="v50-table" style={{ minWidth: 1280 }}>
           <thead>
             <tr>
-              <th style={{ width: 40 }}>No.</th>
-              <th style={{ width: 130 }}>시험항목</th>
-              <th style={{ width: 340 }}>시험기준</th>
-              <th style={{ width: 150 }}>시험방법</th>
-              <th style={{ width: 120 }}>시험일자</th>
-              <th>시험결과 및 판정</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 44, textAlign: "center" }}>No.</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 130 }}>시험항목</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 340 }}>시험기준</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 150 }}>시험방법</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 120, textAlign: "center" }}>시험일자</th>
+              <th style={ITEM_TABLE_TH}>시험결과 및 판정</th>
             </tr>
           </thead>
           <tbody>
             {s.items.map((item) => {
+              const bg = itemBg(item.no);
               if (item.subGroups && item.subGroups.length > 0) {
                 const totalRows = item.subGroups.reduce((sum, g) => sum + Math.max(1, g.results.length), 0);
                 let printedHead = false;
                 const rows: ReactNode[] = [];
                 item.subGroups.forEach((g, gi) => {
                   g.results.forEach((val, ri) => {
+                    const isFirstItemRow = !printedHead;
+                    const isSubGroupStart = ri === 0 && gi > 0;
+                    const rowTopBorder = isFirstItemRow ? ITEM_DIVIDER : isSubGroupStart ? SUBGROUP_DIVIDER : undefined;
                     rows.push(
                       <tr key={`${item.no}-${gi}-${ri}`}>
-                        {!printedHead && (
+                        {isFirstItemRow && (
                           <>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center" }}>{item.no}</td>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line" }}>{item.label}</td>
+                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
+                              <NoBadge no={item.no} />
+                            </td>
+                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, fontWeight: 700, fontSize: 13 }}>
+                              {item.label}
+                            </td>
                           </>
                         )}
                         {ri === 0 && (
-                          <td rowSpan={g.results.length} style={{ verticalAlign: "top" }}>
+                          <td rowSpan={g.results.length} style={{ verticalAlign: "top", background: bg, borderTop: rowTopBorder }}>
                             <textarea className="v50-textarea" rows={4} style={{ minHeight: 90, fontSize: 13, lineHeight: 1.5 }} value={g.spec}
                               onChange={(e) => s.updateSubGroup(item.no, gi, { spec: e.target.value })} />
                           </td>
                         )}
-                        {!printedHead && (
+                        {isFirstItemRow && (
                           <>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line" }}>{item.method}</td>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle" }}>
+                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER }}>{item.method}</td>
+                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
                               <input className="v50-input" type="date" value={item.test_date} onChange={(e) => s.updateItem(item.no, { test_date: e.target.value })} />
                             </td>
                           </>
                         )}
-                        <td>
+                        <td style={{ background: bg, borderTop: rowTopBorder }}>
                           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             <input className="v50-input" value={val} placeholder={`측정값 ${ri + 1}`}
                               onChange={(e) => s.updateSubGroupResult(item.no, gi, ri, e.target.value)} />
@@ -211,17 +244,19 @@ function CertificateForm({ s }: { s: S }) {
               }
               return (
                 <tr key={item.no}>
-                  <td style={{ textAlign: "center" }}>{item.no}</td>
-                  <td style={{ whiteSpace: "pre-line" }}>{item.label}</td>
-                  <td>
+                  <td style={{ textAlign: "center", background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>
+                    <NoBadge no={item.no} />
+                  </td>
+                  <td style={{ whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, fontWeight: 700, fontSize: 13, verticalAlign: "middle" }}>{item.label}</td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER }}>
                     <textarea className="v50-textarea" rows={4} style={{ minHeight: 90, fontSize: 13, lineHeight: 1.5 }} value={item.spec || ""}
                       onChange={(e) => s.updateItem(item.no, { spec: e.target.value })} />
                   </td>
-                  <td style={{ whiteSpace: "pre-line" }}>{item.method}</td>
-                  <td>
+                  <td style={{ whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>{item.method}</td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, textAlign: "center", verticalAlign: "middle" }}>
                     <input className="v50-input" type="date" value={item.test_date} onChange={(e) => s.updateItem(item.no, { test_date: e.target.value })} />
                   </td>
-                  <td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <input className="v50-input" value={item.result || ""} onChange={(e) => s.updateItem(item.no, { result: e.target.value })} />
                       {item.unit && <span style={{ alignSelf: "center", color: "#64748b", fontSize: 12 }}>{item.unit}</span>}
