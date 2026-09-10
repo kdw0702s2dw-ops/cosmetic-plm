@@ -8,6 +8,7 @@ import {
   CertItem,
   CertSubGroup,
   TestCertificate,
+  WorkflowStatus,
   buildDefaultItems,
   fetchCertificateFormulas,
   listCertificates,
@@ -15,6 +16,9 @@ import {
   createCertificate,
   updateCertificate,
   deleteCertificate,
+  confirmWriterStage,
+  confirmReviewerStage,
+  confirmApproverStage,
 } from "@/services/sprint2/testCertificateService";
 import { openCertificatePrint, downloadCertificateHtml } from "@/services/sprint2/testCertificatePdfService";
 import { downloadCertificateExcel } from "@/services/sprint2/testCertificateExcelService";
@@ -55,6 +59,16 @@ export function useTestCertificate() {
   const [approverName, setApproverName] = useState("");
   const [items, setItems] = useState<CertItem[]>(() => buildDefaultItems("완제품"));
 
+  // 결재 워크플로우 상태 - 신규 작성 중에는 항상 draft, 저장된 성적서를 열면 DB에 기록된 값으로 채워진다.
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>("draft");
+  const [writerConfirmedAt, setWriterConfirmedAt] = useState<string | null>(null);
+  const [writerConfirmedBy, setWriterConfirmedBy] = useState<string | null>(null);
+  const [reviewerConfirmedAt, setReviewerConfirmedAt] = useState<string | null>(null);
+  const [reviewerConfirmedBy, setReviewerConfirmedBy] = useState<string | null>(null);
+  const [approverConfirmedAt, setApproverConfirmedAt] = useState<string | null>(null);
+  const [approverConfirmedBy, setApproverConfirmedBy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
   async function reloadList() {
     setListLoading(true);
     try {
@@ -86,7 +100,10 @@ export function useTestCertificate() {
 
   function pickFormula(f: FormulaRef) {
     setSelectedFormula(f);
-    setItemCode(f.formula_code || "");
+    // 처방코드의 마지막 영문자 1글자는 사내 구분용이라 바이어에게 비공개 - 품목코드에는 그 앞부분만 노출한다
+    // (예: 3TSA005A -> 3TSA005). 마지막 글자가 영문이 아니면(숫자로 끝나는 코드) 그대로 둔다.
+    const displayCode = (f.formula_code || "").replace(/[A-Za-z]$/, "");
+    setItemCode(displayCode);
     const productPart = f.formula_name || f.formula_code || "";
     setCustomerProduct(f.customer ? `${f.customer} / ${productPart}` : productPart);
   }
@@ -107,6 +124,10 @@ export function useTestCertificate() {
     setReviewerName("");
     setApproverName("");
     setItems(buildDefaultItems(type));
+    setWorkflowStatus("draft");
+    setWriterConfirmedAt(null); setWriterConfirmedBy(null);
+    setReviewerConfirmedAt(null); setReviewerConfirmedBy(null);
+    setApproverConfirmedAt(null); setApproverConfirmedBy(null);
     setShowForm(true);
   }
 
@@ -129,6 +150,13 @@ export function useTestCertificate() {
       setReviewerName(cert.reviewer_name || "");
       setApproverName(cert.approver_name || "");
       setItems(cert.items || []);
+      setWorkflowStatus(cert.workflow_status || "draft");
+      setWriterConfirmedAt(cert.writer_confirmed_at || null);
+      setWriterConfirmedBy(cert.writer_confirmed_by || null);
+      setReviewerConfirmedAt(cert.reviewer_confirmed_at || null);
+      setReviewerConfirmedBy(cert.reviewer_confirmed_by || null);
+      setApproverConfirmedAt(cert.approver_confirmed_at || null);
+      setApproverConfirmedBy(cert.approver_confirmed_by || null);
       setShowForm(true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "성적서 조회 오류");
@@ -184,6 +212,13 @@ export function useTestCertificate() {
       writer_name: writerName,
       reviewer_name: reviewerName,
       approver_name: approverName,
+      workflow_status: workflowStatus,
+      writer_confirmed_at: writerConfirmedAt,
+      writer_confirmed_by: writerConfirmedBy,
+      reviewer_confirmed_at: reviewerConfirmedAt,
+      reviewer_confirmed_by: reviewerConfirmedBy,
+      approver_confirmed_at: approverConfirmedAt,
+      approver_confirmed_by: approverConfirmedBy,
       items,
       created_by: myName,
     };
@@ -225,6 +260,58 @@ export function useTestCertificate() {
     }
   }
 
+  // 결재 확정 - 저장되지 않은 성적서는 먼저 저장을 요구한다 (확정 기록은 DB에 남아야 하므로).
+  async function confirmWriter() {
+    if (!editingId) { setMessage("먼저 저장한 뒤 작성을 확정할 수 있습니다."); return; }
+    setConfirming(true); setMessage("");
+    try {
+      const updated = await confirmWriterStage(buildCurrentCertificate(), myName);
+      setWorkflowStatus(updated.workflow_status || "draft");
+      setWriterConfirmedAt(updated.writer_confirmed_at || null);
+      setWriterConfirmedBy(updated.writer_confirmed_by || null);
+      setMessage(reviewerName.trim() ? "작성이 확정되었습니다. 검토 대기 중입니다." : "작성이 확정되었습니다. 검토자가 없어 승인 대기로 넘어갑니다.");
+      await reloadList();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "작성 확정 오류");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  async function confirmReviewer() {
+    if (!editingId) return;
+    setConfirming(true); setMessage("");
+    try {
+      const updated = await confirmReviewerStage(buildCurrentCertificate(), myName);
+      setWorkflowStatus(updated.workflow_status || "draft");
+      setReviewerConfirmedAt(updated.reviewer_confirmed_at || null);
+      setReviewerConfirmedBy(updated.reviewer_confirmed_by || null);
+      setMessage("검토가 확정되었습니다. 승인 대기 중입니다.");
+      await reloadList();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "검토 확정 오류");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  async function confirmApprover() {
+    if (!editingId) return;
+    setConfirming(true); setMessage("");
+    try {
+      const updated = await confirmApproverStage(buildCurrentCertificate(), myName);
+      setWorkflowStatus(updated.workflow_status || "draft");
+      setApproverConfirmedAt(updated.approver_confirmed_at || null);
+      setApproverConfirmedBy(updated.approver_confirmed_by || null);
+      setMessage("승인이 완료되었습니다.");
+      await reloadList();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "승인 확정 오류");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
   function printCurrentCertificate() {
     openCertificatePrint(buildCurrentCertificate());
   }
@@ -251,6 +338,9 @@ export function useTestCertificate() {
     items, updateItem, updateSubGroup, updateSubGroupResult,
     openNewCertificate, openExistingCertificate, closeForm,
     saveCertificate, removeCertificate,
+    workflowStatus, confirming,
+    writerConfirmedAt, writerConfirmedBy, reviewerConfirmedAt, reviewerConfirmedBy, approverConfirmedAt, approverConfirmedBy,
+    confirmWriter, confirmReviewer, confirmApprover,
     printCurrentCertificate, downloadCurrentHtml, downloadCurrentExcel,
   };
 }

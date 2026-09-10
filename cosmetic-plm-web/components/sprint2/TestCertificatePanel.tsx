@@ -13,6 +13,80 @@ function verdictBadgeClass(v: string) {
   return "";
 }
 
+const WORKFLOW_STATUS_LABEL: Record<string, string> = {
+  draft: "작성중",
+  pending_review: "검토대기",
+  pending_approval: "승인대기",
+  approved: "승인완료",
+};
+
+type StageState = "done" | "current" | "waiting" | "skipped";
+
+function fmtDateTime(v: string | null | undefined) {
+  if (!v) return "";
+  return v.slice(0, 16).replace("T", " ");
+}
+
+function StageCard({
+  title, state, personName, confirmedAt, confirmedBy, onConfirm, confirming,
+}: {
+  title: string; state: StageState; personName: string; confirmedAt?: string | null; confirmedBy?: string | null;
+  onConfirm: () => void; confirming: boolean;
+}) {
+  const colorByState: Record<StageState, string> = { done: "#059669", current: "#2563eb", waiting: "#94a3b8", skipped: "#cbd5e1" };
+  const labelByState: Record<StageState, string> = { done: "확정됨", current: "확정 대기", waiting: "대기", skipped: "해당 없음" };
+  return (
+    <div className="v50-card" style={{ padding: 12, flex: 1, minWidth: 160, borderColor: colorByState[state] }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <b style={{ fontSize: 13 }}>{title}</b>
+        <span style={{ fontSize: 11, fontWeight: 800, color: colorByState[state] }}>{labelByState[state]}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>{personName || "-"}</div>
+      {state === "done" && (
+        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{confirmedBy || ""} {fmtDateTime(confirmedAt)}</div>
+      )}
+      {state === "skipped" && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>담당자 미지정 - 자동 건너뜀</div>}
+      {state === "current" && (
+        <button className="v50-button" style={{ marginTop: 8, width: "100%" }} onClick={onConfirm} disabled={confirming}>
+          {confirming ? "처리 중…" : `${title} 확정`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ApprovalWorkflow({ s }: { s: S }) {
+  const hasReviewer = !!s.reviewerName.trim();
+  const writerState: StageState = s.writerConfirmedAt ? "done" : "current";
+  const reviewerState: StageState = !hasReviewer
+    ? "skipped"
+    : s.reviewerConfirmedAt
+    ? "done"
+    : s.workflowStatus === "pending_review"
+    ? "current"
+    : "waiting";
+  const approverState: StageState = s.approverConfirmedAt
+    ? "done"
+    : s.workflowStatus === "pending_approval"
+    ? "current"
+    : "waiting";
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontWeight: 800, fontSize: 13 }}>결재 진행 상태</div>
+        <span className="v50-badge">{WORKFLOW_STATUS_LABEL[s.workflowStatus] || s.workflowStatus}</span>
+      </div>
+      {!s.editingId && <p style={{ color: "#94a3b8", fontSize: 12, marginBottom: 8 }}>저장한 뒤 작성/검토/승인을 단계적으로 확정할 수 있습니다.</p>}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <StageCard title="작성" state={writerState} personName={s.writerName} confirmedAt={s.writerConfirmedAt} confirmedBy={s.writerConfirmedBy} onConfirm={s.confirmWriter} confirming={s.confirming} />
+        <StageCard title="검토" state={reviewerState} personName={s.reviewerName} confirmedAt={s.reviewerConfirmedAt} confirmedBy={s.reviewerConfirmedBy} onConfirm={s.confirmReviewer} confirming={s.confirming} />
+        <StageCard title="승인" state={approverState} personName={s.approverName} confirmedAt={s.approverConfirmedAt} confirmedBy={s.approverConfirmedBy} onConfirm={s.confirmApprover} confirming={s.confirming} />
+      </div>
+    </div>
+  );
+}
+
 function CertificateForm({ s }: { s: S }) {
   return (
     <div className="v50-card" style={{ padding: 14, marginTop: 10 }}>
@@ -50,7 +124,11 @@ function CertificateForm({ s }: { s: S }) {
       )}
 
       <div className="v50-grid-2" style={{ marginTop: 10 }}>
-        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>문서번호<input className="v50-input" value={s.docNo} onChange={(e) => s.setDocNo(e.target.value)} placeholder="예: QA-QS-COA-26P5065" /></label>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+          문서번호
+          <input className="v50-input" value={s.docNo} onChange={(e) => s.setDocNo(e.target.value)} placeholder="예: QA-QS-COA-26P5065" />
+          <span style={{ fontWeight: 400, fontSize: 11, color: "#94a3b8" }}>예: QA-QS-COA-26P5065</span>
+        </label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>품목코드<input className="v50-input" value={s.itemCode} onChange={(e) => s.setItemCode(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>제조번호<input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} placeholder="예: 5065 EXP20290811" /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, gridColumn: "1 / -1" }}>고객사/제품명<input className="v50-input" value={s.customerProduct} onChange={(e) => s.setCustomerProduct(e.target.value)} /></label>
@@ -63,9 +141,11 @@ function CertificateForm({ s }: { s: S }) {
           </select>
         </label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>작성<input className="v50-input" value={s.writerName} onChange={(e) => s.setWriterName(e.target.value)} /></label>
-        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>검토<input className="v50-input" value={s.reviewerName} onChange={(e) => s.setReviewerName(e.target.value)} /></label>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>검토<input className="v50-input" value={s.reviewerName} onChange={(e) => s.setReviewerName(e.target.value)} placeholder="해당자 없으면 비워두세요" /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>승인<input className="v50-input" value={s.approverName} onChange={(e) => s.setApproverName(e.target.value)} /></label>
       </div>
+
+      <ApprovalWorkflow s={s} />
 
       <div className="v50-table-wrap" style={{ marginTop: 14 }}>
         <table className="v50-table" style={{ minWidth: 1100 }}>

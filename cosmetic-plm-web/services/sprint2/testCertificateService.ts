@@ -29,6 +29,9 @@ export type CertItem = {
   subGroups?: CertSubGroup[];
 };
 
+export const WORKFLOW_STATUSES = ["draft", "pending_review", "pending_approval", "approved"] as const;
+export type WorkflowStatus = (typeof WORKFLOW_STATUSES)[number];
+
 export type TestCertificate = {
   id?: string;
   product_type: CertificateProductType;
@@ -41,9 +44,17 @@ export type TestCertificate = {
   customer_product?: string | null;
   test_dept: string;
   overall_verdict: string;
+  // 결재란에 표시될 담당자 이름. 실제 결재(도장)는 아래 *_confirmed_at이 채워져야 이뤄진 것으로 본다.
   writer_name?: string | null;
   reviewer_name?: string | null;
   approver_name?: string | null;
+  workflow_status?: WorkflowStatus;
+  writer_confirmed_at?: string | null;
+  writer_confirmed_by?: string | null;
+  reviewer_confirmed_at?: string | null;
+  reviewer_confirmed_by?: string | null;
+  approver_confirmed_at?: string | null;
+  approver_confirmed_by?: string | null;
   items: CertItem[];
   created_by?: string | null;
   created_at?: string;
@@ -193,4 +204,51 @@ export async function updateCertificate(id: string, patch: Partial<TestCertifica
 export async function deleteCertificate(id: string) {
   const { error } = await supabaseProductionFinal.from("plm_test_certificates").delete().eq("id", id);
   if (error) throw error;
+}
+
+// ============================================================
+// 결재 워크플로우: 작성 -> (검토자 지정 시) 검토 -> 승인. 도장(승인 마크)은 이름을 적어 넣었다고
+// 찍히는 게 아니라, 담당자가 실제로 "확정" 버튼을 눌러 *_confirmed_at이 기록된 경우에만 렌더링한다.
+// ============================================================
+
+// 작성 확정 - 검토자가 지정되어 있지 않으면 검토 단계를 건너뛰고 바로 승인대기로 넘어간다.
+export async function confirmWriterStage(cert: TestCertificate, actorName: string) {
+  if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
+  const hasReviewer = !!(cert.reviewer_name && cert.reviewer_name.trim());
+  return updateCertificate(cert.id, {
+    writer_confirmed_at: new Date().toISOString(),
+    writer_confirmed_by: actorName,
+    workflow_status: hasReviewer ? "pending_review" : "pending_approval",
+  });
+}
+
+export async function confirmReviewerStage(cert: TestCertificate, actorName: string) {
+  if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
+  return updateCertificate(cert.id, {
+    reviewer_confirmed_at: new Date().toISOString(),
+    reviewer_confirmed_by: actorName,
+    workflow_status: "pending_approval",
+  });
+}
+
+export async function confirmApproverStage(cert: TestCertificate, actorName: string) {
+  if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
+  return updateCertificate(cert.id, {
+    approver_confirmed_at: new Date().toISOString(),
+    approver_confirmed_by: actorName,
+    workflow_status: "approved",
+  });
+}
+
+// 결재가 진행된 뒤 내용을 다시 고쳐야 하면 처음부터 재결재를 받도록 확정 기록을 초기화한다.
+export async function resetWorkflow(id: string) {
+  return updateCertificate(id, {
+    workflow_status: "draft",
+    writer_confirmed_at: null,
+    writer_confirmed_by: null,
+    reviewer_confirmed_at: null,
+    reviewer_confirmed_by: null,
+    approver_confirmed_at: null,
+    approver_confirmed_by: null,
+  });
 }

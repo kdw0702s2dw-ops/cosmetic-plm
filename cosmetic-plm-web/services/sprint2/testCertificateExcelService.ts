@@ -3,6 +3,7 @@
 import ExcelJS from "exceljs";
 import type { TestCertificate } from "./testCertificateService";
 import { border, downloadWorkbook } from "./documentExcelService";
+import { APPROVAL_STAMP_PNG_BASE64 } from "./testCertificateAssets";
 
 // 반제품/완제품 시험성적서 엑셀 - 업로드된 양식(A~M, 13개 컬럼: No./시험항목(B:C)/시험기준(D:G)/
 // 시험방법(H:I)/시험일자(J:K)/시험결과및판정(L:M))의 병합 구조를 그대로 재현한다.
@@ -10,7 +11,6 @@ import { border, downloadWorkbook } from "./documentExcelService";
 // 줄 수를 추정해서 행마다 충분한 높이를 직접 지정한다.
 
 const MEDIUM: Partial<ExcelJS.Borders> = { top: { style: "medium" }, left: { style: "medium" }, bottom: { style: "medium" }, right: { style: "medium" } };
-const STAMP_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
 
 function setCell(ws: ExcelJS.Worksheet, r: number, c: number, value: any, opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; wrap?: boolean; color?: string }) {
   const cell = ws.getCell(r, c);
@@ -33,21 +33,50 @@ function estimateLines(text: string, colChars = 22): number {
   return Math.max(1, lines);
 }
 
-// 결재란 도장 셀 - 이름이 있으면 연두색 배경 + "승인" 텍스트, 없으면("-") 대각선(사선) 테두리로 표시
-function stampCell(ws: ExcelJS.Worksheet, r: number, c: number, name: string) {
-  const filled = !!name && name.trim() !== "" && name.trim() !== "-";
+// 결재란 도장 셀 - 담당자가 실제로 해당 단계를 "확정"해서 confirmedAt이 기록된 경우에만 도장 이미지를
+// 삽입한다(이름만 적혀 있다고 도장이 찍히지 않음). 담당자 자체가 없으면(예: 검토자 미지정) 업로드 양식과
+// 동일하게 대각선으로 "해당 없음"을 표시하고, 담당자는 있지만 아직 확정 전이면 빈 칸으로 둔다.
+function stampCell(
+  ws: ExcelJS.Worksheet,
+  r: number,
+  c: number,
+  name: string,
+  confirmedAt: string | null | undefined,
+  stampImageId: number | null
+) {
+  const hasPerson = !!name && name.trim() !== "" && name.trim() !== "-";
   const cell = ws.getCell(r, c);
-  if (filled) {
-    cell.value = "승인";
-    cell.font = { name: "굴림체", size: 9, bold: true, color: { argb: "FF0F9D6A" } };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
-    cell.fill = STAMP_FILL;
-  } else {
-    cell.value = "";
+  if (!hasPerson) {
     // 기존 얇은 테두리(top/left/right/bottom)는 유지하고 대각선만 추가한다 - border 객체를 통째로
     // 교체하면 앞서 border()로 깔아둔 바깥 테두리가 사라져 셀이 테두리 없이 붕 떠 보이는 문제가 있었다.
     cell.border = { ...cell.border, diagonal: { style: "thin", color: { argb: "FF94A3B8" }, up: true, down: false } };
+    return;
   }
+  if (hasPerson && confirmedAt && stampImageId !== null) {
+    ws.addImage(stampImageId, {
+      tl: { col: c - 1 + 0.18, row: r - 1 + 0.12 },
+      ext: { width: 34, height: 34 },
+    });
+  }
+}
+
+// pH 항목(양식상 3번, 반제품/완제품 공통)은 항목명 아래 측정조건 설명이 길어 업로드 양식처럼 작은
+// 글자(7pt)로 줄여 표시한다. rich text로 첫 줄(pH)과 나머지 줄(측정조건)의 글자 크기를 다르게 준다.
+function setItemLabelCell(ws: ExcelJS.Worksheet, r: number, c: number, item: { no: number; label: string }) {
+  const cell = ws.getCell(r, c);
+  const lines = String(item.label || "").split("\n");
+  if (item.no === 3 && lines.length > 1) {
+    cell.value = {
+      richText: [
+        { font: { name: "굴림체", size: 10 }, text: `${lines[0]}\n` },
+        { font: { name: "굴림체", size: 7 }, text: lines.slice(1).join("\n") },
+      ],
+    };
+  } else {
+    cell.value = item.label;
+    cell.font = { name: "굴림체", size: 10 };
+  }
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
 }
 
 export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workbook {
@@ -58,6 +87,16 @@ export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workboo
     { width: 5 }, { width: 10 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 11 },
     { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 11 }, { width: 11 },
   ];
+
+  // 결재 도장 이미지 - base64 자산이 비어있는 등 예외 상황에서도 문서 생성 자체는 계속되도록 방어한다.
+  let stampImageId: number | null = null;
+  try {
+    stampImageId = APPROVAL_STAMP_PNG_BASE64
+      ? wb.addImage({ base64: APPROVAL_STAMP_PNG_BASE64, extension: "png" })
+      : null;
+  } catch {
+    stampImageId = null;
+  }
 
   // 문서번호 (우측 상단)
   ws.mergeCells(1, 8, 1, 13);
@@ -85,9 +124,9 @@ export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workboo
   // 반드시 border() 호출보다 앞서 일반 THIN 테두리를 먼저 깔고, 그 다음에 stampCell로 개별 셀만 덮어쓴다.
   border(ws, 2, 10, 5, 13);
   for (let c = 10; c <= 13; c++) ws.getCell(2, c).border = { ...ws.getCell(2, c).border, top: { style: "medium" } };
-  stampCell(ws, 3, 11, cert.writer_name || "");
-  stampCell(ws, 3, 12, cert.reviewer_name || "");
-  stampCell(ws, 3, 13, cert.approver_name || "");
+  stampCell(ws, 3, 11, cert.writer_name || "", cert.writer_confirmed_at, stampImageId);
+  stampCell(ws, 3, 12, cert.reviewer_name || "", cert.reviewer_confirmed_at, stampImageId);
+  stampCell(ws, 3, 13, cert.approver_name || "", cert.approver_confirmed_at, stampImageId);
   ws.getRow(2).height = 20;
   ws.getRow(3).height = 22;
   ws.getRow(4).height = 22;
@@ -98,14 +137,14 @@ export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workboo
   // 헤더 필드 (품목코드/고객사·제품명, 제조번호/시험부서/종합판정)
   let r = 7;
   ws.mergeCells(r, 1, r, 2); setCell(ws, r, 1, "품목코드", { bold: true });
-  ws.mergeCells(r, 3, r, 5); setCell(ws, r, 3, cert.item_code || "-", { align: "left" });
+  ws.mergeCells(r, 3, r, 5); setCell(ws, r, 3, cert.item_code || "-");
   ws.mergeCells(r, 6, r, 7); setCell(ws, r, 6, "고객사/제품명", { bold: true });
-  ws.mergeCells(r, 8, r, 13); setCell(ws, r, 8, cert.customer_product || "-", { align: "left" });
+  ws.mergeCells(r, 8, r, 13); setCell(ws, r, 8, cert.customer_product || "-");
   border(ws, r, 1, r, 13);
   ws.getRow(r).height = 26;
   r++;
   ws.mergeCells(r, 1, r, 2); setCell(ws, r, 1, "제조번호", { bold: true });
-  ws.mergeCells(r, 3, r, 5); setCell(ws, r, 3, cert.lot_no || "-", { align: "left" });
+  ws.mergeCells(r, 3, r, 5); setCell(ws, r, 3, cert.lot_no || "-");
   ws.mergeCells(r, 6, r, 7); setCell(ws, r, 6, "시험부서", { bold: true });
   ws.mergeCells(r, 8, r, 9); setCell(ws, r, 8, cert.test_dept || "-");
   ws.mergeCells(r, 10, r, 11); setCell(ws, r, 10, "종합판정", { bold: true });
@@ -163,7 +202,7 @@ export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workboo
         ws.mergeCells(itemStart, 10, itemEnd, 11);
       }
       setCell(ws, itemStart, 1, item.no);
-      setCell(ws, itemStart, 2, item.label, { align: "left" });
+      setItemLabelCell(ws, itemStart, 2, item);
       setCell(ws, itemStart, 8, item.method);
       setCell(ws, itemStart, 10, item.test_date || "");
       border(ws, itemStart, 1, itemEnd, 13);
@@ -171,7 +210,7 @@ export function buildCertificateWorkbook(cert: TestCertificate): ExcelJS.Workboo
     } else {
       const lines = Math.max(estimateLines(item.label, 10), estimateLines(item.spec || "", 22), estimateLines(item.method, 9));
       setCell(ws, r, 1, item.no);
-      ws.mergeCells(r, 2, r, 3); setCell(ws, r, 2, item.label, { align: "left" });
+      ws.mergeCells(r, 2, r, 3); setItemLabelCell(ws, r, 2, item);
       ws.mergeCells(r, 4, r, 7); setCell(ws, r, 4, item.spec || "", { align: "left" });
       ws.mergeCells(r, 8, r, 9); setCell(ws, r, 8, item.method);
       ws.mergeCells(r, 10, r, 11); setCell(ws, r, 10, item.test_date || "");

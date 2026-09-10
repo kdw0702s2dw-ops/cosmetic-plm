@@ -1,6 +1,7 @@
 "use client";
 
 import type { CertItem, TestCertificate } from "./testCertificateService";
+import { APPROVAL_STAMP_DATA_URL } from "./testCertificateAssets";
 
 // 반제품/완제품 시험성적서 PDF - 사용자가 업로드한 엑셀 양식("반제품_완제품 시험성적서 양식.xlsx")의
 // 레이아웃(문서번호 + 제목박스+결재란(도장) / 품목코드~종합판정 헤더 / No.~시험결과및판정 표)을 그대로 재현한다.
@@ -17,13 +18,28 @@ function fmtDate(v: any) {
   return String(v).slice(0, 10);
 }
 
-// 결재란 도장 셀 - 이름이 채워져 있으면 원형 "승인" 도장, 비어있거나 "-"면 업로드 양식처럼 사선(반려/미해당) 표시
-function signatureCellHtml(name: string) {
-  const filled = !!name && name.trim() !== "" && name.trim() !== "-";
-  if (filled) {
-    return `<div class="stampwrap"><div class="stamp">승인</div></div>`;
+// 결재란 도장 셀 - 담당자가 실제로 해당 단계를 "확정"해서 confirmedAt이 기록된 경우에만 도장 이미지를
+// 찍는다(이름만 적혀 있다고 도장이 찍히지 않음). 담당자 자체가 지정되어 있지 않으면(예: 검토자 없음)
+// 업로드 양식과 동일하게 사선으로 "해당 없음"을 표시하고, 담당자는 있지만 아직 확정 전이면 빈 칸으로 둔다.
+function signatureCellHtml(name: string, confirmedAt?: string | null) {
+  const hasPerson = !!name && name.trim() !== "" && name.trim() !== "-";
+  if (!hasPerson) {
+    return `<div class="slashwrap"></div>`;
   }
-  return `<div class="slashwrap"></div>`;
+  if (confirmedAt) {
+    return `<div class="stampwrap"><img class="stamp-img" src="${APPROVAL_STAMP_DATA_URL}" alt="승인"/></div>`;
+  }
+  return `<div class="stampwrap"></div>`;
+}
+
+// pH 항목(양식상 3번, 반제품/완제품 공통)은 항목명 아래 측정조건 설명이 길어 업로드 양식처럼 작은
+// 글자(7pt)로 줄여 표시한다. 그 외 항목은 그대로 줄바꿈만 적용한다.
+function labelHtml(item: CertItem) {
+  if (item.no !== 3) return nl(item.label);
+  const lines = String(item.label || "").split("\n");
+  const first = e(lines[0]);
+  const rest = lines.slice(1).map((l) => e(l)).join("<br/>");
+  return rest ? `${first}<br/><span style="font-size:7pt">${rest}</span>` : first;
 }
 
 function itemRowsHtml(items: CertItem[]) {
@@ -38,7 +54,7 @@ function itemRowsHtml(items: CertItem[]) {
           const cells: string[] = [];
           if (first) {
             cells.push(`<td class="center" rowspan="${totalRows}">${item.no}</td>`);
-            cells.push(`<td class="center" rowspan="${totalRows}">${nl(item.label)}</td>`);
+            cells.push(`<td class="center" rowspan="${totalRows}">${labelHtml(item)}</td>`);
           }
           if (i === 0) {
             cells.push(`<td class="left" rowspan="${resultRows}">${nl(g.spec)}</td>`);
@@ -59,7 +75,7 @@ function itemRowsHtml(items: CertItem[]) {
       const resultText = item.unit ? `${e(item.result || "")} ${e(item.unit)}`.trim() : e(item.result || "");
       rows.push(`<tr>
 <td class="center">${item.no}</td>
-<td class="center">${nl(item.label)}</td>
+<td class="center">${labelHtml(item)}</td>
 <td class="left">${nl(item.spec)}</td>
 <td class="center">${nl(item.method)}</td>
 <td class="center">${fmtDate(item.test_date)}</td>
@@ -91,12 +107,8 @@ table{border-collapse:collapse;width:100%}
 .approvalbox td{border:1px solid #333;text-align:center;font-size:11px;padding:3px}
 .approvalbox .label{font-weight:bold;font-size:13px;background:#f8fafc}
 .approvalbox .kwlabel{font-weight:bold;font-size:14px;line-height:1.8}
-.stampwrap,.slashwrap{height:44px;position:relative}
-.stamp{
-  width:36px;height:36px;border-radius:50%;border:2px solid #0f9d6a;color:#0f9d6a;
-  display:flex;align-items:center;justify-content:center;margin:2px auto;font-weight:800;font-size:10px;
-  transform:rotate(-8deg);
-}
+.stampwrap,.slashwrap{height:44px;position:relative;display:flex;align-items:center;justify-content:center}
+.stamp-img{width:38px;height:38px;object-fit:contain}
 .slashwrap{background:linear-gradient(to top right, transparent calc(50% - 1px), #94a3b8 calc(50% - 1px), #94a3b8 calc(50% + 1px), transparent calc(50% + 1px));}
 .namecell{font-weight:600}
 
@@ -126,7 +138,7 @@ table{border-collapse:collapse;width:100%}
 <td>
 <table class="approvalbox">
 <tr><td rowspan="3" class="kwlabel">결<br/>재</td><td class="label">작성</td><td class="label">검토</td><td class="label">승인</td></tr>
-<tr><td>${signatureCellHtml(cert.writer_name || "")}</td><td>${signatureCellHtml(cert.reviewer_name || "")}</td><td>${signatureCellHtml(cert.approver_name || "")}</td></tr>
+<tr><td>${signatureCellHtml(cert.writer_name || "", cert.writer_confirmed_at)}</td><td>${signatureCellHtml(cert.reviewer_name || "", cert.reviewer_confirmed_at)}</td><td>${signatureCellHtml(cert.approver_name || "", cert.approver_confirmed_at)}</td></tr>
 <tr><td class="namecell">${e(cert.writer_name || "-")}</td><td class="namecell">${e(cert.reviewer_name || "-")}</td><td class="namecell">${e(cert.approver_name || "-")}</td></tr>
 </table>
 </td>
