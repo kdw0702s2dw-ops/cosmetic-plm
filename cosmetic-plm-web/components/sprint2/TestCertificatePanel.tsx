@@ -125,9 +125,8 @@ function CertificateForm({ s }: { s: S }) {
 
       <div className="v50-grid-2" style={{ marginTop: 10 }}>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-          문서번호
+          <span>문서번호 <span style={{ fontWeight: 400, fontSize: 11, color: "#94a3b8" }}>(예: QA-QS-COA-26P5065)</span></span>
           <input className="v50-input" value={s.docNo} onChange={(e) => s.setDocNo(e.target.value)} placeholder="예: QA-QS-COA-26P5065" />
-          <span style={{ fontWeight: 400, fontSize: 11, color: "#94a3b8" }}>예: QA-QS-COA-26P5065</span>
         </label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>품목코드<input className="v50-input" value={s.itemCode} onChange={(e) => s.setItemCode(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>제조번호<input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} placeholder="예: 5065 EXP20290811" /></label>
@@ -148,12 +147,12 @@ function CertificateForm({ s }: { s: S }) {
       <ApprovalWorkflow s={s} />
 
       <div className="v50-table-wrap" style={{ marginTop: 14 }}>
-        <table className="v50-table" style={{ minWidth: 1100 }}>
+        <table className="v50-table" style={{ minWidth: 1280 }}>
           <thead>
             <tr>
               <th style={{ width: 40 }}>No.</th>
               <th style={{ width: 130 }}>시험항목</th>
-              <th style={{ width: 220 }}>시험기준</th>
+              <th style={{ width: 340 }}>시험기준</th>
               <th style={{ width: 150 }}>시험방법</th>
               <th style={{ width: 120 }}>시험일자</th>
               <th>시험결과 및 판정</th>
@@ -177,7 +176,7 @@ function CertificateForm({ s }: { s: S }) {
                         )}
                         {ri === 0 && (
                           <td rowSpan={g.results.length} style={{ verticalAlign: "top" }}>
-                            <textarea className="v50-textarea" rows={2} style={{ minHeight: 40 }} value={g.spec}
+                            <textarea className="v50-textarea" rows={4} style={{ minHeight: 90, fontSize: 13, lineHeight: 1.5 }} value={g.spec}
                               onChange={(e) => s.updateSubGroup(item.no, gi, { spec: e.target.value })} />
                           </td>
                         )}
@@ -215,7 +214,7 @@ function CertificateForm({ s }: { s: S }) {
                   <td style={{ textAlign: "center" }}>{item.no}</td>
                   <td style={{ whiteSpace: "pre-line" }}>{item.label}</td>
                   <td>
-                    <textarea className="v50-textarea" rows={2} style={{ minHeight: 40 }} value={item.spec || ""}
+                    <textarea className="v50-textarea" rows={4} style={{ minHeight: 90, fontSize: 13, lineHeight: 1.5 }} value={item.spec || ""}
                       onChange={(e) => s.updateItem(item.no, { spec: e.target.value })} />
                   </td>
                   <td style={{ whiteSpace: "pre-line" }}>{item.method}</td>
