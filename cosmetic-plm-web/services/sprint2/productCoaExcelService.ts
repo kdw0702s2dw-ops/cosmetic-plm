@@ -7,7 +7,8 @@ import { border, downloadWorkbook } from "./documentExcelService";
 // 제품 COA 엑셀 - 업로드된 영문 양식(제품 COA 양식.docx)의 구성을 6개 컬럼(A~F)으로 재현한다.
 // 결재는 Approved By 단일 단계이며, "고정 도장 이미지"가 아니라 확정한 담당자 본인이 등록해둔
 // 서명 이미지(plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을 fetch해 base64로 변환한 뒤
-// addImage로 넣는다. 발행일(Issue Date)은 결재와 무관하게 사용자가 직접 입력한 값을 좌측에 표기한다.
+// addImage로 넣는다. 결재란(서명+이름, E~F 병합)은 크게 표시하고, 발행일(Issue Date)은 결재와
+// 무관하게 사용자가 직접 입력한 값을 결재란 바로 아래에 표기한다.
 
 function setCell(ws: ExcelJS.Worksheet, r: number, c: number, value: any, opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; wrap?: boolean }) {
   const cell = ws.getCell(r, c);
@@ -44,7 +45,7 @@ function getPngPixelSize(base64: string): { width: number; height: number } | nu
   }
 }
 
-// 서명란(D~F 병합) 안에서 비율이 깨지지 않도록 최대 폭/높이에 맞춰 축소 배치할 크기를 계산한다.
+// 서명란(E~F 병합) 안에서 비율이 깨지지 않도록 최대 폭/높이에 맞춰 축소 배치할 크기를 계산한다.
 function fitSignatureSize(image: { base64: string; extension: "png" | "jpeg" | "gif" }, maxWidth: number, maxHeight: number) {
   const natural = image.extension === "png" ? getPngPixelSize(image.base64) : null;
   const aspect = natural ? natural.width / natural.height : 3.2; // 파싱 실패 시 일반적인 서명 비율로 대체
@@ -76,14 +77,14 @@ function signatureCell(
   if (confirmedAt && image) {
     try {
       const imageId = wb.addImage({ base64: image.base64, extension: image.extension });
-      // 서명란(D~F 병합, 대략 320px 폭) 안에서 비율을 유지한 채 이전보다 눈에 띄게 키우고 가운데로 배치한다.
-      const MAX_W = 190;
-      const MAX_H = 62;
-      const BOX_W = 320; // D~F 컬럼(20+13+14 단위) 대략 폭
-      const COL_D_W = 140; // D 컬럼 대략 폭 - tl.col 오프셋 계산용
-      const ROW_H_PX = 80; // 서명 행 높이(60pt) ≈ 80px - tl.row 오프셋 계산용
+      // 서명란(E~F 병합, 대략 199px 폭) 안에서 비율을 유지한 채 큼직하게 키우고 가운데로 배치한다.
+      const MAX_W = 185;
+      const MAX_H = 100;
+      const BOX_W = 199; // E~F 컬럼(13+14 단위) 대략 폭
+      const COL_E_W = 96; // E 컬럼 대략 폭 - tl.col 오프셋 계산용
+      const ROW_H_PX = 128; // 서명 행 높이(96pt) ≈ 128px - tl.row 오프셋 계산용
       const { width, height } = fitSignatureSize(image, MAX_W, MAX_H);
-      const colOffset = Math.max(0, (BOX_W - width) / 2) / COL_D_W;
+      const colOffset = Math.max(0, (BOX_W - width) / 2) / COL_E_W;
       const rowOffset = Math.max(0, (ROW_H_PX - height) / 2) / ROW_H_PX;
       ws.addImage(imageId, { tl: { col: c1 - 1 + colOffset, row: r - 1 + rowOffset }, ext: { width, height } });
     } catch {
@@ -193,30 +194,33 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
   r++;
   r++; // spacer
 
-  // 발행일(좌측, 결재와 무관하게 사용자가 직접 입력) + 결재란 - Approved By 단일 단계(우측)
+  // 결재란 - Approved By 단일 단계(서명란은 E~F 병합). 발행일(Issue Date)은 결재와 무관하게
+  // 사용자가 직접 입력한 값을 결재란 바로 아래(같은 E~F 폭, 테두리 없이)에 표기한다.
   const labelRow = r;
-  setCell(ws, labelRow, 1, `Issue Date: ${coa.issue_date || "-"}`, { align: "left", wrap: false });
-  ws.mergeCells(labelRow, 1, labelRow, 3);
-  ws.mergeCells(labelRow, 4, labelRow, 6); setCell(ws, labelRow, 4, "Approved By", { bold: true });
-  ws.getCell(labelRow, 4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  ws.mergeCells(labelRow, 5, labelRow, 6); setCell(ws, labelRow, 5, "Approved By", { bold: true });
   ws.getCell(labelRow, 5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
   ws.getCell(labelRow, 6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
   ws.getRow(labelRow).height = 20;
   r++;
 
   const signRow = r;
-  ws.mergeCells(signRow, 4, signRow, 6);
-  ws.getRow(signRow).height = 60;
+  ws.mergeCells(signRow, 5, signRow, 6);
+  ws.getRow(signRow).height = 96;
   r++;
 
   const nameRow = r;
-  ws.mergeCells(nameRow, 4, nameRow, 6); setCell(ws, nameRow, 4, coa.approver_name || "-");
+  ws.mergeCells(nameRow, 5, nameRow, 6); setCell(ws, nameRow, 5, coa.approver_name || "-");
   ws.getRow(nameRow).height = 18;
   r++;
 
-  border(ws, labelRow, 4, nameRow, 6);
+  border(ws, labelRow, 5, nameRow, 6);
   // 얇은 테두리를 먼저 깔고, 서명 이미지/사선 표시는 그 다음에 덮어써야 border() 호출이 지우지 않는다.
-  signatureCell(ws, signRow, 4, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
+  signatureCell(ws, signRow, 5, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
+
+  const issueDateRow = r;
+  ws.mergeCells(issueDateRow, 5, issueDateRow, 6);
+  setCell(ws, issueDateRow, 5, `Issue Date: ${coa.issue_date || "-"}`, { align: "center", wrap: false });
+  r++;
 
   ws.pageSetup = { orientation: "portrait", fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
 
@@ -247,11 +251,74 @@ async function urlToBase64(url: string): Promise<string | null> {
   }
 }
 
+// 서명패드로 캡처한 PNG는 보통 고정 캔버스 크기로 저장되어 실제 잉크 주위에 여백이 많다.
+// 이 여백을 그대로 두면 박스 안에서 서명이 작고 납작하게 보이므로, 잉크가 있는 영역만 남기고
+// 잘라낸다. jpeg/gif이거나 브라우저 환경이 아니거나 잉크를 찾지 못하면 원본을 그대로 반환한다.
+async function trimSignatureWhitespace(image: { base64: string; extension: "png" | "jpeg" | "gif" }): Promise<{ base64: string; extension: "png" | "jpeg" | "gif" }> {
+  if (image.extension !== "png" || typeof document === "undefined") return image;
+  try {
+    const el: HTMLImageElement = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("signature image decode failed"));
+      img.src = `data:image/png;base64,${image.base64}`;
+    });
+    const w = el.naturalWidth;
+    const h = el.naturalHeight;
+    if (!w || !h) return image;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return image;
+    ctx.drawImage(el, 0, 0);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    const ALPHA_THRESHOLD = 16; // 거의 투명하면 배경으로 간주
+    const LIGHT_THRESHOLD = 245; // 거의 흰색이면 배경으로 간주
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (data[i + 3] < ALPHA_THRESHOLD) continue;
+        if (data[i] >= LIGHT_THRESHOLD && data[i + 1] >= LIGHT_THRESHOLD && data[i + 2] >= LIGHT_THRESHOLD) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (maxX < minX || maxY < minY) return image; // 잉크 픽셀을 찾지 못함
+
+    const pad = Math.round(Math.max(w, h) * 0.02); // 잘라낼 때 살짝 여백을 남겨 획이 잘리지 않게 함
+    const cx0 = Math.max(0, minX - pad);
+    const cy0 = Math.max(0, minY - pad);
+    const cx1 = Math.min(w, maxX + 1 + pad);
+    const cy1 = Math.min(h, maxY + 1 + pad);
+    const cw = cx1 - cx0;
+    const ch = cy1 - cy0;
+    if (cw <= 0 || ch <= 0 || (cw >= w * 0.98 && ch >= h * 0.98)) return image; // 잘라낼 여백이 거의 없음
+
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = cw;
+    cropCanvas.height = ch;
+    const cropCtx = cropCanvas.getContext("2d");
+    if (!cropCtx) return image;
+    cropCtx.drawImage(canvas, cx0, cy0, cw, ch, 0, 0, cw, ch);
+    const trimmedBase64 = cropCanvas.toDataURL("image/png").split(",")[1];
+    if (!trimmedBase64) return image;
+    return { base64: trimmedBase64, extension: "png" };
+  } catch {
+    return image; // 실패 시 원본 이미지를 그대로 사용
+  }
+}
+
 async function loadSignatureImage(url: string | null | undefined): Promise<CoaSignatureImage> {
   if (!url) return null;
   const base64 = await urlToBase64(url);
   if (!base64) return null;
-  return { base64, extension: guessExtension(url) };
+  return trimSignatureWhitespace({ base64, extension: guessExtension(url) });
 }
 
 export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { approver?: string | null } = {}) {
