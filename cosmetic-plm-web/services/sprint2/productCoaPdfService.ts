@@ -5,8 +5,8 @@ import type { CoaItem, ProductCoa } from "./productCoaService";
 // 제품 COA(Certificate of Analysis) PDF - 사용자가 업로드한 영문 양식(제품 COA 양식.docx)의 구성
 // (제목 / Product Information / Test Results / 각주 / Conclusion / 결재란)을 그대로 재현한다.
 // 결재는 Approved By 단일 단계이며, 담당자가 실제로 "확정"했을 때만(그리고 본인이 서명 이미지를
-// 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다. 발행일(Issue Date)은
-// 결재와 무관하게 사용자가 직접 입력하는 값을 그대로 표기한다.
+// 등록해둔었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다. 결재란은 크게 표시하고,
+// 발행일(Issue Date)은 결재와 무관하게 사용자가 직접 입력하는 값을 결재란 바로 아래에 표기한다.
 
 export type CoaSignatureMap = { approver?: string | null };
 
@@ -83,13 +83,14 @@ table{border-collapse:collapse;width:100%}
 .left{text-align:left}
 .footnotes{font-size:10.5px;color:#475569;margin-top:6px;font-family:Arial,sans-serif}
 .conclusion{font-size:12px;line-height:1.6;margin-top:4px;font-family:Arial,sans-serif}
-.bottomrow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px}
-.issuedate{font-size:12px;color:#334155;font-family:Arial,sans-serif}
+.bottomrow{display:flex;justify-content:flex-end;margin-top:18px}
+.approval-wrap{width:260px}
+.issuedate{font-size:12px;color:#334155;font-family:Arial,sans-serif;text-align:center;margin-top:8px}
 .approvalbox{width:260px}
 .approvalbox td{border:1px solid #94a3b8;text-align:center;font-size:11px;padding:4px;font-family:Arial,sans-serif}
 .approvalbox .label{font-weight:bold;font-size:12px;background:#f8fafc}
-.stampwrap,.slashwrap{height:46px;position:relative;display:flex;align-items:center;justify-content:center}
-.stamp-img{max-width:120px;max-height:40px;object-fit:contain}
+.stampwrap,.slashwrap{height:80px;position:relative;display:flex;align-items:center;justify-content:center}
+.stamp-img{max-width:200px;max-height:70px;object-fit:contain}
 .signed-name{font-weight:700;font-size:13px;font-family:'Brush Script MT',cursive}
 .slashwrap{background:linear-gradient(to top right, transparent calc(50% - 1px), #94a3b8 calc(50% - 1px), #94a3b8 calc(50% + 1px), transparent calc(50% + 1px));}
 .namecell{font-weight:600}
@@ -132,12 +133,14 @@ ${itemRowsHtml(coa.items)}
 <div class="conclusion">${e(conclusionText(coa))}</div>
 
 <div class="bottomrow">
-<div class="issuedate">Issue Date: ${e(coa.issue_date || "-")}</div>
+<div class="approval-wrap">
 <table class="approvalbox">
 <tr><td class="label">Approved By</td></tr>
 <tr><td>${signatureCellHtml(coa.approver_name || "", coa.approver_confirmed_at, signatures.approver)}</td></tr>
 <tr><td class="namecell">${signatureCaption(coa.approver_name || "", coa.approver_confirmed_at)}</td></tr>
 </table>
+<div class="issuedate">Issue Date: ${e(coa.issue_date || "-")}</div>
+</div>
 </div>
 
 <button class="no-print" onclick="window.print()">Print / Save as PDF</button>
