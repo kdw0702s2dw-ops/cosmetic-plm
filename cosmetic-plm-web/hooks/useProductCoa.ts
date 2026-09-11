@@ -13,8 +13,6 @@ import {
   createProductCoa,
   updateProductCoa,
   deleteProductCoa,
-  confirmCoaWriterStage,
-  confirmCoaReviewerStage,
   confirmCoaApproverStage,
 } from "@/services/sprint2/productCoaService";
 import { fetchSignaturesByUserIds } from "@/services/sprint1/signatureService";
@@ -31,9 +29,10 @@ function todayStr() {
   return `${y}-${m}-${day}`;
 }
 
-// 품질관리 - 제품 COA(Certificate of Analysis). 시험성적서(useTestCertificate)와 동일한 구조지만,
-// 결재 확정 시 확정한 사람의 user id를 함께 기록해서(writer_confirmed_by_id 등) 문서 출력 시
-// plm_signatures에서 그 사람의 실제 서명 이미지를 찾아 삽입할 수 있게 한다.
+// 품질관리 - 제품 COA(Certificate of Analysis). 결재는 Approved By 단일 단계이며, 확정 시 확정한
+// 사람의 user id를 함께 기록해서(approver_confirmed_by_id) 문서 출력 시 plm_signatures에서 그
+// 사람의 실제 서명 이미지를 찾아 삽입할 수 있게 한다. 발행일(issueDate)은 결재와 무관하게 사용자가
+// 직접 입력하는 값이다.
 export function useProductCoa() {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
@@ -62,19 +61,12 @@ export function useProductCoa() {
   const [productCategory, setProductCategory] = useState("");
   const [testDateFrom, setTestDateFrom] = useState("");
   const [testDateTo, setTestDateTo] = useState("");
+  const [issueDate, setIssueDate] = useState("");
   const [conclusion, setConclusion] = useState("");
-  const [writerName, setWriterName] = useState("");
-  const [reviewerName, setReviewerName] = useState("");
   const [approverName, setApproverName] = useState("");
   const [items, setItems] = useState<CoaItem[]>(() => buildDefaultCoa().items);
 
   const [workflowStatus, setWorkflowStatus] = useState<CoaWorkflowStatus>("draft");
-  const [writerConfirmedAt, setWriterConfirmedAt] = useState<string | null>(null);
-  const [writerConfirmedBy, setWriterConfirmedBy] = useState<string | null>(null);
-  const [writerConfirmedById, setWriterConfirmedById] = useState<string | null>(null);
-  const [reviewerConfirmedAt, setReviewerConfirmedAt] = useState<string | null>(null);
-  const [reviewerConfirmedBy, setReviewerConfirmedBy] = useState<string | null>(null);
-  const [reviewerConfirmedById, setReviewerConfirmedById] = useState<string | null>(null);
   const [approverConfirmedAt, setApproverConfirmedAt] = useState<string | null>(null);
   const [approverConfirmedBy, setApproverConfirmedBy] = useState<string | null>(null);
   const [approverConfirmedById, setApproverConfirmedById] = useState<string | null>(null);
@@ -131,14 +123,11 @@ export function useProductCoa() {
     setProductCategory("");
     setTestDateFrom(defaults.test_date_from || todayStr());
     setTestDateTo(defaults.test_date_to || todayStr());
+    setIssueDate("");
     setConclusion(defaults.conclusion || "");
-    setWriterName(myName);
-    setReviewerName("");
     setApproverName("");
     setItems(defaults.items);
     setWorkflowStatus("draft");
-    setWriterConfirmedAt(null); setWriterConfirmedBy(null); setWriterConfirmedById(null);
-    setReviewerConfirmedAt(null); setReviewerConfirmedBy(null); setReviewerConfirmedById(null);
     setApproverConfirmedAt(null); setApproverConfirmedBy(null); setApproverConfirmedById(null);
     setShowForm(true);
   }
@@ -160,18 +149,11 @@ export function useProductCoa() {
       setProductCategory(coa.product_category || "");
       setTestDateFrom(coa.test_date_from || "");
       setTestDateTo(coa.test_date_to || "");
+      setIssueDate(coa.issue_date || "");
       setConclusion(coa.conclusion || "");
-      setWriterName(coa.writer_name || "");
-      setReviewerName(coa.reviewer_name || "");
       setApproverName(coa.approver_name || "");
       setItems(coa.items || []);
       setWorkflowStatus(coa.workflow_status || "draft");
-      setWriterConfirmedAt(coa.writer_confirmed_at || null);
-      setWriterConfirmedBy(coa.writer_confirmed_by || null);
-      setWriterConfirmedById(coa.writer_confirmed_by_id || null);
-      setReviewerConfirmedAt(coa.reviewer_confirmed_at || null);
-      setReviewerConfirmedBy(coa.reviewer_confirmed_by || null);
-      setReviewerConfirmedById(coa.reviewer_confirmed_by_id || null);
       setApproverConfirmedAt(coa.approver_confirmed_at || null);
       setApproverConfirmedBy(coa.approver_confirmed_by || null);
       setApproverConfirmedById(coa.approver_confirmed_by_id || null);
@@ -238,17 +220,10 @@ export function useProductCoa() {
       product_category: productCategory,
       test_date_from: testDateFrom,
       test_date_to: testDateTo,
+      issue_date: issueDate,
       conclusion,
-      writer_name: writerName,
-      reviewer_name: reviewerName,
       approver_name: approverName,
       workflow_status: workflowStatus,
-      writer_confirmed_at: writerConfirmedAt,
-      writer_confirmed_by: writerConfirmedBy,
-      writer_confirmed_by_id: writerConfirmedById,
-      reviewer_confirmed_at: reviewerConfirmedAt,
-      reviewer_confirmed_by: reviewerConfirmedBy,
-      reviewer_confirmed_by_id: reviewerConfirmedById,
       approver_confirmed_at: approverConfirmedAt,
       approver_confirmed_by: approverConfirmedBy,
       approver_confirmed_by_id: approverConfirmedById,
@@ -293,42 +268,6 @@ export function useProductCoa() {
     }
   }
 
-  async function confirmWriter() {
-    if (!editingId) { setMessage("먼저 저장한 뒤 작성을 확정할 수 있습니다."); return; }
-    setConfirming(true); setMessage("");
-    try {
-      const updated = await confirmCoaWriterStage(buildCurrentCoa(), myName, myId);
-      setWorkflowStatus(updated.workflow_status || "draft");
-      setWriterConfirmedAt(updated.writer_confirmed_at || null);
-      setWriterConfirmedBy(updated.writer_confirmed_by || null);
-      setWriterConfirmedById(updated.writer_confirmed_by_id || null);
-      setMessage(reviewerName.trim() ? "작성이 확정되었습니다. 검토 대기 중입니다." : "작성이 확정되었습니다. 검토자가 없어 승인 대기로 넘어갑니다.");
-      await reloadList();
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "작성 확정 오류");
-    } finally {
-      setConfirming(false);
-    }
-  }
-
-  async function confirmReviewer() {
-    if (!editingId) return;
-    setConfirming(true); setMessage("");
-    try {
-      const updated = await confirmCoaReviewerStage(buildCurrentCoa(), myName, myId);
-      setWorkflowStatus(updated.workflow_status || "draft");
-      setReviewerConfirmedAt(updated.reviewer_confirmed_at || null);
-      setReviewerConfirmedBy(updated.reviewer_confirmed_by || null);
-      setReviewerConfirmedById(updated.reviewer_confirmed_by_id || null);
-      setMessage("검토가 확정되었습니다. 승인 대기 중입니다.");
-      await reloadList();
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "검토 확정 오류");
-    } finally {
-      setConfirming(false);
-    }
-  }
-
   async function confirmApprover() {
     if (!editingId) return;
     setConfirming(true); setMessage("");
@@ -347,12 +286,10 @@ export function useProductCoa() {
     }
   }
 
-  // 출력 시점에 작성/검토/승인 확정자의 서명 이미지를 한 번에 조회한다.
+  // 출력 시점에 승인(Approved By) 확정자의 서명 이미지를 조회한다.
   async function loadSignatureMap(): Promise<CoaSignatureMap> {
-    const map = await fetchSignaturesByUserIds([writerConfirmedById, reviewerConfirmedById, approverConfirmedById]);
+    const map = await fetchSignaturesByUserIds([approverConfirmedById]);
     return {
-      writer: writerConfirmedById ? map[writerConfirmedById] : undefined,
-      reviewer: reviewerConfirmedById ? map[reviewerConfirmedById] : undefined,
       approver: approverConfirmedById ? map[approverConfirmedById] : undefined,
     };
   }
@@ -380,14 +317,14 @@ export function useProductCoa() {
     docNo, setDocNo,
     productName, setProductName, manufacturer, setManufacturer, address, setAddress,
     productCode, setProductCode, batchNo, setBatchNo, productCategory, setProductCategory,
-    testDateFrom, setTestDateFrom, testDateTo, setTestDateTo, conclusion, setConclusion,
-    writerName, setWriterName, reviewerName, setReviewerName, approverName, setApproverName,
+    testDateFrom, setTestDateFrom, testDateTo, setTestDateTo, issueDate, setIssueDate, conclusion, setConclusion,
+    approverName, setApproverName,
     items, updateItem, addItem, removeItem, moveItemUp, moveItemDown,
     openNewCoa, openExistingCoa, closeForm,
     saveCoa, removeCoa,
     workflowStatus, confirming,
-    writerConfirmedAt, writerConfirmedBy, reviewerConfirmedAt, reviewerConfirmedBy, approverConfirmedAt, approverConfirmedBy,
-    confirmWriter, confirmReviewer, confirmApprover,
+    approverConfirmedAt, approverConfirmedBy,
+    confirmApprover,
     printCurrentCoa, downloadCurrentHtml, downloadCurrentExcel,
   };
 }

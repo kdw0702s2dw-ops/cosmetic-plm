@@ -5,9 +5,9 @@ import type { ProductCoa } from "./productCoaService";
 import { border, downloadWorkbook } from "./documentExcelService";
 
 // 제품 COA 엑셀 - 업로드된 영문 양식(제품 COA 양식.docx)의 구성을 6개 컬럼(A~F)으로 재현한다.
-// 결재란은 업로드 양식 그대로 Test Laboratory / Approved By 2단계이며, "고정 도장 이미지"가 아니라
-// 확정한 담당자 본인이 등록해둔 서명 이미지(plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을
-// fetch해 base64로 변환한 뒤 addImage로 넣는다.
+// 결재는 Approved By 단일 단계이며, "고정 도장 이미지"가 아니라 확정한 담당자 본인이 등록해둔
+// 서명 이미지(plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을 fetch해 base64로 변환한 뒤
+// addImage로 넣는다. 발행일(Issue Date)은 결재와 무관하게 사용자가 직접 입력한 값을 좌측에 표기한다.
 
 function setCell(ws: ExcelJS.Worksheet, r: number, c: number, value: any, opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; wrap?: boolean }) {
   const cell = ws.getCell(r, c);
@@ -25,7 +25,7 @@ function estimateLines(text: string, colChars = 30): number {
 }
 
 export type CoaSignatureImage = { base64: string; extension: "png" | "jpeg" | "gif" } | null;
-export type CoaSignatureImages = { writer?: CoaSignatureImage; approver?: CoaSignatureImage };
+export type CoaSignatureImages = { approver?: CoaSignatureImage };
 
 function signatureCell(
   ws: ExcelJS.Worksheet,
@@ -154,29 +154,29 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
   r++;
   r++; // spacer
 
-  // 결재란 - Test Laboratory / Approved By (각 3개 컬럼씩 2쌍, 업로드 양식 그대로 2단계)
+  // 발행일(좌측, 결재와 무관하게 사용자가 직접 입력) + 결재란 - Approved By 단일 단계(우측)
   const labelRow = r;
-  ws.mergeCells(labelRow, 1, labelRow, 3); setCell(ws, labelRow, 1, "Test Laboratory", { bold: true });
+  setCell(ws, labelRow, 1, `Issue Date: ${coa.issue_date || "-"}`, { align: "left", wrap: false });
+  ws.mergeCells(labelRow, 1, labelRow, 3);
   ws.mergeCells(labelRow, 4, labelRow, 6); setCell(ws, labelRow, 4, "Approved By", { bold: true });
-  ws.getRow(labelRow).eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } }; });
-  ws.getRow(labelRow).height = 18;
+  ws.getCell(labelRow, 4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  ws.getCell(labelRow, 5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  ws.getCell(labelRow, 6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  ws.getRow(labelRow).height = 20;
   r++;
 
   const signRow = r;
-  ws.mergeCells(signRow, 1, signRow, 3);
   ws.mergeCells(signRow, 4, signRow, 6);
   ws.getRow(signRow).height = 34;
   r++;
 
   const nameRow = r;
-  ws.mergeCells(nameRow, 1, nameRow, 3); setCell(ws, nameRow, 1, coa.writer_name || "-");
   ws.mergeCells(nameRow, 4, nameRow, 6); setCell(ws, nameRow, 4, coa.approver_name || "-");
   ws.getRow(nameRow).height = 18;
   r++;
 
-  border(ws, labelRow, 1, nameRow, 6);
+  border(ws, labelRow, 4, nameRow, 6);
   // 얇은 테두리를 먼저 깔고, 서명 이미지/사선 표시는 그 다음에 덮어써야 border() 호출이 지우지 않는다.
-  signatureCell(ws, signRow, 1, 3, coa.writer_name || "", coa.writer_confirmed_at, signatures.writer, wb);
   signatureCell(ws, signRow, 4, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
 
   ws.pageSetup = { orientation: "portrait", fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
@@ -215,11 +215,8 @@ async function loadSignatureImage(url: string | null | undefined): Promise<CoaSi
   return { base64, extension: guessExtension(url) };
 }
 
-export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { writer?: string | null; approver?: string | null } = {}) {
-  const [writer, approver] = await Promise.all([
-    loadSignatureImage(signatureUrls.writer),
-    loadSignatureImage(signatureUrls.approver),
-  ]);
-  const wb = buildCoaWorkbook(coa, { writer, approver });
+export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { approver?: string | null } = {}) {
+  const approver = await loadSignatureImage(signatureUrls.approver);
+  const wb = buildCoaWorkbook(coa, { approver });
   await downloadWorkbook(wb, `COA_${coa.product_code || coa.product_name || "product"}_${coa.batch_no || ""}.xlsx`);
 }

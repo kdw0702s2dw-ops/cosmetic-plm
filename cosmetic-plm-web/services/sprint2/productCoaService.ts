@@ -3,10 +3,10 @@
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
 // 품질관리 - 제품 COA(Certificate of Analysis). 업로드된 영문 COA 양식(제품 COA 양식.docx)의 구성
-// (Product Information / Test Results / Conclusion / 결재란)을 그대로 따르며, 시험성적서와 동일한
-// 작성 -> 검토 -> 승인 결재 워크플로우를 사용한다. 다른 점은 결재 확정 시 담당자의 실제 서명 이미지
-// (plm_signatures, 사용자가 내 계정에서 등록)가 문서에 삽입된다는 것 - 이를 위해 확정자의 user id도
-// 함께 기록한다(writer_confirmed_by_id 등).
+// (Product Information / Test Results / Conclusion / 결재란)을 그대로 따른다. 결재는 Approved By
+// 단일 단계이며, 확정 시 담당자의 실제 서명 이미지(plm_signatures, 사용자가 내 계정에서 등록)가
+// 문서에 삽입된다 - 이를 위해 확정자의 user id도 함께 기록한다(approver_confirmed_by_id). 발행일은
+// 결재와 무관하게 사용자가 직접 입력하는 별도 필드(issue_date)다.
 
 export type CoaItem = {
   no: number;
@@ -17,7 +17,7 @@ export type CoaItem = {
   result?: string;
 };
 
-export const COA_WORKFLOW_STATUSES = ["draft", "pending_review", "pending_approval", "approved"] as const;
+export const COA_WORKFLOW_STATUSES = ["draft", "approved"] as const;
 export type CoaWorkflowStatus = (typeof COA_WORKFLOW_STATUSES)[number];
 
 export type ProductCoa = {
@@ -34,18 +34,11 @@ export type ProductCoa = {
   product_category?: string | null;
   test_date_from?: string | null;
   test_date_to?: string | null;
+  issue_date?: string | null;
   conclusion?: string | null;
   items: CoaItem[];
-  writer_name?: string | null;
-  reviewer_name?: string | null;
   approver_name?: string | null;
   workflow_status?: CoaWorkflowStatus;
-  writer_confirmed_at?: string | null;
-  writer_confirmed_by?: string | null;
-  writer_confirmed_by_id?: string | null;
-  reviewer_confirmed_at?: string | null;
-  reviewer_confirmed_by?: string | null;
-  reviewer_confirmed_by_id?: string | null;
   approver_confirmed_at?: string | null;
   approver_confirmed_by?: string | null;
   approver_confirmed_by_id?: string | null;
@@ -151,9 +144,8 @@ export async function createProductCoa(coa: ProductCoa) {
       test_date_from: coa.test_date_from || "",
       test_date_to: coa.test_date_to || "",
       conclusion: coa.conclusion || "",
+      issue_date: coa.issue_date || "",
       items: coa.items,
-      writer_name: coa.writer_name || "",
-      reviewer_name: coa.reviewer_name || "",
       approver_name: coa.approver_name || "",
       created_by: coa.created_by || null,
     })
@@ -180,30 +172,9 @@ export async function deleteProductCoa(id: string) {
 }
 
 // ============================================================
-// 결재 워크플로우: 작성 -> (검토자 지정 시) 검토 -> 승인. 확정한 사람의 user id를 함께 기록해두면
-// 문서를 그릴 때 plm_signatures에서 그 사람의 서명 이미지를 찾아 삽입할 수 있다.
+// 결재 워크플로우: Approved By 단일 단계. 확정한 사람의 user id를 함께 기록해두면 문서를 그릴 때
+// plm_signatures에서 그 사람의 서명 이미지를 찾아 삽입할 수 있다.
 // ============================================================
-
-export async function confirmCoaWriterStage(coa: ProductCoa, actorName: string, actorId: string | null) {
-  if (!coa.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
-  const hasReviewer = !!(coa.reviewer_name && coa.reviewer_name.trim());
-  return updateProductCoa(coa.id, {
-    writer_confirmed_at: new Date().toISOString(),
-    writer_confirmed_by: actorName,
-    writer_confirmed_by_id: actorId,
-    workflow_status: hasReviewer ? "pending_review" : "pending_approval",
-  });
-}
-
-export async function confirmCoaReviewerStage(coa: ProductCoa, actorName: string, actorId: string | null) {
-  if (!coa.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
-  return updateProductCoa(coa.id, {
-    reviewer_confirmed_at: new Date().toISOString(),
-    reviewer_confirmed_by: actorName,
-    reviewer_confirmed_by_id: actorId,
-    workflow_status: "pending_approval",
-  });
-}
 
 export async function confirmCoaApproverStage(coa: ProductCoa, actorName: string, actorId: string | null) {
   if (!coa.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");

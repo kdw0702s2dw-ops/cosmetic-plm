@@ -7,9 +7,7 @@ import "@/styles/enterprise-v50.css";
 type S = ReturnType<typeof useProductCoa>;
 
 const WORKFLOW_STATUS_LABEL: Record<string, string> = {
-  draft: "작성중",
-  pending_review: "검토대기",
-  pending_approval: "승인대기",
+  draft: "승인대기",
   approved: "승인완료",
 };
 
@@ -49,20 +47,7 @@ function StageCard({
 }
 
 function ApprovalWorkflow({ s }: { s: S }) {
-  const hasReviewer = !!s.reviewerName.trim();
-  const writerState: StageState = s.writerConfirmedAt ? "done" : "current";
-  const reviewerState: StageState = !hasReviewer
-    ? "skipped"
-    : s.reviewerConfirmedAt
-    ? "done"
-    : s.workflowStatus === "pending_review"
-    ? "current"
-    : "waiting";
-  const approverState: StageState = s.approverConfirmedAt
-    ? "done"
-    : s.workflowStatus === "pending_approval"
-    ? "current"
-    : "waiting";
+  const approverState: StageState = s.approverConfirmedAt ? "done" : "current";
 
   return (
     <div style={{ marginTop: 14 }}>
@@ -70,11 +55,9 @@ function ApprovalWorkflow({ s }: { s: S }) {
         <div style={{ fontWeight: 800, fontSize: 13 }}>결재 진행 상태</div>
         <span className="v50-badge">{WORKFLOW_STATUS_LABEL[s.workflowStatus] || s.workflowStatus}</span>
       </div>
-      {!s.editingId && <p style={{ color: "#94a3b8", fontSize: 12, marginBottom: 8 }}>저장한 뒤 작성/검토/승인을 단계적으로 확정할 수 있습니다. 확정하면 본인이 등록한 서명 이미지가 문서에 삽입됩니다.</p>}
+      {!s.editingId && <p style={{ color: "#94a3b8", fontSize: 12, marginBottom: 8 }}>저장한 뒤 Approved By를 확정할 수 있습니다. 확정하면 본인이 등록한 서명 이미지가 문서에 삽입됩니다.</p>}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <StageCard title="작성" state={writerState} personName={s.writerName} confirmedAt={s.writerConfirmedAt} confirmedBy={s.writerConfirmedBy} onConfirm={s.confirmWriter} confirming={s.confirming} />
-        <StageCard title="검토" state={reviewerState} personName={s.reviewerName} confirmedAt={s.reviewerConfirmedAt} confirmedBy={s.reviewerConfirmedBy} onConfirm={s.confirmReviewer} confirming={s.confirming} />
-        <StageCard title="승인" state={approverState} personName={s.approverName} confirmedAt={s.approverConfirmedAt} confirmedBy={s.approverConfirmedBy} onConfirm={s.confirmApprover} confirming={s.confirming} />
+        <StageCard title="Approved By" state={approverState} personName={s.approverName} confirmedAt={s.approverConfirmedAt} confirmedBy={s.approverConfirmedBy} onConfirm={s.confirmApprover} confirming={s.confirming} />
       </div>
     </div>
   );
@@ -167,9 +150,8 @@ function CoaForm({ s }: { s: S }) {
         <label style={{ display: "grid", gap: 6, fontWeight: 800, gridColumn: "1 / -1" }}>Address (주소)<input className="v50-input" value={s.address} onChange={(e) => s.setAddress(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>Test Date From<input className="v50-input" type="date" value={s.testDateFrom} onChange={(e) => s.setTestDateFrom(e.target.value)} /></label>
         <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>Test Date To<input className="v50-input" type="date" value={s.testDateTo} onChange={(e) => s.setTestDateTo(e.target.value)} /></label>
-        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>작성<input className="v50-input" value={s.writerName} onChange={(e) => s.setWriterName(e.target.value)} /></label>
-        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>검토<input className="v50-input" value={s.reviewerName} onChange={(e) => s.setReviewerName(e.target.value)} placeholder="해당자 없으면 비워두세요" /></label>
-        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>승인<input className="v50-input" value={s.approverName} onChange={(e) => s.setApproverName(e.target.value)} /></label>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>Approved By (승인)<input className="v50-input" value={s.approverName} onChange={(e) => s.setApproverName(e.target.value)} /></label>
+        <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>Issue Date (발행일)<input className="v50-input" type="date" value={s.issueDate} onChange={(e) => s.setIssueDate(e.target.value)} /></label>
       </div>
 
       <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>

@@ -4,10 +4,11 @@ import type { CoaItem, ProductCoa } from "./productCoaService";
 
 // 제품 COA(Certificate of Analysis) PDF - 사용자가 업로드한 영문 양식(제품 COA 양식.docx)의 구성
 // (제목 / Product Information / Test Results / 각주 / Conclusion / 결재란)을 그대로 재현한다.
-// 결재란은 업로드 양식 그대로 Test Laboratory / Approved By 2단계이며, 각 담당자가 실제로 "확정"
-// 했을 때만(그리고 본인이 서명 이미지를 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다.
+// 결재는 Approved By 단일 단계이며, 담당자가 실제로 "확정"했을 때만(그리고 본인이 서명 이미지를
+// 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다. 발행일(Issue Date)은
+// 결재와 무관하게 사용자가 직접 입력하는 값을 그대로 표기한다.
 
-export type CoaSignatureMap = { writer?: string | null; approver?: string | null };
+export type CoaSignatureMap = { approver?: string | null };
 
 function e(v: any) {
   return String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m] || m));
@@ -82,7 +83,9 @@ table{border-collapse:collapse;width:100%}
 .left{text-align:left}
 .footnotes{font-size:10.5px;color:#475569;margin-top:6px;font-family:Arial,sans-serif}
 .conclusion{font-size:12px;line-height:1.6;margin-top:4px;font-family:Arial,sans-serif}
-.approvalbox{width:100%;margin-top:18px}
+.bottomrow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px}
+.issuedate{font-size:12px;color:#334155;font-family:Arial,sans-serif}
+.approvalbox{width:260px}
 .approvalbox td{border:1px solid #94a3b8;text-align:center;font-size:11px;padding:4px;font-family:Arial,sans-serif}
 .approvalbox .label{font-weight:bold;font-size:12px;background:#f8fafc}
 .stampwrap,.slashwrap{height:46px;position:relative;display:flex;align-items:center;justify-content:center}
@@ -128,14 +131,14 @@ ${itemRowsHtml(coa.items)}
 <div class="section-h">Conclusion</div>
 <div class="conclusion">${e(conclusionText(coa))}</div>
 
+<div class="bottomrow">
+<div class="issuedate">Issue Date: ${e(coa.issue_date || "-")}</div>
 <table class="approvalbox">
-<tr><td class="label">Test Laboratory</td><td class="label">Approved By</td></tr>
-<tr>
-<td>${signatureCellHtml(coa.writer_name || "", coa.writer_confirmed_at, signatures.writer)}</td>
-<td>${signatureCellHtml(coa.approver_name || "", coa.approver_confirmed_at, signatures.approver)}</td>
-</tr>
-<tr><td class="namecell">${signatureCaption(coa.writer_name || "", coa.writer_confirmed_at)}</td><td class="namecell">${signatureCaption(coa.approver_name || "", coa.approver_confirmed_at)}</td></tr>
+<tr><td class="label">Approved By</td></tr>
+<tr><td>${signatureCellHtml(coa.approver_name || "", coa.approver_confirmed_at, signatures.approver)}</td></tr>
+<tr><td class="namecell">${signatureCaption(coa.approver_name || "", coa.approver_confirmed_at)}</td></tr>
 </table>
+</div>
 
 <button class="no-print" onclick="window.print()">Print / Save as PDF</button>
 </div>
