@@ -58,7 +58,55 @@ function fitSignatureSize(image: { base64: string; extension: "png" | "jpeg" | "
   return { width: Math.round(width), height: Math.round(height) };
 }
 
-function signatureCell(
+// 서명 이미지를 결재란 박스와 정확히 같은 픽셀 크기의 새 캔버스 중앙에 미리 그려 넣는다.
+// Excel/LibreOffice/Google Sheets마다 addImage의 tl.col/tl.row 분수(offset) 앵커 해석이 서로
+// 달라 앵커 좌표만으로는 어떤 프로그램에서든 가운데 정렬이 보장되지 않는다. 그래서 "가운데 정렬"
+// 자체를 이미지의 픽셀 안에 미리 구워 넣고, 앵커는 박스를 오프셋 없이 꽉 채우도록만 사용한다.
+async function composeSignatureIntoBox(
+  image: { base64: string; extension: "png" | "jpeg" | "gif" },
+  boxWidth: number,
+  boxHeight: number,
+  maxWidth: number,
+  maxHeight: number
+): Promise<{ base64: string; extension: "png" } | null> {
+  if (typeof document === "undefined") return null;
+  try {
+    const mime = image.extension === "jpeg" ? "jpeg" : image.extension === "gif" ? "gif" : "png";
+    const el: HTMLImageElement = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("signature image decode failed"));
+      img.src = `data:image/${mime};base64,${image.base64}`;
+    });
+    const naturalW = el.naturalWidth;
+    const naturalH = el.naturalHeight;
+    if (!naturalW || !naturalH) return null;
+
+    const aspect = naturalW / naturalH;
+    let drawW = Math.min(maxWidth, boxWidth);
+    let drawH = drawW / aspect;
+    if (drawH > Math.min(maxHeight, boxHeight)) {
+      drawH = Math.min(maxHeight, boxHeight);
+      drawW = drawH * aspect;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(boxWidth);
+    canvas.height = Math.round(boxHeight);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const dx = Math.round((boxWidth - drawW) / 2);
+    const dy = Math.round((boxHeight - drawH) / 2);
+    ctx.drawImage(el, dx, dy, Math.round(drawW), Math.round(drawH));
+    const base64 = canvas.toDataURL("image/png").split(",")[1];
+    if (!base64) return null;
+    return { base64, extension: "png" };
+  } catch {
+    return null;
+  }
+}
+
+async function signatureCell(
   ws: ExcelJS.Worksheet,
   r: number,
   c1: number,
@@ -76,17 +124,26 @@ function signatureCell(
   }
   if (confirmedAt && image) {
     try {
-      const imageId = wb.addImage({ base64: image.base64, extension: image.extension });
-      // 서명란(E~F 병합, 대략 199px 폭) 안에서 비율을 유지한 채 큼직하게 키우고 가운데로 배치한다.
+      // 서명란(E~F 병합, 대략 199px 폭 x 128px 높이) 박스 크기.
+      const BOX_W = 199; // E~F 컬럼(13+14 단위) 대략 폭
+      const COL_E_W = 96; // E 컬럼 대략 폭 - 대체 경로의 tl.col 오프셋 계산용
+      const BOX_H = 128; // 서명 행 높이(96pt) ≈ 128px
       const MAX_W = 185;
       const MAX_H = 100;
-      const BOX_W = 199; // E~F 컬럼(13+14 단위) 대략 폭
-      const COL_E_W = 96; // E 컬럼 대략 폭 - tl.col 오프셋 계산용
-      const ROW_H_PX = 128; // 서명 행 높이(96pt) ≈ 128px - tl.row 오프셋 계산용
-      const { width, height } = fitSignatureSize(image, MAX_W, MAX_H);
-      const colOffset = Math.max(0, (BOX_W - width) / 2) / COL_E_W;
-      const rowOffset = Math.max(0, (ROW_H_PX - height) / 2) / ROW_H_PX;
-      ws.addImage(imageId, { tl: { col: c1 - 1 + colOffset, row: r - 1 + rowOffset }, ext: { width, height } });
+      const composed = await composeSignatureIntoBox(image, BOX_W, BOX_H, MAX_W, MAX_H);
+      if (composed) {
+        // 이미지 자체가 이미 박스 크기 그대로이고 내부에 가운데 정렬되어 있으므로,
+        // 앵커는 오프셋 없이 박스를 꽉 채우기만 하면 어떤 프로그램에서도 동일하게 보인다.
+        const imageId = wb.addImage({ base64: composed.base64, extension: composed.extension });
+        ws.addImage(imageId, { tl: { col: c1 - 1, row: r - 1 }, ext: { width: BOX_W, height: BOX_H } });
+      } else {
+        // 캔버스 합성이 불가능한 환경(브라우저 아님 등)이면 기존 방식(비율 유지 + 분수 오프셋)으로 대체한다.
+        const imageId = wb.addImage({ base64: image.base64, extension: image.extension });
+        const { width, height } = fitSignatureSize(image, MAX_W, MAX_H);
+        const colOffset = Math.max(0, (BOX_W - width) / 2) / COL_E_W;
+        const rowOffset = Math.max(0, (BOX_H - height) / 2) / BOX_H;
+        ws.addImage(imageId, { tl: { col: c1 - 1 + colOffset, row: r - 1 + rowOffset }, ext: { width, height } });
+      }
     } catch {
       // 이미지 삽입 실패 시 조용히 넘어가고 아래 이름 행만 표시한다.
     }
@@ -95,7 +152,7 @@ function signatureCell(
   }
 }
 
-export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages = {}): ExcelJS.Workbook {
+export async function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages = {}): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Certificate of Analysis".slice(0, 31));
   ws.columns = [{ width: 6 }, { width: 22 }, { width: 26 }, { width: 20 }, { width: 13 }, { width: 14 }];
@@ -215,7 +272,7 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
 
   border(ws, labelRow, 5, nameRow, 6);
   // 얇은 테두리를 먼저 깔고, 서명 이미지/사선 표시는 그 다음에 덮어써야 border() 호출이 지우지 않는다.
-  signatureCell(ws, signRow, 5, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
+  await signatureCell(ws, signRow, 5, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
 
   const issueDateRow = r;
   ws.mergeCells(issueDateRow, 5, issueDateRow, 6);
@@ -323,6 +380,6 @@ async function loadSignatureImage(url: string | null | undefined): Promise<CoaSi
 
 export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { approver?: string | null } = {}) {
   const approver = await loadSignatureImage(signatureUrls.approver);
-  const wb = buildCoaWorkbook(coa, { approver });
+  const wb = await buildCoaWorkbook(coa, { approver });
   await downloadWorkbook(wb, `COA_${coa.product_code || coa.product_name || "product"}_${coa.batch_no || ""}.xlsx`);
 }
