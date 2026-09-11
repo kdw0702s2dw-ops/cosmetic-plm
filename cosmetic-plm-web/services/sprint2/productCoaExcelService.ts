@@ -5,8 +5,9 @@ import type { ProductCoa } from "./productCoaService";
 import { border, downloadWorkbook } from "./documentExcelService";
 
 // 제품 COA 엑셀 - 업로드된 영문 양식(제품 COA 양식.docx)의 구성을 6개 컬럼(A~F)으로 재현한다.
-// 결재란은 시험성적서와 달리 "고정 도장 이미지"가 아니라, 확정한 담당자 본인이 등록해둔 서명 이미지
-// (plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을 fetch해 base64로 변환한 뒤 addImage로 넣는다.
+// 결재란은 업로드 양식 그대로 Test Laboratory / Approved By 2단계이며, "고정 도장 이미지"가 아니라
+// 확정한 담당자 본인이 등록해둔 서명 이미지(plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을
+// fetch해 base64로 변환한 뒤 addImage로 넣는다.
 
 function setCell(ws: ExcelJS.Worksheet, r: number, c: number, value: any, opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; wrap?: boolean }) {
   const cell = ws.getCell(r, c);
@@ -24,7 +25,7 @@ function estimateLines(text: string, colChars = 30): number {
 }
 
 export type CoaSignatureImage = { base64: string; extension: "png" | "jpeg" | "gif" } | null;
-export type CoaSignatureImages = { writer?: CoaSignatureImage; reviewer?: CoaSignatureImage; approver?: CoaSignatureImage };
+export type CoaSignatureImages = { writer?: CoaSignatureImage; approver?: CoaSignatureImage };
 
 function signatureCell(
   ws: ExcelJS.Worksheet,
@@ -60,9 +61,17 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
   ws.columns = [{ width: 6 }, { width: 22 }, { width: 26 }, { width: 20 }, { width: 13 }, { width: 14 }];
 
   let r = 1;
+  ws.mergeCells(r, 1, r, 3);
+  ws.getCell(r, 1).value = {
+    richText: [
+      { font: { name: "Arial", size: 14, bold: true, italic: true, color: { argb: "FF1F5C3F" } }, text: "nutri" },
+      { font: { name: "Arial", size: 14, bold: true, italic: true, color: { argb: "FF7CB342" } }, text: "advisor" },
+    ],
+  };
+  ws.getCell(r, 1).alignment = { horizontal: "left", vertical: "middle" };
   ws.mergeCells(r, 4, r, 6);
   setCell(ws, r, 4, `Document No.: ${coa.doc_no || "-"}`, { align: "right", size: 9, wrap: false });
-  ws.getRow(r).height = 16;
+  ws.getRow(r).height = 20;
   r++;
 
   ws.mergeCells(r, 1, r, 6);
@@ -145,34 +154,30 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
   r++;
   r++; // spacer
 
-  // 결재란 - 작성/검토/승인 (각 2개 컬럼씩 3쌍)
+  // 결재란 - Test Laboratory / Approved By (각 3개 컬럼씩 2쌍, 업로드 양식 그대로 2단계)
   const labelRow = r;
-  ws.mergeCells(labelRow, 1, labelRow, 2); setCell(ws, labelRow, 1, "Prepared By", { bold: true });
-  ws.mergeCells(labelRow, 3, labelRow, 4); setCell(ws, labelRow, 3, "Reviewed By", { bold: true });
-  ws.mergeCells(labelRow, 5, labelRow, 6); setCell(ws, labelRow, 5, "Approved By", { bold: true });
+  ws.mergeCells(labelRow, 1, labelRow, 3); setCell(ws, labelRow, 1, "Test Laboratory", { bold: true });
+  ws.mergeCells(labelRow, 4, labelRow, 6); setCell(ws, labelRow, 4, "Approved By", { bold: true });
   ws.getRow(labelRow).eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } }; });
   ws.getRow(labelRow).height = 18;
   r++;
 
   const signRow = r;
-  ws.mergeCells(signRow, 1, signRow, 2);
-  ws.mergeCells(signRow, 3, signRow, 4);
-  ws.mergeCells(signRow, 5, signRow, 6);
+  ws.mergeCells(signRow, 1, signRow, 3);
+  ws.mergeCells(signRow, 4, signRow, 6);
   ws.getRow(signRow).height = 34;
   r++;
 
   const nameRow = r;
-  ws.mergeCells(nameRow, 1, nameRow, 2); setCell(ws, nameRow, 1, coa.writer_name || "-");
-  ws.mergeCells(nameRow, 3, nameRow, 4); setCell(ws, nameRow, 3, coa.reviewer_name || "-");
-  ws.mergeCells(nameRow, 5, nameRow, 6); setCell(ws, nameRow, 5, coa.approver_name || "-");
+  ws.mergeCells(nameRow, 1, nameRow, 3); setCell(ws, nameRow, 1, coa.writer_name || "-");
+  ws.mergeCells(nameRow, 4, nameRow, 6); setCell(ws, nameRow, 4, coa.approver_name || "-");
   ws.getRow(nameRow).height = 18;
   r++;
 
   border(ws, labelRow, 1, nameRow, 6);
   // 얇은 테두리를 먼저 깔고, 서명 이미지/사선 표시는 그 다음에 덮어써야 border() 호출이 지우지 않는다.
-  signatureCell(ws, signRow, 1, 2, coa.writer_name || "", coa.writer_confirmed_at, signatures.writer, wb);
-  signatureCell(ws, signRow, 3, 4, coa.reviewer_name || "", coa.reviewer_confirmed_at, signatures.reviewer, wb);
-  signatureCell(ws, signRow, 5, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
+  signatureCell(ws, signRow, 1, 3, coa.writer_name || "", coa.writer_confirmed_at, signatures.writer, wb);
+  signatureCell(ws, signRow, 4, 6, coa.approver_name || "", coa.approver_confirmed_at, signatures.approver, wb);
 
   ws.pageSetup = { orientation: "portrait", fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
 
@@ -210,12 +215,11 @@ async function loadSignatureImage(url: string | null | undefined): Promise<CoaSi
   return { base64, extension: guessExtension(url) };
 }
 
-export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { writer?: string | null; reviewer?: string | null; approver?: string | null } = {}) {
-  const [writer, reviewer, approver] = await Promise.all([
+export async function downloadCoaExcel(coa: ProductCoa, signatureUrls: { writer?: string | null; approver?: string | null } = {}) {
+  const [writer, approver] = await Promise.all([
     loadSignatureImage(signatureUrls.writer),
-    loadSignatureImage(signatureUrls.reviewer),
     loadSignatureImage(signatureUrls.approver),
   ]);
-  const wb = buildCoaWorkbook(coa, { writer, reviewer, approver });
+  const wb = buildCoaWorkbook(coa, { writer, approver });
   await downloadWorkbook(wb, `COA_${coa.product_code || coa.product_name || "product"}_${coa.batch_no || ""}.xlsx`);
 }

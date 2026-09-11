@@ -4,13 +4,24 @@ import type { CoaItem, ProductCoa } from "./productCoaService";
 
 // 제품 COA(Certificate of Analysis) PDF - 사용자가 업로드한 영문 양식(제품 COA 양식.docx)의 구성
 // (제목 / Product Information / Test Results / 각주 / Conclusion / 결재란)을 그대로 재현한다.
-// 결재란은 시험성적서와 동일하게 작성/검토/승인 3단계이며, 각 담당자가 실제로 "확정"했을 때만
-// (그리고 본인이 서명 이미지를 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다.
+// 결재란은 업로드 양식 그대로 Test Laboratory / Approved By 2단계이며, 각 담당자가 실제로 "확정"
+// 했을 때만(그리고 본인이 서명 이미지를 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다.
 
-export type CoaSignatureMap = { writer?: string | null; reviewer?: string | null; approver?: string | null };
+export type CoaSignatureMap = { writer?: string | null; approver?: string | null };
 
 function e(v: any) {
   return String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m] || m));
+}
+
+function fmtDate(v: string | null | undefined) {
+  if (!v) return "";
+  return String(v).slice(0, 10);
+}
+
+// 확정된 경우 담당자 이름과 확정일을, 아직 확정 전이면 업로드 양식 그대로 "Date & Signature" 캡션을 보여준다.
+function signatureCaption(name: string, confirmedAt: string | null | undefined) {
+  if (confirmedAt) return `${e(name)} &middot; ${fmtDate(confirmedAt)}`;
+  return "Date &amp; Signature";
 }
 
 function signatureCellHtml(name: string, confirmedAt: string | null | undefined, signatureUrl: string | null | undefined) {
@@ -56,7 +67,11 @@ export function buildCoaHtml(coa: ProductCoa, signatures: CoaSignatureMap = {}):
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:'Times New Roman',Georgia,serif}
 .page{width:1000px;margin:24px auto;background:white;padding:30px 36px;border:1px solid #dbe3ef}
 table{border-collapse:collapse;width:100%}
-.docno{text-align:right;font-size:11px;color:#334155;margin-bottom:6px;font-family:Arial,sans-serif}
+.headrow{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px}
+.brand-logo{font-family:'Poppins','Segoe UI',Arial,sans-serif;font-weight:800;font-style:italic;font-size:26px;letter-spacing:0.2px;line-height:1}
+.brand-dark{color:#1f5c3f}
+.brand-light{color:#7cb342}
+.docno{text-align:right;font-size:11px;color:#334155;font-family:Arial,sans-serif}
 .title{text-align:center;font-weight:bold;font-size:22px;letter-spacing:1px;margin-bottom:18px;font-family:Arial,sans-serif}
 .section-h{font-weight:bold;font-size:13px;margin:16px 0 6px;font-family:Arial,sans-serif;border-bottom:2px solid #1f2937;padding-bottom:3px}
 .infotbl td{border:1px solid #94a3b8;padding:6px 10px;font-size:12px;font-family:Arial,sans-serif}
@@ -82,7 +97,10 @@ table{border-collapse:collapse;width:100%}
 <body>
 <div class="page">
 
+<div class="headrow">
+<div class="brand-logo"><span class="brand-dark">nutri</span><span class="brand-light">advisor</span></div>
 <div class="docno">Document No.: ${e(coa.doc_no || "-")}</div>
+</div>
 <div class="title">CERTIFICATE OF ANALYSIS</div>
 
 <div class="section-h">Product Information</div>
@@ -111,13 +129,12 @@ ${itemRowsHtml(coa.items)}
 <div class="conclusion">${e(conclusionText(coa))}</div>
 
 <table class="approvalbox">
-<tr><td class="label">Prepared By</td><td class="label">Reviewed By</td><td class="label">Approved By</td></tr>
+<tr><td class="label">Test Laboratory</td><td class="label">Approved By</td></tr>
 <tr>
 <td>${signatureCellHtml(coa.writer_name || "", coa.writer_confirmed_at, signatures.writer)}</td>
-<td>${signatureCellHtml(coa.reviewer_name || "", coa.reviewer_confirmed_at, signatures.reviewer)}</td>
 <td>${signatureCellHtml(coa.approver_name || "", coa.approver_confirmed_at, signatures.approver)}</td>
 </tr>
-<tr><td class="namecell">${e(coa.writer_name || "-")}</td><td class="namecell">${e(coa.reviewer_name || "-")}</td><td class="namecell">${e(coa.approver_name || "-")}</td></tr>
+<tr><td class="namecell">${signatureCaption(coa.writer_name || "", coa.writer_confirmed_at)}</td><td class="namecell">${signatureCaption(coa.approver_name || "", coa.approver_confirmed_at)}</td></tr>
 </table>
 
 <button class="no-print" onclick="window.print()">Print / Save as PDF</button>
