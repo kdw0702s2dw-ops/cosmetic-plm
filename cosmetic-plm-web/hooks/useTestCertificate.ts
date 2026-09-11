@@ -219,6 +219,27 @@ export function useTestCertificate() {
     setItems((prev) => prev.filter((it) => it.no !== no).map((it, idx) => ({ ...it, no: idx + 1 })));
   }
 
+  // 시험항목 순서 이동 - 이동 후에도 No.가 1,2,3...으로 이어지도록 다시 매긴다.
+  function moveItem(no: number, direction: -1 | 1) {
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.no === no);
+      if (idx === -1) return prev;
+      const swapIdx = idx + direction;
+      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+      return next.map((it, i) => ({ ...it, no: i + 1 }));
+    });
+  }
+
+  function moveItemUp(no: number) {
+    moveItem(no, -1);
+  }
+
+  function moveItemDown(no: number) {
+    moveItem(no, 1);
+  }
+
   function buildCurrentCertificate(): TestCertificate {
     return {
       id: editingId || undefined,
@@ -358,7 +379,7 @@ export function useTestCertificate() {
     itemCode, setItemCode, lotNo, setLotNo, customerProduct, setCustomerProduct,
     testDept, setTestDept, overallVerdict, setOverallVerdict,
     writerName, setWriterName, reviewerName, setReviewerName, approverName, setApproverName,
-    items, updateItem, updateSubGroup, updateSubGroupResult, addItem, removeItem,
+    items, updateItem, updateSubGroup, updateSubGroupResult, addItem, removeItem, moveItemUp, moveItemDown,
     openNewCertificate, openExistingCertificate, closeForm,
     saveCertificate, removeCertificate,
     workflowStatus, confirming,

@@ -112,6 +112,21 @@ const ITEM_TABLE_TH: CSSProperties = {
   background: "#eef1f6", color: "#1e293b", fontWeight: 800, borderBottom: "2px solid #cbd5e1",
 };
 
+function ItemActions({
+  isFirst, isLast, onUp, onDown, onDelete,
+}: {
+  isFirst: boolean; isLast: boolean; onUp: () => void; onDown: () => void; onDelete: () => void;
+}) {
+  const btnStyle: CSSProperties = { fontSize: 11, padding: "2px 6px", lineHeight: 1.4, width: "100%" };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "stretch" }}>
+      <button className="v50-button-light" style={btnStyle} onClick={onUp} disabled={isFirst} title="위로 이동">▲</button>
+      <button className="v50-button-light" style={btnStyle} onClick={onDown} disabled={isLast} title="아래로 이동">▼</button>
+      <button className="v50-button-light" style={{ ...btnStyle, color: "#dc2626" }} onClick={onDelete}>삭제</button>
+    </div>
+  );
+}
+
 function CertificateForm({ s }: { s: S }) {
   return (
     <div className="v50-card" style={{ padding: 14, marginTop: 10 }}>
@@ -181,7 +196,7 @@ function CertificateForm({ s }: { s: S }) {
               <th style={{ ...ITEM_TABLE_TH, width: 150 }}>시험방법</th>
               <th style={{ ...ITEM_TABLE_TH, width: 120, textAlign: "center" }}>시험일자</th>
               <th style={ITEM_TABLE_TH}>시험결과 및 판정</th>
-              <th style={{ ...ITEM_TABLE_TH, width: 60, textAlign: "center" }}></th>
+              <th style={{ ...ITEM_TABLE_TH, width: 56, textAlign: "center" }}></th>
             </tr>
           </thead>
           <tbody>
@@ -241,8 +256,11 @@ function CertificateForm({ s }: { s: S }) {
                           </div>
                         </td>
                         {isFirstItemRow && (
-                          <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
-                            <button className="v50-button-light" style={{ fontSize: 11, padding: "5px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.no)}>삭제</button>
+                          <td rowSpan={totalRows} style={{ verticalAlign: "middle", background: bg, borderTop: ITEM_DIVIDER }}>
+                            <ItemActions
+                              isFirst={item.no === 1} isLast={item.no === s.items.length}
+                              onUp={() => s.moveItemUp(item.no)} onDown={() => s.moveItemDown(item.no)} onDelete={() => s.removeItem(item.no)}
+                            />
                           </td>
                         )}
                       </tr>
@@ -278,8 +296,11 @@ function CertificateForm({ s }: { s: S }) {
                       {item.unit && <span style={{ alignSelf: "center", color: "#64748b", fontSize: 12 }}>{item.unit}</span>}
                     </div>
                   </td>
-                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, textAlign: "center", verticalAlign: "middle" }}>
-                    <button className="v50-button-light" style={{ fontSize: 11, padding: "5px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.no)}>삭제</button>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>
+                    <ItemActions
+                      isFirst={item.no === 1} isLast={item.no === s.items.length}
+                      onUp={() => s.moveItemUp(item.no)} onDown={() => s.moveItemDown(item.no)} onDelete={() => s.removeItem(item.no)}
+                    />
                   </td>
                 </tr>
               );
@@ -294,7 +315,6 @@ function CertificateForm({ s }: { s: S }) {
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
         <button className="v50-button" onClick={s.saveCertificate} disabled={s.saving}>{s.saving ? "저장 중…" : "저장"}</button>
-        <button className="v50-button-light" onClick={s.printCurrentCertificate}>PDF로 인쇄/저장</button>
         <button className="v50-button-light" onClick={s.downloadCurrentExcel}>엑셀 다운로드</button>
         <button className="v50-button-light" onClick={s.downloadCurrentHtml}>HTML 다운로드</button>
         <button className="v50-button-light" onClick={s.closeForm}>목록으로</button>
