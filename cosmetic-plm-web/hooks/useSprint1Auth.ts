@@ -14,12 +14,16 @@ import {
   signOutPlm,
   type PlmUserProfile,
 } from "@/services/sprint1/authRbacService";
+import { getMySignatureUrl, uploadMySignature } from "@/services/sprint1/signatureService";
 
 export function useSprint1Auth() {
   const [profile, setProfile] = useState<PlmUserProfile | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [message, setMessage] = useState("인증 확인 중");
   const [loading, setLoading] = useState(true);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [signatureUploading, setSignatureUploading] = useState(false);
+  const [signatureMessage, setSignatureMessage] = useState("");
 
   async function load() {
     setLoading(true);
@@ -34,6 +38,9 @@ export function useSprint1Auth() {
       const p = await ensureMyProfile();
       setProfile(p);
       setMessage(p?.is_active ? `${p.email || ""} / ${p.role}` : "비활성 계정입니다.");
+      if (p) {
+        getMySignatureUrl().then(setSignatureUrl).catch(() => {});
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "인증 확인 오류");
       setProfile(null);
@@ -46,6 +53,20 @@ export function useSprint1Auth() {
   async function logout() {
     await signOutPlm();
     window.location.href = "/login";
+  }
+
+  async function uploadSignature(file: File) {
+    setSignatureUploading(true);
+    setSignatureMessage("");
+    try {
+      const url = await uploadMySignature(file);
+      setSignatureUrl(url);
+      setSignatureMessage("서명이 저장되었습니다.");
+    } catch (e) {
+      setSignatureMessage(e instanceof Error ? e.message : "서명 업로드 오류");
+    } finally {
+      setSignatureUploading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -65,5 +86,9 @@ export function useSprint1Auth() {
     isProductionRole: isProductionRole(profile?.role),
     load,
     logout,
+    signatureUrl,
+    signatureUploading,
+    signatureMessage,
+    uploadSignature,
   };
 }

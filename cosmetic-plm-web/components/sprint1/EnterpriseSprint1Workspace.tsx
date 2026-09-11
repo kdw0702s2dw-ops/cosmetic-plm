@@ -14,6 +14,7 @@ import QualityManagementPanel from "@/components/sprint2/QualityManagementPanel"
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import MySignatureWidget from "@/components/sprint1/MySignatureWidget";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
@@ -75,6 +76,7 @@ export default function EnterpriseSprint1Workspace() {
           <div>
             <div className="v50-menu-label">내 계정</div>
             <div style={{ padding: "10px 12px", color: "#475569", fontSize: 13, lineHeight: 1.6 }}><strong>{auth.profile?.email}</strong><br />역할: {auth.profile?.role}</div>
+            <MySignatureWidget auth={auth} />
             <button onClick={auth.logout}><span>로그아웃</span></button>
           </div>
         </nav>
