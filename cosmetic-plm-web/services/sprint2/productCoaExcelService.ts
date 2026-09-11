@@ -27,6 +27,36 @@ function estimateLines(text: string, colChars = 30): number {
 export type CoaSignatureImage = { base64: string; extension: "png" | "jpeg" | "gif" } | null;
 export type CoaSignatureImages = { approver?: CoaSignatureImage };
 
+// PNG의 IHDR 청크에서 원본 가로/세로 픽셀 크기를 읽어온다 - 서명 이미지 비율을 유지한 채 확대하기 위함.
+// (jpeg/gif는 파싱하지 않고 null을 반환, 이 경우 기본 비율로 대체한다)
+function getPngPixelSize(base64: string): { width: number; height: number } | null {
+  try {
+    const bin = atob(base64);
+    if (bin.length < 24) return null;
+    const readU32 = (offset: number) =>
+      (((bin.charCodeAt(offset) << 24) | (bin.charCodeAt(offset + 1) << 16) | (bin.charCodeAt(offset + 2) << 8) | bin.charCodeAt(offset + 3)) >>> 0);
+    const width = readU32(16);
+    const height = readU32(20);
+    if (width > 0 && height > 0) return { width, height };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// 서명란(D~F 병합) 안에서 비율이 깨지지 않도록 최대 폭/높이에 맞춰 축소 배치할 크기를 계산한다.
+function fitSignatureSize(image: { base64: string; extension: "png" | "jpeg" | "gif" }, maxWidth: number, maxHeight: number) {
+  const natural = image.extension === "png" ? getPngPixelSize(image.base64) : null;
+  const aspect = natural ? natural.width / natural.height : 3.2; // 파싱 실패 시 일반적인 서명 비율로 대체
+  let width = maxWidth;
+  let height = width / aspect;
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * aspect;
+  }
+  return { width: Math.round(width), height: Math.round(height) };
+}
+
 function signatureCell(
   ws: ExcelJS.Worksheet,
   r: number,
@@ -46,7 +76,16 @@ function signatureCell(
   if (confirmedAt && image) {
     try {
       const imageId = wb.addImage({ base64: image.base64, extension: image.extension });
-      ws.addImage(imageId, { tl: { col: c1 - 1 + 0.3, row: r - 1 + 0.15 }, ext: { width: 90, height: 32 } });
+      // 서명란(D~F 병합, 대략 320px 폭) 안에서 비율을 유지한 채 이전보다 눈에 띄게 키우고 가운데로 배치한다.
+      const MAX_W = 190;
+      const MAX_H = 62;
+      const BOX_W = 320; // D~F 컬럼(20+13+14 단위) 대략 폭
+      const COL_D_W = 140; // D 컬럼 대략 폭 - tl.col 오프셋 계산용
+      const ROW_H_PX = 80; // 서명 행 높이(60pt) ≈ 80px - tl.row 오프셋 계산용
+      const { width, height } = fitSignatureSize(image, MAX_W, MAX_H);
+      const colOffset = Math.max(0, (BOX_W - width) / 2) / COL_D_W;
+      const rowOffset = Math.max(0, (ROW_H_PX - height) / 2) / ROW_H_PX;
+      ws.addImage(imageId, { tl: { col: c1 - 1 + colOffset, row: r - 1 + rowOffset }, ext: { width, height } });
     } catch {
       // 이미지 삽입 실패 시 조용히 넘어가고 아래 이름 행만 표시한다.
     }
@@ -167,7 +206,7 @@ export function buildCoaWorkbook(coa: ProductCoa, signatures: CoaSignatureImages
 
   const signRow = r;
   ws.mergeCells(signRow, 4, signRow, 6);
-  ws.getRow(signRow).height = 34;
+  ws.getRow(signRow).height = 60;
   r++;
 
   const nameRow = r;
