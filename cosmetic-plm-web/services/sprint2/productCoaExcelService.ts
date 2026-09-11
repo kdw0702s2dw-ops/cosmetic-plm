@@ -132,10 +132,13 @@ async function signatureCell(
       const MAX_H = 100;
       const composed = await composeSignatureIntoBox(image, BOX_W, BOX_H, MAX_W, MAX_H);
       if (composed) {
-        // 이미지 자체가 이미 박스 크기 그대로이고 내부에 가운데 정렬되어 있으므로,
-        // 앵커는 오프셋 없이 박스를 꽉 채우기만 하면 어떤 프로그램에서도 동일하게 보인다.
+        // 이미지 내부에는 서명이 이미 가운데 정렬되어 있다. 여기서 ext(픽셀 크기)로 앵커를 고정하면
+        // "199x128px"라는 우리 추정치가 실제 렌더러의 셀 픽셀 크기와 조금만 달라도 이미지가 셀을
+        // 다 채우지 못해 다시 좌상단으로 치우쳐 보인다(Google Sheets에서 실제로 발생한 문제).
+        // 대신 tl~br 셀 앵커로 지정하면 각 프로그램이 그 시점의 실제 셀 픽셀 크기에 맞춰 이미지를
+        // 늘려서 병합 셀을 정확히 채우므로, 어떤 프로그램에서도 항상 중앙 정렬되어 보인다.
         const imageId = wb.addImage({ base64: composed.base64, extension: composed.extension });
-        ws.addImage(imageId, { tl: { col: c1 - 1, row: r - 1 }, ext: { width: BOX_W, height: BOX_H } });
+        ws.addImage(imageId, { tl: { col: c1 - 1, row: r - 1 }, br: { col: c2, row: r } });
       } else {
         // 캔버스 합성이 불가능한 환경(브라우저 아님 등)이면 기존 방식(비율 유지 + 분수 오프셋)으로 대체한다.
         const imageId = wb.addImage({ base64: image.base64, extension: image.extension });
