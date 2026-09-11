@@ -25,6 +25,14 @@ import { downloadCertificateExcel } from "@/services/sprint2/testCertificateExce
 
 type FormulaRef = { id: string; formula_code: string; revision: string; formula_name?: string; customer?: string };
 
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // 품질관리 - 반제품/완제품 시험성적서. 처방(plm_formulas)을 선택하면 품목코드/고객사·제품명이 자동으로
 // 채워지고, 제품유형(반제품/완제품)에 맞는 고정 시험항목 목록이 만들어진다. 사용자는 항목별 시험기준/
 // 방법/결과/판정 값을 채운 뒤 저장하고, 저장 여부와 무관하게 현재 입력 상태 그대로 PDF/엑셀로 출력할 수 있다.
@@ -196,6 +204,21 @@ export function useTestCertificate() {
     );
   }
 
+  // 시험항목 행 추가/삭제 - 고정 템플릿 외에 추가로 필요한 항목을 그때그때 만들거나 지울 수 있게 한다.
+  // 삭제 후에는 No.가 1,2,3...으로 다시 이어지도록 번호를 재부여한다.
+  function addItem() {
+    setItems((prev) => {
+      const nextNo = prev.length > 0 ? Math.max(...prev.map((it) => it.no)) + 1 : 1;
+      const newItem: CertItem = { no: nextNo, label: "", method: "", test_date: todayStr(), spec: "", result: "" };
+      return [...prev, newItem];
+    });
+  }
+
+  function removeItem(no: number) {
+    if (!window.confirm("이 시험항목을 삭제할까요?")) return;
+    setItems((prev) => prev.filter((it) => it.no !== no).map((it, idx) => ({ ...it, no: idx + 1 })));
+  }
+
   function buildCurrentCertificate(): TestCertificate {
     return {
       id: editingId || undefined,
@@ -335,7 +358,7 @@ export function useTestCertificate() {
     itemCode, setItemCode, lotNo, setLotNo, customerProduct, setCustomerProduct,
     testDept, setTestDept, overallVerdict, setOverallVerdict,
     writerName, setWriterName, reviewerName, setReviewerName, approverName, setApproverName,
-    items, updateItem, updateSubGroup, updateSubGroupResult,
+    items, updateItem, updateSubGroup, updateSubGroupResult, addItem, removeItem,
     openNewCertificate, openExistingCertificate, closeForm,
     saveCertificate, removeCertificate,
     workflowStatus, confirming,

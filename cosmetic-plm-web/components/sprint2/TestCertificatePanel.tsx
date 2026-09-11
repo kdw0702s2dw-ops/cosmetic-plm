@@ -181,6 +181,7 @@ function CertificateForm({ s }: { s: S }) {
               <th style={{ ...ITEM_TABLE_TH, width: 150 }}>시험방법</th>
               <th style={{ ...ITEM_TABLE_TH, width: 120, textAlign: "center" }}>시험일자</th>
               <th style={ITEM_TABLE_TH}>시험결과 및 판정</th>
+              <th style={{ ...ITEM_TABLE_TH, width: 60, textAlign: "center" }}></th>
             </tr>
           </thead>
           <tbody>
@@ -202,8 +203,9 @@ function CertificateForm({ s }: { s: S }) {
                             <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
                               <NoBadge no={item.no} />
                             </td>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, fontWeight: 700, fontSize: 13 }}>
-                              {item.label}
+                            <td rowSpan={totalRows} style={{ verticalAlign: "top", background: bg, borderTop: ITEM_DIVIDER }}>
+                              <textarea className="v50-textarea" rows={3} style={{ minHeight: 60, fontSize: 12.5, fontWeight: 700, lineHeight: 1.5 }} value={item.label}
+                                onChange={(e) => s.updateItem(item.no, { label: e.target.value })} />
                             </td>
                           </>
                         )}
@@ -215,7 +217,10 @@ function CertificateForm({ s }: { s: S }) {
                         )}
                         {isFirstItemRow && (
                           <>
-                            <td rowSpan={totalRows} style={{ verticalAlign: "middle", whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER }}>{item.method}</td>
+                            <td rowSpan={totalRows} style={{ verticalAlign: "top", background: bg, borderTop: ITEM_DIVIDER }}>
+                              <textarea className="v50-textarea" rows={3} style={{ minHeight: 60, fontSize: 12.5, lineHeight: 1.5 }} value={item.method}
+                                onChange={(e) => s.updateItem(item.no, { method: e.target.value })} />
+                            </td>
                             <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
                               <input className="v50-input" type="date" value={item.test_date} onChange={(e) => s.updateItem(item.no, { test_date: e.target.value })} />
                             </td>
@@ -235,6 +240,11 @@ function CertificateForm({ s }: { s: S }) {
                             )}
                           </div>
                         </td>
+                        {isFirstItemRow && (
+                          <td rowSpan={totalRows} style={{ verticalAlign: "middle", textAlign: "center", background: bg, borderTop: ITEM_DIVIDER }}>
+                            <button className="v50-button-light" style={{ fontSize: 11, padding: "5px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.no)}>삭제</button>
+                          </td>
+                        )}
                       </tr>
                     );
                     printedHead = true;
@@ -247,12 +257,18 @@ function CertificateForm({ s }: { s: S }) {
                   <td style={{ textAlign: "center", background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>
                     <NoBadge no={item.no} />
                   </td>
-                  <td style={{ whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, fontWeight: 700, fontSize: 13, verticalAlign: "middle" }}>{item.label}</td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "top" }}>
+                    <textarea className="v50-textarea" rows={3} style={{ minHeight: 60, fontSize: 12.5, fontWeight: 700, lineHeight: 1.5 }} value={item.label}
+                      onChange={(e) => s.updateItem(item.no, { label: e.target.value })} />
+                  </td>
                   <td style={{ background: bg, borderTop: ITEM_DIVIDER }}>
                     <textarea className="v50-textarea" rows={4} style={{ minHeight: 90, fontSize: 13, lineHeight: 1.5 }} value={item.spec || ""}
                       onChange={(e) => s.updateItem(item.no, { spec: e.target.value })} />
                   </td>
-                  <td style={{ whiteSpace: "pre-line", background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "middle" }}>{item.method}</td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, verticalAlign: "top" }}>
+                    <textarea className="v50-textarea" rows={3} style={{ minHeight: 60, fontSize: 12.5, lineHeight: 1.5 }} value={item.method}
+                      onChange={(e) => s.updateItem(item.no, { method: e.target.value })} />
+                  </td>
                   <td style={{ background: bg, borderTop: ITEM_DIVIDER, textAlign: "center", verticalAlign: "middle" }}>
                     <input className="v50-input" type="date" value={item.test_date} onChange={(e) => s.updateItem(item.no, { test_date: e.target.value })} />
                   </td>
@@ -262,11 +278,18 @@ function CertificateForm({ s }: { s: S }) {
                       {item.unit && <span style={{ alignSelf: "center", color: "#64748b", fontSize: 12 }}>{item.unit}</span>}
                     </div>
                   </td>
+                  <td style={{ background: bg, borderTop: ITEM_DIVIDER, textAlign: "center", verticalAlign: "middle" }}>
+                    <button className="v50-button-light" style={{ fontSize: 11, padding: "5px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.no)}>삭제</button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <button className="v50-button-light" onClick={s.addItem}>+ 시험항목 추가</button>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
