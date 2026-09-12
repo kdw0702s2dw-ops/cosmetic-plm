@@ -65,7 +65,7 @@ export default function EnterpriseSprint1Workspace() {
             {!isProduction && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
             <button className={effectiveActive === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
             {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
-            {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리 PDF</span></button>}
+            {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
             {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
             {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
