@@ -5,7 +5,7 @@ import type { CoaItem, ProductCoa } from "./productCoaService";
 // 제품 COA(Certificate of Analysis) PDF - 사용자가 업로드한 영문 양식(제품 COA 양식.docx)의 구성
 // (제목 / Product Information / Test Results / 각주 / Conclusion / 결재란)을 그대로 재현한다.
 // 결재는 Approved By 단일 단계이며, 담당자가 실제로 "확정"했을 때만(그리고 본인이 서명 이미지를
-// 등록해둔었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다. 결재란은 크게 표시하고,
+// 등록해두었을 때만) 서명 이미지가 삽입된다 - 등록 전이면 이름만 표기한다. 결재란은 크게 표시하고,
 // 발행일(Issue Date)은 결재와 무관하게 사용자가 직접 입력하는 값을 결재란 바로 아래에 표기한다.
 
 export type CoaSignatureMap = { approver?: string | null };
