@@ -8,6 +8,13 @@ import "@/styles/enterprise-v50.css";
 
 const roles: PlmRole[] = ["Admin", "Researcher", "QA", "Viewer", "Production"];
 
+function formatLastSignIn(value?: string | null) {
+  if (!value) return "로그인 기록 없음";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "로그인 기록 없음";
+  return date.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function UserAdminPanel() {
   const admin = useSprint1UserAdmin();
   const auth = useSprint1Auth();
@@ -45,7 +52,7 @@ export default function UserAdminPanel() {
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead>
-              <tr><th>이메일</th><th>이름</th><th>역할</th><th>활성</th><th>수정</th><th>삭제</th></tr>
+              <tr><th>이메일</th><th>이름</th><th>역할</th><th>활성</th><th>마지막 접속</th><th>수정</th><th>삭제</th></tr>
             </thead>
             <tbody>
               {admin.users.map((u) => (
@@ -58,7 +65,7 @@ export default function UserAdminPanel() {
                 />
               ))}
               {admin.users.length === 0 && (
-                <tr><td colSpan={6}>아직 사용자 프로필이 없습니다. 사용자가 1회 로그인하면 자동 생성됩니다.</td></tr>
+                <tr><td colSpan={7}>아직 사용자 프로필이 없습니다. 사용자가 1회 로그인하면 자동 생성됩니다.</td></tr>
               )}
             </tbody>
           </table>
@@ -158,6 +165,7 @@ function UserRow({
           <option value="N">비활성</option>
         </select>
       </td>
+      <td style={{ fontSize: 13, color: "#475569" }}>{formatLastSignIn(user.last_sign_in_at)}</td>
       <td><button className="v50-button-light" onClick={() => onSave(user.id, role, active)}>저장</button></td>
       <td>
         <button
