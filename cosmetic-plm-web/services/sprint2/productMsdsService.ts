@@ -58,7 +58,7 @@ function todayStr() {
   return `${y}-${m}-${day}`;
 }
 
-// 헅로드 양식(제품 MSDS 양식.docx)의 2~16번 섹션을 그대로 옮긴 기본값. Product Information(1번)은
+// 업로드 양식(제품 MSDS 양식.docx)의 2~16번 섹션을 그대로 옮긴 기본값. Product Information(1번)은
 // 문서 상단 고정 필드로 별도 관리하므로 여기 포함하지 않는다.
 export function buildDefaultMsdsSections(): MsdsSection[] {
   return [
