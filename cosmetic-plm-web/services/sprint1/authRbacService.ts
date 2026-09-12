@@ -183,6 +183,12 @@ export async function deleteUserAccount(id: string) {
   await authedFetch("/api/admin/users", { method: "DELETE", body: JSON.stringify({ id }) });
 }
 
+// 사용자 권한관리 화면의 "마지막 접속" 표시용 - Supabase Auth의 실제 로그인 이력(last_sign_in_at)을 id 기준으로 조회
+export async function fetchLastSignIns(): Promise<Record<string, string | null>> {
+  const body = await authedFetch("/api/admin/users", { method: "GET" });
+  return body.lastSignIns || {};
+}
+
 export async function getAuthDebugInfo() {
   const session = await getCurrentSession();
   const user = await getCurrentUser();
