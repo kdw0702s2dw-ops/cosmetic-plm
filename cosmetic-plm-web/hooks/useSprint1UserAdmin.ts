@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   createUserAccount,
   deleteUserAccount,
+  fetchLastSignIns,
   fetchUserProfiles,
   updateUserProfileRole,
   type PlmRole,
@@ -18,7 +19,10 @@ export function useSprint1UserAdmin() {
     setLoading(true);
     try {
       const data = await fetchUserProfiles();
-      setUsers(data);
+      // 마지막 접속 조회는 부가 정보이므로 실패해도 사용자 목록 자체는 정상 표시
+      const lastSignIns = await fetchLastSignIns().catch(() => ({} as Record<string, string | null>));
+      const merged = data.map((u: any) => ({ ...u, last_sign_in_at: lastSignIns[u.id] ?? null }));
+      setUsers(merged);
       setMessage(`사용자 ${data.length}명 조회 완료`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "사용자 조회 오류");
