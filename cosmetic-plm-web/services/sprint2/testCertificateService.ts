@@ -51,10 +51,13 @@ export type TestCertificate = {
   workflow_status?: WorkflowStatus;
   writer_confirmed_at?: string | null;
   writer_confirmed_by?: string | null;
+  writer_confirmed_by_id?: string | null;
   reviewer_confirmed_at?: string | null;
   reviewer_confirmed_by?: string | null;
+  reviewer_confirmed_by_id?: string | null;
   approver_confirmed_at?: string | null;
   approver_confirmed_by?: string | null;
+  approver_confirmed_by_id?: string | null;
   items: CertItem[];
   created_by?: string | null;
   created_at?: string;
@@ -212,30 +215,35 @@ export async function deleteCertificate(id: string) {
 // ============================================================
 
 // 작성 확정 - 검토자가 지정되어 있지 않으면 검토 단계를 건너뛰고 바로 승인대기로 넘어간다.
-export async function confirmWriterStage(cert: TestCertificate, actorName: string) {
+// actorId(확정한 사람의 user id)를 함께 기록해두면 문서를 그릴 때 plm_signatures에서 그 사람의
+// 실제 서명 이미지를 찾아 삽입할 수 있다.
+export async function confirmWriterStage(cert: TestCertificate, actorName: string, actorId: string | null) {
   if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
   const hasReviewer = !!(cert.reviewer_name && cert.reviewer_name.trim());
   return updateCertificate(cert.id, {
     writer_confirmed_at: new Date().toISOString(),
     writer_confirmed_by: actorName,
+    writer_confirmed_by_id: actorId,
     workflow_status: hasReviewer ? "pending_review" : "pending_approval",
   });
 }
 
-export async function confirmReviewerStage(cert: TestCertificate, actorName: string) {
+export async function confirmReviewerStage(cert: TestCertificate, actorName: string, actorId: string | null) {
   if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
   return updateCertificate(cert.id, {
     reviewer_confirmed_at: new Date().toISOString(),
     reviewer_confirmed_by: actorName,
+    reviewer_confirmed_by_id: actorId,
     workflow_status: "pending_approval",
   });
 }
 
-export async function confirmApproverStage(cert: TestCertificate, actorName: string) {
+export async function confirmApproverStage(cert: TestCertificate, actorName: string, actorId: string | null) {
   if (!cert.id) throw new Error("먼저 저장한 뒤 확정할 수 있습니다.");
   return updateCertificate(cert.id, {
     approver_confirmed_at: new Date().toISOString(),
     approver_confirmed_by: actorName,
+    approver_confirmed_by_id: actorId,
     workflow_status: "approved",
   });
 }
@@ -246,9 +254,12 @@ export async function resetWorkflow(id: string) {
     workflow_status: "draft",
     writer_confirmed_at: null,
     writer_confirmed_by: null,
+    writer_confirmed_by_id: null,
     reviewer_confirmed_at: null,
     reviewer_confirmed_by: null,
+    reviewer_confirmed_by_id: null,
     approver_confirmed_at: null,
     approver_confirmed_by: null,
+    approver_confirmed_by_id: null,
   });
 }
