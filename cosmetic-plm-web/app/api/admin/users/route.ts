@@ -96,6 +96,36 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ user: profile });
 }
 
+// 사용자 권한관리 화면에 "마지막 접속" 정보를 표시하기 위해 Supabase Auth의 실제 로그인 이력(last_sign_in_at)을 반환
+export async function GET(req: NextRequest) {
+  let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "서버 설정 오류" }, { status: 500 });
+  }
+
+  const check = await requireAdmin(req);
+  if (check.error) return check.error;
+
+  const lastSignIns: Record<string, string | null> = {};
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    for (const u of data.users) {
+      lastSignIns[u.id] = u.last_sign_in_at || null;
+    }
+    if (data.users.length < perPage) break;
+    page += 1;
+  }
+
+  return NextResponse.json({ lastSignIns });
+}
+
 export async function DELETE(req: NextRequest) {
   let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
   try {
