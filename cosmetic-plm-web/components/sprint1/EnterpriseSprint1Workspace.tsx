@@ -23,6 +23,9 @@ type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialMa
 // Production 역할은 부자재관리/원료관리/생산관리만 볼 수 있음
 const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production"];
 
+// 탭을 전환해도 화면에 입력한 내용 등 상태가 유지되도록, 방문한 적이 있으면 마운트 상태를 유지하는 탭 목록
+const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "docs", "production", "quality"];
+
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
   const auth = useSprint1Auth();
@@ -37,16 +40,30 @@ export default function EnterpriseSprint1Workspace() {
 
   const effectiveActive: TabKey = isProduction && !PRODUCTION_ALLOWED_TABS.includes(active) ? "materialManager" : active;
 
+  // 방문한 keep-alive 탭 목록 — 한 번 열었던 탭은 언마운트하지 않고 숨김 처리만 해서 상태를 보존
+  const [visitedKeepAliveTabs, setVisitedKeepAliveTabs] = useState<TabKey[]>([]);
+  useEffect(() => {
+    if (KEEP_ALIVE_TABS.includes(effectiveActive) && !visitedKeepAliveTabs.includes(effectiveActive)) {
+      setVisitedKeepAliveTabs((prev) => [...prev, effectiveActive]);
+    }
+  }, [effectiveActive, visitedKeepAliveTabs]);
+
+  const isKeepAliveActive = KEEP_ALIVE_TABS.includes(effectiveActive);
+
+  function renderKeepAliveTab(tab: TabKey) {
+    if (tab === "ingredientDict") return <IngredientDictionaryManager />;
+    if (tab === "rawManager") return <RawMaterialManager />;
+    if (tab === "formula") return <FormulaCoreWithAuthPanel />;
+    if (tab === "docs") return <DocumentPdfPanel />;
+    if (tab === "production") return <ProductionManagementPanel />;
+    if (tab === "quality") return <QualityManagementPanel />;
+    return null;
+  }
+
   function renderActive() {
     if (effectiveActive === "sprint0") return <Sprint0Dashboard />;
-    if (effectiveActive === "ingredientDict") return <IngredientDictionaryManager />;
-    if (effectiveActive === "rawManager") return <RawMaterialManager />;
     if (effectiveActive === "materialManager") return <MaterialManager />;
     if (effectiveActive === "companyManager") return <CompanyManager />;
-    if (effectiveActive === "formula") return <FormulaCoreWithAuthPanel />;
-    if (effectiveActive === "docs") return <DocumentPdfPanel />;
-    if (effectiveActive === "production") return <ProductionManagementPanel />;
-    if (effectiveActive === "quality") return <QualityManagementPanel />;
     if (effectiveActive === "regulation") return <RegulationEnginePanel />;
     if (effectiveActive === "users") return <UserAdminPanel />;
     return <ResearcherHomePanel openRaw={() => setActive("rawManager")} openFormula={() => setActive("formula")} openDocs={() => setActive("docs")} openQuality={() => setActive("quality")} />;
@@ -94,20 +111,21 @@ export default function EnterpriseSprint1Workspace() {
           )}
         </header>
         <nav className="v50-tabs">
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "home" ? "active" : ""}`} onClick={() => setActive("home")}><span>연구원 홈</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>}
-          <div className={`v50-tab ${effectiveActive === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
           {!isProduction && <div className={`v50-tab ${effectiveActive === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>}
           <div className={`v50-tab ${effectiveActive === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
           {!isProduction && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리 PDF</span></div>}
+          {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리</span></div>}
           <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
           {!isProduction && <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "regulation" ? "active" : ""}`} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "sprint0" ? "active" : ""}`} onClick={() => setActive("sprint0")}><span>기반 점검</span></div>}
-          {!isProduction && auth.canManageUsers && <div className={`v50-tab ${effectiveActive === "users" ? "active" : ""}`} onClick={() => setActive("users")}><span>사용자 권한관리</span></div>}
         </nav>
-        <section className="v50-content">{renderActive()}</section>
+        <section className="v50-content">
+          {!isKeepAliveActive && renderActive()}
+          {visitedKeepAliveTabs.map((tab) => (
+            <div key={tab} style={{ display: effectiveActive === tab ? "block" : "none" }}>
+              {renderKeepAliveTab(tab)}
+            </div>
+          ))}
+        </section>
       </main>
     </div></div>
   );
