@@ -315,11 +315,11 @@ export async function buildCertificateWorkbook(cert: TestCertificate, signatures
   const koreanTitle = cert.product_type === "반제품" ? "반제품 시험성적서" : "완제품 시험성적서";
   const englishTitle = cert.product_type === "반제품" ? "Semi-Finished Product (Bulk) Certificate of Analysis" : "Finished Product Certificate of Analysis";
   const titleCell = ws.getCell(2, 2);
-  // 영문 부제는 12pt, 한글 제목은 기존과 같은 16pt로 유지 - rich text로 줄마다 다른 글자 크기를 준다.
+  // 한글 제목은 공통 16pt 유지, 영문 부제는 완제품 12pt / 반제품 10pt로 다르게 준다 - rich text로 줄마다 다른 글자 크기를 준다.
   titleCell.value = {
     richText: [
       { font: { name: "굴림체", size: 16, bold: true }, text: `${koreanTitle}\n` },
-      { font: { name: "굴림체", size: 12, bold: true }, text: englishTitle },
+      { font: { name: "굴림체", size: cert.product_type === "반제품" ? 10 : 12, bold: true }, text: englishTitle },
     ],
   };
   titleCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
