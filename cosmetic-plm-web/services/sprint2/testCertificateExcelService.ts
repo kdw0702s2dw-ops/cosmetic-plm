@@ -294,10 +294,21 @@ export async function buildCertificateWorkbook(cert: TestCertificate, signatures
     { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 11 }, { width: 11 },
   ];
 
+  // 회사명 로고 (좌측 상단) - 제품 COA(productCoaExcelService.ts)와 동일한 디자인: 다크그린 "nutri" +
+  // 라이트그린 "advisor", Arial 14pt bold italic, 좌측 정렬.
+  ws.mergeCells(1, 1, 1, 7);
+  ws.getCell(1, 1).value = {
+    richText: [
+      { font: { name: "Arial", size: 14, bold: true, italic: true, color: { argb: "FF1F5C3F" } }, text: "nutri" },
+      { font: { name: "Arial", size: 14, bold: true, italic: true, color: { argb: "FF7CB342" } }, text: "advisor" },
+    ],
+  };
+  ws.getCell(1, 1).alignment = { horizontal: "left", vertical: "middle" };
+
   // 문서번호 (우측 상단)
   ws.mergeCells(1, 8, 1, 13);
   setCell(ws, 1, 8, `문서번호 : ${cert.doc_no || "-"}`, { align: "right", bold: false, size: 10, wrap: false });
-  ws.getRow(1).height = 16;
+  ws.getRow(1).height = 20;
 
   // 제목 박스 (B2:G5) + 결재란 (J2:M5)
   ws.mergeCells(2, 2, 5, 7);
