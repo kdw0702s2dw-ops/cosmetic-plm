@@ -8,6 +8,7 @@ import {
   MsdsWorkflowStatus,
   ProductMsds,
   buildDefaultMsds,
+  fetchFormulaInciEnList,
   fetchMsdsFormulas,
   listProductMsds,
   getProductMsds,
@@ -100,11 +101,29 @@ export function useProductMsds() {
     }
   }
 
-  function pickFormula(f: FormulaRef) {
+  async function pickFormula(f: FormulaRef) {
     setSelectedFormula(f);
     const displayCode = (f.formula_code || "").replace(/[A-Za-z]$/, "");
     setProductCode(displayCode);
     setProductName(f.formula_name || f.formula_code || "");
+
+    // 3번(COMPOSITION) 섹션의 "[확정코드 전성분 영문 기입]" 자리표시자를, 연동한 처방의 실제 전성분표
+    // (영문 INCI, 함량 내림차순 - 전성분표 엑셀/HTML과 동일한 MIX 기준)로 자동 채운다. 처방을 다시
+    // 선택하면 최신 전성분으로 덮어써서 항상 연동된 처방과 일치하도록 유지한다.
+    try {
+      const inciEn = await fetchFormulaInciEnList(f.formula_code, f.revision);
+      if (inciEn) {
+        setSections((prev) =>
+          prev.map((sec) =>
+            sec.no === 3
+              ? { ...sec, rows: sec.rows.map((row, idx) => (idx === 0 ? { ...row, value: inciEn } : row)) }
+              : sec
+          )
+        );
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? `전성분 자동 기입 오류: ${e.message}` : "전성분 자동 기입 오류");
+    }
   }
 
   function openNewMsds() {
