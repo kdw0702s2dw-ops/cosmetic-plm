@@ -286,10 +286,14 @@ async function upsertIngredientDictionary(rm: RawMaterial) {
   };
 
   if (existingId) {
-    // 원료가 이 INCI를 참조해서 저장한다는 건 실제 사용 중이라는 뜻이므로,
-    // 전성분관리에서 삭제(is_active=false) 상태였어도 다시 활성화한다.
+    // 원료관리 화면에는 중문명/일문명 등을 직접 입력하는 칸이 없어(자동완성으로만 채워짐) 이 값들이
+    // 원료 쪽에 비어있는 경우가 흔하다. 여기서 모든 필드를 통째로 UPDATE하면 전성분관리에서 이미
+    // 등록해둔 값(예: 중문명/일문명)이 원료 쪽 빈 값으로 덮어써져 null로 지워지는 문제가 있었다.
+    // 그래서 원료 쪽에 실제 값이 있는 필드만 업데이트에 포함시키고, 비어있는 필드는 기존 값을
+    // 그대로 보존한다(전성분관리에서 삭제 상태였어도 다시 활성화하는 is_active는 항상 포함).
+    const nonEmptyFields = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null));
     await supabaseProductionFinal.from("plm_ingredient_dictionary")
-      .update({ ...fields, is_active: true, updated_at: new Date().toISOString() }).eq("id", existingId);
+      .update({ ...nonEmptyFields, is_active: true, updated_at: new Date().toISOString() }).eq("id", existingId);
   } else {
     await supabaseProductionFinal.from("plm_ingredient_dictionary")
       .insert({ ...fields, source: "raw_material_save", is_active: true });
