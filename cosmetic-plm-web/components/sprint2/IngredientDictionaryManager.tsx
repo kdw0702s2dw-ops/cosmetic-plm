@@ -80,10 +80,20 @@ export default function IngredientDictionaryManager() {
     setSaving(true); setMsg("");
     try {
       const dup = await checkIngredientDuplicate({ casNo: item.cas_no || undefined, inciKr: item.inci_kr || undefined }, item.id);
-      if (dup && !confirm(`이미 등록된 성분입니다 (기존: ${dup.inci_kr || dup.inci_en || "-"} / CAS ${dup.cas_no || "-"}). 그래도 저장하시겠습니까?`)) {
-        return;
+      // 중복이 발견됐는데 그냥 saveIngredient(item)을 호출하면 item.id가 비어있는(새 성분 입력) 경우
+      // 그대로 INSERT가 실행되어 완전히 새로운 중복 행이 하나 더 생겨버린다 - 실제로 이렇게 쌓인 중복
+      // 데이터가 DB에서 여러 건 확인됨. 그래서 중복 확인 후 계속 진행하면 새 행을 추가하는 대신
+      // 기존 중복 행의 id를 붙여서 그 행을 지금 입력한 내용으로 업데이트(병합)한다.
+      let itemToSave = item;
+      if (dup) {
+        const mergeIntoExisting = confirm(
+          `이미 등록된 성분입니다 (기존: ${dup.inci_kr || dup.inci_en || "-"} / CAS ${dup.cas_no || "-"}).\n` +
+          `확인을 누르면 새 항목을 추가하지 않고 기존 항목을 지금 입력한 내용으로 덮어씁니다.\n계속하시겠습니까?`
+        );
+        if (!mergeIntoExisting) return;
+        itemToSave = { ...item, id: item.id || dup.id };
       }
-      const saved = await saveIngredient(item);
+      const saved = await saveIngredient(itemToSave);
       setItem(saved);
       setMsg("저장 완료");
       setToast({ type: "success", text: "저장되었습니다" });
