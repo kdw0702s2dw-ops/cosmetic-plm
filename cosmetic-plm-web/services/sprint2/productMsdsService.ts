@@ -1,6 +1,13 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import {
+  complexRows,
+  fetchFormulaLinesForPdf,
+  mergeRows,
+  resolveLinesForBasis,
+  singleRows,
+} from "@/services/sprint2/documentPdfService";
 
 // 품질관리 - 제품 MSDS(Material Safety Data Sheet). 업로드된 영문 MSDS 양식(제품 MSDS 양식.docx)의
 // 16개 섹션(Identification ~ Other Information) 구성을 그대로 따른다. 1번(Identification)은 문서
@@ -223,6 +230,19 @@ export function buildDefaultMsds(): Pick<ProductMsds, "manufacturer" | "address"
     revision: DEFAULT_REVISION,
     sections: buildDefaultMsdsSections(),
   };
+}
+
+// 3번(COMPOSITION) 섹션의 "[확정코드 전성분 영문 기입]" 자리표시자를 자동으로 채우기 위한 값 - 연동한
+// 처방의 실제 전성분표를 전성분표 엑셀/HTML(downloadInciListExcel/buildInciListHtml)과 동일한 방식
+// (MIX = 배합 시 기준, 함량 내림차순, 이름이 같은 성분은 합산)으로 계산해서 영문 INCI명만 콤마로 이어붙인다.
+export async function fetchFormulaInciEnList(formulaCode: string, revision: string): Promise<string> {
+  if (!formulaCode || !revision) return "";
+  const rawLines = await fetchFormulaLinesForPdf(formulaCode, revision);
+  if (rawLines.length === 0) return "";
+  // basis="MIX"(기본값)에서는 formula 인자를 사용하지 않으므로(건조 후 계산 때만 필요) 빈 객체로 충분하다.
+  const { lines, components } = await resolveLinesForBasis({}, rawLines, "MIX");
+  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  return rows.map((x) => x.inci_en).filter(Boolean).join(", ");
 }
 
 export async function fetchMsdsFormulas(keyword = "") {
