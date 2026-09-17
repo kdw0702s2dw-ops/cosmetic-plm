@@ -13,6 +13,7 @@ const PAGE_SIZE = 20;
 
 const emptyItem: IngredientDictionaryItem = {
   inci_kr: "", inci_en: "", inci_cn: "", inci_jp: "", cas_no: "", ec_no: "", function_kr: "", function_en: "", note: "",
+  is_caution: false, caution_note: "",
 };
 
 export default function IngredientDictionaryManager() {
@@ -141,7 +142,13 @@ export default function IngredientDictionaryManager() {
             <tbody>
               {list.map((r) => (
                 <tr key={r.id} style={{ background: item.id === r.id ? "#eff6ff" : undefined }}>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectItem(r)}>{r.inci_kr || "-"}</td>
+                  <td
+                    style={{ cursor: "pointer", color: r.is_caution ? "#dc2626" : undefined, fontWeight: r.is_caution ? 700 : undefined }}
+                    onClick={() => selectItem(r)}
+                    title={r.is_caution ? (r.caution_note || "주의 성분") : undefined}
+                  >
+                    {r.inci_kr || "-"}{r.is_caution && " ⚠"}
+                  </td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectItem(r)}>{r.inci_en || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectItem(r)}>{r.cas_no || "-"}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => selectItem(r)}>{r.ec_no || "-"}</td>
@@ -182,6 +189,15 @@ export default function IngredientDictionaryManager() {
               {COSING_FUNCTIONS.map((f) => <option key={f} value={f} />)}
             </datalist>
           </Field>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, whiteSpace: "nowrap" }}>
+              <input type="checkbox" checked={!!item.is_caution} onChange={(e) => setItem({ ...item, is_caution: e.target.checked })} />
+              <span style={{ color: item.is_caution ? "#dc2626" : undefined }}>⚠ 주의 성분</span>
+            </label>
+            <Field label="주의 사유 (예: 배합한도 초과 주의, 알러지 유발 가능 등)">
+              <input className="v50-input" value={item.caution_note || ""} onChange={(e) => setItem({ ...item, caution_note: e.target.value })} />
+            </Field>
+          </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <Field label="비고">
               <textarea className="v50-textarea" rows={3}
