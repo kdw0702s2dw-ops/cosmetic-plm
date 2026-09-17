@@ -16,6 +16,8 @@ export type IngredientDictionaryItem = {
   is_active?: boolean;
   updated_at?: string;
   note?: string | null;
+  is_caution?: boolean;
+  caution_note?: string | null;
 };
 
 export type IngredientDictionaryPage = {
@@ -62,6 +64,20 @@ export async function fetchIngredientFunctionEntries(): Promise<
     .not("function_en", "is", null);
   if (error) throw error;
   return (data || []) as Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "function_en">>;
+}
+
+// 원료관리 구성성분 표에서 "주의성분" 배지 매칭 전용 - 주의성분으로 체크된 활성 성분만 가볍게 통째로 가져온다.
+// (전성분관리 전체가 수백 건 수준이라 처방 단위로 필터링하지 않고 한 번에 캐시해도 충분히 가볍다.)
+export async function fetchCautionIngredients(): Promise<
+  Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "caution_note">>
+> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_ingredient_dictionary")
+    .select("cas_no, inci_en, inci_kr, caution_note")
+    .eq("is_active", true)
+    .eq("is_caution", true);
+  if (error) throw error;
+  return (data || []) as Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "caution_note">>;
 }
 
 export async function fetchIngredientById(id: string): Promise<IngredientDictionaryItem> {
@@ -144,6 +160,8 @@ export async function saveIngredient(item: IngredientDictionaryItem): Promise<In
     function_kr: item.function_kr || null,
     function_en: item.function_en || null,
     note: item.note || null,
+    is_caution: !!item.is_caution,
+    caution_note: item.caution_note || null,
     updated_at: new Date().toISOString(),
   };
 
