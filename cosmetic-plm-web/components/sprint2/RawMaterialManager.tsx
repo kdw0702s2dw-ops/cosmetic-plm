@@ -12,6 +12,7 @@ import {
 import {
   fetchCompanyById, searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
 } from "@/services/sprint2/companyService";
+import { fetchCautionIngredients, type IngredientDictionaryItem } from "@/services/sprint2/ingredientDictionaryService";
 import RawMaterialDocUploader from "@/components/sprint2/RawMaterialDocUploader";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
@@ -86,6 +87,36 @@ export default function RawMaterialManager() {
   // 알러젠 마스터 목록 (구성성분 표의 알러젠 선택 드롭다운 + 자동 감지 매칭용)
   const [allergens, setAllergens] = useState<AllergenMaster[]>([]);
   useEffect(() => { fetchAllergenMaster().then(setAllergens).catch(() => setAllergens([])); }, []);
+
+  // 전성분관리에서 "주의성분"으로 체크된 INCI 목록 (구성성분 표에서 배지 표시용) - 저장되는 값이 아니라
+  // 매 렌더마다 전성분관리 최신 데이터와 대조해서 표시하므로, 나중에 전성분관리에서 주의 여부를 바꾸면
+  // 이미 등록된 원료의 구성성분 표에도 곧바로 반영된다.
+  const [cautionIngredients, setCautionIngredients] = useState<
+    Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "caution_note">>
+  >([]);
+  useEffect(() => { fetchCautionIngredients().then(setCautionIngredients).catch(() => setCautionIngredients([])); }, []);
+
+  // CAS 번호 일치 우선, 그다음 INCI 영문명 → INCI 국문명 순으로 전성분관리의 주의성분 목록과 매칭한다
+  // (matchAllergen과 동일한 매칭 우선순위 패턴).
+  function matchCaution(inciKr: string, inciEn: string, casNo: string) {
+    const cas = (casNo || "").trim();
+    if (cas) {
+      const casHit = cautionIngredients.find((c) => c.cas_no && c.cas_no.trim() === cas);
+      if (casHit) return casHit;
+    }
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const en = norm(inciEn || "");
+    if (en) {
+      const enHit = cautionIngredients.find((c) => norm(c.inci_en || "") === en);
+      if (enHit) return enHit;
+    }
+    const kr = norm(inciKr || "");
+    if (kr) {
+      const krHit = cautionIngredients.find((c) => norm(c.inci_kr || "") === kr);
+      if (krHit) return krHit;
+    }
+    return null;
+  }
   // 자동 감지로 체크/선택된 행 번호 (수동으로 다시 만지면 이 표시는 사라짐 - 실제 저장값과는 무관한 화면 전용 상태)
   const [autoDetectedRows, setAutoDetectedRows] = useState<Set<number>>(new Set());
 
@@ -586,6 +617,15 @@ export default function RawMaterialManager() {
                       )}
                       {activeCell?.row === i && hits.length > 0 && dropdownPos &&
                         createPortal(<Dropdown hits={hits} onPick={pickHit} pos={dropdownPos} />, document.body)}
+                      {(() => {
+                        const caution = matchCaution(c.inci_kr || "", c.inci_en || "", c.cas_no || "");
+                        return caution ? (
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginTop: 2 }}
+                            title={caution.caution_note || "주의 성분"}>
+                            ⚠ 주의
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td><input className="v50-input" value={c.inci_en || ""} onChange={(e) => updateCompDetect(i, "inci_en", e.target.value)} /></td>
                     <td><input className="v50-input" type="number" style={{ width: 72 }} value={c.composition_percent as any || ""} onChange={(e) => updateComp(i, "composition_percent", e.target.value)} /></td>
