@@ -89,6 +89,8 @@ export type IngredientHit = {
   ec_no: string | null;
   function_kr: string | null;
   function_en: string | null;
+  is_caution: boolean | null;
+  caution_note: string | null;
 };
 
 // 원료 자체의 inci_kr/inci_en은 구성성분 1번 행만 동기화되어 있어서(대표 INCI 입력란이 없어진 뒤로,
