@@ -479,6 +479,10 @@ export default function FormulaCorePanel() {
               </button>
             )}
             <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
+            {/* 삭제 버튼이 테이블 각 행 우측 끝에 있어, 저장 버튼을 테이블 바로 아래 우측에 두면
+                같은 위치(마지막 줄 삭제 버튼 바로 아래)로 겹쳐서 실수로 삭제를 누르는 문제가 있었음.
+                삭제 컬럼과 겹치지 않도록 저장 버튼을 테이블 상단(이 헤더 줄)으로 옮김. */}
+            <button className="v50-button" onClick={handleSaveClick} disabled={s.loading}>저장</button>
           </div>
         </div>
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
@@ -633,9 +637,6 @@ export default function FormulaCorePanel() {
               </tfoot>
             )}
           </table>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-          <button className="v50-button" onClick={handleSaveClick} disabled={s.loading}>저장</button>
         </div>
       </section>
 
