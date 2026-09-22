@@ -4,6 +4,7 @@ import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { fetchAllergenAlerts } from "@/services/sprint2/allergenService";
 import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
+import { fetchDisclosureLines } from "@/services/sprint2/formulaDisclosureService";
 
 export type DocKind =
   | "INCI_LIST"
@@ -494,9 +495,12 @@ export function mergeRows(rows: ExpandedRow[]) {
   return Array.from(map.values()).sort((a, b) => b.final_percent - a.final_percent);
 }
 
-// PUBLIC(공개처방·일반)은 계산 로직이 MIX(원처방)와 완전히 동일하다 - 아래 모든 basis 분기는
-// "DRY일 때만" 다르게 처리하고 그 외(MIX/PUBLIC)는 동일 경로를 타도록 되어 있다. PUBLIC은 오직
-// 문서관리에서 원처방과 별개로 생성·추적되는 문서(제목/파일명 접미사, DB basis 값)로만 구분된다.
+// PUBLIC(공개처방·일반)/DRY(공개처방·건조)는 처방/Revision별로 plm_formulas.public_bom_customized /
+// dry_bom_customized 플래그가 true일 때만 별도로 저장된 BOM(plm_formula_lines_public /
+// plm_formula_lines_dry, formulaDisclosureService 참고)을 쓴다. 플래그가 false인 동안(=사용자가
+// 처방관리 BOM 편집에서 해당 탭을 한 번도 저장한 적 없음)은 기존 동작 그대로 - PUBLIC은 MIX(원처방)와
+// 완전히 동일한 값을, DRY는 실측 수분율 기반 자동계산 값을 보여준다. 아래 resolveLinesForBasis()가
+// 이 분기를 전담하고, 그 아래 문서 빌더들은 basis 값에 따라 나머지(반올림 자릿수 등)만 다르게 처리한다.
 export type DocBasis = "MIX" | "DRY" | "PUBLIC";
 
 // 문서 제목/엑셀 파일명에 붙는 기준별 접미사 - PDF·엑셀 공통으로 사용한다.
@@ -665,6 +669,24 @@ export function applyDryBasisToLines(
 // 건조 후 버전으로 바꿔 반환하고, basis="MIX"(기본값)면 원본 lines와 구성성분을 그대로 반환한다.
 // 전성분표/단일성분표/복합성분표 3종 문서와 엑셀 다운로드가 공통으로 이 함수를 거쳐서 lines/components를 얻는다.
 export async function resolveLinesForBasis(formula: any, lines: any[], basis: DocBasis): Promise<{ lines: any[]; components: any[] }> {
+  // 공개처방(일반/건조)을 원처방과 독립적으로 저장해둔 처방/Revision이면, 그 저장된 BOM을 그대로
+  // 쓴다(추가 계산 없음 - DRY라도 이미 최종값으로 저장돼 있으므로 실측 수분율 계산을 다시 하지 않음).
+  // 플래그가 false면(아직 한 번도 저장한 적 없음) 아래로 내려가 기존 동작을 그대로 유지한다.
+  if (basis === "PUBLIC" && formula.public_bom_customized) {
+    const overrideLines = (await fetchDisclosureLines("PUBLIC", formula.formula_code, formula.revision)) as any[];
+    if (overrideLines.length > 0) {
+      const components = await fetchComponentsByRawCodes(overrideLines.map((x) => x.raw_code));
+      return { lines: overrideLines, components };
+    }
+  }
+  if (basis === "DRY" && formula.dry_bom_customized) {
+    const overrideLines = (await fetchDisclosureLines("DRY", formula.formula_code, formula.revision)) as any[];
+    if (overrideLines.length > 0) {
+      const components = await fetchComponentsByRawCodes(overrideLines.map((x) => x.raw_code));
+      return { lines: overrideLines, components };
+    }
+  }
+
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
   if (basis !== "DRY") return { lines, components };
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));

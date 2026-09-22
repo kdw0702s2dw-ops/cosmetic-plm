@@ -52,6 +52,13 @@ import {
   type Material,
 } from "@/services/sprint2/materialService";
 import { fetchRawMaterialsByCodes, type RawMaterial } from "@/services/sprint2/rawMaterialService";
+import {
+  fetchDisclosureLines,
+  saveDisclosureLines,
+  resetDisclosureVariant,
+  VARIANT_LABEL,
+  type DisclosureVariant,
+} from "@/services/sprint2/formulaDisclosureService";
 
 type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
 const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
@@ -133,6 +140,33 @@ export function useSprint1FormulaCore() {
   // 주의 원료 표시(is_caution/caution_note)와 "원료 정보 변경됨" 배지(computeRawMaterialDiff) 둘 다 이 맵 하나로 처리한다.
   const [latestRawDataMap, setLatestRawDataMap] = useState<Map<string, RawMaterial>>(new Map());
 
+  // 공개처방(일반)/공개처방(건조) 독립 BOM 편집 상태 - 원처방(lines/savedLineNos/deletedLineNos)과는
+  // 완전히 분리해서 관리한다. null = 아직 이 처방/Revision에서 로드하지 않음(아래 useEffect가 채움).
+  // customized=false인 동안은 화면에 "미저장 상태" 기준값(PUBLIC=원처방 그대로, DRY=자동계산)을
+  // 보여줄 뿐 실제로 저장된 것은 아니다 - 저장 버튼을 눌러야 DB에 별도로 쌓이고 customized가 true가 된다.
+  const [publicLines, setPublicLines] = useState<Sprint1FormulaLine[] | null>(null);
+  const [dryLines, setDryLines] = useState<Sprint1FormulaLine[] | null>(null);
+  const [publicCustomized, setPublicCustomized] = useState(false);
+  const [dryCustomized, setDryCustomized] = useState(false);
+  const [disclosureLoading, setDisclosureLoading] = useState(false);
+
+  function resetDisclosureState() {
+    setPublicLines(null);
+    setDryLines(null);
+    setPublicCustomized(false);
+    setDryCustomized(false);
+  }
+
+  function getDisclosureLines(variant: DisclosureVariant) {
+    return variant === "PUBLIC" ? publicLines : dryLines;
+  }
+  function getDisclosureSetter(variant: DisclosureVariant) {
+    return variant === "PUBLIC" ? setPublicLines : setDryLines;
+  }
+  function getDisclosureCustomized(variant: DisclosureVariant) {
+    return variant === "PUBLIC" ? publicCustomized : dryCustomized;
+  }
+
   const total = Number(lines.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
   const cost = Number(lines.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
   const inciList = buildSprint1InciList(lines);
@@ -185,6 +219,191 @@ export function useSprint1FormulaCore() {
         ...singleRows(effectiveLinesForInci, effectiveComponentsForInci),
       ]);
 
+  // 공개처방(일반)/공개처방(건조) 탭을 열었는데 아직 이 처방/Revision에서 로드한 적 없으면
+  // (publicLines/dryLines가 null) DB를 확인한다. 저장된 별도 BOM이 있으면 그걸 그대로 불러오고
+  // (customized=true), 없으면 지금까지와 동일한 기준값(PUBLIC=원처방, DRY=자동계산)을 "미저장
+  // 상태"로 채워 넣는다 - 저장을 눌러야 그 시점부터 실제로 갈라진다.
+  useEffect(() => {
+    if (inciBasis === "MIX") return;
+    if (!formula.formula_code || !formula.revision) return;
+    const variant: DisclosureVariant = inciBasis === "PUBLIC" ? "PUBLIC" : "DRY";
+    if (getDisclosureLines(variant) != null) return;
+
+    let cancelled = false;
+    (async () => {
+      setDisclosureLoading(true);
+      try {
+        const stored = await fetchDisclosureLines(variant, formula.formula_code, formula.revision);
+        if (cancelled) return;
+        if (stored.length > 0) {
+          getDisclosureSetter(variant)(stored as Sprint1FormulaLine[]);
+          if (variant === "PUBLIC") setPublicCustomized(true); else setDryCustomized(true);
+          return;
+        }
+        if (variant === "PUBLIC") {
+          setPublicLines(lines.map((l) => ({ ...l })));
+          setPublicCustomized(false);
+          return;
+        }
+        // DRY 기준값 - 자동 전성분 미리보기와 동일한 applyDryBasisToLines() 계산을 그대로 재사용
+        if (formula.measured_moisture_percent == null) {
+          setDryLines([]);
+        } else {
+          try {
+            const volatilityMap = volatilityMapFromRawMaterials(Array.from(latestRawDataMap.values()));
+            const dry = applyDryBasisToLines(lines, rawComponentsForLines, volatilityMap, formula.measured_moisture_percent);
+            setDryLines(dry.lines as Sprint1FormulaLine[]);
+          } catch {
+            setDryLines([]);
+          }
+        }
+        setDryCustomized(false);
+      } catch (e) {
+        setMessage(e instanceof Error ? e.message : "공개처방 BOM 조회 오류");
+      } finally {
+        if (!cancelled) setDisclosureLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inciBasis, formula.formula_code, formula.revision]);
+
+  function addDisclosureLine(variant: DisclosureVariant) {
+    const current = getDisclosureLines(variant) || [];
+    const lineNo = nextSprint1LineNo(current);
+    const phaseSeq = nextPhaseSeq(current, "A");
+    getDisclosureSetter(variant)([
+      ...current,
+      {
+        formula_code: formula.formula_code,
+        revision: formula.revision,
+        line_no: lineNo,
+        phase: "A",
+        phase_seq: phaseSeq,
+        raw_code: "",
+        raw_name: "",
+        inci_kr: "",
+        inci_en: "",
+        percentage: 0,
+        function_kr: "",
+        function_en: "",
+        cas_no: "",
+        ec_no: "",
+        unit_price: 0,
+        cost_per_kg: 0,
+        moq: "",
+        is_new_material: false,
+      },
+    ]);
+  }
+
+  function updateDisclosureLine(variant: DisclosureVariant, lineNo: number, patch: Partial<Sprint1FormulaLine>) {
+    getDisclosureSetter(variant)((prev) =>
+      (prev || []).map((l) => {
+        if (l.line_no !== lineNo) return l;
+        const next = { ...l, ...patch };
+        next.cost_per_kg = calcCost(next);
+        return next;
+      })
+    );
+  }
+
+  function removeDisclosureLine(variant: DisclosureVariant, lineNo: number) {
+    getDisclosureSetter(variant)((prev) => (prev || []).filter((l) => l.line_no !== lineNo));
+  }
+
+  async function saveDisclosureBom(variant: DisclosureVariant): Promise<{ ok: boolean; message: string }> {
+    if (!formula.formula_code || !formula.revision) {
+      const msg = "처방을 먼저 여세요.";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+    const current = getDisclosureLines(variant) || [];
+    setDisclosureLoading(true);
+    try {
+      const saved = await saveDisclosureLines(variant, formula.formula_code, formula.revision, current);
+      getDisclosureSetter(variant)(saved as Sprint1FormulaLine[]);
+      if (variant === "PUBLIC") setPublicCustomized(true); else setDryCustomized(true);
+      const msg = `${VARIANT_LABEL[variant]} BOM 저장 완료 (${saved.length}건) - 이제부터 원처방과 독립적으로 관리됩니다.`;
+      setMessage(msg);
+      return { ok: true, message: msg };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : `${VARIANT_LABEL[variant]} BOM 저장 오류`;
+      setMessage(msg);
+      return { ok: false, message: msg };
+    } finally {
+      setDisclosureLoading(false);
+    }
+  }
+
+  async function resetDisclosureBom(variant: DisclosureVariant): Promise<{ ok: boolean; message: string } | undefined> {
+    if (!formula.formula_code || !formula.revision) return undefined;
+    if (!confirm(`${VARIANT_LABEL[variant]}을(를) 초기화하시겠습니까? 저장된 별도 BOM이 삭제되고, 다시 ${variant === "PUBLIC" ? "원처방" : "자동계산"} 값을 따라가게 됩니다.`)) {
+      return undefined;
+    }
+    setDisclosureLoading(true);
+    try {
+      await resetDisclosureVariant(variant, formula.formula_code, formula.revision);
+      getDisclosureSetter(variant)(null);
+      if (variant === "PUBLIC") setPublicCustomized(false); else setDryCustomized(false);
+      const msg = `${VARIANT_LABEL[variant]} 초기화 완료`;
+      setMessage(msg);
+      return { ok: true, message: msg };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : `${VARIANT_LABEL[variant]} 초기화 오류`;
+      setMessage(msg);
+      return { ok: false, message: msg };
+    } finally {
+      setDisclosureLoading(false);
+    }
+  }
+
+  // "처방 불러오기" - 원처방/공개처방(일반)/공개처방(건조) 세 탭 어디서나 쓸 수 있다. 다른 처방코드의
+  // 원처방 BOM(plm_formula_lines)을 읽어와서 지금 보고 있는 탭의 편집중인 내용을 통째로 교체한다.
+  // 실제 DB 반영은 각 탭의 "저장" 버튼을 눌러야 이뤄진다(원처방 탭은 기존 저장 흐름 재사용).
+  async function loadFormulaFromCode(sourceFormulaCode: string, sourceRevision: string): Promise<{ ok: boolean; message: string }> {
+    if (!formula.formula_code || !formula.revision) {
+      const msg = "처방을 먼저 여세요.";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    }
+    setDisclosureLoading(true);
+    try {
+      const sourceLines = (await fetchSprint1FormulaLines(sourceFormulaCode, sourceRevision)) as Sprint1FormulaLine[];
+      if (sourceLines.length === 0) {
+        const msg = `${sourceFormulaCode} / ${sourceRevision}에는 원처방 BOM이 없습니다.`;
+        setMessage(msg);
+        return { ok: false, message: msg };
+      }
+      const loaded = sourceLines.map((l) => ({ ...l, formula_code: formula.formula_code, revision: formula.revision }));
+
+      if (inciBasis === "MIX") {
+        // 원처방 BOM 교체 - 기존에 저장돼 있던 라인은 전부 삭제 대상으로 표시해두고 화면을 새 내용으로
+        // 채운다. "저장"을 눌러야 upsertSprint1FormulaLines/deleteSprint1FormulaLines가 실제로 반영한다.
+        setDeletedLineNos((prev) => Array.from(new Set([...prev, ...savedLineNos])));
+        setLines(loaded);
+        setLineWarnings(() => {
+          const next: Record<number, RegulationHit[]> = {};
+          for (const l of loaded) if (l.raw_code) next[l.line_no] = evaluateLineAgainstRules(l, regulationRules);
+          return next;
+        });
+      } else {
+        const variant: DisclosureVariant = inciBasis === "PUBLIC" ? "PUBLIC" : "DRY";
+        getDisclosureSetter(variant)(loaded);
+      }
+
+      const msg = `${sourceFormulaCode} / ${sourceRevision} 처방을 불러왔습니다. "저장"을 눌러야 반영됩니다.`;
+      setMessage(msg);
+      return { ok: true, message: msg };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "처방 불러오기 오류";
+      setMessage(msg);
+      return { ok: false, message: msg };
+    } finally {
+      setDisclosureLoading(false);
+    }
+  }
+
   async function loadFormulas(k = keyword) {
     setLoading(true);
     try {
@@ -201,6 +420,7 @@ export function useSprint1FormulaCore() {
   async function openFormula(f: any) {
     setSelected(f);
     setFormula({ ...emptyFormula, ...f });
+    resetDisclosureState();
     const data = (await fetchSprint1FormulaLines(f.formula_code, f.revision)) as Sprint1FormulaLine[];
     // 같은 Phase 내 phase_seq가 중복된 처방은 열 때마다 화면에서 1,2,3...으로 정리해서 보여준다.
     // DB에는 저장 버튼을 눌러야 반영됨 (다른 화면에서 다시 열어도 정리된 값이 매번 다시 계산되어 표시됨).
@@ -242,6 +462,7 @@ export function useSprint1FormulaCore() {
     const code = `F-${Date.now().toString().slice(-6)}`;
     setSelected(null);
     setFormula({ ...emptyFormula, formula_code: code });
+    resetDisclosureState();
     setLines([]);
     setSavedLineNos([]);
     setDeletedLineNos([]);
@@ -392,10 +613,21 @@ export function useSprint1FormulaCore() {
     try {
       // 확정코드는 자동으로 복사하지 않는다 - 새 Revision은 아직 확정되지 않은 상태로 시작해야
       // 이전 Revision의 확정코드를 그대로 넘겨받아 중복 확정코드가 생기는 것을 막을 수 있다.
-      const nextFormula: Sprint1Formula = { ...formula, revision: trimmed, confirmed_code: "" };
+      // 공개처방(일반/건조) 커스터마이즈 여부도 마찬가지로 새 Revision에 자동 이월하지 않는다 -
+      // plm_formula_lines_public/dry는 이 Revision 키로 복사되지 않으므로, 플래그만 true로 넘어가면
+      // "저장된 게 있다고 하는데 실제로는 없는" 혼란스러운 상태가 된다. 새 Revision은 항상 미저장
+      // 상태(=원처방/자동계산 기준값)로 시작하고, 필요하면 새로 저장하거나 "처방 불러오기"로 채운다.
+      const nextFormula: Sprint1Formula = {
+        ...formula,
+        revision: trimmed,
+        confirmed_code: "",
+        public_bom_customized: false,
+        dry_bom_customized: false,
+      } as Sprint1Formula;
       const saved = await upsertSprint1Formula(nextFormula);
       setFormula(nextFormula);
       setSelected(saved);
+      resetDisclosureState();
 
       const linesToSave = lines
         .filter((l) => l.raw_code && l.raw_name)
@@ -437,6 +669,7 @@ export function useSprint1FormulaCore() {
     try {
       await softDeleteSprint1Formula(formula.formula_code, formula.revision);
       setFormula(emptyFormula);
+      resetDisclosureState();
       setLines([]);
       setSavedLineNos([]);
       setDeletedLineNos([]);
@@ -800,6 +1033,10 @@ export function useSprint1FormulaCore() {
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap, rawComponentsMap,
     loadFormulas, openFormula, newFormula, saveFormula, createNewRevision, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
+    // 공개처방(일반)/공개처방(건조) 독립 BOM 편집
+    publicLines, dryLines, publicCustomized, dryCustomized, disclosureLoading,
+    addDisclosureLine, updateDisclosureLine, removeDisclosureLine,
+    saveDisclosureBom, resetDisclosureBom, loadFormulaFromCode,
     rawUsageKeyword, rawUsageHits, rawUsageSearchLoading, rawUsageSelected, rawUsageComponents,
     rawUsagePercentage, setRawUsagePercentage, rawUsageResults, rawUsageSearching, rawUsageMessage,
     searchRawUsageOptions, pickRawUsageMaterial, runRawUsageSearch, openRawUsageResult,

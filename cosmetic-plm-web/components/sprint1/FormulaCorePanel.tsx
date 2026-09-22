@@ -8,6 +8,9 @@ import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
+import FormulaLoadModal from "@/components/sprint1/FormulaLoadModal";
+import DisclosureBomSection from "@/components/sprint1/DisclosureBomSection";
+import type { DisclosureVariant } from "@/services/sprint2/formulaDisclosureService";
 import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
@@ -65,6 +68,25 @@ export default function FormulaCorePanel() {
     const result = await s.saveFormula();
     if (!result) return; // 사용자가 BANNED 확인창에서 취소한 경우 - 토스트 없음
     setToast({ type: result.ok ? "success" : "error", text: result.ok ? "저장되었습니다" : `저장 실패: ${result.message}` });
+  }
+
+  // "처방 불러오기" 모달 - 원처방/공개처방(일반)/공개처방(건조) 세 탭 공용. 어느 탭에 채울지는
+  // useSprint1FormulaCore.loadFormulaFromCode()가 호출 시점의 s.inciBasis를 보고 판단한다.
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  async function handlePickLoadFormula(formulaCode: string, revision: string) {
+    setShowLoadModal(false);
+    const result = await s.loadFormulaFromCode(formulaCode, revision);
+    setToast({ type: result.ok ? "success" : "error", text: result.message });
+  }
+
+  async function handleSaveDisclosure(variant: DisclosureVariant) {
+    const result = await s.saveDisclosureBom(variant);
+    setToast({ type: result.ok ? "success" : "error", text: result.message });
+  }
+  async function handleResetDisclosure(variant: DisclosureVariant) {
+    const result = await s.resetDisclosureBom(variant);
+    if (!result) return; // 확인창 취소
+    setToast({ type: result.ok ? "success" : "error", text: result.message });
   }
 
   // "새 Revision 생성" 인라인 입력 - 처방코드가 바뀔 때만 새 처방이 생기는 것과 동일한 원칙으로,
@@ -449,6 +471,7 @@ export default function FormulaCorePanel() {
         </p>
       </section>
 
+      {s.inciBasis === "MIX" && (
       <section className="v50-panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <h2 style={{ margin: 0 }}>BOM 편집</h2>
@@ -456,6 +479,7 @@ export default function FormulaCorePanel() {
             <span style={{ fontSize: 13, fontWeight: 800, color: Math.abs(s.total - 100) < 0.01 ? "#16a34a" : "#dc2626" }}>
               합계 {s.total}%
             </span>
+            <button type="button" className="v50-button-light" onClick={() => setShowLoadModal(true)}>처방 불러오기</button>
             {s.waterLine && s.waterFillPercentage != null && (
               <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, background: "#eff6ff", padding: "4px 8px", borderRadius: 8 }}>
                 <span style={{ color: "#1d4ed8" }}>
@@ -639,6 +663,26 @@ export default function FormulaCorePanel() {
           </table>
         </div>
       </section>
+      )}
+
+      {s.inciBasis !== "MIX" && (
+        <DisclosureBomSection
+          variant={s.inciBasis as DisclosureVariant}
+          lines={s.inciBasis === "PUBLIC" ? s.publicLines : s.dryLines}
+          customized={s.inciBasis === "PUBLIC" ? s.publicCustomized : s.dryCustomized}
+          loading={s.disclosureLoading}
+          onAddLine={() => s.addDisclosureLine(s.inciBasis as DisclosureVariant)}
+          onUpdateLine={(lineNo, patch) => s.updateDisclosureLine(s.inciBasis as DisclosureVariant, lineNo, patch)}
+          onRemoveLine={(lineNo) => s.removeDisclosureLine(s.inciBasis as DisclosureVariant, lineNo)}
+          onSave={() => handleSaveDisclosure(s.inciBasis as DisclosureVariant)}
+          onReset={() => handleResetDisclosure(s.inciBasis as DisclosureVariant)}
+          onOpenLoadModal={() => setShowLoadModal(true)}
+        />
+      )}
+
+      {showLoadModal && (
+        <FormulaLoadModal onClose={() => setShowLoadModal(false)} onPick={handlePickLoadFormula} />
+      )}
 
       <section className="v50-panel">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -19,6 +19,10 @@ export type Sprint1Formula = {
   target_market?: string;
   claim?: string;
   measured_moisture_percent?: number | null;
+  // 공개처방(일반)/공개처방(건조)를 원처방과 독립적으로 저장한 적이 있는지 - 자세한 내용은
+  // services/sprint2/formulaDisclosureService.ts 참고. false면 지금까지와 동일하게 동작한다.
+  public_bom_customized?: boolean;
+  dry_bom_customized?: boolean;
 };
 
 export type ProductionBomRow = {
