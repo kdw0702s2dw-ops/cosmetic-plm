@@ -1,15 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { DisclosureVariant, DisclosureLine } from "@/services/sprint2/formulaDisclosureService";
 import { VARIANT_LABEL } from "@/services/sprint2/formulaDisclosureService";
 import { sortLinesForDisplay, type Sprint1FormulaLine } from "@/services/sprint1/formulaCoreService";
 import { evaluateLineAgainstRules, type RegulationHit } from "@/services/sprint2/regulationEngineService";
-import { WATER_CAS_NO } from "@/services/sprint2/documentPdfService";
+import { WATER_CAS_NO, fetchComponentsByRawCodes, byRawComponents } from "@/services/sprint2/documentPdfService";
 
 // 공개처방(일반)/공개처방(건조) 전용 BOM 편집 - 원처방 BOM 편집(components/sprint1/FormulaCorePanel.tsx의
-// "BOM 편집" 섹션)과 화면 구성(컬럼/정렬/정제수 보정/합계 표시)을 동일하게 맞춘다. 다만 원료명 자동완성
-// (검색 드롭다운)만은 v1 범위에서 제외한다 - 공개처방은 "처방 불러오기"로 시작 BOM을 가져온 뒤 다듬는
-// 용도라 원료 마스터 자동완성이 필수는 아니라고 판단했고, 자동완성까지 필요하면 별도로 추가할 예정.
+// "BOM 편집" 섹션)과 화면 구성(컬럼/정렬/정제수 보정/합계 표시/전성분 표시)을 동일하게 맞춘다. 다만
+// 원료명 자동완성(검색 드롭다운)만은 v1 범위에서 제외한다 - 공개처방은 "처방 불러오기"로 시작 BOM을
+// 가져온 뒤 다듬는 용도라 원료 마스터 자동완성이 필수는 아니라고 판단했고, 단가/원가/MOQ/신규처럼
+// 원료 마스터에서만 의미가 있는 항목도 이 화면에서는 굳이 보여주지 않는다(요청에 따라 제외).
+// 대신 원처방 함량%를 나란히 보여줘서 "원처방과 얼마나 다르게 편집했는지" 참고용으로만 비교할 수 있게
+// 한다 - 이 값으로 문서를 만들거나 저장하는 건 아니고 화면에서 눈으로 비교하는 용도.
 type Line = DisclosureLine;
 
 const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
@@ -38,6 +42,7 @@ function buildTooltip(hits: RegulationHit[]) {
 export default function DisclosureBomSection({
   variant,
   lines,
+  mixLines,
   customized,
   loading,
   regulationRules,
@@ -51,6 +56,9 @@ export default function DisclosureBomSection({
 }: {
   variant: DisclosureVariant;
   lines: Line[] | null;
+  // 원처방(BOM 편집)의 현재 라인 - 화면에서 "원처방 함량%"를 나란히 보여주기 위한 참고용 데이터일
+  // 뿐, 이 컴포넌트는 이 값을 절대 저장하거나 수정하지 않는다.
+  mixLines: Sprint1FormulaLine[];
   customized: boolean;
   loading: boolean;
   regulationRules: any[];
@@ -69,9 +77,38 @@ export default function DisclosureBomSection({
   // (정렬 기준이 두 화면에서 갈라지지 않게 하기 위함).
   const rows = sortLinesForDisplay(rawRows as unknown as Sprint1FormulaLine[]) as unknown as Line[];
   const total = Number(rows.reduce((sum, x) => sum + Number(x.percentage || 0), 0).toFixed(4));
-  const cost = Number(rows.reduce((sum, x) => sum + Number(x.cost_per_kg || 0), 0).toFixed(4));
   const label = VARIANT_LABEL[variant];
   const fallbackHint = variant === "PUBLIC" ? "원처방과 동일" : "실측 수분율 기반 자동계산";
+
+  // 원처방 함량% 비교용 - 같은 raw_code가 원처방에 여러 Phase로 나뉘어 있을 수도 있어 합산해서 보여준다.
+  const mixPercentByRawCode = new Map<string, number>();
+  for (const l of mixLines) {
+    if (!l.raw_code) continue;
+    mixPercentByRawCode.set(l.raw_code, (mixPercentByRawCode.get(l.raw_code) || 0) + Number(l.percentage || 0));
+  }
+
+  // 복합원료(premix) 구성성분 표시 - 원처방 BOM 편집과 동일하게, 이 화면에 실제로 쓰인 원료(raw_code)
+  // 집합이 바뀔 때만 다시 조회한다.
+  const [componentsMap, setComponentsMap] = useState<Map<string, any[]>>(new Map());
+  const rawCodeKey = Array.from(new Set(rows.map((l) => l.raw_code).filter(Boolean))).sort().join(",");
+  useEffect(() => {
+    const codes = rawCodeKey ? rawCodeKey.split(",") : [];
+    if (codes.length === 0) {
+      setComponentsMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    fetchComponentsByRawCodes(codes)
+      .then((components) => {
+        if (!cancelled) setComponentsMap(byRawComponents(components));
+      })
+      .catch(() => {
+        if (!cancelled) setComponentsMap(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [rawCodeKey]);
 
   // 정제수 to 100 자동 보정 - 원처방 BOM 편집과 동일한 계산(CAS 7732-18-5로 정제수 라인을 찾아
   // 나머지 합계를 100에서 뺀 값을 보여준다).
@@ -130,8 +167,8 @@ export default function DisclosureBomSection({
         <table className="v50-table">
           <thead>
             <tr>
-              <th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th><th>INCI(국문)</th><th>INCI(영문)</th>
-              <th>함량%</th><th>단가</th><th>원가</th><th>MOQ</th><th>신규</th><th>규제</th><th>삭제</th>
+              <th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th>
+              <th>함량%</th><th>원처방 함량%</th><th>규제</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -142,6 +179,19 @@ export default function DisclosureBomSection({
               const hits = evaluateLineAgainstRules(line, regulationRules);
               const worst = worstHit(hits);
               const color = worst ? STATUS_COLOR[worst.allowed_status] : null;
+              const comps = line.raw_code ? componentsMap.get(line.raw_code) || [] : [];
+              const compText = [...comps]
+                .sort((a, b) => Number(b.composition_percent || 0) - Number(a.composition_percent || 0))
+                .map((c) => {
+                  const name = c.inci_kr || c.inci_en || c.component_name_kr || c.component_name_en || "";
+                  if (!name) return null;
+                  const pct = c.composition_percent != null && c.composition_percent !== "" ? `${Number(c.composition_percent)}%` : "";
+                  return pct ? `${name}(${pct})` : name;
+                })
+                .filter(Boolean)
+                .join(", ");
+              const mixPercent = line.raw_code != null ? mixPercentByRawCode.get(line.raw_code) : undefined;
+              const mixDiffers = mixPercent != null && Math.abs(mixPercent - Number(line.percentage || 0)) > 0.0001;
               return (
                 <tr key={line.line_no}>
                   <td>{line.line_no}</td>
@@ -167,35 +217,20 @@ export default function DisclosureBomSection({
                   <td>
                     <input className="v50-input" value={line.raw_name || ""}
                       onChange={(e) => onUpdateLine(line.line_no, { raw_name: e.target.value })} />
-                  </td>
-                  <td>
-                    <input className="v50-input" value={line.inci_kr || ""}
-                      onChange={(e) => onUpdateLine(line.line_no, { inci_kr: e.target.value })} />
-                  </td>
-                  <td>
-                    <input className="v50-input" value={line.inci_en || ""}
-                      onChange={(e) => onUpdateLine(line.line_no, { inci_en: e.target.value })} />
+                    {/* 복합원료(구성성분이 등록된 원료)를 선택하면 그 안의 전성분을 텍스트로 바로 보여준다 -
+                        원처방 BOM 편집과 동일한 표시. */}
+                    {compText && (
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
+                        전성분: {compText}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <input className="v50-input bom-percent-input" style={{ width: 96 }} type="number" step="0.0001" value={line.percentage ?? 0}
                       onChange={(e) => onUpdateLine(line.line_no, { percentage: e.target.value })} />
                   </td>
-                  <td>
-                    <input className="v50-input" style={{ width: 90 }} type="number" step="0.01" value={line.unit_price ?? 0}
-                      onChange={(e) => onUpdateLine(line.line_no, { unit_price: Number(e.target.value) })} />
-                  </td>
-                  <td>{Number(line.cost_per_kg || 0).toLocaleString()}</td>
-                  <td>
-                    <input className="v50-input" style={{ width: 80 }} value={line.moq || ""}
-                      onChange={(e) => onUpdateLine(line.line_no, { moq: e.target.value })} />
-                  </td>
-                  <td style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={!!line.is_new_material}
-                      onChange={(e) => onUpdateLine(line.line_no, { is_new_material: e.target.checked })}
-                      title="원료발주가처방 생성 시 이 원료의 신규 체크가 자동으로 켜집니다"
-                    />
+                  <td style={{ color: mixDiffers ? "#b45309" : "#64748b", fontWeight: mixDiffers ? 700 : 400 }}>
+                    {mixPercent != null ? `${mixPercent}%` : "-"}
                   </td>
                   <td>
                     {worst && color && (
@@ -212,16 +247,14 @@ export default function DisclosureBomSection({
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={14}>"처방 불러오기" 또는 "+ 라인 추가"로 시작하세요.</td></tr>
+              <tr><td colSpan={9}>"처방 불러오기" 또는 "+ 라인 추가"로 시작하세요.</td></tr>
             )}
           </tbody>
           {rows.length > 0 && (
             <tfoot>
               <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                <td colSpan={7}>합계</td>
+                <td colSpan={5}>합계</td>
                 <td>{total}%</td>
-                <td></td>
-                <td>{cost.toLocaleString()}원</td>
                 <td colSpan={3}></td>
               </tr>
             </tfoot>

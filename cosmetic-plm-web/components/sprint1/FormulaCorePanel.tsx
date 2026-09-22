@@ -669,6 +669,7 @@ export default function FormulaCorePanel() {
         <DisclosureBomSection
           variant={s.inciBasis as DisclosureVariant}
           lines={s.inciBasis === "PUBLIC" ? s.publicLines : s.dryLines}
+          mixLines={s.lines}
           customized={s.inciBasis === "PUBLIC" ? s.publicCustomized : s.dryCustomized}
           loading={s.disclosureLoading}
           regulationRules={s.regulationRules}
