@@ -312,6 +312,28 @@ export function useSprint1FormulaCore() {
     getDisclosureSetter(variant)((prev) => (prev || []).filter((l) => l.line_no !== lineNo));
   }
 
+  // 공개처방(일반/건조) 화면의 "순번" 위/아래 이동 - 원처방 BOM 편집의 moveLinePhaseSeq()와 동일한
+  // 로직(같은 Phase 안에서만 이동, 이동 후 그룹 순서대로 1..N 재부여)을 독립 BOM 배열에 그대로 적용한다.
+  function moveDisclosureLinePhaseSeq(variant: DisclosureVariant, lineNo: number, direction: "up" | "down") {
+    getDisclosureSetter(variant)((prev) => {
+      const current = (prev || []).find((l) => l.line_no === lineNo);
+      if (!current) return prev;
+      const phase = current.phase || "A";
+      const group = sortLinesForDisplay((prev || []).filter((l) => (l.phase || "A") === phase) as Sprint1FormulaLine[]);
+      const idx = group.findIndex((l) => l.line_no === lineNo);
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= group.length) return prev;
+
+      const reordered = [...group];
+      const [moved] = reordered.splice(idx, 1);
+      reordered.splice(targetIdx, 0, moved);
+      const patches = new Map<number, number>();
+      reordered.forEach((l, i) => patches.set(l.line_no, i + 1));
+
+      return (prev || []).map((l) => (patches.has(l.line_no) ? { ...l, phase_seq: patches.get(l.line_no)! } : l));
+    });
+  }
+
   async function saveDisclosureBom(variant: DisclosureVariant): Promise<{ ok: boolean; message: string }> {
     if (!formula.formula_code || !formula.revision) {
       const msg = "처방을 먼저 여세요.";
@@ -1031,11 +1053,12 @@ export function useSprint1FormulaCore() {
     inciBasis, setInciBasis, dryInciError,
     waterLine, waterFillPercentage, applyWaterFillPercentage,
     rawHits, activeRawRow, rawSearchLoading, lineWarnings, latestRawDataMap, rawComponentsMap,
+    regulationRules,
     loadFormulas, openFormula, newFormula, saveFormula, createNewRevision, removeFormula,
     addLine, updateLine, removeLine, moveLinePhaseSeq, searchRawForLine, pickRawForLine,
     // 공개처방(일반)/공개처방(건조) 독립 BOM 편집
     publicLines, dryLines, publicCustomized, dryCustomized, disclosureLoading,
-    addDisclosureLine, updateDisclosureLine, removeDisclosureLine,
+    addDisclosureLine, updateDisclosureLine, removeDisclosureLine, moveDisclosureLinePhaseSeq,
     saveDisclosureBom, resetDisclosureBom, loadFormulaFromCode,
     rawUsageKeyword, rawUsageHits, rawUsageSearchLoading, rawUsageSelected, rawUsageComponents,
     rawUsagePercentage, setRawUsagePercentage, rawUsageResults, rawUsageSearching, rawUsageMessage,

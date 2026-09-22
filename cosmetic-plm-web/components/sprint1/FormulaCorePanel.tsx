@@ -671,9 +671,11 @@ export default function FormulaCorePanel() {
           lines={s.inciBasis === "PUBLIC" ? s.publicLines : s.dryLines}
           customized={s.inciBasis === "PUBLIC" ? s.publicCustomized : s.dryCustomized}
           loading={s.disclosureLoading}
+          regulationRules={s.regulationRules}
           onAddLine={() => s.addDisclosureLine(s.inciBasis as DisclosureVariant)}
           onUpdateLine={(lineNo, patch) => s.updateDisclosureLine(s.inciBasis as DisclosureVariant, lineNo, patch)}
           onRemoveLine={(lineNo) => s.removeDisclosureLine(s.inciBasis as DisclosureVariant, lineNo)}
+          onMoveLine={(lineNo, direction) => s.moveDisclosureLinePhaseSeq(s.inciBasis as DisclosureVariant, lineNo, direction)}
           onSave={() => handleSaveDisclosure(s.inciBasis as DisclosureVariant)}
           onReset={() => handleResetDisclosure(s.inciBasis as DisclosureVariant)}
           onOpenLoadModal={() => setShowLoadModal(true)}
