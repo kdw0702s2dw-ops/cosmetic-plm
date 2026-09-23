@@ -1,19 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DisclosureVariant, DisclosureLine } from "@/services/sprint2/formulaDisclosureService";
 import { VARIANT_LABEL } from "@/services/sprint2/formulaDisclosureService";
-import { sortLinesForDisplay, type Sprint1FormulaLine } from "@/services/sprint1/formulaCoreService";
+import { sortLinesForDisplay, fetchSprint1RawOptions, type Sprint1FormulaLine } from "@/services/sprint1/formulaCoreService";
 import { evaluateLineAgainstRules, type RegulationHit } from "@/services/sprint2/regulationEngineService";
 import { WATER_CAS_NO, fetchComponentsByRawCodes, byRawComponents } from "@/services/sprint2/documentPdfService";
+import SearchDropdown from "@/components/common/SearchDropdown";
+import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 
 // 공개처방(일반)/공개처방(건조) 전용 BOM 편집 - 원처방 BOM 편집(components/sprint1/FormulaCorePanel.tsx의
-// "BOM 편집" 섹션)과 화면 구성(컬럼/정렬/정제수 보정/합계 표시/전성분 표시)을 동일하게 맞춘다. 다만
-// 원료명 자동완성(검색 드롭다운)만은 v1 범위에서 제외한다 - 공개처방은 "처방 불러오기"로 시작 BOM을
-// 가져온 뒤 다듬는 용도라 원료 마스터 자동완성이 필수는 아니라고 판단했고, 단가/원가/MOQ/신규처럼
-// 원료 마스터에서만 의미가 있는 항목도 이 화면에서는 굳이 보여주지 않는다(요청에 따라 제외).
-// 대신 원처방 함량%를 나란히 보여줘서 "원처방과 얼마나 다르게 편집했는지" 참고용으로만 비교할 수 있게
-// 한다 - 이 값으로 문서를 만들거나 저장하는 건 아니고 화면에서 눈으로 비교하는 용도.
+// "BOM 편집" 섹션)과 화면 구성(컬럼/정렬/정제수 보정/합계 표시/전성분 표시)을 동일하게 맞춘다.
+// 원료코드 칸에 입력하면(코드/이름 둘 다로 검색) 원처방 BOM 편집과 동일하게 검색 결과가 뜨고, 선택하면
+// 원료명/INCI/CAS 등이 자동으로 채워진다(fetchSprint1RawOptions 재사용) - 예전에는 이 자동완성이 없어서
+// 원료코드만 입력하고 원료명을 못 채운 라인이 저장 시 조용히 빠지는 문제가 있었다(원료코드/원료명이
+// 둘 다 있어야만 저장되는 필터 때문). 물론 원료 마스터에 없는 코드를 직접 입력하는 것도 여전히 가능하다
+// (그 경우 원료명도 직접 입력해야 함 - formulaDisclosureService.saveDisclosureLines가 한쪽만 채워진
+// 라인은 저장을 막고 알려준다). 단가/원가/MOQ/신규처럼 원료 마스터에서만 의미가 있는 항목은 이 화면에서는
+// 굳이 보여주지 않는다(요청에 따라 제외). 대신 원처방 함량%를 나란히 보여줘서 "원처방과 얼마나 다르게
+// 편집했는지" 참고용으로만 비교할 수 있게 한다 - 이 값으로 문서를 만들거나 저장하는 건 아니고 화면에서
+// 눈으로 비교하는 용도.
 type Line = DisclosureLine;
 
 const STATUS_PRIORITY: Record<string, number> = { BANNED: 3, LIMITED: 2, REVIEW_REQUIRED: 1 };
@@ -70,6 +77,58 @@ export default function DisclosureBomSection({
   onReset: () => void;
   onOpenLoadModal: () => void;
 }) {
+  // 원료코드 검색 자동완성(원처방 BOM 편집의 searchRawForLine/pickRawForLine과 동일한 패턴) - 이 화면
+  // 안에서만 쓰는 로컬 상태라 PUBLIC/DRY 탭을 오갈 때 헷갈리지 않도록 variant가 바뀌면 초기화한다.
+  const [rawHits, setRawHits] = useState<any[]>([]);
+  const [activeRawRow, setActiveRawRow] = useState<number | null>(null);
+  const [rawSearchLoading, setRawSearchLoading] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const rawAnchorPos = useAnchorPosition(activeRawRow, () => (activeRawRow != null ? rawInputRefs.current[activeRawRow] : null), rawHits);
+
+  useEffect(() => {
+    setRawHits([]);
+    setActiveRawRow(null);
+    setRawSearchLoading(false);
+  }, [variant]);
+
+  function searchRawForLine(lineNo: number, value: string) {
+    onUpdateLine(lineNo, { raw_code: value });
+    setActiveRawRow(lineNo);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!value.trim()) {
+      setRawHits([]);
+      setRawSearchLoading(false);
+      return;
+    }
+    setRawSearchLoading(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        setRawHits(await fetchSprint1RawOptions(value.trim()));
+      } catch {
+        setRawHits([]);
+      } finally {
+        setRawSearchLoading(false);
+      }
+    }, 250);
+  }
+
+  function pickRawForLine(raw: any) {
+    if (activeRawRow == null) return;
+    onUpdateLine(activeRawRow, {
+      raw_code: raw.raw_code,
+      raw_name: raw.raw_name,
+      inci_kr: raw.inci_kr,
+      inci_en: raw.inci_en,
+      function_kr: raw.function_kr,
+      function_en: raw.function_en,
+      cas_no: raw.cas_no,
+      ec_no: raw.ec_no,
+    });
+    setRawHits([]);
+    setActiveRawRow(null);
+  }
+
   const rawRows = lines || [];
   // BOM 표시 순서를 원처방과 동일하게 Phase -> Phase 내 순번(phase_seq) 기준으로 정렬한다 - "처방
   // 불러오기"로 다른 처방을 불러왔을 때 순서가 뒤섞여 보이던 문제가 정렬을 안 하고 배열 순서 그대로
@@ -212,7 +271,29 @@ export default function DisclosureBomSection({
                   </td>
                   <td>
                     <input className="v50-input" style={{ width: 110 }} value={line.raw_code || ""}
-                      onChange={(e) => onUpdateLine(line.line_no, { raw_code: e.target.value })} />
+                      ref={(el) => { rawInputRefs.current[line.line_no] = el; }}
+                      placeholder="코드/원료명 검색"
+                      onChange={(e) => searchRawForLine(line.line_no, e.target.value)} />
+                    {activeRawRow === line.line_no && rawSearchLoading && (
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</div>
+                    )}
+                    {activeRawRow === line.line_no && rawHits.length > 0 && rawAnchorPos &&
+                      createPortal(
+                        <SearchDropdown
+                          hits={rawHits}
+                          onPick={pickRawForLine}
+                          pos={rawAnchorPos}
+                          keyExtractor={(raw: any) => raw.raw_code}
+                          renderItem={(raw: any) => (
+                            <div>
+                              <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: 12 }}>{raw.raw_code || "-"}</span>{" "}
+                              <b>{raw.raw_name}</b>{" "}
+                              <span style={{ color: "#64748b" }}>{raw.trade_name || raw.inci_en || raw.inci_kr || "-"}</span>
+                            </div>
+                          )}
+                        />,
+                        document.body
+                      )}
                   </td>
                   <td>
                     <input className="v50-input" value={line.raw_name || ""}

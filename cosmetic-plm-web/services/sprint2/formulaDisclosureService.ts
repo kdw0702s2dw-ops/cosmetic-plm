@@ -102,6 +102,18 @@ export async function saveDisclosureLines(
 ): Promise<DisclosureLine[]> {
   const table = VARIANT_TABLE[variant];
 
+  // 원료코드/원료명 둘 중 하나만 입력된 라인은(예: 코드만 입력하고 이름은 비워둔 채 저장) 그대로
+  // 저장을 진행하면 아래 filter에서 조용히 빠져버려서 "라인을 추가했는데 저장이 안 된다"처럼 보이는
+  // 문제가 있었다 - 완전히 빈 라인(둘 다 비어있음)만 조용히 제외하고, 한쪽만 채워진 라인은 삭제/insert를
+  // 진행하기 전에(=기존 데이터를 지우기 전에) 미리 막아서 사용자가 무엇을 고쳐야 하는지 알 수 있게 한다.
+  const incomplete = lines.filter((l) => !!(l.raw_code && l.raw_code.trim()) !== !!(l.raw_name && l.raw_name.trim()));
+  if (incomplete.length > 0) {
+    const lineNos = incomplete.map((l) => l.line_no).join(", ");
+    throw new Error(
+      `원료코드/원료명이 한쪽만 입력된 라인이 있어 저장할 수 없습니다 (No. ${lineNos}). 두 값을 모두 입력하거나 그 라인을 삭제한 뒤 다시 저장하세요.`
+    );
+  }
+
   const { error: delErr } = await supabaseProductionFinal
     .from(table)
     .delete()
