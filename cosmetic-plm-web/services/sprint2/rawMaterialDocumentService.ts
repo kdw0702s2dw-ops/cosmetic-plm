@@ -182,6 +182,7 @@ export interface RawMaterialDocumentStatusRow {
   id: string;
   raw_code: string;
   raw_name: string;
+  supplier: string | null;
   docs: Record<DocType, RawMaterialDocument | null>;
 }
 
@@ -196,12 +197,13 @@ function emptyDocsRecord(): Record<DocType, RawMaterialDocument | null> {
  * 원료관리 > 서류 현황 화면용: 활성 원료 전체 + 원료별 문서(COA/MSDS/Composition/Allergen Sheet/IFRA)
  * 업로드 여부를 한 번에 조회한다. 목록 화면(fetchRawMaterials)의 100건 제한과 달리, 서류 누락 점검이
  * 목적이라 활성 원료 전체를 대상으로 한다.
+ * v_plm_raw_material_list 뷰를 사용하는 이유: 공급사명을 업체관리(plm_companies)와 연동된 canonical
+ * 이름 기준으로 검색할 수 있게 하기 위함 (원본 plm_raw_materials.supplier는 연동 전 텍스트가 남아있을 수 있음).
  */
 export async function fetchRawMaterialDocumentStatus(): Promise<RawMaterialDocumentStatusRow[]> {
   const { data: materials, error: materialsError } = await supabaseProductionFinal
-    .from('plm_raw_materials')
-    .select('id, raw_code, raw_name')
-    .eq('is_active', true)
+    .from('v_plm_raw_material_list')
+    .select('id, raw_code, raw_name, supplier')
     .order('raw_code', { ascending: true });
   if (materialsError) {
     throw new Error(`원료 목록 조회 실패: ${materialsError.message}`);
@@ -227,6 +229,7 @@ export async function fetchRawMaterialDocumentStatus(): Promise<RawMaterialDocum
     id: m.id,
     raw_code: m.raw_code,
     raw_name: m.raw_name,
+    supplier: m.supplier ?? null,
     docs: docsByMaterial.get(m.id) ?? emptyDocsRecord(),
   }));
 }
