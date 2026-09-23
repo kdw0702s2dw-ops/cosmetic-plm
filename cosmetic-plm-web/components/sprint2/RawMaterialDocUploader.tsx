@@ -8,6 +8,7 @@ import {
   DOC_TYPE_LABEL,
   getRawMaterialDocuments,
   uploadRawMaterialDocument,
+  deleteRawMaterialDocument,
   getDocumentPublicUrl,
 } from '@/services/sprint2/rawMaterialDocumentService';
 
@@ -36,6 +37,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
   const [docs, setDocs] = useState<Record<DocType, RawMaterialDocument | null>>(emptyDocsState());
   const [loading, setLoading] = useState(true);
   const [uploadingType, setUploadingType] = useState<DocType | null>(null);
+  const [deletingType, setDeletingType] = useState<DocType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -82,6 +84,21 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
     }
   }
 
+  async function handleDelete(docType: DocType, doc: RawMaterialDocument) {
+    if (!confirm(`${DOC_TYPE_LABEL[docType]} 문서(${doc.file_name})를 삭제하시겠습니까?`)) return;
+
+    setDeletingType(docType);
+    setErrorMsg(null);
+    try {
+      await deleteRawMaterialDocument(rawMaterialId, docType, doc.storage_path);
+      await refresh();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : '삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingType(null);
+    }
+  }
+
   return (
     <div className="border rounded-md p-4 space-y-3">
       <h3 className="font-medium text-sm text-gray-700">업로드 문서</h3>
@@ -91,6 +108,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
       {DOC_TYPES.map((docType) => {
         const doc = docs[docType];
         const isUploading = uploadingType === docType;
+        const isDeleting = deletingType === docType;
 
         return (
           <div key={docType} className="flex items-center justify-between text-sm">
@@ -117,10 +135,20 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
                     <input
                       type="file"
                       className="hidden"
-                      disabled={isUploading}
+                      disabled={isUploading || isDeleting}
                       onChange={(e) => handleFileChange(docType, e)}
                     />
                   </label>
+                )}
+                {canWrite && (
+                  <button
+                    type="button"
+                    className="text-xs text-red-600 border border-red-200 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-50"
+                    disabled={isUploading || isDeleting}
+                    onClick={() => handleDelete(docType, doc)}
+                  >
+                    {isDeleting ? '삭제 중...' : '삭제'}
+                  </button>
                 )}
               </div>
             ) : canWrite ? (
