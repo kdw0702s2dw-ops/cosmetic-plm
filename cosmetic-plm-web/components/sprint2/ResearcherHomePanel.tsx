@@ -3,9 +3,10 @@
 import { useResearcherHome } from "@/hooks/useResearcherHome";
 import { useSourcingSchedule } from "@/hooks/useSourcingSchedule";
 import { useStabilityHome } from "@/hooks/useStabilityHome";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import "@/styles/enterprise-v50.css";
-import AIChatSection from "@/components/home/AIChatSection";
 import SourcingScheduleSection from "@/components/home/SourcingScheduleSection";
+import SystemUpdatesSection from "@/components/home/SystemUpdatesSection";
 
 export default function ResearcherHomePanel({
   openRaw,
@@ -18,6 +19,7 @@ export default function ResearcherHomePanel({
   openDocs: () => void;
   openQuality: () => void;
 }) {
+  const auth = useSprint1Auth();
   const h = useResearcherHome();
   const sourcing = useSourcingSchedule();
   // 안정성시험 지연/임박 알림 배너용 - 품질관리 홈과 동일한 훅을 재사용해 판정 로직이 어긋나지 않게 한다.
@@ -62,9 +64,9 @@ export default function ResearcherHomePanel({
         </div>
       </section>
 
-      {/* AI 업무 어시스턴트 - 최상단으로 이동 */}
+      {/* 시스템 업데이트 - 등록 후 2일간만 노출되고 자동으로 사라짐(SystemUpdatesSection 참고) */}
       <section style={{ marginBottom: 18 }}>
-        <AIChatSection />
+        <SystemUpdatesSection canWrite={auth.canManageUsers} createdBy={auth.profile?.email} />
       </section>
 
       {/* 개발/생산 일정관리 - 개발 착수 전 원료 소싱 진행 상황을 처방 단위로 칸반 추적 */}
