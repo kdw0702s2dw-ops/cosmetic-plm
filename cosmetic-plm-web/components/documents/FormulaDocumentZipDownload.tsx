@@ -8,6 +8,29 @@ import {
   getDocumentsForFormula,
   getDocumentPublicUrl,
 } from '@/services/sprint2/rawMaterialDocumentService';
+import { fetchFormulaLinesForPdf } from '@/services/sprint2/documentPdfService';
+
+// Windows/Mac 파일시스템에서 폴더/파일명에 쓸 수 없는 문자를 안전하게 치환
+function sanitizeFileSegment(name: string): string {
+  return (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || '_';
+}
+
+// 처방 BOM(plm_formula_lines)을 line_no 순으로 조회해 raw_code별 최초 등장 순서를 매긴다 -
+// 복합성분표(엑셀/PDF)의 "No." 컬럼과 동일한 로직(buildComplexGroupedRows가 raw_code 기준으로
+// 그룹핑할 때 lines 배열의 첫 등장 순서를 그대로 쓰는 것)을 재사용해서, zip 폴더 번호가 복합성분표의
+// No.와 항상 일치하도록 한다.
+async function fetchRawCodeOrderMap(formulaCode: string, revision: string): Promise<Map<string, number>> {
+  const lines = await fetchFormulaLinesForPdf(formulaCode, revision);
+  const map = new Map<string, number>();
+  let no = 0;
+  for (const line of lines) {
+    const code = (line as { raw_code?: string }).raw_code;
+    if (!code || map.has(code)) continue;
+    no += 1;
+    map.set(code, no);
+  }
+  return map;
+}
 
 interface Props {
   formulaCode: string;
@@ -115,14 +138,22 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
         return;
       }
 
+      // 복합성분표 No. 순서와 동일한 순번으로 원료별 폴더를 만들어서, 그 원료의 COA/MSDS를 해당
+      // 폴더 안에 넣는다(BOM에 없는 원료 등 순번을 못 찾은 경우는 "미분류" 폴더로 모은다).
+      const orderMap = await fetchRawCodeOrderMap(formulaCode, revision);
+      const padLen = String(Math.max(orderMap.size, 1)).length;
+
       await Promise.all(
         targets.map(async ({ row }) => {
           const url = getDocumentPublicUrl(row.storage_path!);
           const res = await fetch(url);
           if (!res.ok) throw new Error(`${row.file_name} 다운로드 실패`);
           const blob = await res.blob();
-          // 파일명 중복 방지를 위해 원료코드 접두어를 붙인다
-          zip.file(`${row.raw_code}_${row.file_name}`, blob);
+          const no = orderMap.get(row.raw_code);
+          const noLabel = no ? String(no).padStart(padLen, '0') : '미분류';
+          const folderName = sanitizeFileSegment(`${noLabel}_${row.raw_code}_${row.raw_name}`);
+          const fileName = sanitizeFileSegment(`${row.doc_type}_${row.file_name}`);
+          zip.folder(folderName)!.file(fileName, blob);
         })
       );
 
