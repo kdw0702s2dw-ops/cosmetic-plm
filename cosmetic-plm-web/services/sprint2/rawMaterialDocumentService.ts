@@ -12,6 +12,24 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   IFRA: 'IFRA',
 };
 
+// 향료 원료 판별: 원료코드가 "1FRA"로 시작하거나, "Z"로 시작하면서 "F"로 끝나면 향료다.
+// 향료만 실제로 Allergen Sheet/IFRA 서류가 발급되므로(일반 추출물 등 다른 원료는 이 두 서류 자체가
+// 없음), 서류 현황의 "누락" 판단은 원료가 향료인지 아닌지에 따라 필요한 서류 종류를 다르게 본다.
+export function isFragranceRawCode(rawCode: string): boolean {
+  const code = (rawCode || '').trim().toUpperCase();
+  if (!code) return false;
+  if (code.startsWith('1FRA')) return true;
+  if (code.startsWith('Z') && code.endsWith('F')) return true;
+  return false;
+}
+
+// 원료코드 기준으로 이 원료에 실제로 필요한 문서 종류만 반환한다.
+// 향료가 아니면 Allergen Sheet/IFRA는 제외 - 발급되지 않는 서류라 "누락"으로 집계하지 않기 위함.
+export function requiredDocTypesForRawCode(rawCode: string): DocType[] {
+  if (isFragranceRawCode(rawCode)) return ALL_DOC_TYPES;
+  return ALL_DOC_TYPES.filter((t) => t !== 'ALLERGEN_SHEET' && t !== 'IFRA');
+}
+
 export interface RawMaterialDocument {
   id: string;
   raw_material_id: string;

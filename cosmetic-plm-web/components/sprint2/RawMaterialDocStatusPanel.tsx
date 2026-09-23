@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   fetchRawMaterialDocumentStatus,
   getDocumentPublicUrl,
+  requiredDocTypesForRawCode,
   ALL_DOC_TYPES,
   DOC_TYPE_LABEL,
   type DocType,
@@ -17,13 +18,18 @@ interface Props {
 
 type FilterMode = "all" | "missing" | "complete";
 
+// 원료마다 필요한 서류가 달라서(향료만 Allergen Sheet/IFRA 발급), 그 원료에 실제로 필요한 서류
+// 중에서 없는 것만 "누락"으로 센다 - 필요 없는 서류는 비어 있어도 누락이 아니다.
 function missingCount(row: RawMaterialDocumentStatusRow) {
-  return ALL_DOC_TYPES.filter((t) => !row.docs[t]).length;
+  const required = requiredDocTypesForRawCode(row.raw_code);
+  return required.filter((t) => !row.docs[t]).length;
 }
 
 /**
  * 원료관리 > 서류 현황 - 활성 원료 전체를 대상으로 COA/MSDS/Composition/Allergen Sheet/IFRA
  * 업로드 여부를 한눈에 점검하는 화면. 목록 화면(원료 목록)과 달리 100건 제한 없이 전체를 보여준다.
+ * 향료 원료(1FRA*, Z...F)만 Allergen Sheet/IFRA를 기준에 포함하고, 그 외 원료는 COA/MSDS/Composition
+ * 3종만 기준으로 삼는다(requiredDocTypesForRawCode).
  */
 export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
   const [rows, setRows] = useState<RawMaterialDocumentStatusRow[]>([]);
@@ -63,6 +69,8 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
           <h2 style={{ margin: 0 }}>서류 현황</h2>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
             원료별 COA / MSDS / Composition / Allergen Sheet / IFRA 업로드 여부를 확인합니다. 코드·원료명을 클릭하면 해당 원료 편집 화면으로 이동합니다.
+            <br />
+            향료 원료(코드가 1FRA로 시작하거나, Z로 시작하면서 F로 끝나는 경우)만 Allergen Sheet/IFRA를 기준에 포함합니다 — 그 외 원료는 해당 두 서류가 없어도 누락으로 계산하지 않습니다(회색 <b>–</b>로 표시).
           </p>
         </div>
         <button className="v50-button-light" onClick={() => load()} disabled={loading}>
@@ -100,12 +108,14 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
           <tbody>
             {filtered.map((row) => {
               const missing = missingCount(row);
+              const required = new Set(requiredDocTypesForRawCode(row.raw_code));
               return (
                 <tr key={row.id}>
                   <td style={{ cursor: "pointer" }} onClick={() => onSelectMaterial(row.raw_code)}>{row.raw_code}</td>
                   <td style={{ cursor: "pointer" }} onClick={() => onSelectMaterial(row.raw_code)}>{row.raw_name}</td>
                   {ALL_DOC_TYPES.map((t: DocType) => {
                     const doc = row.docs[t];
+                    const isRequired = required.has(t);
                     return (
                       <td key={t} style={{ textAlign: "center" }}>
                         {doc ? (
@@ -118,8 +128,10 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
                           >
                             ✓
                           </a>
-                        ) : (
+                        ) : isRequired ? (
                           <span style={{ color: "#dc2626", fontWeight: 800 }} title="미보유">✗</span>
+                        ) : (
+                          <span style={{ color: "#cbd5e1", fontWeight: 700 }} title="이 원료에는 해당 서류가 필요하지 않습니다">–</span>
                         )}
                       </td>
                     );
