@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   DocType,
   RawMaterialDocument,
+  ALL_DOC_TYPES,
+  DOC_TYPE_LABEL,
   getRawMaterialDocuments,
   uploadRawMaterialDocument,
   getDocumentPublicUrl,
@@ -16,18 +18,22 @@ interface Props {
   canWrite?: boolean; // Admin/Researcher만 true — false면 업로드/교체 버튼을 숨기고 조회만 허용
 }
 
-const DOC_TYPES: DocType[] = ['COA', 'MSDS'];
+const DOC_TYPES: DocType[] = ALL_DOC_TYPES;
+
+function emptyDocsState(): Record<DocType, RawMaterialDocument | null> {
+  return DOC_TYPES.reduce(
+    (acc, t) => { acc[t] = null; return acc; },
+    {} as Record<DocType, RawMaterialDocument | null>
+  );
+}
 
 /**
- * 원료관리 상세/편집 화면에 배치하는 COA/MSDS 업로드 위젯.
+ * 원료관리 상세/편집 화면에 배치하는 문서 업로드 위젯 (COA/MSDS/Composition/Allergen Sheet/IFRA).
  * 원료당 doc_type별 최신 1건만 유지 (재업로드 시 자동 교체).
  * 조회(파일 링크)는 canWrite와 무관하게 항상 보이고, 업로드/교체 버튼만 canWrite일 때만 노출한다.
  */
 export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploadedBy, canWrite = false }: Props) {
-  const [docs, setDocs] = useState<Record<DocType, RawMaterialDocument | null>>({
-    COA: null,
-    MSDS: null,
-  });
+  const [docs, setDocs] = useState<Record<DocType, RawMaterialDocument | null>>(emptyDocsState());
   const [loading, setLoading] = useState(true);
   const [uploadingType, setUploadingType] = useState<DocType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -37,7 +43,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
     setErrorMsg(null);
     try {
       const list = await getRawMaterialDocuments(rawMaterialId);
-      const next: Record<DocType, RawMaterialDocument | null> = { COA: null, MSDS: null };
+      const next = emptyDocsState();
       for (const doc of list) {
         next[doc.doc_type] = doc;
       }
@@ -78,7 +84,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
 
   return (
     <div className="border rounded-md p-4 space-y-3">
-      <h3 className="font-medium text-sm text-gray-700">COA / MSDS</h3>
+      <h3 className="font-medium text-sm text-gray-700">업로드 문서</h3>
 
       {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
@@ -88,7 +94,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
 
         return (
           <div key={docType} className="flex items-center justify-between text-sm">
-            <span className="w-16 font-medium">{docType}</span>
+            <span className="w-28 shrink-0 font-medium">{DOC_TYPE_LABEL[docType]}</span>
 
             {loading ? (
               <span className="text-gray-400">불러오는 중...</span>

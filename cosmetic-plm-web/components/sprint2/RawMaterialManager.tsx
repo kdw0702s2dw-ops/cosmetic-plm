@@ -14,6 +14,7 @@ import {
 } from "@/services/sprint2/companyService";
 import { fetchCautionIngredients, type IngredientDictionaryItem } from "@/services/sprint2/ingredientDictionaryService";
 import RawMaterialDocUploader from "@/components/sprint2/RawMaterialDocUploader";
+import RawMaterialDocStatusPanel from "@/components/sprint2/RawMaterialDocStatusPanel";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
@@ -69,6 +70,8 @@ const emptyComp: Component = {
 export default function RawMaterialManager() {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteMaterials;
+  // "원료 목록"(목록+편집)과 "서류 현황"(문서 업로드 현황 점검) 두 화면을 탭으로 전환한다.
+  const [activeView, setActiveView] = useState<"list" | "docStatus">("list");
   const [keyword, setKeyword] = useState("");
   const [list, setList] = useState<RawMaterialListItem[]>([]);
   const [rm, setRm] = useState<RawMaterial>(emptyRm);
@@ -237,15 +240,17 @@ export default function RawMaterialManager() {
     setKeyword(item.raw_code);
     setSearchOpen(false);
     setSearchHits([]);
-    await selectRm(item);
+    await selectRm(item.raw_code);
     try { setList(await fetchRawMaterials(item.raw_code)); } catch { /* 목록 갱신 실패는 무시 */ }
   }
 
-  // 목록 뷰엔 편집에 필요한 필드(moq, cas_no 등)가 없어서, 선택 시 원본 테이블에서 단건 다시 조회
-  async function selectRm(item: RawMaterialListItem) {
+  // 목록 뷰엔 편집에 필요한 필드(moq, cas_no 등)가 없어서, 선택 시 원본 테이블에서 단건 다시 조회.
+  // raw_code 문자열만 받도록 해서, "원료 목록" 표뿐 아니라 "서류 현황" 화면에서 원료를 클릭했을 때도
+  // 그대로 재사용할 수 있다.
+  async function selectRm(rawCode: string) {
     setMsg("불러오는 중...");
     try {
-      const full = await fetchRawMaterialByCode(item.raw_code);
+      const full = await fetchRawMaterialByCode(rawCode);
       setRm(full);
       setComps(await fetchComponents(full.raw_code));
       setAutoDetectedRows(new Set());
@@ -253,6 +258,12 @@ export default function RawMaterialManager() {
     } catch (e: any) {
       setMsg("원료 조회 오류: " + e.message);
     }
+  }
+
+  // "서류 현황" 화면에서 원료를 클릭했을 때: "원료 목록" 화면으로 돌아가 해당 원료를 바로 편집 상태로 연다.
+  function selectFromDocStatus(rawCode: string) {
+    setActiveView("list");
+    selectRm(rawCode);
   }
 
   function newRm() {
@@ -430,13 +441,33 @@ export default function RawMaterialManager() {
           <h1 className="v50-title">원료 관리</h1>
           <p className="v50-desc">모든 원료의 INCI는 아래 구성성분 표에서 입력합니다 (단일 성분이면 행 1개만 등록). INCI 국문 입력 시 CAS·EC가 자동완성됩니다.</p>
         </div>
-        {canWrite && <button className="v50-button" onClick={newRm}>+ 새 원료</button>}
+        {activeView === "list" && canWrite && <button className="v50-button" onClick={newRm}>+ 새 원료</button>}
       </section>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
 
+      {/* 원료 목록 / 서류 현황 탭 전환 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <button
+          className={activeView === "list" ? "v50-button" : "v50-button-light"}
+          onClick={() => setActiveView("list")}
+        >
+          원료 목록
+        </button>
+        <button
+          className={activeView === "docStatus" ? "v50-button" : "v50-button-light"}
+          onClick={() => setActiveView("docStatus")}
+        >
+          서류 현황
+        </button>
+      </div>
+
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 
+      {activeView === "docStatus" && <RawMaterialDocStatusPanel onSelectMaterial={selectFromDocStatus} />}
+
+      {activeView === "list" && (
+      <>
       {/* 원료 목록 - 전체 폭 */}
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -469,29 +500,29 @@ export default function RawMaterialManager() {
             <tbody>
               {list.map((r) => (
                 <tr key={r.raw_code} style={{ background: rm.raw_code === r.raw_code ? "#eff6ff" : undefined }}>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.raw_code}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r.raw_code)}>{r.raw_code}</td>
                   <td
                     style={{ cursor: "pointer", color: r.is_caution ? "#dc2626" : undefined, fontWeight: r.is_caution ? 700 : undefined }}
-                    onClick={() => selectRm(r)}
+                    onClick={() => selectRm(r.raw_code)}
                     title={r.is_caution ? (r.caution_note || "주의 원료") : undefined}
                   >
                     {r.raw_name}{r.is_caution && " ⚠"}
                   </td>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.inci_display}</td>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>{r.manufacturer || "-"}</td>
-                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r)}>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r.raw_code)}>{r.inci_display}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r.raw_code)}>{r.manufacturer || "-"}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => selectRm(r.raw_code)}>
                     {r.unit_price != null ? `${Number(r.unit_price).toLocaleString()}${r.currency ? " " + r.currency : ""}` : "-"}
                   </td>
                   <td
                     style={{ cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                    onClick={() => selectRm(r)}
+                    onClick={() => selectRm(r.raw_code)}
                     title={r.note || undefined}
                   >
                     {r.note || "-"}
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button className="v50-button-light" onClick={() => selectRm(r)}>{canWrite ? "수정" : "보기"}</button>
+                      <button className="v50-button-light" onClick={() => selectRm(r.raw_code)}>{canWrite ? "수정" : "보기"}</button>
                       {canWrite && <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r)}>삭제</button>}
                     </div>
                   </td>
@@ -692,6 +723,8 @@ export default function RawMaterialManager() {
           </div>
         )}
       </section>
+      </>
+      )}
     </div>
   );
 }

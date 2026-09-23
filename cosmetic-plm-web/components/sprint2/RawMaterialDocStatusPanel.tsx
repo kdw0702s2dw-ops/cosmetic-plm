@@ -1,0 +1,144 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import {
+  fetchRawMaterialDocumentStatus,
+  getDocumentPublicUrl,
+  ALL_DOC_TYPES,
+  DOC_TYPE_LABEL,
+  type DocType,
+  type RawMaterialDocumentStatusRow,
+} from "@/services/sprint2/rawMaterialDocumentService";
+
+interface Props {
+  // 이 화면에서 특정 원료를 클릭했을 때 "원료 목록" 화면으로 돌아가 해당 원료 편집으로 이동시키기 위한 콜백.
+  onSelectMaterial: (rawCode: string) => void;
+}
+
+type FilterMode = "all" | "missing" | "complete";
+
+function missingCount(row: RawMaterialDocumentStatusRow) {
+  return ALL_DOC_TYPES.filter((t) => !row.docs[t]).length;
+}
+
+/**
+ * 원료관리 > 서류 현황 - 활성 원료 전체를 대상으로 COA/MSDS/Composition/Allergen Sheet/IFRA
+ * 업로드 여부를 한눈에 점검하는 화면. 목록 화면(원료 목록)과 달리 100건 제한 없이 전체를 보여준다.
+ */
+export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
+  const [rows, setRows] = useState<RawMaterialDocumentStatusRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [filter, setFilter] = useState<FilterMode>("all");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      setRows(await fetchRawMaterialDocumentStatus());
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "서류 현황 조회 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const kw = keyword.trim().toLowerCase();
+  const totalMissing = rows.filter((r) => missingCount(r) > 0).length;
+  const filtered = rows.filter((r) => {
+    if (kw && !r.raw_code.toLowerCase().includes(kw) && !r.raw_name.toLowerCase().includes(kw)) return false;
+    const missing = missingCount(r);
+    if (filter === "missing" && missing === 0) return false;
+    if (filter === "complete" && missing > 0) return false;
+    return true;
+  });
+
+  return (
+    <section className="v50-panel">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>서류 현황</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
+            원료별 COA / MSDS / Composition / Allergen Sheet / IFRA 업로드 여부를 확인합니다. 코드·원료명을 클릭하면 해당 원료 편집 화면으로 이동합니다.
+          </p>
+        </div>
+        <button className="v50-button-light" onClick={() => load()} disabled={loading}>
+          {loading ? "새로고침 중…" : "새로고침"}
+        </button>
+      </div>
+
+      {errorMsg && <p style={{ color: "#dc2626", fontWeight: 800 }}>{errorMsg}</p>}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "12px 0" }}>
+        <input
+          className="v50-input"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="코드/원료명 검색"
+          style={{ flex: 1, minWidth: 180, maxWidth: 320 }}
+        />
+        <select className="v50-input" style={{ width: 200 }} value={filter} onChange={(e) => setFilter(e.target.value as FilterMode)}>
+          <option value="all">전체 ({rows.length})</option>
+          <option value="missing">서류 누락 있음 ({totalMissing})</option>
+          <option value="complete">서류 전체 보유 ({rows.length - totalMissing})</option>
+        </select>
+      </div>
+
+      <div className="v50-table-wrap" style={{ maxHeight: 520, overflow: "auto" }}>
+        <table className="v50-table">
+          <thead>
+            <tr>
+              <th>코드</th>
+              <th>원료명</th>
+              {ALL_DOC_TYPES.map((t) => <th key={t} style={{ textAlign: "center" }}>{DOC_TYPE_LABEL[t]}</th>)}
+              <th style={{ textAlign: "center" }}>상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row) => {
+              const missing = missingCount(row);
+              return (
+                <tr key={row.id}>
+                  <td style={{ cursor: "pointer" }} onClick={() => onSelectMaterial(row.raw_code)}>{row.raw_code}</td>
+                  <td style={{ cursor: "pointer" }} onClick={() => onSelectMaterial(row.raw_code)}>{row.raw_name}</td>
+                  {ALL_DOC_TYPES.map((t: DocType) => {
+                    const doc = row.docs[t];
+                    return (
+                      <td key={t} style={{ textAlign: "center" }}>
+                        {doc ? (
+                          <a
+                            href={getDocumentPublicUrl(doc.storage_path)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`${doc.file_name} · ${new Date(doc.uploaded_at).toLocaleDateString("ko-KR")}`}
+                            style={{ color: "#16a34a", fontWeight: 800, textDecoration: "none" }}
+                          >
+                            ✓
+                          </a>
+                        ) : (
+                          <span style={{ color: "#dc2626", fontWeight: 800 }} title="미보유">✗</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td style={{ textAlign: "center", color: missing > 0 ? "#dc2626" : "#16a34a", fontWeight: 800 }}>
+                    {missing > 0 ? `누락 ${missing}건` : "완료"}
+                  </td>
+                </tr>
+              );
+            })}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={ALL_DOC_TYPES.length + 3} style={{ color: "#94a3b8" }}>조건에 맞는 원료가 없습니다.</td></tr>
+            )}
+            {loading && rows.length === 0 && (
+              <tr><td colSpan={ALL_DOC_TYPES.length + 3} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

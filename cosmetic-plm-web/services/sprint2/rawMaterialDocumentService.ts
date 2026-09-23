@@ -1,6 +1,16 @@
 import { supabaseProductionFinal } from '@/lib/supabaseProductionFinalClient';
 
-export type DocType = 'COA' | 'MSDS';
+export type DocType = 'COA' | 'MSDS' | 'COMPOSITION' | 'ALLERGEN_SHEET' | 'IFRA';
+
+export const ALL_DOC_TYPES: DocType[] = ['COA', 'MSDS', 'COMPOSITION', 'ALLERGEN_SHEET', 'IFRA'];
+
+export const DOC_TYPE_LABEL: Record<DocType, string> = {
+  COA: 'COA',
+  MSDS: 'MSDS',
+  COMPOSITION: 'Composition',
+  ALLERGEN_SHEET: 'Allergen Sheet',
+  IFRA: 'IFRA',
+};
 
 export interface RawMaterialDocument {
   id: string;
@@ -36,7 +46,8 @@ export function getDocumentPublicUrl(storagePath: string): string {
 }
 
 /**
- * COA 또는 MSDS 업로드 (원료당 doc_type별 최신 1건 — 같은 경로에 덮어쓰기 + DB upsert)
+ * 원료 문서 업로드 (COA/MSDS/Composition/Allergen Sheet/IFRA — 원료당 doc_type별 최신 1건, 같은
+ * 경로에 덮어쓰기 + DB upsert)
  */
 export async function uploadRawMaterialDocument(params: {
   rawMaterialId: string;
@@ -147,4 +158,57 @@ export async function getDocumentsForFormula(
   }
 
   return (data ?? []) as FormulaRawMaterialDocumentRow[];
+}
+
+export interface RawMaterialDocumentStatusRow {
+  id: string;
+  raw_code: string;
+  raw_name: string;
+  docs: Record<DocType, RawMaterialDocument | null>;
+}
+
+function emptyDocsRecord(): Record<DocType, RawMaterialDocument | null> {
+  return ALL_DOC_TYPES.reduce(
+    (acc, t) => { acc[t] = null; return acc; },
+    {} as Record<DocType, RawMaterialDocument | null>
+  );
+}
+
+/**
+ * 원료관리 > 서류 현황 화면용: 활성 원료 전체 + 원료별 문서(COA/MSDS/Composition/Allergen Sheet/IFRA)
+ * 업로드 여부를 한 번에 조회한다. 목록 화면(fetchRawMaterials)의 100건 제한과 달리, 서류 누락 점검이
+ * 목적이라 활성 원료 전체를 대상으로 한다.
+ */
+export async function fetchRawMaterialDocumentStatus(): Promise<RawMaterialDocumentStatusRow[]> {
+  const { data: materials, error: materialsError } = await supabaseProductionFinal
+    .from('plm_raw_materials')
+    .select('id, raw_code, raw_name')
+    .eq('is_active', true)
+    .order('raw_code', { ascending: true });
+  if (materialsError) {
+    throw new Error(`원료 목록 조회 실패: ${materialsError.message}`);
+  }
+
+  const { data: docs, error: docsError } = await supabaseProductionFinal
+    .from('plm_raw_material_documents')
+    .select('*');
+  if (docsError) {
+    throw new Error(`문서 목록 조회 실패: ${docsError.message}`);
+  }
+
+  const docsByMaterial = new Map<string, Record<DocType, RawMaterialDocument | null>>();
+  for (const m of materials ?? []) {
+    docsByMaterial.set(m.id, emptyDocsRecord());
+  }
+  for (const d of (docs ?? []) as RawMaterialDocument[]) {
+    const bucket = docsByMaterial.get(d.raw_material_id);
+    if (bucket) bucket[d.doc_type] = d;
+  }
+
+  return (materials ?? []).map((m) => ({
+    id: m.id,
+    raw_code: m.raw_code,
+    raw_name: m.raw_name,
+    docs: docsByMaterial.get(m.id) ?? emptyDocsRecord(),
+  }));
 }
