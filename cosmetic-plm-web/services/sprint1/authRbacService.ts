@@ -128,6 +128,12 @@ export function isProductionRole(role?: string | null) {
   return role === "Production";
 }
 
+// 생산관리(생산일정관리/출고관리 등): Production 역할도 읽기/쓰기 모두 가능해야 하므로 QA/Viewer는
+// 제외하고 Admin/Researcher/Production만 (plm_production_records, plm_shipment_records RLS와 동일한 기준)
+export function canWriteProduction(role?: string | null) {
+  return role === "Admin" || role === "Researcher" || role === "Production";
+}
+
 // 품질관리(안정성시험): QA도 시험 등록/결과 입력이 가능해야 하므로 Admin/Researcher 외에 QA도 포함
 // (canWriteFormula/canWriteMaterials와 달리 QA를 포함하는 별도 함수 - plm_stability_* 테이블 RLS와 동일한 기준)
 export function canWriteQuality(role?: string | null) {

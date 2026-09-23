@@ -8,6 +8,7 @@ import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
 import ProductionRecordPanel from "@/components/sprint2/ProductionRecordPanel";
 import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
+import ShipmentManagementPanel from "@/components/sprint2/ShipmentManagementPanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
@@ -17,6 +18,12 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     label: "생산일정관리",
     description: "처방별 칭량·제조·도포·타공·포장·출고 일정을 달력으로 등록하고 관리합니다.",
     render: () => <ProductionSchedulePanel />,
+  },
+  {
+    key: "shipment",
+    label: "출고관리",
+    description: "출고일·고객사·수량·제품코드·제품명·LOT(EXP)·기능성·중금속/미생물 검사 진행상태를 직접 입력해서 관리합니다.",
+    render: () => <ShipmentManagementPanel />,
   },
   {
     key: "insolubleHg",
