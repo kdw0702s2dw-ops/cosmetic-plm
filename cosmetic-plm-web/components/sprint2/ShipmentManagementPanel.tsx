@@ -136,7 +136,7 @@ export default function ShipmentManagementPanel() {
               <input className="v50-input" value={draft.product_name || ""} onChange={(e) => setDraft({ ...draft, product_name: e.target.value })} />
             </Field>
             <Field label="LOT (EXP)">
-              <input className="v50-input" value={draft.lot_exp || ""} onChange={(e) => setDraft({ ...draft, lot_exp: e.target.value })} placeholder="예: LOT2609A (EXP 2028-09)" />
+              <input className="v50-input" value={draft.lot_exp || ""} onChange={(e) => setDraft({ ...draft, lot_exp: e.target.value })} />
             </Field>
             <Field label="기능성">
               <select className="v50-input" value={draft.functional_claim} onChange={(e) => setDraft({ ...draft, functional_claim: e.target.value as ShipmentRecordInput["functional_claim"] })}>
@@ -175,11 +175,21 @@ export default function ShipmentManagementPanel() {
           />
         </div>
         <div className="v50-table-wrap" style={{ maxHeight: 560, overflow: "auto" }}>
-          <table className="v50-table">
+          {/* 컬럼이 많고 제품명·LOT(EXP)처럼 긴 값이 들어가는 칸도 있어서, 표 자체가 화면보다 넓어질 수
+              있다 - v50-table-wrap의 가로 스크롤로 보고, 각 칸은 min-width를 줘서 값이 잘려 보이지
+              않게 한다(원료관리 등 다른 화면과 동일하게 폭이 좁아지면 스크롤로 해결). */}
+          <table className="v50-table" style={{ minWidth: 1360 }}>
             <thead>
               <tr>
-                <th>출고일</th><th>고객사</th><th>수량</th><th>제품코드</th><th>제품명</th><th>LOT (EXP)</th>
-                <th>기능성</th><th>중금속</th><th>미생물</th>
+                <th style={{ minWidth: 130 }}>출고일</th>
+                <th style={{ minWidth: 150 }}>고객사</th>
+                <th style={{ minWidth: 90 }}>수량</th>
+                <th style={{ minWidth: 130 }}>제품코드</th>
+                <th style={{ minWidth: 260 }}>제품명</th>
+                <th style={{ minWidth: 220 }}>LOT (EXP)</th>
+                <th style={{ minWidth: 140 }}>기능성</th>
+                <th style={{ minWidth: 110 }}>중금속</th>
+                <th style={{ minWidth: 110 }}>미생물</th>
                 {canWrite && <th style={{ width: 70 }}>삭제</th>}
               </tr>
             </thead>
@@ -190,14 +200,14 @@ export default function ShipmentManagementPanel() {
                   <tr key={r.id} style={isSaving ? { opacity: 0.6 } : undefined}>
                     <td>
                       {canWrite ? (
-                        <input className="v50-input" type="date" value={r.shipment_date || ""}
+                        <input className="v50-input" style={{ minWidth: 130 }} type="date" value={r.shipment_date || ""}
                           onChange={(e) => editCell(r.id, { shipment_date: e.target.value || null })}
                           onBlur={(e) => persistCell(r.id, { shipment_date: e.target.value || null })} />
                       ) : (r.shipment_date || "-")}
                     </td>
                     <td>
                       {canWrite ? (
-                        <input className="v50-input" value={r.customer || ""}
+                        <input className="v50-input" style={{ minWidth: 150 }} value={r.customer || ""}
                           onChange={(e) => editCell(r.id, { customer: e.target.value })}
                           onBlur={(e) => persistCell(r.id, { customer: e.target.value })} />
                       ) : (r.customer || "-")}
@@ -211,28 +221,30 @@ export default function ShipmentManagementPanel() {
                     </td>
                     <td>
                       {canWrite ? (
-                        <input className="v50-input" value={r.product_code || ""}
+                        <input className="v50-input" style={{ minWidth: 130 }} value={r.product_code || ""}
                           onChange={(e) => editCell(r.id, { product_code: e.target.value })}
                           onBlur={(e) => persistCell(r.id, { product_code: e.target.value })} />
                       ) : (r.product_code || "-")}
                     </td>
                     <td>
                       {canWrite ? (
-                        <input className="v50-input" value={r.product_name || ""}
+                        <input className="v50-input" style={{ minWidth: 260 }} value={r.product_name || ""}
                           onChange={(e) => editCell(r.id, { product_name: e.target.value })}
                           onBlur={(e) => persistCell(r.id, { product_name: e.target.value })} />
-                      ) : (r.product_name || "-")}
+                      ) : (
+                        <span style={{ display: "inline-block", minWidth: 260, whiteSpace: "normal", wordBreak: "break-word" }}>{r.product_name || "-"}</span>
+                      )}
                     </td>
                     <td>
                       {canWrite ? (
-                        <input className="v50-input" value={r.lot_exp || ""}
+                        <input className="v50-input" style={{ minWidth: 220 }} value={r.lot_exp || ""}
                           onChange={(e) => editCell(r.id, { lot_exp: e.target.value })}
                           onBlur={(e) => persistCell(r.id, { lot_exp: e.target.value })} />
                       ) : (r.lot_exp || "-")}
                     </td>
                     <td>
                       {canWrite ? (
-                        <select className="v50-input" value={r.functional_claim}
+                        <select className="v50-input" style={{ minWidth: 140 }} value={r.functional_claim}
                           onChange={(e) => { const v = e.target.value as ShipmentRecord["functional_claim"]; editCell(r.id, { functional_claim: v }); persistCell(r.id, { functional_claim: v }); }}>
                           {FUNCTIONAL_CLAIM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
@@ -240,7 +252,7 @@ export default function ShipmentManagementPanel() {
                     </td>
                     <td>
                       {canWrite ? (
-                        <select className="v50-input" value={r.heavy_metal_status}
+                        <select className="v50-input" style={{ minWidth: 110 }} value={r.heavy_metal_status}
                           onChange={(e) => { const v = e.target.value as ShipmentRecord["heavy_metal_status"]; editCell(r.id, { heavy_metal_status: v }); persistCell(r.id, { heavy_metal_status: v }); }}>
                           {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
@@ -248,7 +260,7 @@ export default function ShipmentManagementPanel() {
                     </td>
                     <td>
                       {canWrite ? (
-                        <select className="v50-input" value={r.microbial_status}
+                        <select className="v50-input" style={{ minWidth: 110 }} value={r.microbial_status}
                           onChange={(e) => { const v = e.target.value as ShipmentRecord["microbial_status"]; editCell(r.id, { microbial_status: v }); persistCell(r.id, { microbial_status: v }); }}>
                           {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
