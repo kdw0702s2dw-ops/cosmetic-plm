@@ -13,12 +13,17 @@ export type DocKind =
   | "RAW_MATERIAL_ORDER_SHEET";
 
 export async function fetchDocumentFormulas(keyword = "") {
+  // 활성 처방이 100건을 넘어가면(2026-09 기준 150건대) 검색어 없이 볼 때 최근 100건 밖의 처방은
+  // 아무리 새로고침해도 안 보이는 문제가 있었다 - 검색으로 찾을 수 있는 것과 별개로, 목록을 그냥
+  // 훑어보거나 방금 수정한 처방이 우연히 이 범위 밖에 있으면 "새로고침해도 반응이 없다"처럼 보인다.
+  // 당장의 데이터 규모보다 여유 있게 300으로 올려서 재발을 늦춘다(근본적으로는 무제한 조회가 맞지만
+  // 이 화면 특성상 검색어 입력이 기본 사용 패턴이라 과도한 엔지니어링은 피함).
   let q = supabaseProductionFinal
     .from("plm_formulas")
     .select("*")
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(300);
 
   if (keyword.trim()) {
     const k = keyword.trim();
@@ -57,31 +62,52 @@ export async function fetchComponentsByRawCodes(rawCodes: string[]) {
   return data || [];
 }
 
-export async function fetchPdfDocuments() {
-  const { data, error } = await supabaseProductionFinal
+// formulaCodes를 넘기면 그 처방들의 문서만 조회한다(문서관리 PDF 화면이 항상 이렇게 부름 - 화면에 보이는
+// 처방 범위로 좁혀서, 시스템 전체 문서 수가 아무리 늘어나도 "내가 보고 있는 처방의 문서 상태"는 항상
+// 정확하게 조회되도록 하기 위함). formulaCodes를 안 넘기면(다른 화면에서 재사용할 가능성 대비) 예전처럼
+// 전체 문서를 조회하되, 그 경우에도 아래 fallbackLimit로 최소한의 안전판을 둔다.
+//
+// 정렬을 created_at(최초 생성일)이 아니라 updated_at(마지막 재생성일) 기준으로 바꾼 것도 중요한 수정이다 -
+// 예전 정렬(created_at desc + limit)에서는 오래전에 만든 문서를 "재생성"해도(재생성은 새 row를 만들지
+// 않고 기존 row를 update만 함 - created_at 불변) created_at 기준 정렬에서는 여전히 옛날 자리에 머물러
+// 있어서, 조회 범위 밖이면 방금 재생성했는데도 "미생성"으로 보이고 새로고침을 아무리 눌러도 안 바뀌는
+// 문제가 있었다. updated_at 기준으로 바꾸면 방금 만들었거나 재생성한 문서가 항상 맨 앞으로 온다.
+const PDF_DOCUMENT_TYPES = [
+  "FORMULA_SHEET_PDF",
+  "INCI_LIST",
+  "COMPLEX_COMPONENT_TABLE",
+  "SINGLE_COMPONENT_TABLE",
+  "RAW_MATERIAL_ORDER_SHEET",
+];
+
+export async function fetchPdfDocuments(formulaCodes?: string[]) {
+  let q = supabaseProductionFinal
     .from("plm_documents")
     .select("*")
-    .in("document_type", [
-      "FORMULA_SHEET_PDF",
-      "INCI_LIST",
-      "COMPLEX_COMPONENT_TABLE",
-      "SINGLE_COMPONENT_TABLE",
-      "RAW_MATERIAL_ORDER_SHEET",
-    ])
-    .order("created_at", { ascending: false })
-    .limit(150);
+    .in("document_type", PDF_DOCUMENT_TYPES)
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (formulaCodes && formulaCodes.length > 0) {
+    q = q.in("formula_code", formulaCodes);
+  } else {
+    const fallbackLimit = 400;
+    q = q.limit(fallbackLimit);
+  }
+
+  const { data, error } = await q;
 
   if (error) throw error;
   const docs = data || [];
 
   // plm_documents -> plm_formulas FK가 없어서 formula_code로 별도 조회 후 바이어(customer)/처방명을 붙여줌
-  const formulaCodes = Array.from(new Set(docs.map((d) => d.formula_code).filter(Boolean)));
+  const docFormulaCodes = Array.from(new Set(docs.map((d) => d.formula_code).filter(Boolean)));
   const metaByKey = new Map<string, { customer: string; formula_name: string }>();
-  if (formulaCodes.length > 0) {
+  if (docFormulaCodes.length > 0) {
     const { data: formulas, error: formulaError } = await supabaseProductionFinal
       .from("plm_formulas")
       .select("formula_code, revision, customer, formula_name")
-      .in("formula_code", formulaCodes);
+      .in("formula_code", docFormulaCodes);
     if (formulaError) throw formulaError;
     for (const f of formulas || []) {
       metaByKey.set(`${f.formula_code}|${f.revision}`, {

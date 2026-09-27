@@ -79,7 +79,13 @@ export function useSprint2DocumentPdf() {
   async function load() {
     setLoading(true);
     try {
-      const [f, d] = await Promise.all([fetchDocumentFormulas(keyword), fetchPdfDocuments()]);
+      // 문서 조회를 처방 조회 뒤로 순차 실행(예전엔 Promise.all로 동시 조회) - 지금 화면에 뜬 처방
+      // 범위(formula_code)로 문서 조회를 좁히기 위함이다. 전체 문서 수가 시스템 전체적으로 아무리
+      // 많아져도, 화면에 보이는 처방들의 문서 상태(생성됨/미생성)는 항상 정확하게 조회된다 -
+      // fetchPdfDocuments의 주석 참고.
+      const f = await fetchDocumentFormulas(keyword);
+      const formulaCodes = Array.from(new Set(f.map((x: any) => x.formula_code).filter(Boolean)));
+      const d = await fetchPdfDocuments(formulaCodes);
       setFormulas(f);
       setDocuments(d);
       setMessage(`처방 ${f.length}건 / 문서 ${d.length}건 조회 완료`);
