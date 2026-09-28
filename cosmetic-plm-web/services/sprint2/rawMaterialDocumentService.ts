@@ -178,6 +178,30 @@ export async function getDocumentsForFormula(
   return (data ?? []) as FormulaRawMaterialDocumentRow[];
 }
 
+/**
+ * raw_code 목록에 대한 공급사 조회. fetchRawMaterialDocumentStatus와 동일하게 v_plm_raw_material_list
+ * 뷰를 사용한다 - 업체관리(plm_companies)와 연동된 canonical 공급사명을 얻기 위함(원본
+ * plm_raw_materials.supplier는 연동 전 텍스트가 남아있을 수 있음). 문서관리 화면에서 "자료가 없는
+ * 원료를 공급사 단위로 묶어서 한 번에 요청"할 수 있도록 원료명 옆에 공급사를 표시하는 데 쓰인다.
+ */
+export async function fetchSupplierMapByRawCode(rawCodes: string[]): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>();
+  const uniqueCodes = Array.from(new Set(rawCodes.filter(Boolean)));
+  if (uniqueCodes.length === 0) return map;
+
+  const { data, error } = await supabaseProductionFinal
+    .from('v_plm_raw_material_list')
+    .select('raw_code, supplier')
+    .in('raw_code', uniqueCodes);
+  if (error) {
+    throw new Error(`공급사 조회 실패: ${error.message}`);
+  }
+  for (const row of (data ?? []) as { raw_code: string; supplier: string | null }[]) {
+    map.set(row.raw_code, row.supplier ?? null);
+  }
+  return map;
+}
+
 export interface RawMaterialDocumentStatusRow {
   id: string;
   raw_code: string;

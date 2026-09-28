@@ -11,6 +11,7 @@ import {
   FormulaRawMaterialDocumentRow,
   getDocumentsForFormula,
   getDocumentPublicUrl,
+  fetchSupplierMapByRawCode,
 } from '@/services/sprint2/rawMaterialDocumentService';
 import { fetchFormulaLinesForPdf } from '@/services/sprint2/documentPdfService';
 
@@ -45,6 +46,7 @@ interface RowGroup {
   rawMaterialId: string;
   rawCode: string;
   rawName: string;
+  supplier: string | null;
   docs: Record<DocType, FormulaRawMaterialDocumentRow | null>;
 }
 
@@ -65,6 +67,7 @@ function docKey(rawMaterialId: string, docType: DocType) {
  */
 export default function FormulaDocumentZipDownload({ formulaCode, revision }: Props) {
   const [rows, setRows] = useState<FormulaRawMaterialDocumentRow[]>([]);
+  const [supplierByRawCode, setSupplierByRawCode] = useState<Map<string, string | null>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set()); // key: `${raw_material_id}:${doc_type}`
   const [zipping, setZipping] = useState(false);
@@ -77,6 +80,16 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
     try {
       const data = await getDocumentsForFormula(formulaCode, revision);
       setRows(data);
+      // 자료 없는 원료를 공급사 단위로 묶어 한 번에 요청할 수 있도록, 원료관리에 등록된 공급사 정보를
+      // 함께 조회한다(원료명 옆에 표시). 서류 조회 자체가 실패한 게 아니므로 이 조회가 실패해도
+      // 화면 전체 에러로 띄우지 않고 조용히 빈 값으로 둔다.
+      try {
+        const rawCodes = Array.from(new Set(data.map((r) => r.raw_code)));
+        const supplierMap = await fetchSupplierMapByRawCode(rawCodes);
+        setSupplierByRawCode(supplierMap);
+      } catch {
+        setSupplierByRawCode(new Map());
+      }
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : '문서 조회 중 오류가 발생했습니다.');
     } finally {
@@ -98,6 +111,7 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
           rawMaterialId: r.raw_material_id,
           rawCode: r.raw_code,
           rawName: r.raw_name,
+          supplier: supplierByRawCode.get(r.raw_code) ?? null,
           docs: emptyDocsMap(),
         });
       }
@@ -105,7 +119,7 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
       if (r.doc_type) group.docs[r.doc_type] = r;
     }
     return Array.from(map.values());
-  }, [rows]);
+  }, [rows, supplierByRawCode]);
 
   // 원료마다 실제로 필요한 서류(향료가 아니면 Allergen Sheet/IFRA는 제외)만 "미보유"로 집계한다 -
   // 원료관리 서류 현황과 동일한 기준.
@@ -235,7 +249,7 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
       {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse" style={{ minWidth: 760 }}>
+        <table className="w-full text-sm border-collapse" style={{ minWidth: 880 }}>
           <thead>
             <tr className="border-b text-left text-gray-500">
               <th className="py-2 pr-2">
@@ -243,6 +257,7 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
               </th>
               <th className="py-2 pr-2" style={{ minWidth: 110 }}>원료코드</th>
               <th className="py-2 pr-2" style={{ minWidth: 160 }}>원료명</th>
+              <th className="py-2 pr-2" style={{ minWidth: 120 }}>공급사</th>
               {ALL_DOC_TYPES.map((t) => (
                 <th key={t} className="py-2 pr-2" style={{ minWidth: 110 }}>
                   <label className="inline-flex items-center gap-1 cursor-pointer">
@@ -265,6 +280,7 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision }: Pr
                   </td>
                   <td className="py-2 pr-2">{g.rawCode}</td>
                   <td className="py-2 pr-2">{g.rawName}</td>
+                  <td className="py-2 pr-2 text-gray-600">{g.supplier || '–'}</td>
                   {ALL_DOC_TYPES.map((t) => {
                     const doc = g.docs[t];
                     const key = docKey(g.rawMaterialId, t);
