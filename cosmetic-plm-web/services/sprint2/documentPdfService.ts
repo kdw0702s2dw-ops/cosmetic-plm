@@ -1120,7 +1120,12 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         lang !== "KR" ? `<td>${en}</td>` : "",
         lang !== "EN" ? `<td>${kr}</td>` : "",
       ].join("");
-      const mainRow = `<tr>
+      // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분, g.allergenItems)은 이 표에
+      // 아예 노출하지 않는다 - 등록된 알러젠을 전부 나열하면 실제로는 표시기준 미만인 것까지 포함되어
+      // "이 알러젠들이 모두 유의미하게 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 문서
+      // 하단 "표시대상 성분" 표(기준치 초과분만 표시)로 이미 충분히 확인 가능하다는 사용자 피드백에
+      // 따른 것. items(비알러젠 항목)만으로 합계가 정확히 100%가 되는 계산 로직은 그대로 유지된다.
+      return `<tr>
   <td class="center">${i + 1}</td>
   ${langCells}
   <td class="center">${ratio}</td>
@@ -1129,27 +1134,6 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <td>${cas}</td>
   <td style="vertical-align:middle">${e(g.func)}</td>
 </tr>`;
-
-      // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분)은 위 원료 자체 행과 중복
-      // 집계되지 않도록 별도 행으로 분리해서 보여준다. Final %는 계산/표시하지 않고(실제 표시기준
-      // 계산 결과는 하단 "표시대상 성분" 표를 참고), No. 칸은 일련번호 대신 각주 "3)"으로 통일해서
-      // 이 행이 일반 배합 성분이 아니라 알러젠 표시 목적으로 참고 노출된 행임을 바로 알 수 있게 한다.
-      const allergenRow = g.allergenItems.length
-        ? `<tr style="background:#fffbeb">
-  <td class="center">3)</td>
-  ${[
-    lang !== "KR" ? `<td>${eLines(g.allergenItems.map((x) => x.inci_en))}</td>` : "",
-    lang !== "EN" ? `<td>${eLines(g.allergenItems.map((x) => x.inci_kr))}</td>` : "",
-  ].join("")}
-  <td class="center">${eLines(g.allergenItems.map((x) => fixedPct(x.ratio, 8)))}</td>
-  <td class="center">-</td>
-  <td class="center">-</td>
-  <td>${eLines(g.allergenItems.map((x) => x.cas))}</td>
-  <td style="vertical-align:middle">-</td>
-</tr>`
-        : "";
-
-      return mainRow + allergenRow;
     })
     .join("");
 
@@ -1212,25 +1196,23 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   // - 건조 후(DRY)는 계산 과정에 나눗셈(scale_factor, 수분 비례 배분)이 들어가서 대부분 딱 떨어지지
   //   않는 소수가 나온다. 이 경우 exactPercent 기반 자릿수를 그대로 쓰면 76.951399116347567처럼
   //   의미 없는 긴 소수가 나열되므로, 일반 반올림으로 8자리에 고정해서 깔끔하게 보여준다.
-  // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 별도 계산 없이 참고용으로만
-  // 목록에 남기고, 합계·자릿수 계산에서는 제외한다(복합성분표와 동일한 이유 - 향료 자신의 몫과
-  // 중복 집계되지 않게 하기 위함). 실제 함량은 하단 "표시대상 성분" 표에서 이미 확인 가능하다.
-  const isAllergenRow = (x: ExpandedRow) => !!(x.is_allergen && x.allergen_id);
-  const totalRows = rows.filter((x) => !isAllergenRow(x));
-  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(totalRows);
+  // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 이 표에서 아예 제외한다 - 등록된
+  // 알러젠을 전부 나열하면 실제로는 표시기준 미만인 것까지 포함되어 "이 알러젠들이 모두 유의미하게
+  // 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 하단 "표시대상 성분" 표(기준치 초과분만
+  // 표시)로 이미 충분히 확인 가능하다는 사용자 피드백에 따른 것. 제외하고 나면 향료 자신의 몫과
+  // 중복 집계될 일도 없어 합계가 정확히 100%가 된다.
+  const visibleRows = rows.filter((x) => !(x.is_allergen && x.allergen_id));
+  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(visibleRows);
 
-  const body = rows
+  const body = visibleRows
     .map((x, i) => {
       const langCells = [
         lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
         lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
       ].join("");
-      const allergen = isAllergenRow(x);
-      const percentCell = allergen
-        ? "-"
-        : e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)));
+      const percentCell = e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)));
       return `<tr>
-  <td class="center">${allergen ? "3)" : i + 1}</td>
+  <td class="center">${i + 1}</td>
   ${langCells}
   <td class="right">${percentCell}</td>
   <td>${e(x.cas_no || "-")}</td>
@@ -1245,11 +1227,11 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   const totalDisplay =
     basis !== "DRY"
       ? exactDecimalToString(
-          totalRows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
+          visibleRows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
           decimals
         )
-      : fixedPct(totalRows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
-  const totalRow = rows.length
+      : fixedPct(visibleRows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
+  const totalRow = visibleRows.length
     ? `<tr style="font-weight:800;background:#f8fafc">
   <td colspan="${1 + langColCount}" class="right">합계 (Total)</td>
   <td class="right">${totalDisplay}</td>
