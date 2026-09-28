@@ -268,26 +268,35 @@ function allergenSection(f: any, alerts: any[]) {
   }
 
   const label = f.exposure_type === "LEAVE_ON" ? "Leave-on" : "Rinse-off";
-  if (alerts.length === 0) {
+  // 표시 의무가 있는(기준치 초과) 알러젠만 표에 올린다 - 미표시 항목까지 나열하면 바이어에게 오히려
+  // 혼동을 줄 수 있다는 사용자 피드백에 따른 것.
+  const requiredAlerts = alerts.filter((a) => a.label_required);
+  if (requiredAlerts.length === 0) {
     return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
-<p style="color:#64748b">표시 대상 알러젠 성분 없음</p>`;
+<p style="color:#64748b">표시 대상 알러젠 성분 없음 (No allergen ingredient requires labeling)</p>`;
   }
 
-  const rows = alerts
+  const rows = requiredAlerts
     .map(
       // 국문명이 없는 항목(plm_allergen_master.allergen_name_kr 미입력)은 "- (English)"처럼 어색하게
       // 보이지 않도록 영문명만 단독으로 보여준다. 국문명이 있으면 항상 "국문 (영문)" 형식으로 통일.
+      // 이 표에는 위에서 이미 label_required(기준치 초과)만 걸러 두었으므로 표시여부는 항상 Y.
       (a) => `<tr>
 <td>${a.allergen_name_kr ? `${e(a.allergen_name_kr)} (${e(a.allergen_name_en)})` : e(a.allergen_name_en)}</td>
 <td class="right">${pct(a.formula_percent)}%</td>
-<td class="center">${a.label_required ? "표시" : "미표시"}</td>
+<td class="center">Y</td>
 </tr>`
     )
     .join("");
 
+  // 바이어(해외 거래처)용 문서라 헤더는 국문/영문을 병행 표기한다.
   return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
 <table class="grid" style="margin-top:6px">
-<thead><tr><th>표시대상 성분</th><th>최종함량(%)</th><th>표시여부</th></tr></thead>
+<thead><tr>
+  <th>표시대상 성분<br/>Allergen Ingredient</th>
+  <th>최종함량(%)<br/>Final Content(%)</th>
+  <th>표시여부<br/>Labeling Required</th>
+</tr></thead>
 <tbody>${rows}</tbody>
 </table>`;
 }
@@ -843,8 +852,21 @@ export type ComplexGroupedItem = {
   // (단일성분표 exactPercent와 동일한 BigInt 연산). 건조 후(DRY)는 나눗셈이 섞여 대부분 안 끝나므로
   // 계산하지 않는다(_dryFinalPercent 기반 항목은 undefined로 둠).
   exactFinalPercent?: ExactDecimal;
+  is_allergen?: boolean;
+  allergen_id?: string | null;
 };
-export type ComplexGroupedRow = { raw_code?: string; raw_name?: string; input: number; func: string; items: ComplexGroupedItem[] };
+export type ComplexGroupedRow = {
+  raw_code?: string;
+  raw_name?: string;
+  input: number;
+  func: string;
+  items: ComplexGroupedItem[];
+  // 이 원료(주로 향료) 안에 등록된 알러젠 구성성분들 - 향료 자체를 나타내는 기본 항목(예: composition_
+  // percent=100인 "Fragrance/Parfum" 자기 자신 항목)과 중복 집계되지 않도록 items에서 분리해서 따로
+  // 담아둔다. items만 보는 Final % in Formula 합계·자릿수 계산 등은 자동으로 알러젠이 제외된 값이 되고,
+  // 실제 화면 표시는 문서 빌더(PDF/엑셀)가 "3)" 각주 행으로 별도 렌더링한다.
+  allergenItems: ComplexGroupedItem[];
+};
 
 // 원료(투입물) 단위로 묶기. 복합원료는 구성성분 여러 개, 단일원료는 자기 자신 1개(ratio는 '-' 표시용 null).
 // 같은 raw_code가 여러 Phase/라인에 나뉘어 등록된 경우 하나의 행으로 합친다 - INCI명이 아니라
@@ -887,7 +909,7 @@ export function buildComplexGroupedRows(
     const input = group.reduce((sum, l) => sum + n(l.percentage), 0);
     const material = materialsByRawCode?.get(first.raw_code);
     const isPureWater = comps.length === 0 && (material?.cas_no || first.cas_no || "").trim() === WATER_CAS_NO;
-    const items: ComplexGroupedItem[] = comps.length
+    const allItems: ComplexGroupedItem[] = comps.length
       ? comps.map((c) => {
           const ratio = n(c.composition_percent);
           // ratio는 항상 원료관리 등록값 그대로(건조 후에도 안 바뀜). Final %는 물/비물이 섞여
@@ -904,6 +926,8 @@ export function buildComplexGroupedRows(
             cas: c.cas_no || "-",
             finalPercent,
             exactFinalPercent,
+            is_allergen: !!c.is_allergen,
+            allergen_id: c.allergen_id || null,
           };
         })
       : [
@@ -916,10 +940,33 @@ export function buildComplexGroupedRows(
             exactFinalPercent: toExactDecimal(input),
           },
         ];
+
+    // 향료처럼 원료 자체(예: composition_percent=100인 "Fragrance/Parfum" 자기 자신 항목)와 그 안에
+    // 등록된 알러젠 구성성분이 함께 등록된 경우, 알러젠은 그 100% 안에 이미 포함된 하위 성분이라
+    // items에 그대로 두면 원료 자신의 몫과 중복 집계되어 전체 합계가 100%를 넘는다(실측 확인:
+    // Final % in Formula 합계가 100.00014842%처럼 알러젠 총합만큼 초과). 알러젠은 items에서 분리해
+    // allergenItems로 따로 담아 Final % 합계·자릿수 계산에서 제외하고, 등록된 구성성분이 전부
+    // 알러젠뿐이라 남는 기본 항목이 없으면(향료 자체 항목 없이 알러젠만 등록된 경우) 원료 고유값
+    // (input) 전체를 나타내는 항목 1개를 대신 채워 넣어 그 원료의 총 투입량이 표에서 누락되지 않게 한다.
+    const allergenItems = allItems.filter((it) => it.is_allergen && it.allergen_id);
+    let items = allItems.filter((it) => !(it.is_allergen && it.allergen_id));
+    if (items.length === 0 && allItems.length > 0) {
+      items = [
+        {
+          inci_en: first.inci_en || first.raw_name || "",
+          inci_kr: first.inci_kr || first.raw_name || "",
+          ratio: null,
+          cas: first.cas_no || "-",
+          finalPercent: input,
+          exactFinalPercent: toExactDecimal(input),
+        },
+      ];
+    }
+
     // 복합성분표 Function 컬럼: 원료관리(plm_raw_materials)에 등록된 원료 자체의 효능(영문)만 쓴다.
     // 국문 효능이나 BOM 라인 스냅샷 값은 참조하지 않는다(영문 표준 용어만 필요하다는 요청에 따른 것).
     const func = material?.function_en || "";
-    return { raw_code: first.raw_code, raw_name: first.raw_name, input, func, items, isPureWater };
+    return { raw_code: first.raw_code, raw_name: first.raw_name, input, func, items, allergenItems, isPureWater };
   });
 
   // %Raw Ingredient in Formula를 소수 2자리로 반올림 - 정제수(순수 물) 원료를 제외한 나머지 전부.
@@ -1073,7 +1120,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         lang !== "KR" ? `<td>${en}</td>` : "",
         lang !== "EN" ? `<td>${kr}</td>` : "",
       ].join("");
-      return `<tr>
+      const mainRow = `<tr>
   <td class="center">${i + 1}</td>
   ${langCells}
   <td class="center">${ratio}</td>
@@ -1082,6 +1129,27 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <td>${cas}</td>
   <td style="vertical-align:middle">${e(g.func)}</td>
 </tr>`;
+
+      // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분)은 위 원료 자체 행과 중복
+      // 집계되지 않도록 별도 행으로 분리해서 보여준다. Final %는 계산/표시하지 않고(실제 표시기준
+      // 계산 결과는 하단 "표시대상 성분" 표를 참고), No. 칸은 일련번호 대신 각주 "3)"으로 통일해서
+      // 이 행이 일반 배합 성분이 아니라 알러젠 표시 목적으로 참고 노출된 행임을 바로 알 수 있게 한다.
+      const allergenRow = g.allergenItems.length
+        ? `<tr style="background:#fffbeb">
+  <td class="center">3)</td>
+  ${[
+    lang !== "KR" ? `<td>${eLines(g.allergenItems.map((x) => x.inci_en))}</td>` : "",
+    lang !== "EN" ? `<td>${eLines(g.allergenItems.map((x) => x.inci_kr))}</td>` : "",
+  ].join("")}
+  <td class="center">${eLines(g.allergenItems.map((x) => fixedPct(x.ratio, 8)))}</td>
+  <td class="center">-</td>
+  <td class="center">-</td>
+  <td>${eLines(g.allergenItems.map((x) => x.cas))}</td>
+  <td style="vertical-align:middle">-</td>
+</tr>`
+        : "";
+
+      return mainRow + allergenRow;
     })
     .join("");
 
@@ -1144,7 +1212,12 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   // - 건조 후(DRY)는 계산 과정에 나눗셈(scale_factor, 수분 비례 배분)이 들어가서 대부분 딱 떨어지지
   //   않는 소수가 나온다. 이 경우 exactPercent 기반 자릿수를 그대로 쓰면 76.951399116347567처럼
   //   의미 없는 긴 소수가 나열되므로, 일반 반올림으로 8자리에 고정해서 깔끔하게 보여준다.
-  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
+  // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 별도 계산 없이 참고용으로만
+  // 목록에 남기고, 합계·자릿수 계산에서는 제외한다(복합성분표와 동일한 이유 - 향료 자신의 몫과
+  // 중복 집계되지 않게 하기 위함). 실제 함량은 하단 "표시대상 성분" 표에서 이미 확인 가능하다.
+  const isAllergenRow = (x: ExpandedRow) => !!(x.is_allergen && x.allergen_id);
+  const totalRows = rows.filter((x) => !isAllergenRow(x));
+  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(totalRows);
 
   const body = rows
     .map((x, i) => {
@@ -1152,10 +1225,14 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
         lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
         lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
       ].join("");
+      const allergen = isAllergenRow(x);
+      const percentCell = allergen
+        ? "-"
+        : e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)));
       return `<tr>
-  <td class="center">${i + 1}</td>
+  <td class="center">${allergen ? "3)" : i + 1}</td>
   ${langCells}
-  <td class="right">${e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)))}</td>
+  <td class="right">${percentCell}</td>
   <td>${e(x.cas_no || "-")}</td>
   <td>${e(x.ec_no || "-")}</td>
   <td>${e(x.function_text)}</td>
@@ -1164,14 +1241,14 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
     .join("");
 
   // 합계(Total) 행 - 복합성분표와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
-  // final_percent를 그대로 더한다. 전체 성분 함량이 100%에 얼마나 가까운지 바로 검산할 수 있게 한다.
+  // final_percent를 그대로 더한다. 알러젠 행은 위에서 이미 제외했으므로 100%에 정확히 맞는다.
   const totalDisplay =
     basis !== "DRY"
       ? exactDecimalToString(
-          rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
+          totalRows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)),
           decimals
         )
-      : fixedPct(rows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
+      : fixedPct(totalRows.reduce((sum, x) => sum + x.final_percent, 0), decimals);
   const totalRow = rows.length
     ? `<tr style="font-weight:800;background:#f8fafc">
   <td colspan="${1 + langColCount}" class="right">합계 (Total)</td>

@@ -127,11 +127,15 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   const { lines, components } = await loadExpandedRows(formula, basis);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
   const rows = mergeRows([...complexRows(lines, components, functionLookup), ...singleRows(lines, components, functionLookup)]);
+  // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 PDF와 동일하게 참고용으로만 목록에
+  // 남기고, 값 계산·합계·자릿수 계산에서는 제외한다 - 향료 자신의 몫과 중복 집계되지 않게 하기 위함.
+  const isAllergenRow = (x: (typeof rows)[number]) => !!(x.is_allergen && x.allergen_id);
+  const totalRows = rows.filter((x) => !isAllergenRow(x));
   // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
   // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
   // 엑셀에서는 숫자 그대로라 정렬/필터/수식 계산이 가능함).
   // 건조 후(DRY)는 나눗셈이 섞여 들어가 딱 떨어지지 않는 소수가 나오므로 PDF와 동일하게 8자리 고정 반올림.
-  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
+  const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(totalRows);
   const percentNumFmt = "0." + "0".repeat(decimals);
   const showEn = lang !== "KR";
   const showKr = lang !== "EN";
@@ -174,11 +178,15 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     ws.addRow(["", "단일성분 데이터가 없습니다.", ...Array(colCount - 2).fill("")]);
   }
   rows.forEach((x, i) => {
+    const allergen = isAllergenRow(x);
     // 건조 후(DRY)는 나눗셈이 섞여 exactPercent(배합시 전용 정확값)가 실제 값과 어긋날 수 있으므로
     // PDF와 동일하게 항상 final_percent(8자리 반올림)를 쓴다. exactPercent는 MIX 기준일 때만 사용.
-    const percentValue = basis === "DRY" ? Number(pct(x.final_percent)) : (x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent)));
+    // 알러젠 행은 계산된 값을 아예 넣지 않는다(하단 "표시대상 성분" 표에서 실제 함량 확인 가능).
+    const percentValue = allergen
+      ? "-"
+      : basis === "DRY" ? Number(pct(x.final_percent)) : (x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent)));
     const row = ws.addRow([
-      i + 1,
+      allergen ? "3)" : i + 1,
       ...(showEn ? [x.inci_en] : []),
       ...(showKr ? [x.inci_kr] : []),
       percentValue,
@@ -187,17 +195,17 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
       x.function_text,
     ]);
     row.alignment = { vertical: "middle" };
-    row.getCell(percentColIndex).numFmt = percentNumFmt;
+    if (!allergen) row.getCell(percentColIndex).numFmt = percentNumFmt;
     border(ws, row.number, 1, row.number, colCount);
   });
 
   // 합계(Total) 행 - PDF와 동일하게 배합 시(MIX)는 BigInt 정확 덧셈, 건조 후(DRY)는 반올림된
-  // final_percent를 그대로 더한다.
+  // final_percent를 그대로 더한다. 알러젠 행은 위에서 이미 제외했으므로 100%에 정확히 맞는다.
   if (rows.length > 0) {
     const totalValue =
       basis !== "DRY"
-        ? exactDecimalToNumber(rows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)))
-        : Number(rows.reduce((sum, x) => sum + x.final_percent, 0).toFixed(decimals));
+        ? exactDecimalToNumber(totalRows.reduce((acc, x) => exactAdd(acc, x.exactPercent || toExactDecimal(x.final_percent)), toExactDecimal(0)))
+        : Number(totalRows.reduce((sum, x) => sum + x.final_percent, 0).toFixed(decimals));
     const totalRow = ws.addRow(["합계 (Total)", ...Array(langColCount).fill(""), totalValue, "", "", ""]);
     ws.mergeCells(totalRow.number, 1, totalRow.number, 1 + langColCount);
     totalRow.font = { bold: true };
@@ -353,6 +361,39 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     // 행 높이를 고정값으로 지정하지 않는다 - Excel이 파일을 열 때 wrapText 셀 내용(개별 항목이
     // 컬럼 폭보다 길어 한 항목이 시각적으로 여러 줄로 접히는 경우 포함)에 맞춰 자동으로 행 높이를
     // 재계산하므로, 고정 높이를 주면 오히려 마지막 줄이 다음 행과 겹쳐 잘려 보이는 문제가 생긴다.
+
+    // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분)은 위 원료 자체 행과 중복
+    // 집계되지 않도록 별도 행으로 분리한다. Final %는 계산/표시하지 않고(실제 함량은 하단 "표시대상
+    // 성분" 표 참고), No. 칸은 일련번호 대신 각주 "3)"으로 통일해서 이 행의 성격을 바로 알 수 있게 한다.
+    if (g.allergenItems.length) {
+      const aEn = g.allergenItems.map((x) => x.inci_en).join("\n");
+      const aKr = g.allergenItems.map((x) => x.inci_kr).join("\n");
+      const aRatio = g.allergenItems.map((x) => fixedPct(x.ratio, 8)).join("\n");
+      const aCas = g.allergenItems.map((x) => x.cas).join("\n");
+      const aRow = ws.addRow([
+        "3)",
+        ...(showEn ? [aEn] : []),
+        ...(showKr ? [aKr] : []),
+        aRatio,
+        "-",
+        "-",
+        aCas,
+        "-",
+      ]);
+      aRow.alignment = { vertical: "middle" };
+      aRow.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
+      aRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } };
+      });
+      let aCol = 2;
+      if (showEn) { aRow.getCell(aCol).alignment = { vertical: "middle", wrapText: true }; aCol++; }
+      if (showKr) { aRow.getCell(aCol).alignment = { vertical: "middle", wrapText: true }; aCol++; }
+      aRow.getCell(ratioCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      aRow.getCell(inputCol).alignment = { vertical: "middle", horizontal: "center" };
+      aRow.getCell(finalCol).alignment = { vertical: "middle", horizontal: "center" };
+      aRow.getCell(casCol).alignment = { vertical: "middle", wrapText: true };
+      border(ws, aRow.number, 1, aRow.number, colCount);
+    }
   });
 
   // %Raw Ingredient in Formula 합계 - 원료별 투입 비율(g.input)을 그대로 더한 값이라, 향료 안의
