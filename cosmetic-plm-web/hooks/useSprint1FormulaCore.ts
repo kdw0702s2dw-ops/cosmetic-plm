@@ -293,6 +293,7 @@ export function useSprint1FormulaCore() {
         cost_per_kg: 0,
         moq: "",
         is_new_material: false,
+        doc_verified: false,
       },
     ]);
   }

@@ -227,7 +227,7 @@ export default function DisclosureBomSection({
           <thead>
             <tr>
               <th>No</th><th>Phase</th><th>순번</th><th>원료코드</th><th>원료명</th>
-              <th>함량%</th><th>원처방 함량%</th><th>규제</th><th>삭제</th>
+              <th>함량%</th><th>원처방 함량%</th><th>규제</th><th>서류확인</th><th>삭제</th>
             </tr>
           </thead>
           <tbody>
@@ -323,12 +323,17 @@ export default function DisclosureBomSection({
                       </span>
                     )}
                   </td>
+                  <td style={{ textAlign: "center" }}>
+                    <input type="checkbox" checked={!!line.doc_verified}
+                      title="서류(COA/MSDS 등)와 이 원료를 대조 확인했으면 체크"
+                      onChange={(e) => onUpdateLine(line.line_no, { doc_verified: e.target.checked })} />
+                  </td>
                   <td><button type="button" className="v50-button-light" onClick={() => onRemoveLine(line.line_no)}>삭제</button></td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={9}>"처방 불러오기" 또는 "+ 라인 추가"로 시작하세요.</td></tr>
+              <tr><td colSpan={10}>"처방 불러오기" 또는 "+ 라인 추가"로 시작하세요.</td></tr>
             )}
           </tbody>
           {rows.length > 0 && (
@@ -336,7 +341,7 @@ export default function DisclosureBomSection({
               <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
                 <td colSpan={5}>합계</td>
                 <td>{total}%</td>
-                <td colSpan={3}></td>
+                <td colSpan={4}></td>
               </tr>
             </tfoot>
           )}

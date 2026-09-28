@@ -37,6 +37,9 @@ export type DisclosureLine = {
   moq?: string;
   note?: string;
   is_new_material?: boolean;
+  // 서류(COA/MSDS 등)와 이 라인의 원료를 대조 확인했는지 표시하는 체크 - 문서관리 서류와 BOM을
+  // 비교 검토할 때 확인 여부를 라인별로 표시해두기 위함(수치 계산에는 영향 없음).
+  doc_verified?: boolean;
 };
 
 const VARIANT_TABLE: Record<DisclosureVariant, string> = {
@@ -131,6 +134,7 @@ export async function saveDisclosureLines(
         revision,
         phase: rest.phase || "A",
         is_new_material: rest.is_new_material ?? false,
+        doc_verified: rest.doc_verified ?? false,
         cost_per_kg: calcCost(rest),
         updated_at: new Date().toISOString(),
       };

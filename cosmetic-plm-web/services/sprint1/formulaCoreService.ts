@@ -62,6 +62,7 @@ export type Sprint1FormulaLine = {
   moq?: string;
   note?: string;
   is_new_material?: boolean; // 신규 원료 수동 체크 - 원료발주가처방의 "신규 체크" 자동판정에 반영됨
+  doc_verified?: boolean; // 공개처방(일반/건조) BOM 편집 전용 - 서류와 원료 대조 확인 체크
 };
 
 // BOM 라인에 저장된 스냅샷과 원료관리의 현재 값을 비교해서 달라진 필드 목록을 반환한다.
