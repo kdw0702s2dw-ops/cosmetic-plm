@@ -14,6 +14,7 @@ import {
   getDocumentPublicUrl,
   fetchSupplierMapByRawCode,
   downloadRawMaterialDocumentFile,
+  buildDocDownloadFileName,
 } from '@/services/sprint2/rawMaterialDocumentService';
 import {
   fetchFormulaLinesForPdf,
@@ -243,14 +244,20 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
           const blob = await res.blob();
           const no = rawCodeOrderMap.get(row.raw_code);
           const noLabel = no ? String(no).padStart(padLen, '0') : '미분류';
+          // 원료별 폴더 안에서는 서류 종류가 겹치지 않으므로(원료당 doc_type별 최신 1건), 개별 다운로드와
+          // 동일하게 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 통일한다 - 업로드한 원본 파일명을 그대로
+          // 쓰면 다운로드 방식마다 파일명 규칙이 달라 보이는 문제가 있었다.
           const folderName = sanitizeFileSegment(`${noLabel}_${row.raw_code}_${row.raw_name}`);
-          const fileName = sanitizeFileSegment(`${row.doc_type}_${row.file_name}`);
+          const fileName = buildDocDownloadFileName({ doc_type: row.doc_type as DocType, file_name: row.file_name as string });
           zip.folder(folderName)!.file(fileName, blob);
         })
       );
 
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${formulaCode}_${revision}${basisFileSuffix(basis)}_원료문서.zip`);
+      // 처방코드(대외비)가 zip 파일명(=압축 풀었을 때 생기는 폴더명)에 노출되지 않도록 revision/기준만
+      // 사용한다 - 이 zip은 공급사에 서류를 요청할 때 외부로 보낼 수도 있어서, 어떤 처방/제품인지
+      // 유추할 수 있는 정보는 담지 않는다.
+      saveAs(content, `${revision}${basisFileSuffix(basis)}_원료문서.zip`);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'zip 생성 중 오류가 발생했습니다.');
     } finally {

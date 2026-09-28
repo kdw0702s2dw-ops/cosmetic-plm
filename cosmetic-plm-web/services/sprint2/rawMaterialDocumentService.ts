@@ -68,16 +68,23 @@ function fileExtension(fileName: string): string {
   return idx >= 0 ? fileName.slice(idx + 1) : 'bin';
 }
 
-function sanitizeDownloadFileName(name: string): string {
+export function sanitizeDownloadFileName(name: string): string {
   return (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || '_';
 }
 
 /**
+ * 다운로드 시 실제로 사용할 파일명 - 저장된 원본 파일명이 무엇이든(예: "국문_msds_v3.pdf") 관계없이
+ * 항상 서류 종류 라벨명("COA.pdf"/"MSDS.pdf"/"Composition.xlsx")으로 통일한다. 개별 다운로드
+ * (downloadRawMaterialDocumentFile)와 zip 다운로드(FormulaDocumentZipDownload의 handleZipDownload)가
+ * 이 함수를 공통으로 써서, 어느 경로로 받든 파일명 규칙이 같게 유지되도록 한다.
+ */
+export function buildDocDownloadFileName(doc: { doc_type: DocType; file_name: string }): string {
+  return sanitizeDownloadFileName(`${DOC_TYPE_LABEL[doc.doc_type]}.${fileExtension(doc.file_name)}`);
+}
+
+/**
  * 원료 문서(COA/MSDS/Composition/Allergen Sheet/IFRA) 다운로드 - 링크를 새 탭에서 여는 대신 파일을
- * 직접 blob으로 받아 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 다운로드시킨다. 저장된 원본 파일명이
- * 무엇이든(예: "국문_msds_v3.pdf") 관계없이 항상 서류 종류 라벨명으로 저장되므로, 여러 원료의 서류를
- * 모아서 볼 때도 파일명만 보고 어떤 서류인지 바로 알 수 있다. zip 다운로드(FormulaDocumentZipDownload의
- * handleZipDownload)는 폴더가 원료별로 이미 나뉘어 있어 이 함수를 쓰지 않고 기존 방식을 유지한다.
+ * 직접 blob으로 받아 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 다운로드시킨다.
  */
 export async function downloadRawMaterialDocumentFile(doc: {
   storage_path: string;
@@ -88,7 +95,7 @@ export async function downloadRawMaterialDocumentFile(doc: {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${doc.file_name} 다운로드 실패`);
   const blob = await res.blob();
-  const fileName = sanitizeDownloadFileName(`${DOC_TYPE_LABEL[doc.doc_type]}.${fileExtension(doc.file_name)}`);
+  const fileName = buildDocDownloadFileName(doc);
 
   const blobUrl = URL.createObjectURL(blob);
   try {
