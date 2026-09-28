@@ -9,7 +9,7 @@ import {
   getRawMaterialDocuments,
   uploadRawMaterialDocument,
   deleteRawMaterialDocument,
-  getDocumentPublicUrl,
+  downloadRawMaterialDocumentFile,
 } from '@/services/sprint2/rawMaterialDocumentService';
 
 interface Props {
@@ -39,6 +39,15 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
   const [uploadingType, setUploadingType] = useState<DocType | null>(null);
   const [deletingType, setDeletingType] = useState<DocType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 개별 서류 다운로드 - 새 탭 미리보기 대신 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 바로 다운로드시킨다.
+  async function handleDownload(docType: DocType, doc: RawMaterialDocument) {
+    try {
+      await downloadRawMaterialDocumentFile({ storage_path: doc.storage_path, file_name: doc.file_name, doc_type: docType });
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : '다운로드 중 오류가 발생했습니다.');
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -118,14 +127,14 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
               <span className="text-gray-400">불러오는 중...</span>
             ) : doc ? (
               <div className="flex items-center gap-3 flex-1 justify-between">
-                <a
-                  href={getDocumentPublicUrl(doc.storage_path)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline truncate max-w-[200px]"
+                <button
+                  type="button"
+                  onClick={() => handleDownload(docType, doc)}
+                  className="text-blue-600 hover:underline truncate max-w-[200px] text-left"
+                  title={doc.file_name}
                 >
                   {doc.file_name}
-                </a>
+                </button>
                 <span className="text-gray-400 text-xs">
                   {new Date(doc.uploaded_at).toLocaleDateString('ko-KR')}
                 </span>

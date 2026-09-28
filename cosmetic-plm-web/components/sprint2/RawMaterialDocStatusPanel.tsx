@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchRawMaterialDocumentStatus,
-  getDocumentPublicUrl,
+  downloadRawMaterialDocumentFile,
   requiredDocTypesForRawCode,
   ALL_DOC_TYPES,
   DOC_TYPE_LABEL,
@@ -59,6 +59,15 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 개별 서류 다운로드 - 새 탭 미리보기 대신 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 바로 다운로드시킨다.
+  async function handleDownload(docType: DocType, doc: { storage_path: string; file_name: string }) {
+    try {
+      await downloadRawMaterialDocumentFile({ storage_path: doc.storage_path, file_name: doc.file_name, doc_type: docType });
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "다운로드 중 오류가 발생했습니다.");
+    }
+  }
 
   // 특정 문서 종류를 선택했을 때 보유/미보유 건수를 드롭다운 라벨에 함께 보여주기 위한 집계
   const docTypeHasCount = docTypeFilter !== "ALL" ? rows.filter((r) => !!r.docs[docTypeFilter]).length : 0;
@@ -163,15 +172,14 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
                     return (
                       <td key={t} style={{ textAlign: "center" }}>
                         {doc ? (
-                          <a
-                            href={getDocumentPublicUrl(doc.storage_path)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`${doc.file_name} · ${new Date(doc.uploaded_at).toLocaleDateString("ko-KR")}`}
-                            style={{ color: "#16a34a", fontWeight: 800, textDecoration: "none" }}
+                          <button
+                            type="button"
+                            onClick={() => handleDownload(t, doc)}
+                            title={`${doc.file_name} · ${new Date(doc.uploaded_at).toLocaleDateString("ko-KR")} (클릭 시 다운로드)`}
+                            style={{ color: "#16a34a", fontWeight: 800, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           >
                             ✓
-                          </a>
+                          </button>
                         ) : isRequired ? (
                           <span style={{ color: "#dc2626", fontWeight: 800 }} title="미보유">✗</span>
                         ) : (

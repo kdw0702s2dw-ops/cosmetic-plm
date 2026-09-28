@@ -13,6 +13,7 @@ import {
   getDocumentsForRawCodes,
   getDocumentPublicUrl,
   fetchSupplierMapByRawCode,
+  downloadRawMaterialDocumentFile,
 } from '@/services/sprint2/rawMaterialDocumentService';
 import {
   fetchFormulaLinesForPdf,
@@ -202,6 +203,18 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
     });
   }
 
+  // 개별 서류 다운로드 - 예전에는 <a href target="_blank">로 새 탭에 원본 파일명 그대로 열렸는데,
+  // 파일명만 보고 무슨 서류인지 알 수 있도록 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 바로
+  // 다운로드되게 바꿨다(미리보기 없이 즉시 다운로드).
+  async function handleSingleDownload(doc: FormulaRawMaterialDocumentRow) {
+    if (!doc.storage_path || !doc.file_name || !doc.doc_type) return;
+    try {
+      await downloadRawMaterialDocumentFile({ storage_path: doc.storage_path, file_name: doc.file_name, doc_type: doc.doc_type });
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : '다운로드 중 오류가 발생했습니다.');
+    }
+  }
+
   async function handleZipDownload() {
     setZipping(true);
     setErrorMsg(null);
@@ -316,14 +329,13 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
                         {doc?.storage_path ? (
                           <label className="inline-flex items-center gap-1 cursor-pointer">
                             <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)} />
-                            <a
-                              href={getDocumentPublicUrl(doc.storage_path)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => handleSingleDownload(doc)}
                               className="text-blue-600 hover:underline"
                             >
                               다운로드
-                            </a>
+                            </button>
                           </label>
                         ) : required.includes(t) ? (
                           <span className="text-gray-400">없음</span>

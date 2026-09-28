@@ -63,6 +63,46 @@ export function getDocumentPublicUrl(storagePath: string): string {
   return data.publicUrl;
 }
 
+function fileExtension(fileName: string): string {
+  const idx = fileName.lastIndexOf('.');
+  return idx >= 0 ? fileName.slice(idx + 1) : 'bin';
+}
+
+function sanitizeDownloadFileName(name: string): string {
+  return (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || '_';
+}
+
+/**
+ * 원료 문서(COA/MSDS/Composition/Allergen Sheet/IFRA) 다운로드 - 링크를 새 탭에서 여는 대신 파일을
+ * 직접 blob으로 받아 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 다운로드시킨다. 저장된 원본 파일명이
+ * 무엇이든(예: "국문_msds_v3.pdf") 관계없이 항상 서류 종류 라벨명으로 저장되므로, 여러 원료의 서류를
+ * 모아서 볼 때도 파일명만 보고 어떤 서류인지 바로 알 수 있다. zip 다운로드(FormulaDocumentZipDownload의
+ * handleZipDownload)는 폴더가 원료별로 이미 나뉘어 있어 이 함수를 쓰지 않고 기존 방식을 유지한다.
+ */
+export async function downloadRawMaterialDocumentFile(doc: {
+  storage_path: string;
+  file_name: string;
+  doc_type: DocType;
+}): Promise<void> {
+  const url = getDocumentPublicUrl(doc.storage_path);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${doc.file_name} 다운로드 실패`);
+  const blob = await res.blob();
+  const fileName = sanitizeDownloadFileName(`${DOC_TYPE_LABEL[doc.doc_type]}.${fileExtension(doc.file_name)}`);
+
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
+}
+
 /**
  * 원료 문서 업로드 (COA/MSDS/Composition/Allergen Sheet/IFRA — 원료당 doc_type별 최신 1건, 같은
  * 경로에 덮어쓰기 + DB upsert)
