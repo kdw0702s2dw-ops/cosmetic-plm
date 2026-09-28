@@ -275,8 +275,10 @@ function allergenSection(f: any, alerts: any[]) {
 
   const rows = alerts
     .map(
+      // 국문명이 없는 항목(plm_allergen_master.allergen_name_kr 미입력)은 "- (English)"처럼 어색하게
+      // 보이지 않도록 영문명만 단독으로 보여준다. 국문명이 있으면 항상 "국문 (영문)" 형식으로 통일.
       (a) => `<tr>
-<td>${e(a.allergen_name_kr || "-")} (${e(a.allergen_name_en)})</td>
+<td>${a.allergen_name_kr ? `${e(a.allergen_name_kr)} (${e(a.allergen_name_en)})` : e(a.allergen_name_en)}</td>
 <td class="right">${pct(a.formula_percent)}%</td>
 <td class="center">${a.label_required ? "표시" : "미표시"}</td>
 </tr>`
@@ -290,8 +292,93 @@ function allergenSection(f: any, alerts: any[]) {
 </table>`;
 }
 
-async function baseHtml(title: string, headerMeta: Record<string, string>, body: string, formula: any) {
-  const alerts = await fetchAllergenAlerts(formula.formula_code, formula.revision).catch(() => []);
+// ============================================================
+// 알러젠 기준(basis)별 실시간 재계산
+// ============================================================
+// plm_allergen_alerts는 plm_calculate_allergen_alerts RPC가 원처방(MIX, plm_formula_lines)만 보고
+// 미리 계산해 저장해 둔 표라서, 공개처방(일반/건조)처럼 별도로 저장된 BOM을 보여주는 문서에도 그
+// 값을 그대로 노출하면 basis와 실제로 다른(MIX 기준) 값이 나온다. 문서 빌더가 이미 resolveLinesForBasis()로
+// 구해둔 해당 basis의 lines/components에서 직접 알러젠 함량을 다시 집계해서, basis가 무엇이든 항상 그
+// 문서의 실제 기준에 맞는 값을 보여준다. 계산식(SUM(투입%×구성비/100))과 시장(target_market, 미지정
+// 시 KR) 필터링은 plm_calculate_allergen_alerts RPC(10_allergen_phase6_market_scope.sql)와 동일하게 맞춘다.
+function computeAllergenTotalsFromLinesAndComponents(lines: any[], components: any[]): Map<string, number> {
+  const map = byRawComponents(components);
+  const totals = new Map<string, number>();
+  for (const line of lines) {
+    const comps = map.get(line.raw_code) || [];
+    for (const comp of comps) {
+      if (!comp.is_allergen || !comp.allergen_id) continue;
+      // complexRows()의 final_percent 계산과 동일한 식(건조 후는 _dryFinalPercent 우선) - 두 곳이
+      // 어긋나면 전성분표 문구와 알러젠 표의 숫자가 서로 다른 값을 근거로 삼게 되므로 반드시 맞춰야 한다.
+      const finalPercent = comp._dryFinalPercent != null
+        ? comp._dryFinalPercent
+        : (n(line.percentage) * n(comp.composition_percent)) / 100;
+      totals.set(comp.allergen_id, (totals.get(comp.allergen_id) || 0) + finalPercent);
+    }
+  }
+  return totals;
+}
+
+async function fetchAllergenMasterByIds(ids: string[], market: string) {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_allergen_master")
+    .select("id, allergen_name_en, allergen_name_kr")
+    .in("id", ids)
+    .eq("market", market);
+  if (error) throw error;
+  return data || [];
+}
+
+export type BasisAllergenAlert = {
+  allergen_id: string;
+  allergen_name_en: string;
+  allergen_name_kr: string | null;
+  formula_percent: number;
+  label_required: boolean;
+};
+
+// 반환값 null: exposure_type 미지정이라 계산 불가(allergenSection이 기존 안내 문구를 그대로 보여줌).
+// 반환값 []: 계산은 됐지만 이 basis에는 등록된 알러젠 구성성분 자체가 없음(표시 대상 0건과 동일하게 렌더링).
+async function computeBasisAllergenAlerts(formula: any, lines: any[], components: any[]): Promise<BasisAllergenAlert[] | null> {
+  if (!formula.exposure_type) return null;
+  const threshold = formula.exposure_type === "LEAVE_ON" ? 0.001 : 0.01;
+  const totals = computeAllergenTotalsFromLinesAndComponents(lines, components);
+  if (totals.size === 0) return [];
+
+  const market = formula.target_market || "KR";
+  const ids = Array.from(totals.keys());
+  const masters = await fetchAllergenMasterByIds(ids, market);
+  const masterMap = new Map(masters.map((m) => [m.id, m]));
+
+  return ids
+    .filter((id) => masterMap.has(id)) // RPC와 동일하게 target_market과 일치하는 알러젠만 포함
+    .map((id) => {
+      const m = masterMap.get(id)!;
+      const percent = Number((totals.get(id) as number).toFixed(8));
+      return {
+        allergen_id: id,
+        allergen_name_en: m.allergen_name_en,
+        allergen_name_kr: m.allergen_name_kr,
+        formula_percent: percent,
+        label_required: percent >= threshold,
+      };
+    })
+    .sort((a, b) => a.allergen_name_en.localeCompare(b.allergen_name_en));
+}
+
+// basisAlerts를 넘기면(전성분표/복합성분표/단일성분표) 그 값을 그대로 쓰고, 넘기지 않으면(원료발주가처방 -
+// 항상 원처방 기준이라 basis 개념이 없음) 기존처럼 plm_allergen_alerts 정적 표를 그대로 조회한다.
+async function baseHtml(
+  title: string,
+  headerMeta: Record<string, string>,
+  body: string,
+  formula: any,
+  basisAlerts?: BasisAllergenAlert[] | null
+) {
+  const alerts = basisAlerts !== undefined
+    ? basisAlerts ?? []
+    : await fetchAllergenAlerts(formula.formula_code, formula.revision).catch(() => []);
   const metaRows = Object.entries(headerMeta)
     .map(
       ([k, v]) =>
@@ -377,6 +464,8 @@ export type ExpandedRow = {
   line_no?: number;
   sourceLineNos?: number[];
   exactPercent?: ExactDecimal; // 단일성분표 Percentage(%) 표시 전용 (오차 없는 정확값, final_percent와 별개)
+  is_allergen?: boolean; // plm_raw_material_components.is_allergen 그대로 전달 (전성분표 표시기준 필터링용)
+  allergen_id?: string | null; // plm_raw_material_components.allergen_id 그대로 전달
 };
 
 export function byRawComponents(components: any[]) {
@@ -462,6 +551,8 @@ export function complexRows(lines: any[], components: any[], functionLookup?: In
         ec_no: comp.ec_no || "",
         function_text: lookupIngredientFunctionEn(functionLookup, comp.cas_no, comp.inci_en, comp.inci_kr),
         line_no: line.line_no,
+        is_allergen: !!comp.is_allergen,
+        allergen_id: comp.allergen_id || null,
         exactPercent: exactDivideByPow10(
           exactMultiply(toExactDecimal(n(line.percentage)), toExactDecimal(n(comp.composition_percent))),
           2
@@ -947,6 +1038,7 @@ export function computeUniformFinalPercentDecimals(grouped: ComplexGroupedRow[],
 // ============================================================
 export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
+  const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
   const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
@@ -1029,7 +1121,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="${6 + langColCount}">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
-</table>`, f);
+</table>`, f, basisAlerts);
 }
 
 // ============================================================
@@ -1037,6 +1129,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
 // ============================================================
 export async function buildSingleComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
+  const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
   const langColCount = lang === "BOTH" ? 2 : 1;
   const langHeaders = [
@@ -1094,7 +1187,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   <th>Percentage(%)</th><th>CAS No.</th><th>EC No.</th><th>Function</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="${5 + langColCount}">단일성분 데이터가 없습니다.</td></tr>`}${totalRow}</tbody>
-</table>`, f);
+</table>`, f, basisAlerts);
 }
 
 // ============================================================
@@ -1104,8 +1197,20 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
   const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
-  const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
-  const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+
+  // 이 basis 기준으로 실제 표시기준(Leave-on 0.001% / Rinse-off 0.01%) 미만인 알러젠은 "표시대상
+  // 성분" 표뿐 아니라 전성분/국문전성분 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을
+  // 전성분표에 이름으로 노출할 이유가 없기 때문(사용자 확인 요청 사항).
+  const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
+  const suppressedAllergenIds = new Set(
+    (basisAlerts || []).filter((a) => !a.label_required).map((a) => a.allergen_id)
+  );
+  const visibleRows = rows.filter(
+    (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
+  );
+
+  const inciEn = visibleRows.map((x) => x.inci_en).filter(Boolean).join(", ");
+  const inciKr = visibleRows.map((x) => x.inci_kr).filter(Boolean).join(", ");
 
   const enBox = lang !== "KR" ? `<div class="box">
   <div class="bt">Ingredient list</div>
@@ -1116,7 +1221,7 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
   <div class="bb">${e(inciKr || "-")}</div>
 </div>` : "";
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `${enBox}${krBox}`, f);
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `${enBox}${krBox}`, f, basisAlerts);
 }
 
 // ============================================================
