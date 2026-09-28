@@ -7,9 +7,11 @@ import {
   ALLERGEN_BASE_LINE,
   basisFileSuffix,
   basisTitleSuffix,
+  type BasisAllergenAlert,
   buildComplexGroupedRows,
   buildIngredientFunctionLookup,
   complexRows,
+  computeBasisAllergenAlerts,
   computeUniformFinalPercentDecimals,
   computeUniformPercentDecimals,
   CONFIDENTIAL,
@@ -89,6 +91,89 @@ function writeFooterNotes(ws: ExcelJS.Worksheet, colCount: number) {
   confRow.getCell(1).font = { size: 8, color: { argb: "FF94A3B8" } };
 }
 
+// PDF(allergenSection)와 동일한 "표시대상 성분" 표를 하단에 렌더링한다. 지금까지 엑셀은 이 표 없이
+// ALLERGEN_BASE_LINE 각주 문구만 텍스트로 써왔는데, PDF 미리보기에는 있는 표가 엑셀 다운로드에는
+// 통째로 빠져 있던 것 - "PDF는 업데이트됐는데 엑셀은 그대로다"라고 보고받은 문제의 실제 원인이다.
+// exposure_type 미지정/표시대상 0건/표시대상 있음 3가지 분기와 문구를 PDF와 동일하게 맞춘다.
+function writeFooterNotesWithAllergenTable(
+  ws: ExcelJS.Worksheet,
+  colCount: number,
+  formula: any,
+  basisAlerts: BasisAllergenAlert[] | null
+) {
+  ws.addRow([]);
+  for (const note of NOTES) {
+    const row = ws.addRow([note]);
+    ws.mergeCells(row.number, 1, row.number, colCount);
+    row.getCell(1).font = { italic: true, size: 9, color: { argb: "FF475569" } };
+  }
+
+  const italicNote = (text: string, color = "FF475569") => {
+    const row = ws.addRow([text]);
+    ws.mergeCells(row.number, 1, row.number, colCount);
+    row.getCell(1).font = { italic: true, size: 9, color: { argb: color } };
+  };
+
+  if (!formula.exposure_type) {
+    italicNote(ALLERGEN_BASE_LINE);
+    italicNote(
+      "제품 사용유형이 미지정되어 알러젠 표시 여부를 계산할 수 없습니다. 처방관리에서 Leave-on/Rinse-off를 먼저 지정해주세요.",
+      "FFB91C1C"
+    );
+  } else {
+    const label = formula.exposure_type === "LEAVE_ON" ? "Leave-on" : "Rinse-off";
+    italicNote(`${ALLERGEN_BASE_LINE} (적용기준: ${label})`);
+
+    // 표시 의무가 있는(기준치 초과) 알러젠만 표에 올린다 - PDF와 동일한 필터링.
+    const requiredAlerts = (basisAlerts || []).filter((a) => a.label_required);
+    if (requiredAlerts.length === 0) {
+      italicNote("표시 대상 알러젠 성분 없음 (No allergen ingredient requires labeling)", "FF64748B");
+    } else {
+      // 표 컬럼 폭이 문서마다(단일/복합/전성분) 다르므로 고정 컬럼 수 대신 마지막 2개 컬럼을
+      // 최종함량/표시여부로 쓰고 나머지 전부를 성분명 칸으로 병합한다.
+      const nameColEnd = Math.max(1, colCount - 2);
+      const percentCol = nameColEnd + 1;
+      const requiredCol = colCount;
+
+      const headerRow = ws.addRow([]);
+      ws.mergeCells(headerRow.number, 1, headerRow.number, nameColEnd);
+      headerRow.getCell(1).value = "표시대상 성분 (Allergen Ingredient)";
+      headerRow.getCell(percentCol).value = "최종함량(%) (Final Content(%))";
+      if (requiredCol > percentCol) {
+        ws.mergeCells(headerRow.number, requiredCol, headerRow.number, requiredCol);
+      }
+      headerRow.getCell(requiredCol).value = "표시여부 (Labeling Required)";
+      headerRow.font = { bold: true };
+      headerRow.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+      });
+      border(ws, headerRow.number, 1, headerRow.number, colCount);
+
+      // 이 표에는 위에서 이미 label_required(기준치 초과)만 걸러 두었으므로 표시여부는 항상 Y.
+      // 국문명이 없는 항목(plm_allergen_master.allergen_name_kr 미입력)은 PDF와 동일하게 영문명만 단독 표기.
+      for (const a of requiredAlerts) {
+        const row = ws.addRow([]);
+        ws.mergeCells(row.number, 1, row.number, nameColEnd);
+        row.getCell(1).value = a.allergen_name_kr ? `${a.allergen_name_kr} (${a.allergen_name_en})` : a.allergen_name_en;
+        row.getCell(percentCol).value = `${pct(a.formula_percent)}%`;
+        row.getCell(percentCol).alignment = { horizontal: "right" };
+        if (requiredCol > percentCol) {
+          ws.mergeCells(row.number, requiredCol, row.number, requiredCol);
+        }
+        row.getCell(requiredCol).value = "Y";
+        row.getCell(requiredCol).alignment = { horizontal: "center" };
+        row.alignment = { vertical: "middle" };
+        border(ws, row.number, 1, row.number, colCount);
+      }
+    }
+  }
+
+  const confRow = ws.addRow([CONFIDENTIAL]);
+  ws.mergeCells(confRow.number, 1, confRow.number, colCount);
+  confRow.getCell(1).font = { size: 8, color: { argb: "FF94A3B8" } };
+}
+
 // wrapText 셀의 필요한 행 높이를 텍스트 길이 기준으로 추정한다.
 // Excel의 "열 너비" 단위는 대략 라틴 문자 1개 폭과 비슷하고 한글 등 전각 문자는 그 2배 폭을 차지하므로,
 // 문자마다 가중치를 둬서 총 폭 대비 줄바꿈 횟수를 계산한다. 실제 Excel 폭 계산과 완전히 같지는 않으므로
@@ -125,6 +210,7 @@ async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
 // ============================================================
 export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
+  const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
   const allRows = mergeRows([...complexRows(lines, components, functionLookup), ...singleRows(lines, components, functionLookup)]);
   // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 PDF와 동일하게 이 표에서 아예
@@ -214,7 +300,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
-  writeFooterNotes(ws, colCount);
+  writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
   await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
@@ -224,8 +310,18 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
 export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
-  const inciEn = rows.map((x) => x.inci_en).filter(Boolean).join(", ");
-  const inciKr = rows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+  const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
+  // PDF(buildInciListHtml)와 동일하게, 이 basis 기준으로 실제 표시기준 미만인 알러젠은 전성분/국문전성분
+  // 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을 이름으로 노출할 이유가 없기 때문.
+  // 이 필터가 엑셀에는 지금까지 빠져있었다(PDF에만 적용돼 있던 것).
+  const suppressedAllergenIds = new Set(
+    (basisAlerts || []).filter((a) => !a.label_required).map((a) => a.allergen_id)
+  );
+  const visibleRows = rows.filter(
+    (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
+  );
+  const inciEn = visibleRows.map((x) => x.inci_en).filter(Boolean).join(", ");
+  const inciKr = visibleRows.map((x) => x.inci_kr).filter(Boolean).join(", ");
   const showEn = lang !== "KR";
   const showKr = lang !== "EN";
 
@@ -259,7 +355,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   if (showEn) writeBox("Ingredient list", inciEn);
   if (showKr) writeBox("국문전성분", inciKr);
 
-  writeFooterNotes(ws, colCount);
+  writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
   await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
@@ -269,6 +365,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
 // ============================================================
 export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
+  const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(lines, components, materialsByRawCode, basis);
@@ -395,7 +492,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
-  writeFooterNotes(ws, colCount);
+  writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
   await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 

@@ -349,7 +349,7 @@ export type BasisAllergenAlert = {
 
 // 반환값 null: exposure_type 미지정이라 계산 불가(allergenSection이 기존 안내 문구를 그대로 보여줌).
 // 반환값 []: 계산은 됐지만 이 basis에는 등록된 알러젠 구성성분 자체가 없음(표시 대상 0건과 동일하게 렌더링).
-async function computeBasisAllergenAlerts(formula: any, lines: any[], components: any[]): Promise<BasisAllergenAlert[] | null> {
+export async function computeBasisAllergenAlerts(formula: any, lines: any[], components: any[]): Promise<BasisAllergenAlert[] | null> {
   if (!formula.exposure_type) return null;
   const threshold = formula.exposure_type === "LEAVE_ON" ? 0.001 : 0.01;
   const totals = computeAllergenTotalsFromLinesAndComponents(lines, components);
