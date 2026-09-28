@@ -142,6 +142,7 @@ export function useSprint2DocumentPdf() {
     try {
       if (kind === "INCI_LIST") await downloadInciListExcel(formula, basis, lang);
       else if (kind === "COMPLEX_COMPONENT_TABLE") await downloadComplexComponentExcel(formula, basis, lang);
+      else if (kind === "COMPLEX_COMPONENT_TABLE_TRADE_NAME") await downloadComplexComponentExcel(formula, basis, lang, true);
       else await downloadSingleComponentExcel(formula, basis, lang);
       setMessage(`${label} 엑셀 다운로드 완료`);
     } catch (e) {

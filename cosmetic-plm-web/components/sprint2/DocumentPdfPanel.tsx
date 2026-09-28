@@ -10,6 +10,7 @@ import "@/styles/enterprise-v50.css";
 const docButtons: { kind: DocKind; label: string }[] = [
   { kind: "INCI_LIST", label: "전성분표" },
   { kind: "COMPLEX_COMPONENT_TABLE", label: "복합성분표" },
+  { kind: "COMPLEX_COMPONENT_TABLE_TRADE_NAME", label: "복합성분표(Trade Name)" },
   { kind: "SINGLE_COMPONENT_TABLE", label: "단일성분표" },
 ];
 

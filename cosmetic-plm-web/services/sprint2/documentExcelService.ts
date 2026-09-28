@@ -363,7 +363,10 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
 // 복합성분표 엑셀: PDF와 동일하게 원료 1개 = 1행, 구성성분은 셀 내 줄바꿈(\n + wrapText)
 // buildComplexGroupedRows()를 그대로 재사용 (PDF의 <br> 대신 \n으로 줄바꿈)
 // ============================================================
-export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
+// withTradeName=true: "복합성분표(Trade Name)" 전용 - No.와 EU/USA INCI name 사이에 원료관리
+// (plm_raw_materials.trade_name)에 등록된 영문 Trade Name 컬럼을 추가로 넣는다. 그 외 계산 로직
+// (합계/알러젠 처리 등)은 documentPdfService.ts의 buildComplexComponentTableHtml과 완전히 동일하다.
+export async function downloadComplexComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH", withTradeName = false) {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
@@ -375,17 +378,19 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const showEn = lang !== "KR";
   const showKr = lang !== "EN";
   const langColCount = (showEn ? 1 : 0) + (showKr ? 1 : 0);
-  // 언어 컬럼 뒤에 오는 고정 컬럼들의 1-based 인덱스 (No.=1 다음부터 언어 컬럼, 그 다음 %Sub~Function)
-  const ratioCol = 1 + langColCount + 1;
+  const tradeNameColCount = withTradeName ? 1 : 0;
+  // 언어 컬럼 뒤에 오는 고정 컬럼들의 1-based 인덱스 (No.=1 -> Trade Name(있으면) -> 언어 컬럼 -> %Sub~Function)
+  const ratioCol = 1 + tradeNameColCount + langColCount + 1;
   const inputCol = ratioCol + 1;
   const finalCol = inputCol + 1;
   const casCol = finalCol + 1;
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("복합성분표");
-  const colCount = 6 + langColCount;
+  const ws = wb.addWorksheet(withTradeName ? "복합성분표(Trade Name)" : "복합성분표");
+  const colCount = 6 + langColCount + tradeNameColCount;
   ws.columns = [
     { width: 6 },
+    ...(withTradeName ? [{ width: 26 }] : []),
     ...(showEn ? [{ width: 40 }] : []),
     ...(showKr ? [{ width: 30 }] : []),
     { width: 18 },
@@ -395,11 +400,12 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     { width: 20 },
   ];
 
-  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
+  writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}${withTradeName ? " (Trade Name)" : ""}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
   const headerRow = ws.addRow([
     "No.",
+    ...(withTradeName ? ["Trade Name"] : []),
     ...(showEn ? ["EU/USA INCI name"] : []),
     ...(showKr ? ["국문명"] : []),
     "% Sub Ingredient in Raw Ingredient",
@@ -435,6 +441,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 
     const row = ws.addRow([
       i + 1,
+      ...(withTradeName ? [g.trade_name || "-"] : []),
       ...(showEn ? [en] : []),
       ...(showKr ? [kr] : []),
       ratio,
@@ -446,6 +453,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     row.alignment = { vertical: "middle" };
     row.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
     let col = 2;
+    if (withTradeName) { row.getCell(col).alignment = { vertical: "middle" }; col++; }
     if (showEn) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
     if (showKr) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
     row.getCell(ratioCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
@@ -482,7 +490,16 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
             grouped.reduce((sum, g) => sum + g.items.reduce((s, x) => s + x.finalPercent, 0), 0),
             finalPercentDecimals
           );
-    const totalRow = ws.addRow(["합계 (Total)", ...Array(langColCount).fill(""), "", fixedPct(totalInput, inputDecimals), totalFinalPercentDisplay, "", ""]);
+    const totalRow = ws.addRow([
+      "합계 (Total)",
+      ...Array(tradeNameColCount).fill(""),
+      ...Array(langColCount).fill(""),
+      "",
+      fixedPct(totalInput, inputDecimals),
+      totalFinalPercentDisplay,
+      "",
+      "",
+    ]);
     ws.mergeCells(totalRow.number, 1, totalRow.number, ratioCol);
     totalRow.font = { bold: true };
     totalRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
@@ -493,7 +510,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
-  await downloadWorkbook(wb, `복합성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
+  await downloadWorkbook(wb, `복합성분표${withTradeName ? "(TradeName)" : ""}_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
 }
 
 // ============================================================

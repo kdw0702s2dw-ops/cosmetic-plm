@@ -9,6 +9,7 @@ import { fetchDisclosureLines } from "@/services/sprint2/formulaDisclosureServic
 export type DocKind =
   | "INCI_LIST"
   | "COMPLEX_COMPONENT_TABLE"
+  | "COMPLEX_COMPONENT_TABLE_TRADE_NAME"
   | "SINGLE_COMPONENT_TABLE"
   | "RAW_MATERIAL_ORDER_SHEET";
 
@@ -76,6 +77,7 @@ const PDF_DOCUMENT_TYPES = [
   "FORMULA_SHEET_PDF",
   "INCI_LIST",
   "COMPLEX_COMPONENT_TABLE",
+  "COMPLEX_COMPONENT_TABLE_TRADE_NAME",
   "SINGLE_COMPONENT_TABLE",
   "RAW_MATERIAL_ORDER_SHEET",
 ];
@@ -858,6 +860,9 @@ export type ComplexGroupedItem = {
 export type ComplexGroupedRow = {
   raw_code?: string;
   raw_name?: string;
+  // 원료관리(plm_raw_materials.trade_name)에 등록된 원료 자체의 영문 Trade Name. "복합성분표(Trade Name)"
+  // 문서에서만 노출하는 컬럼이라 그 외에는 그냥 값만 들고 있고 렌더링하지 않는다.
+  trade_name?: string;
   input: number;
   func: string;
   items: ComplexGroupedItem[];
@@ -966,7 +971,7 @@ export function buildComplexGroupedRows(
     // 복합성분표 Function 컬럼: 원료관리(plm_raw_materials)에 등록된 원료 자체의 효능(영문)만 쓴다.
     // 국문 효능이나 BOM 라인 스냅샷 값은 참조하지 않는다(영문 표준 용어만 필요하다는 요청에 따른 것).
     const func = material?.function_en || "";
-    return { raw_code: first.raw_code, raw_name: first.raw_name, input, func, items, allergenItems, isPureWater };
+    return { raw_code: first.raw_code, raw_name: first.raw_name, trade_name: material?.trade_name || "", input, func, items, allergenItems, isPureWater };
   });
 
   // %Raw Ingredient in Formula를 소수 2자리로 반올림 - 정제수(순수 물) 원료를 제외한 나머지 전부.
@@ -1083,15 +1088,20 @@ export function computeUniformFinalPercentDecimals(grouped: ComplexGroupedRow[],
 // ============================================================
 // 복합성분표 (KOVAS): 원료 한 줄에 구성성분 묶음 + 셀 내 줄바꿈
 // ============================================================
-export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
+// withTradeName=true: "복합성분표(Trade Name)" 전용 - No.와 EU/USA INCI name 사이에 원료관리
+// (plm_raw_materials.trade_name)에 등록된 영문 Trade Name 컬럼을 추가로 넣는다. 기존 복합성분표와
+// 계산 로직(합계/알러젠 처리 등)은 완전히 동일하고, 컬럼 하나만 추가되는 별도 문서 종류다.
+export async function buildComplexComponentTableHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH", withTradeName = false) {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
   const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
-  // 국문/영문 중 선택된 쪽만 컬럼으로 넣는다 - No. + (선택된 언어 컬럼 수) + %Sub Ingredient in Raw Ingredient...
+  // 국문/영문 중 선택된 쪽만 컬럼으로 넣는다 - No. + (Trade Name 여부) + (선택된 언어 컬럼 수) + %Sub Ingredient in Raw Ingredient...
   const langColCount = lang === "BOTH" ? 2 : 1;
+  const tradeNameColCount = withTradeName ? 1 : 0;
+  const tradeNameHeader = withTradeName ? "<th>Trade Name</th>" : "";
   const langHeaders = [
     lang !== "KR" ? "<th>EU/USA INCI name</th>" : "",
     lang !== "EN" ? "<th>국문명</th>" : "",
@@ -1120,6 +1130,8 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         lang !== "KR" ? `<td>${en}</td>` : "",
         lang !== "EN" ? `<td>${kr}</td>` : "",
       ].join("");
+      // Trade Name(영문 전용, 원료관리에 등록된 값 그대로)은 No. 바로 다음 컬럼에 넣는다.
+      const tradeNameCell = withTradeName ? `<td>${e(g.trade_name || "-")}</td>` : "";
       // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분, g.allergenItems)은 이 표에
       // 아예 노출하지 않는다 - 등록된 알러젠을 전부 나열하면 실제로는 표시기준 미만인 것까지 포함되어
       // "이 알러젠들이 모두 유의미하게 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 문서
@@ -1127,6 +1139,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
       // 따른 것. items(비알러젠 항목)만으로 합계가 정확히 100%가 되는 계산 로직은 그대로 유지된다.
       return `<tr>
   <td class="center">${i + 1}</td>
+  ${tradeNameCell}
   ${langCells}
   <td class="center">${ratio}</td>
   <td class="center">${fixedPct(g.input, inputDecimals)}</td>
@@ -1159,20 +1172,20 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         );
   const totalRow = grouped.length
     ? `<tr style="font-weight:800;background:#f8fafc">
-  <td colspan="${2 + langColCount}" class="right">합계 (Total)</td>
+  <td colspan="${2 + tradeNameColCount + langColCount}" class="right">합계 (Total)</td>
   <td class="center">${fixedPct(totalInput, inputDecimals)}</td>
   <td class="center">${totalFinalPercentDisplay}</td>
   <td colspan="2"></td>
 </tr>`
     : "";
 
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}${withTradeName ? " (Trade Name)" : ""}`, kovasMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th>${langHeaders}
+  <th>No.</th>${tradeNameHeader}${langHeaders}
   <th>% Sub Ingredient in Raw Ingredient</th><th>%Raw Ingredient in Formula</th><th>Final % in Formula</th><th>CAS No.</th><th>Function</th>
 </tr></thead>
-<tbody>${body || `<tr><td colspan="${6 + langColCount}">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
+<tbody>${body || `<tr><td colspan="${6 + tradeNameColCount + langColCount}">복합원료 구성성분 데이터가 없습니다. 원료관리에서 구성성분을 먼저 등록하세요.</td></tr>`}${totalRow}</tbody>
 </table>`, f, basisAlerts);
 }
 
@@ -1318,6 +1331,7 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
 export const DOC_KIND_NAMES: Record<DocKind, string> = {
   INCI_LIST: "전성분표",
   COMPLEX_COMPONENT_TABLE: "복합성분표",
+  COMPLEX_COMPONENT_TABLE_TRADE_NAME: "복합성분표(Trade Name)",
   SINGLE_COMPONENT_TABLE: "단일성분표",
   RAW_MATERIAL_ORDER_SHEET: "원료발주가처방",
 };
@@ -1325,6 +1339,7 @@ export const DOC_KIND_NAMES: Record<DocKind, string> = {
 async function buildDocumentHtml(formula: any, kind: DocKind, lines: any[], basis: DocBasis, lang: DocLang) {
   if (kind === "INCI_LIST") return buildInciListHtml(formula, lines, basis, lang);
   if (kind === "COMPLEX_COMPONENT_TABLE") return buildComplexComponentTableHtml(formula, lines, basis, lang);
+  if (kind === "COMPLEX_COMPONENT_TABLE_TRADE_NAME") return buildComplexComponentTableHtml(formula, lines, basis, lang, true);
   return buildSingleComponentTableHtml(formula, lines, basis, lang);
 }
 
