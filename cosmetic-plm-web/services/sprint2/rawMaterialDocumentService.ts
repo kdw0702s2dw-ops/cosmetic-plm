@@ -179,6 +179,81 @@ export async function getDocumentsForFormula(
 }
 
 /**
+ * raw_code 목록 기준으로 COA/MSDS/Composition/Allergen Sheet/IFRA 보유 여부를 조회한다.
+ * getDocumentsForFormula(원처방 전용, v_plm_formula_raw_material_documents 뷰 사용)와 달리, 이 함수는
+ * "이 처방에 어떤 원료가 쓰였는지"를 뷰가 아니라 호출부가 직접 정한 raw_code 목록으로 받는다 -
+ * 공개처방(일반)/(건조)은 별도로 저장된 BOM(plm_formula_lines_public/dry)을 쓸 수도 있어서, 원처방
+ * 고정인 뷰만으로는 그 기준의 실제 원료 구성을 반영할 수 없기 때문이다(문서관리 화면에서 "기준" 선택에
+ * 따라 COA/MSDS 목록이 독립적으로 보이도록 하기 위해 도입).
+ */
+export async function getDocumentsForRawCodes(
+  formulaCode: string,
+  revision: string,
+  rawCodes: string[]
+): Promise<FormulaRawMaterialDocumentRow[]> {
+  const uniqueCodes = Array.from(new Set(rawCodes.filter(Boolean)));
+  if (uniqueCodes.length === 0) return [];
+
+  const { data: materials, error: materialsError } = await supabaseProductionFinal
+    .from('plm_raw_materials')
+    .select('id, raw_code, raw_name')
+    .in('raw_code', uniqueCodes);
+  if (materialsError) {
+    throw new Error(`원료 조회 실패: ${materialsError.message}`);
+  }
+
+  const materialRows = (materials ?? []) as { id: string; raw_code: string; raw_name: string }[];
+  const docsByMaterial = new Map<string, RawMaterialDocument[]>();
+  if (materialRows.length > 0) {
+    const { data: docs, error: docsError } = await supabaseProductionFinal
+      .from('plm_raw_material_documents')
+      .select('*')
+      .in('raw_material_id', materialRows.map((m) => m.id));
+    if (docsError) {
+      throw new Error(`문서 조회 실패: ${docsError.message}`);
+    }
+    for (const d of (docs ?? []) as RawMaterialDocument[]) {
+      if (!docsByMaterial.has(d.raw_material_id)) docsByMaterial.set(d.raw_material_id, []);
+      docsByMaterial.get(d.raw_material_id)!.push(d);
+    }
+  }
+
+  const rows: FormulaRawMaterialDocumentRow[] = [];
+  for (const m of materialRows) {
+    const matDocs = docsByMaterial.get(m.id) ?? [];
+    if (matDocs.length === 0) {
+      rows.push({
+        formula_code: formulaCode,
+        revision,
+        raw_material_id: m.id,
+        raw_code: m.raw_code,
+        raw_name: m.raw_name,
+        doc_type: null,
+        file_name: null,
+        storage_path: null,
+        uploaded_at: null,
+      });
+    } else {
+      for (const d of matDocs) {
+        rows.push({
+          formula_code: formulaCode,
+          revision,
+          raw_material_id: m.id,
+          raw_code: m.raw_code,
+          raw_name: m.raw_name,
+          doc_type: d.doc_type,
+          file_name: d.file_name,
+          storage_path: d.storage_path,
+          uploaded_at: d.uploaded_at,
+        });
+      }
+    }
+  }
+  rows.sort((a, b) => a.raw_code.localeCompare(b.raw_code));
+  return rows;
+}
+
+/**
  * raw_code 목록에 대한 공급사 조회. fetchRawMaterialDocumentStatus와 동일하게 v_plm_raw_material_list
  * 뷰를 사용한다 - 업체관리(plm_companies)와 연동된 canonical 공급사명을 얻기 위함(원본
  * plm_raw_materials.supplier는 연동 전 텍스트가 남아있을 수 있음). 문서관리 화면에서 "자료가 없는

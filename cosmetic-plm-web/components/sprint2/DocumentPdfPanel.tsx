@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSprint2DocumentPdf } from "@/hooks/useSprint2DocumentPdf";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
-import { pct, type DocBasis, type DocKind, type DocLang } from "@/services/sprint2/documentPdfService";
+import { pct, basisSectionLabel, type DocBasis, type DocKind, type DocLang } from "@/services/sprint2/documentPdfService";
 import FormulaDocumentZipDownload from "@/components/documents/FormulaDocumentZipDownload";
 import "@/styles/enterprise-v50.css";
 
@@ -326,10 +326,12 @@ export default function DocumentPdfPanel() {
                     </div>
                   </div>
 
-                  {/* COA/MSDS — 이 처방 BOM에 쓰인 원료들의 COA/MSDS 보유 여부를 보여주고, 선택한 파일을 zip으로 묶어 다운로드 */}
+                  {/* COA/MSDS — 이 처방 BOM에 쓰인 원료들의 COA/MSDS 보유 여부를 보여주고, 선택한 파일을 zip으로 묶어 다운로드.
+                      원처방과 공개처방(일반/건조)은 함량/원료 구성이 서로 다를 수 있어서, 위의 "기준" 선택에 맞춰
+                      서류 목록도 독립적으로 조회한다(formula/basis를 그대로 전달). */}
                   <div style={{ padding: "12px 0 4px" }}>
-                    <div style={{ fontWeight: 800, marginBottom: 8 }}>COA/MSDS</div>
-                    <FormulaDocumentZipDownload formulaCode={f.formula_code} revision={f.revision} />
+                    <div style={{ fontWeight: 800, marginBottom: 8 }}>COA/MSDS ({basisSectionLabel(getBasis(f))} 기준)</div>
+                    <FormulaDocumentZipDownload formulaCode={f.formula_code} revision={f.revision} formula={f} basis={getBasis(f)} />
                   </div>
                 </div>
               )}

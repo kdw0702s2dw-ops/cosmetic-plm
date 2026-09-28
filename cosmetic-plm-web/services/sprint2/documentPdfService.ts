@@ -541,6 +541,14 @@ export function basisFileSuffix(basis: DocBasis): string {
   return "";
 }
 
+// 문서관리 화면의 "기준" 버튼 라벨과 동일한 전체 명칭 - COA/MSDS 등 원료 문서 섹션에서 지금 어떤
+// 기준(원처방/공개처방 일반/건조)의 원료 구성을 보고 있는지 표시할 때 재사용한다.
+export function basisSectionLabel(basis: DocBasis): string {
+  if (basis === "DRY") return "공개처방(건조)";
+  if (basis === "PUBLIC") return "공개처방(일반)";
+  return "원처방";
+}
+
 // 전성분표/복합성분표/단일성분표 전용 - 국문/영문 표기를 선택해서 출력할 수 있게 한다.
 // KR=국문만, EN=영문만, BOTH=국문+영문(기존 동작, 기본값).
 export type DocLang = "KR" | "EN" | "BOTH";
