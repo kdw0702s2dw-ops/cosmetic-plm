@@ -120,20 +120,23 @@ export async function findIngredientByCasNo(casNo: string, excludeId?: string): 
   return candidates.find((c) => casSetsOverlap(casNo, c.cas_no || "")) || null;
 }
 
-// 저장 전 중복 경고용 - cas_no 또는 inci_kr이 이미 있는 다른 행이 있으면 그 행을 반환 (본인 행은 제외)
-// CAS 우선 확인(콤마로 나뉜 이성질체 등도 겹치면 매칭), 없으면 inci_kr 정확 일치로 확인
-export async function checkIngredientDuplicate(
-  args: { casNo?: string; inciKr?: string },
+// INCI 국문명 또는 영문명이 이미 등록된 다른 행이 있으면 그 행을 반환 (본인 행은 제외). 국문명 우선
+// 정확 일치, 없으면 영문명 대소문자 무시 정확 일치로 확인한다.
+//
+// CAS/EC는 더 이상 이 매칭에 쓰지 않는다 - 원료마다 CAS 등록 여부가 들쭉날쭉해서 아직 공식 CAS가
+// 없는 성분(특히 펩타이드류)은 관행적으로 cas_no에 "-"를 그대로 저장해 왔는데, 예전 로직(findIngredientByCasNo)은
+// 이 "-"조차 하나의 CAS 토큰으로 취급해서 비교했다. 그 결과 실제로는 완전히 다른 성분인데 둘 다
+// CAS가 "-"라는 이유만으로 "이미 등록된 성분"으로 오판되고, 저장 시 엉뚱한 기존 행이 지금 입력한
+// 내용으로 덮어써지는 사고(원료관리에서 등록한 구성성분이 전성분관리에서 사라져 보이는 현상)가 실제로
+// 있었다. INCI 국문/영문명은 표준 식별자라 CAS 유무와 무관하게 항상 정확한 중복 판단 기준이 된다.
+export async function findIngredientByInciName(
+  args: { inciKr?: string; inciEn?: string },
   excludeId?: string
 ): Promise<IngredientDictionaryItem | null> {
-  const casNo = (args.casNo || "").trim();
   const inciKr = (args.inciKr || "").trim();
-  if (!casNo && !inciKr) return null;
+  const inciEn = (args.inciEn || "").trim();
+  if (!inciKr && !inciEn) return null;
 
-  if (casNo) {
-    const casMatch = await findIngredientByCasNo(casNo, excludeId);
-    if (casMatch) return casMatch;
-  }
   if (inciKr) {
     let q = supabaseProductionFinal
       .from("plm_ingredient_dictionary")
@@ -146,7 +149,28 @@ export async function checkIngredientDuplicate(
     if (error) throw error;
     if (data && data[0]) return data[0];
   }
+  if (inciEn) {
+    // ilike를 와일드카드(%) 없이 쓰면 대소문자만 무시하는 완전일치가 된다.
+    let q = supabaseProductionFinal
+      .from("plm_ingredient_dictionary")
+      .select("id, inci_kr, inci_en, cas_no")
+      .eq("is_active", true)
+      .ilike("inci_en", inciEn)
+      .limit(1);
+    if (excludeId) q = q.neq("id", excludeId);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (data && data[0]) return data[0];
+  }
   return null;
+}
+
+// 저장 전 중복 경고용 - checkIngredientDuplicate라는 이름을 그대로 유지한 findIngredientByInciName의 별칭.
+export async function checkIngredientDuplicate(
+  args: { inciKr?: string; inciEn?: string },
+  excludeId?: string
+): Promise<IngredientDictionaryItem | null> {
+  return findIngredientByInciName(args, excludeId);
 }
 
 export async function saveIngredient(item: IngredientDictionaryItem): Promise<IngredientDictionaryItem> {

@@ -80,7 +80,7 @@ export default function IngredientDictionaryManager() {
     if (!item.inci_kr?.trim() && !item.inci_en?.trim()) { setMsg("INCI 한글명 또는 영문명을 입력하세요."); return; }
     setSaving(true); setMsg("");
     try {
-      const dup = await checkIngredientDuplicate({ casNo: item.cas_no || undefined, inciKr: item.inci_kr || undefined }, item.id);
+      const dup = await checkIngredientDuplicate({ inciKr: item.inci_kr || undefined, inciEn: item.inci_en || undefined }, item.id);
       // 중복이 발견됐는데 그냥 saveIngredient(item)을 호출하면 item.id가 비어있는(새 성분 입력) 경우
       // 그대로 INSERT가 실행되어 완전히 새로운 중복 행이 하나 더 생겨버린다 - 실제로 이렇게 쌓인 중복
       // 데이터가 DB에서 여러 건 확인됨. 그래서 중복 확인 후 계속 진행하면 새 행을 추가하는 대신

@@ -1,7 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
-import { findIngredientByCasNo } from "@/services/sprint2/ingredientDictionaryService";
+import { findIngredientByInciName } from "@/services/sprint2/ingredientDictionaryService";
 import { companyDisplayName, fetchCompaniesByIds } from "@/services/sprint2/companyService";
 
 export type RawMaterial = {
@@ -262,23 +262,20 @@ export async function saveRawMaterial(rm: RawMaterial) {
   return data as RawMaterial;
 }
 
-// cas_no가 있으면 cas_no로, 없으면 inci_kr로 기존 행을 찾아서 있으면 UPDATE, 없으면 INSERT
+// INCI 국문명 또는 영문명으로 기존 행을 찾아서 있으면 UPDATE, 없으면 INSERT
 // (매번 조건 없이 insert하던 버그 수정 - 동시성은 이 앱 트래픽 규모에서 무시 가능)
+//
+// CAS 기준 매칭은 더 이상 쓰지 않는다 - 공식 CAS가 없는 성분(펩타이드류 등)은 관행적으로 cas_no에
+// "-"를 그대로 저장해왔는데, 예전 로직은 그 "-"조차 유효한 CAS로 취급해서 비교했다. 그 결과 완전히
+// 다른 성분들이 전부 CAS "-"라는 이유만으로 서로 "이미 등록됨"으로 오판되어, 원료관리에서 저장한
+// 구성성분이 전성분관리의 엉뚱한 기존 행을 덮어써버리고(그 성분 자신은 새로 등록되지 않아) 전성분관리
+// 목록에서는 사라진 것처럼 보이는 사고가 실제로 있었다. INCI 이름은 CAS 유무와 무관하게 항상 정확한
+// 식별자이므로 이 기준으로 바꾼다.
 async function upsertIngredientDictionary(rm: RawMaterial) {
   if (!rm.inci_en && !rm.inci_kr) return;
 
-  const casNo = (rm.cas_no || "").trim();
-  const inciKr = (rm.inci_kr || "").trim();
-
-  let existingId: string | null = null;
-  if (casNo) {
-    const match = await findIngredientByCasNo(casNo);
-    existingId = match?.id ?? null;
-  } else if (inciKr) {
-    const { data } = await supabaseProductionFinal
-      .from("plm_ingredient_dictionary").select("id").eq("inci_kr", inciKr).limit(1).maybeSingle();
-    existingId = data?.id ?? null;
-  }
+  const existing = await findIngredientByInciName({ inciKr: rm.inci_kr || undefined, inciEn: rm.inci_en || undefined });
+  const existingId = existing?.id ?? null;
 
   const fields = {
     inci_en: rm.inci_en || null, inci_kr: rm.inci_kr || null,
