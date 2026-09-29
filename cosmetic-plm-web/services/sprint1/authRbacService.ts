@@ -189,10 +189,20 @@ export async function deleteUserAccount(id: string) {
   await authedFetch("/api/admin/users", { method: "DELETE", body: JSON.stringify({ id }) });
 }
 
-// 사용자 권한관리 화면의 "마지막 접속" 표시용 - Supabase Auth의 실제 로그인 이력(last_sign_in_at)을 id 기준으로 조회
+// 사용자 권한관리 화면의 "마지막 로그인" 표시용 - Supabase Auth의 실제 로그인 이력(last_sign_in_at)을 id 기준으로 조회
 export async function fetchLastSignIns(): Promise<Record<string, string | null>> {
   const body = await authedFetch("/api/admin/users", { method: "GET" });
   return body.lastSignIns || {};
+}
+
+// "마지막 로그인"(last_sign_in_at)은 비밀번호를 다시 입력해 로그인한 시각이라, 세션이 브라우저에 계속
+// 유지/자동갱신되는 이 앱 특성상 매일 실제로 쓰고 있어도 오래전 값으로 멈춰있을 수 있다. 그래서 화면
+// 진입 시마다(과도한 쓰기 방지를 위해 useSprint1Auth에서 호출 빈도를 제한) plm_user_profiles.last_active_at을
+// 직접 갱신해서 "진짜 마지막 활동 시각"을 별도로 기록한다. 실패해도 화면 사용 자체엔 지장 없어야 하므로
+// 호출부에서 에러를 무시할 수 있도록 그대로 던진다.
+export async function touchLastActive() {
+  const { error } = await supabaseProductionFinal.rpc("plm_touch_last_active");
+  if (error) throw error;
 }
 
 export async function getAuthDebugInfo() {

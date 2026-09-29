@@ -15,6 +15,15 @@ function formatLastSignIn(value?: string | null) {
   return date.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+// "마지막 로그인"(비밀번호 재인증 시각)과 달리, 이 값은 화면에 실제로 접속했을 때마다 갱신되는
+// "마지막 활동" 시각이다 (plm_touch_last_active 참고).
+function formatLastActive(value?: string | null) {
+  if (!value) return "활동 기록 없음";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "활동 기록 없음";
+  return date.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function UserAdminPanel() {
   const admin = useSprint1UserAdmin();
   const auth = useSprint1Auth();
@@ -52,7 +61,7 @@ export default function UserAdminPanel() {
         <div className="v50-table-wrap">
           <table className="v50-table">
             <thead>
-              <tr><th>이메일</th><th>이름</th><th>역할</th><th>활성</th><th>마지막 접속</th><th>수정</th><th>삭제</th></tr>
+              <tr><th>이메일</th><th>이름</th><th>역할</th><th>활성</th><th>마지막 로그인</th><th>마지막 활동</th><th>수정</th><th>삭제</th></tr>
             </thead>
             <tbody>
               {admin.users.map((u) => (
@@ -166,6 +175,7 @@ function UserRow({
         </select>
       </td>
       <td style={{ fontSize: 13, color: "#475569" }}>{formatLastSignIn(user.last_sign_in_at)}</td>
+      <td style={{ fontSize: 13, color: "#475569" }}>{formatLastActive(user.last_active_at)}</td>
       <td><button className="v50-button-light" onClick={() => onSave(user.id, role, active)}>저장</button></td>
       <td>
         <button
