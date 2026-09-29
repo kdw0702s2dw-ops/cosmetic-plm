@@ -13,6 +13,7 @@ import {
   getDocumentsForRawCodes,
   getDocumentPublicUrl,
   fetchSupplierMapByRawCode,
+  fetchTradeNameMapByRawCode,
   downloadRawMaterialDocumentFile,
   buildDocDownloadFileName,
 } from '@/services/sprint2/rawMaterialDocumentService';
@@ -21,28 +22,13 @@ import {
   resolveLinesForBasis,
   basisFileSuffix,
   basisSectionLabel,
+  buildComplexNoOrderMap,
   type DocBasis,
 } from '@/services/sprint2/documentPdfService';
 
 // Windows/Mac 파일시스템에서 폴더/파일명에 쓸 수 없는 문자를 안전하게 치환
 function sanitizeFileSegment(name: string): string {
   return (name || '').replace(/[\\/:*?"<>|]/g, '_').trim() || '_';
-}
-
-// raw_code별 최초 등장 순서를 매긴다 - 복합성분표(엑셀/PDF)의 "No." 컬럼과 동일한 로직
-// (buildComplexGroupedRows가 raw_code 기준으로 그룹핑할 때 lines 배열의 첫 등장 순서를 그대로 쓰는 것)을
-// 재사용해서, zip 폴더 번호가 복합성분표의 No.와 항상 일치하도록 한다. 어떤 lines 배열이 들어오는지는
-// 호출부(refresh)가 basis(원처방/공개처방 일반/건조)에 맞게 이미 정해서 넘긴다.
-function buildRawCodeOrderMap(lines: { raw_code?: string }[]): Map<string, number> {
-  const map = new Map<string, number>();
-  let no = 0;
-  for (const line of lines) {
-    const code = line.raw_code;
-    if (!code || map.has(code)) continue;
-    no += 1;
-    map.set(code, no);
-  }
-  return map;
 }
 
 interface Props {
@@ -81,6 +67,9 @@ function docKey(rawMaterialId: string, docType: DocType) {
 export default function FormulaDocumentZipDownload({ formulaCode, revision, formula, basis }: Props) {
   const [rows, setRows] = useState<FormulaRawMaterialDocumentRow[]>([]);
   const [supplierByRawCode, setSupplierByRawCode] = useState<Map<string, string | null>>(new Map());
+  // 원료의 영문 Trade Name - zip 폴더명에 한글 원료명 대신 사용(외국 공급사/바이어도 알아볼 수 있도록).
+  // "복합성분표(Trade Name)" 문서와 동일한 값이며, 등록 안 된 원료는 폴더명에서 원료명(raw_name)으로 대체한다.
+  const [tradeNameByRawCode, setTradeNameByRawCode] = useState<Map<string, string | null>>(new Map());
   // 이 처방/기준에서 실제로 쓰인 원료들의 No.(복합성분표 순번) - zip 폴더 번호와 화면 표시에 함께 쓴다.
   const [rawCodeOrderMap, setRawCodeOrderMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -98,7 +87,9 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
       // raw_code 집합만 서류 조회 대상으로 삼는다 - 원처방 기준(MIX)은 기존 뷰 기반 조회를 그대로 쓴다.
       const mixLines = await fetchFormulaLinesForPdf(formulaCode, revision);
       const effectiveLines = basis === 'MIX' ? mixLines : (await resolveLinesForBasis(formula, mixLines, basis)).lines;
-      const orderMap = buildRawCodeOrderMap(effectiveLines);
+      // 복합성분표(PDF/엑셀)의 "No." 컬럼과 동일한 순서(투입% 내림차순)로 zip 폴더 번호를 매긴다 -
+      // 자세한 이유는 buildComplexNoOrderMap 주석 참고.
+      const orderMap = buildComplexNoOrderMap(effectiveLines);
       setRawCodeOrderMap(orderMap);
 
       const data = basis === 'MIX'
@@ -114,6 +105,15 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
         setSupplierByRawCode(supplierMap);
       } catch {
         setSupplierByRawCode(new Map());
+      }
+      // Trade Name도 서류 조회와 무관한 부가 정보이므로, 실패해도 화면 전체 에러로 띄우지 않고 조용히
+      // 빈 값으로 둔다(이 경우 zip 폴더명은 원료명(raw_name)으로 대체됨).
+      try {
+        const rawCodes = Array.from(new Set(data.map((r) => r.raw_code)));
+        const tradeNameMap = await fetchTradeNameMapByRawCode(rawCodes);
+        setTradeNameByRawCode(tradeNameMap);
+      } catch {
+        setTradeNameByRawCode(new Map());
       }
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : '문서 조회 중 오류가 발생했습니다.');
@@ -247,7 +247,12 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
           // 원료별 폴더 안에서는 서류 종류가 겹치지 않으므로(원료당 doc_type별 최신 1건), 개별 다운로드와
           // 동일하게 "COA.pdf"/"MSDS.pdf"처럼 서류 종류 이름으로 통일한다 - 업로드한 원본 파일명을 그대로
           // 쓰면 다운로드 방식마다 파일명 규칙이 달라 보이는 문제가 있었다.
-          const folderName = sanitizeFileSegment(`${noLabel}_${row.raw_code}_${row.raw_name}`);
+          // 폴더명에는 원료코드(내부 관리 코드)를 넣지 않는다 - 이 zip은 공급사 등 외부로 보낼 수도 있어서,
+          // 처방코드와 마찬가지로 내부 식별자가 노출되지 않도록 순번+원료명만 사용한다.
+          // 원료명도 한글 대신 영문 Trade Name을 쓴다 - 외국 공급사/바이어는 한글을 모르므로,
+          // "복합성분표(Trade Name)" 문서와 동일하게 영문만 노출한다. Trade Name이 등록 안 된 원료는
+          // 원료명(raw_name)으로 대체한다.
+          const folderName = sanitizeFileSegment(`${noLabel}_${tradeNameByRawCode.get(row.raw_code) || row.raw_name}`);
           const fileName = buildDocDownloadFileName({ doc_type: row.doc_type as DocType, file_name: row.file_name as string });
           zip.folder(folderName)!.file(fileName, blob);
         })

@@ -324,6 +324,30 @@ export async function fetchSupplierMapByRawCode(rawCodes: string[]): Promise<Map
   return map;
 }
 
+/**
+ * raw_code 목록에 대한 Trade Name(원료관리에 등록된 원료 자체의 영문 Trade Name) 조회.
+ * 문서관리 zip 다운로드(FormulaDocumentZipDownload)의 폴더명에 쓰인다 - 외국 공급사/바이어에게
+ * zip을 보낼 수도 있어서, 한글 원료명 대신 "복합성분표(Trade Name)" 문서와 동일한 영문 Trade Name으로
+ * 폴더명을 표시한다. Trade Name이 등록 안 된 원료는 호출부에서 원료명(raw_name)으로 대체한다.
+ */
+export async function fetchTradeNameMapByRawCode(rawCodes: string[]): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>();
+  const uniqueCodes = Array.from(new Set(rawCodes.filter(Boolean)));
+  if (uniqueCodes.length === 0) return map;
+
+  const { data, error } = await supabaseProductionFinal
+    .from('v_plm_raw_material_list')
+    .select('raw_code, trade_name')
+    .in('raw_code', uniqueCodes);
+  if (error) {
+    throw new Error(`Trade Name 조회 실패: ${error.message}`);
+  }
+  for (const row of (data ?? []) as { raw_code: string; trade_name: string | null }[]) {
+    map.set(row.raw_code, row.trade_name ?? null);
+  }
+  return map;
+}
+
 export interface RawMaterialDocumentStatusRow {
   id: string;
   raw_code: string;

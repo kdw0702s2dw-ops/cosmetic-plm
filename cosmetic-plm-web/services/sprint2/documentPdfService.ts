@@ -1004,6 +1004,31 @@ export function buildComplexGroupedRows(
     .sort((a, b) => b.input - a.input);
 }
 
+// 복합성분표의 "No." 컬럼과 동일한 순서(raw_code별 투입%(percentage) 합계 내림차순, 동률이면 BOM
+// 라인에 처음 등장한 순서 유지 - Array.sort는 stable)를 raw_code -> No.(1부터) 맵으로 반환한다.
+// buildComplexGroupedRows() 마지막의 `.sort((a, b) => b.input - a.input)`과 정렬 기준이 반드시 같아야
+// 하므로, 그쪽 로직이 바뀌면 이 함수도 함께 맞춰야 한다. 문서관리의 원료 문서 zip 다운로드
+// (FormulaDocumentZipDownload)가 zip 폴더 번호를 복합성분표 No.와 일치시키기 위해 이 함수를 그대로
+// 가져다 쓴다 - 예전에는 zip 쪽에서 BOM 라인 등장 순서로 따로 번호를 매겨서, 복합성분표는 투입%
+// 내림차순인데 zip 폴더는 라인 순서라 서로 어긋나는 문제가 있었다.
+export function buildComplexNoOrderMap(lines: any[]): Map<string, number> {
+  const order: string[] = []; // raw_code(또는 합성 키) 최초 등장 순서 - 동률 tie-break용
+  const totals = new Map<string, number>(); // raw_code -> 투입%(percentage) 합계
+  lines.forEach((line, i) => {
+    const code = line.raw_code || `__no_raw_code_${i}`;
+    if (!totals.has(code)) {
+      totals.set(code, 0);
+      order.push(code);
+    }
+    totals.set(code, totals.get(code)! + n(line.percentage));
+  });
+
+  const sorted = [...order].sort((a, b) => totals.get(b)! - totals.get(a)!);
+  const map = new Map<string, number>();
+  sorted.forEach((code, i) => map.set(code, i + 1));
+  return map;
+}
+
 // 이 raw_code가 현재(formula_code, revision) 이외의 다른 BOM 라인에도 등장한 적이 있는지 일괄 확인.
 // "회사에서 한 번도 쓰인 적 없는 원료(=이번이 첫 발주)"인지 판단하는 근거로 쓴다 - plm_raw_materials의
 // 등록일(created_at)은 실제 사용 이력과 무관할 수 있어 신뢰하지 않고, plm_formula_lines 실사용 이력을 직접 본다.
