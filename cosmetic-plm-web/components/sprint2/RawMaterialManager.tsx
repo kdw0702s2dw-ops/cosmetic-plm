@@ -101,9 +101,15 @@ export default function RawMaterialManager() {
 
   // CAS 번호 일치 우선, 그다음 INCI 영문명 → INCI 국문명 순으로 전성분관리의 주의성분 목록과 매칭한다
   // (matchAllergen과 동일한 매칭 우선순위 패턴).
+  //
+  // "-"는 공식 CAS가 없는 성분(특히 펩타이드류)에 관행적으로 저장해온 자리표시 문자일 뿐 실제 CAS가
+  // 아니다. 예전에는 이 "-"까지 하나의 CAS 값으로 취급해 비교했는데, 그 결과 CAS가 없는 서로 다른
+  // 성분끼리 전부 "-"라는 이유만으로 같은 성분으로 오판되는 문제가 있었다(전성분관리 중복검사에서
+  // 실제로 발견되어 수정한 것과 동일한 원인). 여기서도 CAS가 "-"인 경우는 CAS 매칭에서 제외하고
+  // INCI 국문/영문명으로만 판단한다.
   function matchCaution(inciKr: string, inciEn: string, casNo: string) {
     const cas = (casNo || "").trim();
-    if (cas) {
+    if (cas && cas !== "-") {
       const casHit = cautionIngredients.find((c) => c.cas_no && c.cas_no.trim() === cas);
       if (casHit) return casHit;
     }
@@ -133,9 +139,14 @@ export default function RawMaterialManager() {
   }
 
   // CAS 번호 일치 우선, 그다음 INCI 영문명 일치(대소문자/공백 무시)로 알러젠 마스터와 매칭
+  //
+  // matchCaution과 동일한 이유로 "-"(공식 CAS 없는 성분의 자리표시 문자)는 CAS 매칭에서 제외한다.
+  // 현재 알러젠 마스터에는 CAS가 "-"로 등록된 항목이 없어 당장 오작동 사례는 없지만, 나중에 CAS
+  // 미확정 알러젠이 하나라도 등록되면 CAS 없는 다른 성분들이 전부 그 알러젠으로 오인식될 수 있는
+  // 잠재 위험이라 동일하게 방어해둔다.
   function matchAllergen(inciEn: string, casNo: string): AllergenMaster | null {
     const cas = (casNo || "").trim();
-    if (cas) {
+    if (cas && cas !== "-") {
       const casHit = allergens.find((a) => a.cas_no && a.cas_no.trim() === cas);
       if (casHit) return casHit;
     }
