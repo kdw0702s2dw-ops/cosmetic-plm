@@ -64,7 +64,7 @@ export default function ResearcherHomePanel({
         </div>
       </section>
 
-      {/* 시스템 업데이트 - 등록 후 2일간만 노출되고 자동으로 사라짐(SystemUpdatesSection 참고) */}
+      {/* 시스템 업데이트 - 등록 후 SYSTEM_UPDATE_VISIBLE_DAYS(3일)간만 노출되고 자동으로 사라짐(SystemUpdatesSection 참고) */}
       <section style={{ marginBottom: 18 }}>
         <SystemUpdatesSection canWrite={auth.canManageUsers} createdBy={auth.profile?.email} />
       </section>

@@ -21,9 +21,9 @@ function fmtDateTime(v: string) {
 }
 
 /**
- * 연구원 홈 상단에 배치하는 "시스템 업데이트" 표. 등록 후 SYSTEM_UPDATE_VISIBLE_DAYS(2일)가
+ * 연구원 홈 상단에 배치하는 "시스템 업데이트" 표. 등록 후 SYSTEM_UPDATE_VISIBLE_DAYS(3일)가
  * 지나면 조회 자체에서 걸러져 화면에서 자동으로 사라진다 - 별도 삭제 배치나 크론 없이, 볼 때마다
- * "최근 2일" 기준으로 다시 걸러서 보여주는 방식.
+ * "최근 N일" 기준으로 다시 걸러서 보여주는 방식.
  */
 export default function SystemUpdatesSection({ canWrite, createdBy }: Props) {
   const [items, setItems] = useState<SystemUpdate[]>([]);
