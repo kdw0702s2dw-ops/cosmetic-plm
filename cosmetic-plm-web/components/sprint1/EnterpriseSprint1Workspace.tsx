@@ -5,6 +5,7 @@ import FormulaCoreWithAuthPanel from "@/components/sprint1/FormulaCoreWithAuthPa
 import Sprint0Dashboard from "@/components/platform/Sprint0Dashboard";
 import UserAdminPanel from "@/components/sprint1/UserAdminPanel";
 import RawMaterialManager from "@/components/sprint2/RawMaterialManager";
+import RawMaterialPurchaseOrderManager from "@/components/sprint2/RawMaterialPurchaseOrderManager";
 import MaterialManager from "@/components/sprint2/MaterialManager";
 import CompanyManager from "@/components/sprint2/CompanyManager";
 import IngredientDictionaryManager from "@/components/sprint2/IngredientDictionaryManager";
@@ -18,7 +19,7 @@ import MySignatureWidget from "@/components/sprint1/MySignatureWidget";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "quality" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "purchaseOrder" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "quality" | "regulation" | "users";
 
 // Production 역할은 부자재관리/원료관리/생산관리만 볼 수 있음
 const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production"];
@@ -63,6 +64,7 @@ export default function EnterpriseSprint1Workspace() {
   function renderActive() {
     if (effectiveActive === "sprint0") return <Sprint0Dashboard />;
     if (effectiveActive === "materialManager") return <MaterialManager />;
+    if (effectiveActive === "purchaseOrder") return <RawMaterialPurchaseOrderManager />;
     if (effectiveActive === "companyManager") return <CompanyManager />;
     if (effectiveActive === "regulation") return <RegulationEnginePanel />;
     if (effectiveActive === "users") return <UserAdminPanel />;
@@ -81,6 +83,7 @@ export default function EnterpriseSprint1Workspace() {
             <button className={effectiveActive === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
             {!isProduction && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
             <button className={effectiveActive === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
+            {!isProduction && <button className={effectiveActive === "purchaseOrder" ? "active" : ""} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></button>}
             {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
             {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
