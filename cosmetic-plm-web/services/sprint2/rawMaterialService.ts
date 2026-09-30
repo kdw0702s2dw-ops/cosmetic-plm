@@ -356,6 +356,12 @@ export async function saveComponents(rawCode: string, components: Component[]) {
 
 // 상위 성분이 지정된 행(parent_component_no 있음)은 이미 그 상위 행의 비율 안에 포함된 것으로
 // 간주해 합계에서 제외한다 (예: 향료 100% 안에 자연 함유된 알러젠 성분을 별도 행으로 적었을 때 이중계산 방지).
+//
+// 소수점이 있는 숫자를 JS(2진 부동소수점)로 여러 번 더하면 57.5 + 40 + 0.5*6 ...처럼 실제로는 정확히
+// 100%인 값도 99.99999999999997%처럼 부동소수점 오차가 섞여 나올 수 있다 - 데이터가 잘못된 게 아니라
+// 표시상의 계산 오차이므로, 화면에 이 오차가 그대로 노출되지 않도록 소수점 6자리로 반올림해서 제거한다
+// (구성비는 보통 소수점 6자리보다 훨씬 정밀하게 입력되지 않으므로 실제 정밀도 손실은 없다).
 export function sumComposition(components: Component[]) {
-  return components.reduce((s, c) => s + (c.parent_component_no ? 0 : Number(c.composition_percent) || 0), 0);
+  const sum = components.reduce((s, c) => s + (c.parent_component_no ? 0 : Number(c.composition_percent) || 0), 0);
+  return Math.round(sum * 1e6) / 1e6;
 }
