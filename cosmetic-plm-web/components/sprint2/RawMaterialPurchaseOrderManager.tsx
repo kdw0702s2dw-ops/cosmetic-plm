@@ -211,12 +211,15 @@ export default function RawMaterialPurchaseOrderManager() {
   function pickRawForRow(raw: any) {
     if (activeRawRow == null) return;
     // 발주 화면에서 처음 담는 순간의 단가를 기본값으로 채워주되(원료 마스터 최근 단가), 실제 계약 단가가
-    // 다르면 바로 아래 칸에서 수정하면 된다.
+    // 다르면 바로 아래 칸에서 수정하면 된다. 패킹도 원료관리에 등록된 MOQ를 기본값으로 채워주고(요청사항:
+    // "패킹의 경우 원료관리에서 원료 MOQ 등록한 정보가 자동으로 입력되게"), 실제 발주 단위가 다르면
+    // 그 자리에서 바로 수정하면 된다.
     updateItem(activeRawRow, {
       raw_code: raw.raw_code,
       raw_name: raw.raw_name,
       trade_name: raw.trade_name,
       unit_price: raw.unit_price ?? 0,
+      packing: raw.moq || "",
       ...calcItemAmounts({ unit_price: raw.unit_price ?? 0, quantity: order?.items[activeRawRow]?.quantity || 0, vat_rate: order?.items[activeRawRow]?.vat_rate ?? 0.1 }),
     });
     setRawHits([]);
