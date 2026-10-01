@@ -23,6 +23,7 @@ function formatCurrency(n: number | null | undefined) {
 
 const STATUS_COLOR: Record<PurchaseOrderStatus, { bg: string; fg: string }> = {
   주문완료: { bg: "#dbeafe", fg: "#1d4ed8" },
+  부분입고: { bg: "#fef3c7", fg: "#b45309" },
   입고완료: { bg: "#dcfce7", fg: "#16a34a" },
   취소: { bg: "#f1f5f9", fg: "#64748b" },
 };
@@ -408,7 +409,7 @@ export default function RawMaterialPurchaseOrderManager() {
               <table className="v50-table">
                 <thead>
                   <tr>
-                    <th>#</th><th style={{ minWidth: 200 }}>원료코드/원료명</th><th>단가</th><th>수량</th><th>단위</th>
+                    <th>#</th><th style={{ minWidth: 200 }}>원료코드/원료명</th><th>단가</th><th>수량</th><th>단위</th><th>패킹</th>
                     <th>공급가</th><th>부가세율</th><th>부가세</th><th>총액</th><th>비고</th><th></th>
                   </tr>
                 </thead>
@@ -433,6 +434,7 @@ export default function RawMaterialPurchaseOrderManager() {
                       <td><input className="v50-input" type="number" style={{ width: 90 }} value={it.unit_price} onChange={(e) => updateItem(i, { unit_price: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" type="number" style={{ width: 80 }} value={it.quantity} onChange={(e) => updateItem(i, { quantity: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 60 }} value={it.unit || ""} onChange={(e) => updateItem(i, { unit: e.target.value })} placeholder="kg" disabled={!canWrite} /></td>
+                      <td><input className="v50-input" style={{ width: 100 }} value={it.packing || ""} onChange={(e) => updateItem(i, { packing: e.target.value })} placeholder="20kg/drum" disabled={!canWrite} /></td>
                       <td><input className="v50-input" type="number" style={{ width: 100 }} value={it.supply_amount} onChange={(e) => updateItem(i, { supply_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" type="number" step="0.01" style={{ width: 70 }} value={it.vat_rate} onChange={(e) => updateItem(i, { vat_rate: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" type="number" style={{ width: 90 }} value={it.vat_amount} onChange={(e) => updateItem(i, { vat_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
@@ -441,11 +443,11 @@ export default function RawMaterialPurchaseOrderManager() {
                       <td>{canWrite && <button className="v50-button-light" onClick={() => removeItemRow(i)}>삭제</button>}</td>
                     </tr>
                   ))}
-                  {order.items.length === 0 && <tr><td colSpan={11} style={{ color: "#94a3b8" }}>품목이 없습니다.</td></tr>}
+                  {order.items.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>품목이 없습니다.</td></tr>}
                 </tbody>
                 <tfoot>
                   <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                    <td colSpan={5} style={{ textAlign: "right" }}>합계</td>
+                    <td colSpan={6} style={{ textAlign: "right" }}>합계</td>
                     <td>{formatCurrency(itemTotals.supply)}</td>
                     <td></td>
                     <td>{formatCurrency(itemTotals.vat)}</td>

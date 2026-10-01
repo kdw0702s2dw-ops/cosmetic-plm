@@ -3,17 +3,19 @@
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
 // 원료 발주관리 - 발주(헤더) + 발주 품목(원료별 라인) 서비스.
-// DB 구조: supabase/migrations/21_raw_material_purchase_orders.sql 참고.
-// - plm_raw_material_purchase_orders: 발주 헤더(공급사 1곳 단위)
-// - plm_raw_material_purchase_order_items: 발주 품목(원료별 라인, 단가/수량은 저장 시점 스냅샷)
+// DB 구조: supabase/migrations/21_raw_material_purchase_orders.sql, 22_purchase_order_refinements.sql 참고.
+// - plm_raw_material_purchase_orders: 발주 헤더(공급사 1곳 단위). order_no는 BEFORE INSERT 트리거
+//   (plm_set_purchase_order_no)가 order_date 기준 연월로 자동 채번("PO<YYYYMM>-####", 연월별 1부터
+//   시작) - 등록 "시각"이 아니라 사용자가 지정한 발주일 기준이라 발주일을 과거/미래로 입력해도 어긋나지 않음.
+// - plm_raw_material_purchase_order_items: 발주 품목(원료별 라인, 단가/수량/패킹은 저장 시점 스냅샷)
 // - v_plm_purchase_order_summary: 목록 화면용(공급사명 + 품목 합계 조인)
 // - v_plm_purchase_order_items_detail: 상세 화면용(원료명/Trade Name 조인)
 // - plm_save_purchase_order_items RPC: 품목을 한 번에 교체 저장(기존 전체 삭제 후 재삽입)
 
-export type PurchaseOrderStatus = "주문완료" | "입고완료" | "취소";
+export type PurchaseOrderStatus = "주문완료" | "부분입고" | "입고완료" | "취소";
 export type PurchaseOrderPaymentStatus = "미결제" | "결제완료";
 
-export const PURCHASE_ORDER_STATUSES: PurchaseOrderStatus[] = ["주문완료", "입고완료", "취소"];
+export const PURCHASE_ORDER_STATUSES: PurchaseOrderStatus[] = ["주문완료", "부분입고", "입고완료", "취소"];
 export const PURCHASE_ORDER_PAYMENT_STATUSES: PurchaseOrderPaymentStatus[] = ["미결제", "결제완료"];
 
 export type PurchaseOrderItem = {
@@ -26,6 +28,7 @@ export type PurchaseOrderItem = {
   unit_price: number;
   quantity: number;
   unit?: string | null;
+  packing?: string | null; // 패킹 정보 (예: "20kg/drum", "1kg 병x10")
   supply_amount: number;
   vat_rate: number;
   vat_amount: number;
@@ -35,7 +38,7 @@ export type PurchaseOrderItem = {
 
 export type PurchaseOrder = {
   id?: string;
-  order_no?: string; // 신규 저장 시 DB 기본값(plm_next_purchase_order_no)으로 자동 채워짐
+  order_no?: string; // 신규 저장 시 DB 트리거(plm_set_purchase_order_no)가 order_date 기준으로 자동 채워짐
   supplier_company_id: string | null;
   order_date: string; // yyyy-mm-dd
   payment_due_date?: string | null;
@@ -143,6 +146,7 @@ export async function savePurchaseOrderItems(orderId: string, items: PurchaseOrd
       unit_price: i.unit_price || 0,
       quantity: i.quantity || 0,
       unit: i.unit || null,
+      packing: i.packing || null,
       supply_amount: i.supply_amount || 0,
       vat_rate: i.vat_rate ?? 0.1,
       vat_amount: i.vat_amount || 0,
@@ -184,7 +188,7 @@ export function calcItemAmounts(item: Pick<PurchaseOrderItem, "unit_price" | "qu
 }
 
 export function emptyPurchaseOrderItem(): PurchaseOrderItem {
-  return { raw_code: "", unit_price: 0, quantity: 0, unit: "", supply_amount: 0, vat_rate: 0.1, vat_amount: 0, total_amount: 0, note: "" };
+  return { raw_code: "", unit_price: 0, quantity: 0, unit: "", packing: "", supply_amount: 0, vat_rate: 0.1, vat_amount: 0, total_amount: 0, note: "" };
 }
 
 export function emptyPurchaseOrder(): PurchaseOrder {
