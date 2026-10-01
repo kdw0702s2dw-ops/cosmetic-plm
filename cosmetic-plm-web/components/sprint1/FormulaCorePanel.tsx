@@ -334,17 +334,18 @@ export default function FormulaCorePanel() {
 
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>담당 연구원</th><th>Revision</th><th>진행상태</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
+            <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>고객사</th><th>담당 연구원</th><th>Revision</th><th>진행상태</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
               {visibleRows.length === 0 && (
-                <tr><td colSpan={9} style={{ color: "#94a3b8" }}>해당 진행상태의 처방이 없습니다.</td></tr>
+                <tr><td colSpan={10} style={{ color: "#94a3b8" }}>해당 진행상태의 처방이 없습니다.</td></tr>
               )}
               {visibleRows.map(({ key, rep, revisions, pickedRevision, pickedRow }) => {
                 return (
                 <tr key={key}>
                   <td>{rep.formula_code}</td><td>{rep.confirmed_code || "-"}</td><td>{rep.formula_name}</td>
-                  {/* 담당 연구원은 처방 기본정보(assigned_researcher)에서 그대로 가져온다 - 현재 선택된
-                      Revision 기준으로 보여준다(Revision마다 담당자가 다를 수 있음) */}
+                  {/* 고객사/담당 연구원은 처방 기본정보(customer/assigned_researcher)에서 그대로 가져온다 -
+                      현재 선택된 Revision 기준으로 보여준다(Revision마다 값이 다를 수 있음) */}
+                  <td>{pickedRow.customer || "-"}</td>
                   <td>{pickedRow.assigned_researcher || "-"}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
