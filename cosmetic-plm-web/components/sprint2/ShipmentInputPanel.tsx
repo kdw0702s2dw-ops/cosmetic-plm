@@ -10,6 +10,7 @@ import {
 } from "@/services/sprint2/shipmentRecordService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import CompanyAutocompleteField from "@/components/common/CompanyAutocompleteField";
 import "@/styles/enterprise-v50.css";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -61,9 +62,13 @@ export default function ShipmentInputPanel() {
           <Field label="출고일">
             <input className="v50-input" type="date" value={draft.shipment_date || ""} onChange={(e) => setDraft({ ...draft, shipment_date: e.target.value || null })} />
           </Field>
-          <Field label="고객사">
-            <input className="v50-input" value={draft.customer || ""} onChange={(e) => setDraft({ ...draft, customer: e.target.value })} />
-          </Field>
+          {/* 원료관리의 Manufacturer/Supplier 입력칸과 동일한 형태(업체관리 자동완성 + 그 자리에서
+              새 업체 등록) - components/common/CompanyAutocompleteField.tsx 공용 컴포넌트 재사용 */}
+          <CompanyAutocompleteField
+            label="고객사" preferredCategory="고객사"
+            value={draft.customer || ""} companyId={draft.customer_company_id}
+            onChange={(patch) => setDraft({ ...draft, customer: patch.value, customer_company_id: patch.companyId })}
+          />
           <Field label="수량">
             <input className="v50-input" type="number" value={draft.quantity ?? ""} onChange={(e) => setDraft({ ...draft, quantity: e.target.value === "" ? null : Number(e.target.value) })} />
           </Field>

@@ -92,10 +92,10 @@ export default function EnterpriseSprint1Workspace() {
             {!isProduction && <button className={effectiveActive === "purchaseOrder" ? "active" : ""} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></button>}
             {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
             {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
+            {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
             <button className={effectiveActive === "productionRecords" ? "active" : ""} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></button>
             <button className={effectiveActive === "shipmentManagement" ? "active" : ""} onClick={() => setActive("shipmentManagement")}><span>출고관리</span></button>
-            {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
             {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
             {!isProduction && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
             {!isProduction && <button className={effectiveActive === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>}

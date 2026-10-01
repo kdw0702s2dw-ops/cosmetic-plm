@@ -12,6 +12,9 @@ export type ShipmentRecord = {
   id: string;
   shipment_date: string | null; // YYYY-MM-DD
   customer: string | null;
+  // 고객사 자동완성(CompanyAutocompleteField)에서 업체관리의 업체를 선택했을 때의 plm_companies.id
+  // - 직접 입력한 경우는 null (customer는 텍스트로만 저장됨)
+  customer_company_id: string | null;
   quantity: number | null;
   product_code: string | null;
   product_name: string | null;
@@ -30,6 +33,7 @@ export type ShipmentRecordInput = Partial<Omit<ShipmentRecord, "id" | "created_a
 const emptyDraft: ShipmentRecordInput = {
   shipment_date: null,
   customer: "",
+  customer_company_id: null,
   quantity: null,
   product_code: "",
   product_name: "",

@@ -2,7 +2,9 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-export const COMPANY_CATEGORIES = ["원료사", "브랜드사", "제조사", "공급사"] as const;
+// "고객사"는 출고관리의 고객사 자동완성(CompanyAutocompleteField)에서 신규 등록 시 사용하기 위해
+// 추가됨 - DB plm_companies_category_check 제약도 함께 갱신해야 함(마이그레이션 참고).
+export const COMPANY_CATEGORIES = ["원료사", "브랜드사", "제조사", "공급사", "고객사"] as const;
 export type CompanyCategory = (typeof COMPANY_CATEGORIES)[number];
 
 export type Company = {
