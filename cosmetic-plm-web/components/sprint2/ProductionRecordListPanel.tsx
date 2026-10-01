@@ -99,7 +99,7 @@ export default function ProductionRecordListPanel() {
               <tr>
                 <th>생산일자</th><th>처방코드</th><th>처방명</th><th>Rev</th><th>Lot No.</th>
                 <th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 70 }}>삭제</th>
+                <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>비고</th><th style={{ width: 70 }}>삭제</th>
               </tr>
             </thead>
             <tbody>
@@ -115,12 +115,11 @@ export default function ProductionRecordListPanel() {
                   <td>{fmt(r.molded_qty)}</td>
                   <td>{fmt(r.shipped_qty_ea)}</td>
                   <td>{fmt(r.shipped_qty_pack)}</td>
-                  <td>{r.created_by || "-"}</td>
                   <td>{r.note || "-"}</td>
                   <td><button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r.id!)}>삭제</button></td>
                 </tr>
               ))}
-              {records.length === 0 && <tr><td colSpan={13} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
+              {records.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
             </tbody>
             {records.length > 0 && (
               <tfoot>
@@ -130,7 +129,7 @@ export default function ProductionRecordListPanel() {
                   <td>{fmt(totals.molded)}</td>
                   <td>{fmt(totals.ea)}</td>
                   <td>{fmt(totals.pack)}</td>
-                  <td colSpan={3}></td>
+                  <td colSpan={2}></td>
                 </tr>
               </tfoot>
             )}
