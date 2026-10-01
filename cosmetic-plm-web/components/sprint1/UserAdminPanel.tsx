@@ -153,16 +153,23 @@ function UserRow({
 }: {
   user: any;
   isSelf: boolean;
-  onSave: (id: string, role: PlmRole, isActive: boolean) => Promise<void>;
+  onSave: (id: string, role: PlmRole, isActive: boolean, displayName?: string) => Promise<void>;
   onDelete: (id: string, email: string) => Promise<void>;
 }) {
   const [role, setRole] = useState<PlmRole>(user.role || "Researcher");
   const [active, setActive] = useState<boolean>(!!user.is_active);
+  const [displayName, setDisplayName] = useState<string>(user.display_name || "");
 
   return (
     <tr>
       <td>{user.email}</td>
-      <td>{user.display_name}</td>
+      <td>
+        <input
+          className="v50-input" style={{ minWidth: 100 }}
+          value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="이름"
+        />
+      </td>
       <td>
         <select className="v50-input" value={role} onChange={(e) => setRole(e.target.value as PlmRole)}>
           {roles.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -176,7 +183,7 @@ function UserRow({
       </td>
       <td style={{ fontSize: 13, color: "#475569" }}>{formatLastSignIn(user.last_sign_in_at)}</td>
       <td style={{ fontSize: 13, color: "#475569" }}>{formatLastActive(user.last_active_at)}</td>
-      <td><button className="v50-button-light" onClick={() => onSave(user.id, role, active)}>저장</button></td>
+      <td><button className="v50-button-light" onClick={() => onSave(user.id, role, active, displayName)}>저장</button></td>
       <td>
         <button
           className="v50-button-light"

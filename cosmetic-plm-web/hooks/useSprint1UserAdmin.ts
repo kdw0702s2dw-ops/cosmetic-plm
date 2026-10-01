@@ -31,10 +31,10 @@ export function useSprint1UserAdmin() {
     }
   }
 
-  async function updateRole(id: string, role: PlmRole, isActive: boolean) {
+  async function updateRole(id: string, role: PlmRole, isActive: boolean, displayName?: string) {
     setLoading(true);
     try {
-      await updateUserProfileRole(id, role, isActive);
+      await updateUserProfileRole(id, role, isActive, displayName);
       await load();
       setMessage("사용자 권한 수정 완료");
     } catch (error) {

@@ -150,12 +150,15 @@ export async function fetchUserProfiles() {
   return data || [];
 }
 
-export async function updateUserProfileRole(id: string, role: PlmRole, isActive: boolean) {
+// displayName을 넘기면(사용자 권한관리 화면에서 이름도 함께 수정) 같이 저장하고, 생략하면
+// 기존처럼 역할/활성 상태만 바꾼다 - 호출부를 늘리지 않고 한 번의 저장으로 처리하기 위함.
+export async function updateUserProfileRole(id: string, role: PlmRole, isActive: boolean, displayName?: string) {
   const { data, error } = await supabaseProductionFinal
     .from("plm_user_profiles")
     .update({
       role,
       is_active: isActive,
+      ...(displayName !== undefined ? { display_name: displayName.trim() || null } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
