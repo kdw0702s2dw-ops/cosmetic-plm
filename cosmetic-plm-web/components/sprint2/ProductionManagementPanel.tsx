@@ -7,7 +7,6 @@ import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
 import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
-import ShipmentManagementPanel from "@/components/sprint2/ShipmentManagementPanel";
 import "@/styles/enterprise-v50.css";
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
@@ -17,12 +16,6 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     label: "생산일정관리",
     description: "처방별 칭량·제조·도포·타공·포장·출고 일정을 달력으로 등록하고 관리합니다.",
     render: () => <ProductionSchedulePanel />,
-  },
-  {
-    key: "shipment",
-    label: "출고관리",
-    description: "출고일·고객사·수량·제품코드·제품명·LOT(EXP)·기능성·중금속/미생물 검사 진행상태를 직접 입력해서 관리합니다.",
-    render: () => <ShipmentManagementPanel />,
   },
   {
     key: "insolubleHg",
@@ -55,8 +48,9 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     render: () => <ManufacturingQtyReviewPanel />,
   },
 ];
-// 생산실적 관리("(생산) 생산실적 검토")는 사이드바의 독립 메뉴 "생산실적 관리"로 분리됨
-// (components/sprint2/ProductionRecordManager.tsx) - 여기 도구 목록에서는 중복 노출하지 않는다.
+// 생산실적 관리("(생산) 생산실적 검토")와 출고관리는 사이드바의 독립 메뉴 "생산실적 관리"/"출고관리"로
+// 각각 분리됨(components/sprint2/ProductionRecordManager.tsx, ShipmentManagementPanel.tsx) - 여기
+// 도구 목록에서는 중복 노출하지 않는다.
 
 export default function ProductionManagementPanel() {
   const [activeTool, setActiveTool] = useState(TOOLS[0].key);

@@ -12,6 +12,7 @@ import IngredientDictionaryManager from "@/components/sprint2/IngredientDictiona
 import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 import ProductionManagementPanel from "@/components/sprint2/ProductionManagementPanel";
 import ProductionRecordManager from "@/components/sprint2/ProductionRecordManager";
+import ShipmentManagementPanel from "@/components/sprint2/ShipmentManagementPanel";
 import QualityManagementPanel from "@/components/sprint2/QualityManagementPanel";
 import ResearcherHomePanel from "@/components/sprint2/ResearcherHomePanel";
 import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
@@ -20,14 +21,15 @@ import MySignatureWidget from "@/components/sprint1/MySignatureWidget";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
-type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "purchaseOrder" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "productionRecords" | "quality" | "regulation" | "users";
+type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "purchaseOrder" | "materialManager" | "companyManager" | "formula" | "docs" | "production" | "productionRecords" | "shipmentManagement" | "quality" | "regulation" | "users";
 
-// Production 역할은 부자재관리/원료관리/생산관리(+생산실적 관리)만 볼 수 있음. 생산실적 관리는 원래
-// 생산관리 하위 도구였고 그때도 Production이 접근 가능했으므로, 독립 메뉴로 분리된 뒤에도 그대로 유지한다.
-const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production", "productionRecords"];
+// Production 역할은 부자재관리/원료관리/생산관리(+생산실적 관리/출고관리)만 볼 수 있음. 생산실적 관리와
+// 출고관리는 원래 생산관리 하위 도구였고 그때도 Production이 접근 가능했으므로, 독립 메뉴로 분리된 뒤에도
+// 그대로 유지한다.
+const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "production", "productionRecords", "shipmentManagement"];
 
 // 탭을 전환해도 화면에 입력한 내용 등 상태가 유지되도록, 방문한 적이 있으면 마운트 상태를 유지하는 탭 목록
-const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "docs", "production", "productionRecords", "quality"];
+const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "docs", "production", "productionRecords", "shipmentManagement", "quality"];
 
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
@@ -60,6 +62,7 @@ export default function EnterpriseSprint1Workspace() {
     if (tab === "docs") return <DocumentPdfPanel />;
     if (tab === "production") return <ProductionManagementPanel />;
     if (tab === "productionRecords") return <ProductionRecordManager />;
+    if (tab === "shipmentManagement") return <ShipmentManagementPanel />;
     if (tab === "quality") return <QualityManagementPanel />;
     return null;
   }
@@ -91,6 +94,7 @@ export default function EnterpriseSprint1Workspace() {
             {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
             <button className={effectiveActive === "productionRecords" ? "active" : ""} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></button>
+            <button className={effectiveActive === "shipmentManagement" ? "active" : ""} onClick={() => setActive("shipmentManagement")}><span>출고관리</span></button>
             {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
             {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
             {!isProduction && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
