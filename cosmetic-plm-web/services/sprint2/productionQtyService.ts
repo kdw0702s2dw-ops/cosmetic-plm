@@ -6,7 +6,7 @@ export type ProductionQtyHeaderInput = {
   manufacture_qty_kg: number;
   loss_percent: number;
   coat_max_10x10: number;
-  coating_length_cm: number;
+  coating_length_m: number;
   coating_width_cm: number;
   coating_loss_m: number;
 };
@@ -41,15 +41,18 @@ export type ProductionQtySheet = {
   };
 
 // 첨부 시트("확인사항 210106 업데이트")의 수식을 그대로 재현한다. 반올림/단순화 없이 그대로 연쇄 계산.
+// (2026-10 업데이트: 코팅길이를 cm이 아니라 m 단위로 입력받도록 변경 - 코팅원단 총 수(개) 계산이
+// cm/m 단위를 섞어 쓰던 문제를 바로잡음. 코팅길이가 이미 m 단위이므로 cm<->m 변환(/100, *100)이
+// 서로 상쇄되어 수식에서 100 관련 계수가 모두 사라진다.)
 // 순수사용가능중량(g) = (제조량 - 제조량*로스%/100) * 1000
-// (m)/1EA = 코팅길이 / 100
-// 코팅원단총수(개) = 순수사용가능중량 / ((코팅폭*코팅길이*도포량Max)/100)
+// (m)/1EA = 코팅길이(m) (그대로)
+// 코팅원단총수(개) = 순수사용가능중량 / (코팅폭(cm) * 코팅길이(m) * 도포량Max)
 // 이론적수량(m) = 코팅원단총수 * (m)/1EA
 // 실제수량(m) = 이론적수량 - 코팅로스
 export function calcHeader(input: ProductionQtyHeaderInput): ProductionQtyHeaderResult {
   const usable_weight_g = (input.manufacture_qty_kg - (input.manufacture_qty_kg * input.loss_percent) / 100) * 1000;
-  const m_per_ea = input.coating_length_cm / 100;
-  const coating_fabric_count = usable_weight_g / ((input.coating_width_cm * input.coating_length_cm * input.coat_max_10x10) / 100);
+  const m_per_ea = input.coating_length_m;
+  const coating_fabric_count = usable_weight_g / (input.coating_width_cm * input.coating_length_m * input.coat_max_10x10);
   const theoretical_qty_m = coating_fabric_count * m_per_ea;
   const actual_qty_m = theoretical_qty_m - input.coating_loss_m;
   return { usable_weight_g, m_per_ea, coating_fabric_count, theoretical_qty_m, actual_qty_m };

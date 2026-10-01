@@ -15,11 +15,11 @@ function fmtInt(v: number | null | undefined) {
   return String(Math.round(v));
 }
 
-const HEADER_FIELDS: { key: "manufacture_qty_kg" | "loss_percent" | "coat_max_10x10" | "coating_length_cm" | "coating_width_cm" | "coating_loss_m"; label: string }[] = [
+const HEADER_FIELDS: { key: "manufacture_qty_kg" | "loss_percent" | "coat_max_10x10" | "coating_length_m" | "coating_width_cm" | "coating_loss_m"; label: string }[] = [
   { key: "manufacture_qty_kg", label: "제조량(kg)" },
   { key: "loss_percent", label: "로스(%)" },
   { key: "coat_max_10x10", label: "10x10(도포량 Max)" },
-  { key: "coating_length_cm", label: "코팅길이(cm)" },
+  { key: "coating_length_m", label: "코팅길이(m)" },
   { key: "coating_width_cm", label: "코팅폭(cm)" },
   { key: "coating_loss_m", label: "코팅 로스(m)" },
 ];

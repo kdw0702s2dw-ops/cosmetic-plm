@@ -36,7 +36,7 @@ export function buildProductionQtyHtml(sheet: ProductionQtySheet): string {
     ["제조량(kg)", fmt(sheet.manufacture_qty_kg)],
     ["로스(%)", fmt(sheet.loss_percent)],
     ["10x10(도포량 Max)", fmt(sheet.coat_max_10x10)],
-    ["코팅길이(cm)", fmt(sheet.coating_length_cm)],
+    ["코팅길이(m)", fmt(sheet.coating_length_m)],
     ["코팅폭(cm)", fmt(sheet.coating_width_cm)],
     ["코팅 로스(m)", fmt(sheet.coating_loss_m)],
   ]
@@ -135,7 +135,7 @@ export async function downloadProductionQtyExcel(sheet: ProductionQtySheet) {
     ["제조량(kg)", sheet.manufacture_qty_kg],
     ["로스(%)", sheet.loss_percent],
     ["10x10(도포량 Max)", sheet.coat_max_10x10],
-    ["코팅길이(cm)", sheet.coating_length_cm],
+    ["코팅길이(m)", sheet.coating_length_m],
     ["코팅폭(cm)", sheet.coating_width_cm],
     ["코팅 로스(m)", sheet.coating_loss_m],
   ];

@@ -8,7 +8,7 @@ import {
 import { downloadProductionQtyExcel, printProductionQtySheet } from "@/services/sprint2/productionQtyDocService";
 
 const emptyHeaderInput: ProductionQtyHeaderInput = {
-  manufacture_qty_kg: 0, loss_percent: 0, coat_max_10x10: 0, coating_length_cm: 0, coating_width_cm: 0, coating_loss_m: 0,
+  manufacture_qty_kg: 0, loss_percent: 0, coat_max_10x10: 0, coating_length_m: 0, coating_width_cm: 0, coating_loss_m: 0,
 };
 
 export function useProductionQtyCheck() {
@@ -108,7 +108,7 @@ export function useProductionQtyCheck() {
       manufacture_qty_kg: sheet.manufacture_qty_kg,
       loss_percent: sheet.loss_percent,
       coat_max_10x10: sheet.coat_max_10x10,
-      coating_length_cm: sheet.coating_length_cm,
+      coating_length_m: sheet.coating_length_m,
       coating_width_cm: sheet.coating_width_cm,
       coating_loss_m: sheet.coating_loss_m,
     });
