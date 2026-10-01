@@ -29,8 +29,8 @@ const COMPONENTS: { codeKey: "fabric_material_code" | "film_material_code"; weig
   { codeKey: "film_material_code", weightKey: "film_standard_weight", label: "필름 관리기준" },
 ];
 
-export default function InsolubleHgPanel() {
-  const s = useInsolubleHgCheck();
+export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useInsolubleHgCheck(refreshTick);
   const auth = useSprint1Auth();
 
   return (

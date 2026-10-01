@@ -19,7 +19,9 @@ export type StockRow = {
   openingEditable: boolean; // 이력이 전혀 없는 원료의 최초 등록(baseline)일 때만 true
 };
 
-export function useRawMaterialStockCheck() {
+// refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) 현재 보고 있는 날짜의 원장을 다시 불러온다 - 선택된 날짜/입력 중인 값은 그대로 유지된다.
+export function useRawMaterialStockCheck(refreshToken?: number) {
   const [ledgerDate, setLedgerDate] = useState(todayStr());
   const [materials, setMaterials] = useState<{ raw_code: string; raw_name: string }[]>([]);
   const [rows, setRows] = useState<StockRow[]>([]);
@@ -72,6 +74,12 @@ export function useRawMaterialStockCheck() {
     if (materials.length > 0) loadForDate(ledgerDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, ledgerDate]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshToken) loadForDate(ledgerDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function updateUsage(rawCode: string, value: string) {
     const usage = value === "" ? 0 : Number(value);

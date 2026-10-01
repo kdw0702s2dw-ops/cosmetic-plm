@@ -11,8 +11,8 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-export default function RawMaterialStockPanel() {
-  const s = useRawMaterialStockCheck();
+export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useRawMaterialStockCheck(refreshTick);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);

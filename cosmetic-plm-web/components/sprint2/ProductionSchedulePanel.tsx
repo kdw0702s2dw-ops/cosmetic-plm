@@ -76,8 +76,8 @@ function StatusSelect({ item, s }: { item: ProductionSchedule; s: S }) {
   );
 }
 
-export default function ProductionSchedulePanel() {
-  const s = useProductionSchedule();
+export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useProductionSchedule(refreshTick);
   const monthLabel = `${s.year}년 ${s.month}월`;
   // 일정 등록 폼은 기본적으로 접어둔다 - 달력을 전체 폭으로 크게 보는 것이 기본 화면이고,
   // "수정"을 누르거나 "+ 일정 등록"을 누르면 그때만 위쪽에 펼쳐진다.

@@ -24,8 +24,8 @@ const COMPONENTS: { codeKey: "component1_raw_code" | "component2_raw_code" | "co
   { codeKey: "component3_raw_code", weightKey: "component3_weight", label: "관리기준3 (필름2)" },
 ];
 
-export default function SolubleHgPanel() {
-  const s = useSolubleHgCheck();
+export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useSolubleHgCheck(refreshTick);
   const auth = useSprint1Auth();
 
   return (

@@ -9,8 +9,8 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-export default function ManufacturingQtyReviewPanel() {
-  const s = useManufacturingQtyReview();
+export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useManufacturingQtyReview(refreshTick);
   const auth = useSprint1Auth();
 
   return (

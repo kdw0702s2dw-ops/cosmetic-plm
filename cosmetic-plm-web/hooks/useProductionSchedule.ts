@@ -26,7 +26,9 @@ function todayStr() {
 }
 
 // 생산관리 "생산일정관리" - 달력(월간) + 목록을 함께 보여주며 처방별 제조/타공/포장/출고 일정을 관리한다.
-export function useProductionSchedule() {
+// refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은 초기값이라
+// 무시) 현재 보고 있는 달의 일정을 다시 불러온다 - 선택된 날짜/처방/입력 중인 폼 값은 그대로 유지된다.
+export function useProductionSchedule(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
 
@@ -78,6 +80,12 @@ export function useProductionSchedule() {
     loadMonth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthFrom, monthTo]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshToken) loadMonth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function prevMonth() {
     setSelectedDate(null);

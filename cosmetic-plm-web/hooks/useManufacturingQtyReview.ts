@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import { fetchSprint1FormulaLines } from "@/services/sprint1/formulaCoreService";
 import { fetchLatestStockByRawCodes, isStockManagedRawCode } from "@/services/sprint2/rawMaterialStockService";
@@ -10,7 +10,10 @@ import {
 } from "@/services/sprint2/manufacturingQtyReviewService";
 import { downloadManufacturingQtyReviewExcel, printManufacturingQtyReviewSheet } from "@/services/sprint2/manufacturingQtyReviewDocService";
 
-export function useManufacturingQtyReview() {
+// refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) 현재 선택된 처방을 다시 조회(BOM/재고/이력 모두 재조회)한다 - 목표 제조량/메모
+// 입력값은 그대로 유지된다. 처방을 선택하지 않았으면 할 일이 없다.
+export function useManufacturingQtyReview(refreshToken?: number) {
   const [keyword, setKeyword] = useState("");
   const [formulas, setFormulas] = useState<any[]>([]);
   const [formula, setFormula] = useState<any | null>(null);
@@ -66,6 +69,12 @@ export function useManufacturingQtyReview() {
       setMessage(e instanceof Error ? e.message : "이력 조회 오류");
     }
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshToken && formula) selectFormula(formula);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function updateTargetQtyKg(value: string) {
     setTargetQtyKg(value === "" ? 0 : Number(value));

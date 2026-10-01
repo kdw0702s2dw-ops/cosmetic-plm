@@ -24,8 +24,8 @@ const HEADER_FIELDS: { key: "manufacture_qty_kg" | "loss_percent" | "coat_max_10
   { key: "coating_loss_m", label: "코팅 로스(m)" },
 ];
 
-export default function ProductionQtyCheckPanel() {
-  const s = useProductionQtyCheck();
+export default function ProductionQtyCheckPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useProductionQtyCheck(refreshTick);
   const auth = useSprint1Auth();
 
   return (

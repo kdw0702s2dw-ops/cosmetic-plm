@@ -19,7 +19,9 @@ const emptyHeaderInput: SolubleHgHeaderInput = {
   manual_notice_coat_amount: null,
 };
 
-export function useSolubleHgCheck() {
+// refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) 현재 선택된 처방의 이력만 다시 불러온다 - 처방을 선택하지 않았으면 할 일이 없다.
+export function useSolubleHgCheck(refreshToken?: number) {
   const [keyword, setKeyword] = useState("");
   const [formulas, setFormulas] = useState<any[]>([]);
   const [formula, setFormula] = useState<any | null>(null);
@@ -156,6 +158,11 @@ export function useSolubleHgCheck() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (refreshToken && formula) loadHistory(formula.formula_code, formula.revision);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function updateNumericField(key: keyof Omit<SolubleHgHeaderInput, "component1_raw_code" | "component2_raw_code" | "component3_raw_code" | "cutting_line_no" | "loss_rate_preset_key">, value: string) {
     setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
