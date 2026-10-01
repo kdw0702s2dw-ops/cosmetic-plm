@@ -16,8 +16,11 @@ export async function downloadProductionRecordsExcel(
 ) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("생산실적 검토");
-  const colCount = 8;
-  ws.columns = [{ width: 14 }, { width: 14 }, { width: 18 }, { width: 16 }, { width: 12 }, { width: 12 }, { width: 16 }, { width: 24 }];
+  const colCount = 10;
+  ws.columns = [
+    { width: 14 }, { width: 14 }, { width: 18 }, { width: 16 }, { width: 14 }, { width: 14 },
+    { width: 12 }, { width: 12 }, { width: 16 }, { width: 24 },
+  ];
 
   writeTitleRow(ws, "생산실적 검토 - Lot No.별 이력", colCount);
   writeMetaRows(
@@ -31,7 +34,10 @@ export async function downloadProductionRecordsExcel(
     colCount
   );
 
-  const headerRow = ws.addRow(["생산일자", "EXP", "Lot No.", "목표 제조량(kg)", "코팅량", "성형품 수량", "등록자", "비고"]);
+  const headerRow = ws.addRow([
+    "생산일자", "EXP", "Lot No.", "목표 제조량(kg)", "코팅량 (단위: m)", "성형품 수량 (단위: EA)",
+    "출고수량(EA)", "출고수량(PACK)", "등록자", "비고",
+  ]);
   headerRow.font = { bold: true };
   headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -40,13 +46,23 @@ export async function downloadProductionRecordsExcel(
 
   records.forEach((r) => {
     const row = ws.addRow([
-      r.production_date, r.exp_date || "-", r.lot_no, fmt(r.target_qty_kg), fmt(r.coating_qty), fmt(r.molded_qty), r.created_by || "-", r.note || "-",
+      r.production_date, r.exp_date || "-", r.lot_no, fmt(r.target_qty_kg), fmt(r.coating_qty), fmt(r.molded_qty),
+      fmt(r.shipped_qty_ea), fmt(r.shipped_qty_pack), r.created_by || "-", r.note || "-",
     ]);
     border(ws, row.number, 1, row.number, colCount);
   });
   if (records.length === 0) {
     const row = ws.addRow(["저장된 이력이 없습니다."]);
     ws.mergeCells(row.number, 1, row.number, colCount);
+  } else {
+    const sum = (sel: (r: ProductionRecord) => number | null | undefined) =>
+      records.reduce((acc, r) => acc + (sel(r) || 0), 0);
+    const totalRow = ws.addRow([
+      "합계", "", "", "", fmt(sum((r) => r.coating_qty)), fmt(sum((r) => r.molded_qty)),
+      fmt(sum((r) => r.shipped_qty_ea)), fmt(sum((r) => r.shipped_qty_pack)), "", "",
+    ]);
+    totalRow.font = { bold: true };
+    border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
   ws.addRow([]);

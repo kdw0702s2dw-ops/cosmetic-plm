@@ -6,7 +6,6 @@ import InsolubleHgPanel from "@/components/sprint2/InsolubleHgPanel";
 import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
-import ProductionRecordPanel from "@/components/sprint2/ProductionRecordPanel";
 import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
 import ShipmentManagementPanel from "@/components/sprint2/ShipmentManagementPanel";
 import "@/styles/enterprise-v50.css";
@@ -55,13 +54,9 @@ const TOOLS: { key: string; label: string; description: string; render: () => Re
     description: "목표 제조량 대비 재고 관리 대상 원료의 부족량을 계산해 부족 원료를 확인합니다.",
     render: () => <ManufacturingQtyReviewPanel />,
   },
-  {
-    key: "productionRecord",
-    label: "(생산) 생산실적 검토",
-    description: "처방별 Lot No. 단위로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록하고 이력을 조회합니다.",
-    render: () => <ProductionRecordPanel />,
-  },
 ];
+// 생산실적 관리("(생산) 생산실적 검토")는 사이드바의 독립 메뉴 "생산실적 관리"로 분리됨
+// (components/sprint2/ProductionRecordManager.tsx) - 여기 도구 목록에서는 중복 노출하지 않는다.
 
 export default function ProductionManagementPanel() {
   const [activeTool, setActiveTool] = useState(TOOLS[0].key);

@@ -69,12 +69,20 @@ export default function ProductionRecordPanel() {
             <input className="v50-input" type="date" value={s.expDate} onChange={(e) => s.setExpDate(e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            코팅량 (실측)
+            코팅량 (단위: m)
             <input className="v50-input" type="number" value={s.coatingQty} onChange={(e) => s.setCoatingQty(e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            성형품 수량 (실측)
+            성형품 수량 (단위: EA)
             <input className="v50-input" type="number" value={s.moldedQty} onChange={(e) => s.setMoldedQty(e.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            완제품 출고 수량 (단위: EA)
+            <input className="v50-input" type="number" value={s.shippedQtyEa} onChange={(e) => s.setShippedQtyEa(e.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            완제품 출고 수량 (단위: PACK)
+            <input className="v50-input" type="number" value={s.shippedQtyPack} onChange={(e) => s.setShippedQtyPack(e.target.value)} />
           </label>
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
@@ -98,7 +106,8 @@ export default function ProductionRecordPanel() {
             <table className="v50-table">
               <thead>
                 <tr>
-                  <th>생산일자</th><th>EXP</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량</th><th>성형품 수량</th><th>등록자</th><th>비고</th><th style={{ width: 90 }}>작업</th>
+                  <th>생산일자</th><th>EXP</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
+                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 90 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -110,6 +119,8 @@ export default function ProductionRecordPanel() {
                     <td>{fmt(h.target_qty_kg)}</td>
                     <td>{fmt(h.coating_qty)}</td>
                     <td>{fmt(h.molded_qty)}</td>
+                    <td>{fmt(h.shipped_qty_ea)}</td>
+                    <td>{fmt(h.shipped_qty_pack)}</td>
                     <td>{h.created_by || "-"}</td>
                     <td>{h.note || "-"}</td>
                     <td>
@@ -117,7 +128,7 @@ export default function ProductionRecordPanel() {
                     </td>
                   </tr>
                 ))}
-                {s.history.length === 0 && <tr><td colSpan={9}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
+                {s.history.length === 0 && <tr><td colSpan={11}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
           </div>

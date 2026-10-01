@@ -10,8 +10,10 @@ export type ProductionRecord = {
   confirmed_code?: string;
   target_qty_kg: number;
   lot_no: string;
-  coating_qty: number | null;
-  molded_qty: number | null;
+  coating_qty: number | null; // 코팅량 (단위: m)
+  molded_qty: number | null; // 성형품 수량 (단위: EA)
+  shipped_qty_ea: number | null; // 완제품 출고 수량 (단위: EA)
+  shipped_qty_pack: number | null; // 완제품 출고 수량 (단위: PACK)
   production_date: string; // YYYY-MM-DD
   exp_date?: string | null; // YYYY-MM-DD
   note?: string;
@@ -45,6 +47,33 @@ export async function fetchProductionRecords(formulaCode: string, revision: stri
     .eq("revision", revision)
     .order("production_date", { ascending: false })
     .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as ProductionRecord[];
+}
+
+export type ProductionRecordListFilter = {
+  keyword?: string; // 처방코드/처방명/Lot No.
+  dateFrom?: string; // 생산일자 기준
+  dateTo?: string;
+};
+
+// 처방 선택 없이 전체 생산실적을 조회 (전체 목록 화면, 월별/연도별 집계 화면 공용).
+export async function fetchAllProductionRecords(filter: ProductionRecordListFilter = {}): Promise<ProductionRecord[]> {
+  let q = supabaseProductionFinal
+    .from("plm_production_records")
+    .select("*")
+    .order("production_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(2000);
+
+  if (filter.dateFrom) q = q.gte("production_date", filter.dateFrom);
+  if (filter.dateTo) q = q.lte("production_date", filter.dateTo);
+  if (filter.keyword?.trim()) {
+    const k = filter.keyword.trim();
+    q = q.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,lot_no.ilike.%${k}%`);
+  }
+
+  const { data, error } = await q;
   if (error) throw error;
   return (data || []) as ProductionRecord[];
 }
