@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
-import { fetchSprint1FormulaLines, fetchProductionBomRows, type ProductionBomRow, type Sprint1Formula, type Sprint1FormulaLine } from "@/services/sprint1/formulaCoreService";
+import { fetchSprint1FormulaLines, type Sprint1Formula, type Sprint1FormulaLine } from "@/services/sprint1/formulaCoreService";
 import { fetchInsolubleHgSheets, type InsolubleHgSheet } from "@/services/sprint2/insolubleHgService";
 import { fetchSolubleHgSheets, type SolubleHgSheet } from "@/services/sprint2/solubleHgService";
 import { fetchMaterialsByCodes } from "@/services/sprint2/materialService";
+import { fetchUnifiedBomRows, saveUnifiedBomRows, type UnifiedBomRow } from "@/services/sprint2/unifiedBomRowsService";
 
-// 통합 BOM(조회 전용, 1단계) - 처방 하나를 고르면 이미 여러 화면에 흩어져 있는 BOM 정보를
-// 한 화면에 모아서 보여준다: 원료 BOM(plm_formula_lines, 처방관리), 부자재 생산 BOM 전개
-// (plm_production_bom, 처방관리의 "생산 BOM 전개" 섹션), 그리고 연구_불용성/수용성 HG
-// 계산서(각각 가장 최근 저장분 1건)에 들어있는 필름/원단/칼선 값. 새 테이블 없이 기존 4곳의
-// 데이터를 읽기만 하는 조회 전용 화면이라 쓰기는 각자의 원래 화면(처방관리/생산관리)에서 한다.
+// 통합 BOM - 처방 하나를 고르면 ① 완제품→충전품→절단품→코팅품→처방→부자재를 직접 입력하는 통합 BOM 표
+// (plm_unified_bom_rows, 이 화면에서 바로 입력/수정/저장 - 예전 "생산 BOM 전개"를 대체)와 ② 참고용
+// 읽기 전용 정보(원료 BOM, 필름·원단·칼선)를 한 화면에 모아서 보여준다. ②는 각자의 원래 화면
+// (처방관리/생산관리)에서 그대로 입력/수정하고 여기서는 참고만 한다.
 export function useUnifiedBomView() {
   const [keyword, setKeyword] = useState("");
   const [formulas, setFormulas] = useState<Sprint1Formula[]>([]);
@@ -19,12 +19,13 @@ export function useUnifiedBomView() {
   const [searching, setSearching] = useState(false);
 
   const [rawLines, setRawLines] = useState<Sprint1FormulaLine[]>([]);
-  const [productionBomRows, setProductionBomRows] = useState<ProductionBomRow[]>([]);
+  const [bomRows, setBomRows] = useState<UnifiedBomRow[]>([]);
   const [latestInsoluble, setLatestInsoluble] = useState<InsolubleHgSheet | null>(null);
   const [latestSoluble, setLatestSoluble] = useState<SolubleHgSheet | null>(null);
   const [materialNames, setMaterialNames] = useState<Map<string, string>>(new Map());
 
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   async function search() {
@@ -43,14 +44,14 @@ export function useUnifiedBomView() {
     setMessage("");
     setLoading(true);
     try {
-      const [lines, bomRows, insolubleSheets, solubleSheets] = await Promise.all([
+      const [lines, rows, insolubleSheets, solubleSheets] = await Promise.all([
         fetchSprint1FormulaLines(f.formula_code, f.revision),
-        fetchProductionBomRows(f.formula_code, f.revision),
+        fetchUnifiedBomRows(f.formula_code, f.revision),
         fetchInsolubleHgSheets(f.formula_code, f.revision),
         fetchSolubleHgSheets(f.formula_code, f.revision),
       ]);
       setRawLines(lines);
-      setProductionBomRows(bomRows);
+      setBomRows(rows);
       // 조회 함수들은 created_at 내림차순으로 오므로 배열의 첫 번째가 가장 최근 저장분
       const latestIns = insolubleSheets[0] || null;
       const latestSol = solubleSheets[0] || null;
@@ -83,9 +84,36 @@ export function useUnifiedBomView() {
     return materialNames.get(code) || null;
   }
 
+  function addBomRow() {
+    setBomRows((prev) => [...prev, {}]);
+  }
+
+  function updateBomRow(index: number, patch: Partial<UnifiedBomRow>) {
+    setBomRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }
+
+  function removeBomRow(index: number) {
+    setBomRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function saveBomRows() {
+    if (!formula) return;
+    setSaving(true);
+    try {
+      const saved = await saveUnifiedBomRows(formula.formula_code, formula.revision, bomRows);
+      setBomRows(saved);
+      setMessage("통합 BOM 저장 완료");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "통합 BOM 저장 오류");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
-    rawLines, productionBomRows, latestInsoluble, latestSoluble, materialName,
+    rawLines, bomRows, addBomRow, updateBomRow, removeBomRow, saveBomRows, saving,
+    latestInsoluble, latestSoluble, materialName,
     loading, message,
   };
 }

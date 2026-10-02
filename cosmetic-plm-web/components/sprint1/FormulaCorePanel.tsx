@@ -45,11 +45,8 @@ function buildTooltip(hits: RegulationHit[]) {
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
   const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-  const materialInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [toast, setToast] = useState<ToastState>(null);
   const anchorPos = useAnchorPosition(s.activeRawRow, () => (s.activeRawRow != null ? rawInputRefs.current[s.activeRawRow] : null), s.rawHits);
-  const activeMaterialKey = s.activeMaterialCell ? `${s.activeMaterialCell.rowIndex}-${s.activeMaterialCell.field}` : null;
-  const materialAnchorPos = useAnchorPosition(activeMaterialKey, () => (activeMaterialKey ? materialInputRefs.current[activeMaterialKey] : null), s.materialHits);
 
   // "원료로 처방 검색" 자동완성 드롭다운 위치
   const rawUsageInputRef = useRef<HTMLInputElement | null>(null);
@@ -688,43 +685,6 @@ export default function FormulaCorePanel() {
         <FormulaLoadModal onClose={() => setShowLoadModal(false)} onPick={handlePickLoadFormula} />
       )}
 
-      <section className="v50-panel">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0 }}>생산 BOM 전개</h2>
-          <button className="v50-button-light" onClick={s.addProductionBomRow}>+ 행 추가</button>
-        </div>
-        <p style={{ color: "#64748b", fontSize: 13 }}>현재 열려있는 처방({s.formula.formula_code || "-"} / {s.formula.revision || "-"})에 자동으로 연결되어 저장됩니다.</p>
-        <div className="v50-table-wrap">
-          <table className="v50-table">
-            <thead><tr><th>코드</th><th>제품명</th><th>부자재명1</th><th>부자재명2</th><th>부자재명3</th><th>성형</th><th>비고</th><th>삭제</th></tr></thead>
-            <tbody>
-              {s.productionBomRows.map((row, i) => (
-                <tr key={row.id || i}>
-                  <td><input className="v50-input" value={row.production_code || ""} onChange={(e) => s.updateProductionBomRow(i, { production_code: e.target.value })} /></td>
-                  <td><input className="v50-input" value={row.product_name || ""} onChange={(e) => s.updateProductionBomRow(i, { product_name: e.target.value })} /></td>
-                  {(["material_name_1", "material_name_2", "material_name_3"] as const).map((field) => (
-                    <MaterialCell
-                      key={field}
-                      rowIndex={i}
-                      field={field}
-                      row={row}
-                      s={s}
-                      inputRefs={materialInputRefs}
-                      activeMaterialKey={activeMaterialKey}
-                      materialAnchorPos={materialAnchorPos}
-                    />
-                  ))}
-                  <td><input className="v50-input" value={row.molding_type || ""} onChange={(e) => s.updateProductionBomRow(i, { molding_type: e.target.value })} /></td>
-                  <td><input className="v50-input" value={row.remarks || ""} onChange={(e) => s.updateProductionBomRow(i, { remarks: e.target.value })} /></td>
-                  <td><button className="v50-button-light" onClick={() => s.removeProductionBomRow(i)}>삭제</button></td>
-                </tr>
-              ))}
-              {s.productionBomRows.length === 0 && <tr><td colSpan={8}>"+ 행 추가"로 생산 BOM 행을 추가하세요.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
       {diffPopover && diffAnchorPos &&
         createPortal(
           <RawMaterialDiffPopover
@@ -780,64 +740,6 @@ function RawMaterialDiffPopover({
         <button type="button" className="v50-button" onClick={onApply}>최신값 적용</button>
       </div>
     </div>
-  );
-}
-
-type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
-const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
-  material_name_1: "material_code_1",
-  material_name_2: "material_code_2",
-  material_name_3: "material_code_3",
-};
-
-// 생산 BOM 전개의 부자재명1/2/3 칸 - 원료명 검색과 동일한 자동완성 패턴(SearchDropdown 재사용) +
-// 선택된 부자재의 명칭·규격·공급사를 입력칸 바로 아래에 작게 표시.
-function MaterialCell({
-  rowIndex, field, row, s, inputRefs, activeMaterialKey, materialAnchorPos,
-}: {
-  rowIndex: number;
-  field: MaterialSlot;
-  row: any;
-  s: ReturnType<typeof useSprint1FormulaCore>;
-  inputRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
-  activeMaterialKey: string | null;
-  materialAnchorPos: { left: number; width: number; top?: number; bottom?: number } | null;
-}) {
-  const key = `${rowIndex}-${field}`;
-  const isActive = activeMaterialKey === key;
-  const code = row[MATERIAL_CODE_FIELD[field]] as string | undefined;
-  const info = code ? s.materialsByCode.get(code) : undefined;
-
-  return (
-    <td>
-      <input className="v50-input" ref={(el) => { inputRefs.current[key] = el; }}
-        value={row[field] || ""} placeholder="부자재 검색"
-        onChange={(e) => s.searchMaterialForBomCell(rowIndex, field, e.target.value)} />
-      {isActive && s.materialSearchLoading && (
-        <span style={{ fontSize: 11, color: "#94a3b8" }}>검색 중…</span>
-      )}
-      {isActive && s.materialHits.length > 0 && materialAnchorPos &&
-        createPortal(
-          <SearchDropdown
-            hits={s.materialHits}
-            onPick={s.pickMaterialForBomCell}
-            pos={materialAnchorPos}
-            keyExtractor={(m: any) => m.material_code}
-            renderItem={(m: any) => (
-              <>
-                <b>{m.material_code}</b> {m.material_name}
-                {m.spec && <span style={{ color: "#64748b", marginLeft: 8 }}>{m.spec}</span>}
-              </>
-            )}
-          />,
-          document.body
-        )}
-      {info && (
-        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-          {info.material_name}{info.spec ? ` · ${info.spec}` : ""}{info.supplier ? ` · ${info.supplier}` : ""}
-        </div>
-      )}
-    </td>
   );
 }
 

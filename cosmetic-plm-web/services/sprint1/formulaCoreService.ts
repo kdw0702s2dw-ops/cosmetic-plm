@@ -25,21 +25,10 @@ export type Sprint1Formula = {
   dry_bom_customized?: boolean;
 };
 
-export type ProductionBomRow = {
-  id?: string;
-  formula_code?: string;
-  revision?: string;
-  production_code?: string;
-  product_name?: string;
-  material_name_1?: string;
-  material_code_1?: string; // 부자재관리(plm_materials) 연동 - 자동완성으로 선택 시 채워짐
-  material_name_2?: string;
-  material_code_2?: string;
-  material_name_3?: string;
-  material_code_3?: string;
-  molding_type?: string;
-  remarks?: string;
-};
+// 생산 BOM 전개(부자재 3칸 고정, ProductionBomRow/plm_production_bom)는 통합 BOM 화면의 직접 입력
+// 표로 대체되었다 - services/sprint2/unifiedBomRowsService.ts 참고. plm_production_bom 테이블 자체는
+// 저장된 데이터가 없는 채로 DB에 남아있으며, 삭제하지 않았다(사용하지 않는 테이블을 남기는 것은
+// 안전하지만, DROP은 되돌릴 수 없는 작업이라 별도 확인 없이는 하지 않음).
 
 export type Sprint1FormulaLine = {
   id?: string;
@@ -373,57 +362,6 @@ export async function recalcSprint1Formula(formulaCode: string, revision: string
   if (error) throw error;
 
   return { total_percent: total, estimated_cost_per_kg: cost };
-}
-
-export async function fetchProductionBomRows(formulaCode: string, revision: string) {
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_production_bom")
-    .select("*")
-    .eq("formula_code", formulaCode)
-    .eq("revision", revision)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as ProductionBomRow[];
-}
-
-// 생산 BOM은 라인 번호 같은 고유키가 없어서, 원료 구성성분 저장 방식과 동일하게
-// 현재 처방분을 전부 지우고 화면에 있는 행을 다시 넣는 방식으로 저장한다.
-export async function saveProductionBomRows(formulaCode: string, revision: string, rows: ProductionBomRow[]) {
-  const { error: delError } = await supabaseProductionFinal
-    .from("plm_production_bom")
-    .delete()
-    .eq("formula_code", formulaCode)
-    .eq("revision", revision);
-  if (delError) throw delError;
-
-  const clean = rows.filter((r) =>
-    r.production_code || r.product_name || r.material_name_1 || r.material_name_2 || r.material_name_3 || r.molding_type || r.remarks
-  );
-  if (clean.length === 0) return [];
-
-  const payload = clean.map((r) => ({
-    production_code: r.production_code || null,
-    product_name: r.product_name || null,
-    material_name_1: r.material_name_1 || null,
-    material_code_1: r.material_code_1 || null,
-    material_name_2: r.material_name_2 || null,
-    material_code_2: r.material_code_2 || null,
-    material_name_3: r.material_name_3 || null,
-    material_code_3: r.material_code_3 || null,
-    molding_type: r.molding_type || null,
-    remarks: r.remarks || null,
-    formula_code: formulaCode,
-    revision,
-  }));
-
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_production_bom")
-    .insert(payload)
-    .select();
-
-  if (error) throw error;
-  return (data || []) as ProductionBomRow[];
 }
 
 export function buildSprint1InciList(lines: Sprint1FormulaLine[]) {

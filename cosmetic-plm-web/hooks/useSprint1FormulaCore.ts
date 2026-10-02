@@ -5,7 +5,6 @@ import {
   buildSprint1InciList,
   computeRawMaterialDiff,
   deleteSprint1FormulaLines,
-  fetchProductionBomRows,
   fetchSprint1FormulaByKey,
   fetchSprint1FormulaLines,
   fetchSprint1Formulas,
@@ -15,13 +14,11 @@ import {
   nextPhaseSeq,
   normalizeDuplicatePhaseSeq,
   recalcSprint1Formula,
-  saveProductionBomRows,
   searchFormulasByRawCode,
   softDeleteSprint1Formula,
   sortLinesForDisplay,
   upsertSprint1Formula,
   upsertSprint1FormulaLines,
-  type ProductionBomRow,
   type RawMaterialDiffField,
   type RawUsageRow,
   type Sprint1Formula,
@@ -46,11 +43,6 @@ import {
   type DocBasis,
   type ExpandedRow,
 } from "@/services/sprint2/documentPdfService";
-import {
-  fetchMaterialsByCodes,
-  searchMaterialsAutocomplete,
-  type Material,
-} from "@/services/sprint2/materialService";
 import { fetchRawMaterialsByCodes, type RawMaterial } from "@/services/sprint2/rawMaterialService";
 import {
   fetchDisclosureLines,
@@ -59,13 +51,6 @@ import {
   VARIANT_LABEL,
   type DisclosureVariant,
 } from "@/services/sprint2/formulaDisclosureService";
-
-type MaterialSlot = "material_name_1" | "material_name_2" | "material_name_3";
-const MATERIAL_CODE_FIELD: Record<MaterialSlot, "material_code_1" | "material_code_2" | "material_code_3"> = {
-  material_name_1: "material_code_1",
-  material_name_2: "material_code_2",
-  material_name_3: "material_code_3",
-};
 
 const emptyFormula: Sprint1Formula = {
   formula_code: "",
@@ -120,16 +105,8 @@ export function useSprint1FormulaCore() {
   const [regulationRules, setRegulationRules] = useState<any[]>([]);
   const [lineWarnings, setLineWarnings] = useState<Record<number, RegulationHit[]>>({});
 
-  // 생산 BOM 전개 상태 (원료 BOM과 별개, 현재 열려있는 처방에 자동으로 연결됨)
-  const [productionBomRows, setProductionBomRows] = useState<ProductionBomRow[]>([]);
-
-  // 생산 BOM 전개의 부자재명1/2/3 자동완성 상태 (원료명 자동완성과 동일 패턴, 행 인덱스+슬롯 단위로 관리)
-  const [materialHits, setMaterialHits] = useState<Material[]>([]);
-  const [activeMaterialCell, setActiveMaterialCell] = useState<{ rowIndex: number; field: MaterialSlot } | null>(null);
-  const [materialSearchLoading, setMaterialSearchLoading] = useState(false);
-  const materialSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 선택되었거나 이미 저장된 material_code로 명칭/규격/공급사를 다시 조회해서 보여주기 위한 캐시
-  const [materialsByCode, setMaterialsByCode] = useState<Map<string, Material>>(new Map());
+  // 생산 BOM 전개(부자재 3칸 고정)는 통합 BOM 화면의 직접 입력 표로 대체되었다 - 자세한 내용은
+  // services/sprint2/unifiedBomRowsService.ts / hooks/useUnifiedBomView.ts 참고.
 
   // 자동 전성분(복합원료 구성성분 전개 + INCI 병합) 계산용 원료별 구성성분 캐시
   // - raw_code 집합이 바뀔 때만 DB에서 다시 불러온다 (함량%만 바뀌는 경우는 아래에서 즉시 재계산)
@@ -459,25 +436,6 @@ export function useSprint1FormulaCore() {
       for (const l of data) if (l.raw_code) next[l.line_no] = evaluateLineAgainstRules(l, regulationRules);
       return next;
     });
-    try {
-      const bomRows = await fetchProductionBomRows(f.formula_code, f.revision);
-      setProductionBomRows(bomRows);
-      // 이미 저장된 부자재명1/2/3의 명칭·규격·공급사를 다시 보여주기 위해 코드로 일괄 조회해서 캐시에 채운다
-      const codes = bomRows.flatMap((r) => [r.material_code_1, r.material_code_2, r.material_code_3]).filter(Boolean) as string[];
-      if (codes.length > 0) {
-        try {
-          const materials = await fetchMaterialsByCodes(codes);
-          setMaterialsByCode(new Map(materials.map((m) => [m.material_code, m])));
-        } catch {
-          setMaterialsByCode(new Map());
-        }
-      } else {
-        setMaterialsByCode(new Map());
-      }
-    } catch {
-      setProductionBomRows([]);
-      setMaterialsByCode(new Map());
-    }
     setMessage(`${f.formula_code}/${f.revision} 열기 완료`);
   }
 
@@ -492,10 +450,6 @@ export function useSprint1FormulaCore() {
     setRawHits([]);
     setActiveRawRow(null);
     setLineWarnings({});
-    setProductionBomRows([]);
-    setMaterialsByCode(new Map());
-    setMaterialHits([]);
-    setActiveMaterialCell(null);
     setMessage("신규 처방 작성 시작");
   }
 
@@ -575,14 +529,6 @@ export function useSprint1FormulaCore() {
       }
 
       const marketNotice = formula.exposure_type && !formula.target_market ? " (대상 시장 미지정 → KR 기준 적용)" : "";
-
-      // 생산 BOM 전개는 현재 열려있는 처방(formula_code/revision)에 자동으로 연결해서 저장
-      try {
-        const savedBomRows = await saveProductionBomRows(formula.formula_code, formula.revision, productionBomRows);
-        setProductionBomRows(savedBomRows);
-      } catch {
-        // 생산 BOM 저장 실패는 처방 저장 자체를 막지 않음
-      }
 
       await loadFormulas();
       const okMsg = `처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`;
@@ -665,13 +611,6 @@ export function useSprint1FormulaCore() {
       setSavedLineNos(nextLines.map((x) => x.line_no));
       setDeletedLineNos([]);
 
-      try {
-        const savedBomRows = await saveProductionBomRows(nextFormula.formula_code, trimmed, productionBomRows);
-        setProductionBomRows(savedBomRows);
-      } catch {
-        // 생산 BOM 복사 실패는 Revision 생성 자체를 막지 않음
-      }
-
       await loadFormulas();
       const okMsg = `새 Revision(${trimmed}) 생성 완료`;
       setMessage(okMsg);
@@ -696,8 +635,6 @@ export function useSprint1FormulaCore() {
       setLines([]);
       setSavedLineNos([]);
       setDeletedLineNos([]);
-      setProductionBomRows([]);
-      setMaterialsByCode(new Map());
       setSelected(null);
       await loadFormulas();
       setMessage("처방 삭제 처리 완료");
@@ -930,63 +867,6 @@ export function useSprint1FormulaCore() {
     }
   }
 
-  function addProductionBomRow() {
-    setProductionBomRows((prev) => [...prev, {}]);
-  }
-
-  function updateProductionBomRow(index: number, patch: Partial<ProductionBomRow>) {
-    setProductionBomRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  }
-
-  function removeProductionBomRow(index: number) {
-    setProductionBomRows((prev) => prev.filter((_, i) => i !== index));
-    if (activeMaterialCell?.rowIndex === index) {
-      setMaterialHits([]);
-      setActiveMaterialCell(null);
-      setMaterialSearchLoading(false);
-    }
-  }
-
-  // 생산 BOM 전개의 부자재명1/2/3 자동완성 - 원료명 자동완성(searchRawForLine)과 동일한 패턴.
-  // 직접 다시 타이핑하면 이미 선택돼있던 material_code는 지운다(원료명과 동일하게 stale 코드가 남지 않도록).
-  function searchMaterialForBomCell(rowIndex: number, field: MaterialSlot, value: string) {
-    updateProductionBomRow(rowIndex, { [field]: value, [MATERIAL_CODE_FIELD[field]]: "" } as Partial<ProductionBomRow>);
-    setActiveMaterialCell({ rowIndex, field });
-
-    if (materialSearchTimer.current) clearTimeout(materialSearchTimer.current);
-    if (!value.trim()) {
-      setMaterialHits([]);
-      setMaterialSearchLoading(false);
-      return;
-    }
-    setMaterialSearchLoading(true);
-    materialSearchTimer.current = setTimeout(async () => {
-      try {
-        setMaterialHits(await searchMaterialsAutocomplete(value.trim()));
-      } catch {
-        setMaterialHits([]);
-      } finally {
-        setMaterialSearchLoading(false);
-      }
-    }, 250);
-  }
-
-  function pickMaterialForBomCell(material: Material) {
-    if (!activeMaterialCell) return;
-    const { rowIndex, field } = activeMaterialCell;
-    updateProductionBomRow(rowIndex, {
-      [field]: material.material_name,
-      [MATERIAL_CODE_FIELD[field]]: material.material_code,
-    } as Partial<ProductionBomRow>);
-    setMaterialsByCode((prev) => {
-      const next = new Map(prev);
-      next.set(material.material_code, material);
-      return next;
-    });
-    setMaterialHits([]);
-    setActiveMaterialCell(null);
-  }
-
   useEffect(() => {
     loadFormulas("");
   }, []);
@@ -1064,8 +944,5 @@ export function useSprint1FormulaCore() {
     rawUsageKeyword, rawUsageHits, rawUsageSearchLoading, rawUsageSelected, rawUsageComponents,
     rawUsagePercentage, setRawUsagePercentage, rawUsageResults, rawUsageSearching, rawUsageMessage,
     searchRawUsageOptions, pickRawUsageMaterial, runRawUsageSearch, openRawUsageResult,
-    productionBomRows, addProductionBomRow, updateProductionBomRow, removeProductionBomRow,
-    materialHits, activeMaterialCell, materialSearchLoading, materialsByCode,
-    searchMaterialForBomCell, pickMaterialForBomCell,
   };
 }
