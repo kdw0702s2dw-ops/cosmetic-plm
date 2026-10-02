@@ -168,6 +168,12 @@ export default function DocumentPdfPanel() {
   }
   function setBasis(f: any, basis: DocBasis) {
     setBasisByFormula((prev) => new Map(prev).set(`${f.formula_code}|${f.revision}`, basis));
+    // 영문+일본/영문+중국은 공개처방(건조)에서는 지원하지 않는다 - 건조 후로 바꾸는 순간 선택돼있던
+    // 언어가 더 이상 보이지 않는 조합으로 남아있지 않도록 기본값(국문+영문)으로 되돌린다.
+    if (basis === "DRY") {
+      const lang = getLang(f);
+      if (lang === "EN_JA" || lang === "EN_ZH") setLang(f, "BOTH");
+    }
   }
 
   function getLang(f: any): DocLang {
@@ -298,6 +304,25 @@ export default function DocumentPdfPanel() {
                       >
                         영문만
                       </button>
+                      {/* 영문+일본/영문+중국은 원료관리에 등록된 일문명/중문명을 그대로 쓴다 - 공개처방(건조)는
+                          지원 대상이 아니라서 기준이 건조일 때는 숨긴다(버튼을 숨기면서 setBasis에서 선택돼
+                          있던 값을 자동으로 "국문+영문"으로 되돌림). */}
+                      {getBasis(f) !== "DRY" && (
+                        <>
+                          <button
+                            className={getLang(f) === "EN_JA" ? "v50-button" : "v50-button-light"}
+                            onClick={() => setLang(f, "EN_JA")}
+                          >
+                            영문+일본
+                          </button>
+                          <button
+                            className={getLang(f) === "EN_ZH" ? "v50-button" : "v50-button-light"}
+                            onClick={() => setLang(f, "EN_ZH")}
+                          >
+                            영문+중국
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                   {docButtons.map((b) => (

@@ -467,6 +467,8 @@ export type ExpandedRow = {
   raw_percent?: number;
   inci_en: string;
   inci_kr: string;
+  inci_cn?: string; // 중문명 (원료관리/구성성분관리에 등록된 값 - 없으면 빈 문자열)
+  inci_jp?: string; // 일문명
   component_percent?: number;
   final_percent: number;
   cas_no: string;
@@ -536,12 +538,18 @@ function lookupIngredientFunctionEn(
   return "";
 }
 
-export function complexRows(lines: any[], components: any[], functionLookup?: IngredientFunctionLookup): ExpandedRow[] {
+export function complexRows(
+  lines: any[],
+  components: any[],
+  functionLookup?: IngredientFunctionLookup,
+  materialsByRawCode?: Map<string, any>
+): ExpandedRow[] {
   const map = byRawComponents(components);
   const rows: ExpandedRow[] = [];
 
   for (const line of lines) {
     const comps = map.get(line.raw_code) || [];
+    const material = materialsByRawCode?.get(line.raw_code);
     for (const comp of comps) {
       rows.push({
         formula_code: line.formula_code,
@@ -551,6 +559,10 @@ export function complexRows(lines: any[], components: any[], functionLookup?: In
         raw_percent: n(line.percentage),
         inci_en: comp.inci_en || comp.component_name_en || "",
         inci_kr: comp.inci_kr || comp.component_name_kr || "",
+        // 중문/일문은 구성성분 자체(plm_raw_material_components)에 등록된 값을 우선 쓰고, 없으면
+        // 원료관리(plm_raw_materials)에 등록된 원료 전체 기준 값으로 보완한다.
+        inci_cn: comp.inci_cn || material?.inci_cn || "",
+        inci_jp: comp.inci_jp || material?.inci_jp || "",
         component_percent: n(comp.composition_percent),
         // 건조 후(부분잔류 원료) 계산은 comp._dryFinalPercent에 이미 정확한 최종 함량이 담겨 있다
         // (물/비물 성분이 서로 다른 비율로 변하므로 line.percentage×composition_percent로는 재현 불가).
@@ -575,7 +587,12 @@ export function complexRows(lines: any[], components: any[], functionLookup?: In
   return rows.sort((a, b) => b.final_percent - a.final_percent);
 }
 
-export function singleRows(lines: any[], components: any[], functionLookup?: IngredientFunctionLookup): ExpandedRow[] {
+export function singleRows(
+  lines: any[],
+  components: any[],
+  functionLookup?: IngredientFunctionLookup,
+  materialsByRawCode?: Map<string, any>
+): ExpandedRow[] {
   const complexRawCodes = new Set(components.map((c) => c.raw_code));
   return lines
     .filter((line) => !complexRawCodes.has(line.raw_code))
@@ -586,6 +603,9 @@ export function singleRows(lines: any[], components: any[], functionLookup?: Ing
       raw_name: line.raw_name,
       inci_en: line.inci_en || line.raw_name || "",
       inci_kr: line.inci_kr || line.raw_name || "",
+      // plm_formula_lines에는 중문/일문 스냅샷 컬럼이 없어서 원료관리(plm_raw_materials)에서 바로 가져온다.
+      inci_cn: materialsByRawCode?.get(line.raw_code)?.inci_cn || "",
+      inci_jp: materialsByRawCode?.get(line.raw_code)?.inci_jp || "",
       final_percent: n(line.percentage),
       cas_no: line.cas_no || "",
       ec_no: line.ec_no || "",
@@ -653,17 +673,56 @@ export function basisSectionLabel(basis: DocBasis): string {
 
 // 전성분표/복합성분표/단일성분표 전용 - 국문/영문 표기를 선택해서 출력할 수 있게 한다.
 // KR=국문만, EN=영문만, BOTH=국문+영문(기존 동작, 기본값).
-export type DocLang = "KR" | "EN" | "BOTH";
+// EN_JA/EN_ZH는 영문 기준은 그대로 두고 국문 대신 일문/중문을 추가로 보여주는 조합이다(원료관리에
+// 입력해둔 inci_jp/inci_cn을 그대로 사용 - 전성분표/복합성분표/단일성분표 3종에만 지원하고, 공개처방(건조)
+// 에서는 쓰지 않는다 - DocumentPdfPanel.tsx에서 기준이 건조일 때 이 두 버튼을 숨긴다).
+export type DocLang = "KR" | "EN" | "BOTH" | "EN_JA" | "EN_ZH";
 
 export function langTitleSuffix(lang: DocLang): string {
   if (lang === "KR") return " (국문)";
   if (lang === "EN") return " (영문)";
+  if (lang === "EN_JA") return " (영문+일본)";
+  if (lang === "EN_ZH") return " (영문+중국)";
   return "";
 }
 export function langFileSuffix(lang: DocLang): string {
   if (lang === "KR") return "_국문";
   if (lang === "EN") return "_영문";
+  if (lang === "EN_JA") return "_영문일본";
+  if (lang === "EN_ZH") return "_영문중국";
   return "";
+}
+
+// 전성분표/복합성분표/단일성분표가 공통으로 쓰는 "언어 컬럼" 정의 - lang 하나당 표시할 컬럼(들)을
+// 순서대로 반환한다. KR/EN/BOTH는 기존 동작 그대로(국문/영문), EN_JA/EN_ZH는 영문 옆에 일문/중문을
+// 추가로 보여준다. 전성분표(박스형)/복합성분표/단일성분표(표 형태) 3곳 모두, 그리고 PDF/엑셀 양쪽
+// 모두 이 함수 하나로 컬럼 구성을 통일한다.
+export type LangColumnKey = "en" | "kr" | "ja" | "zh";
+export type LangColumn = { key: LangColumnKey; header: string };
+
+export function langColumns(lang: DocLang): LangColumn[] {
+  if (lang === "KR") return [{ key: "kr", header: "국문명" }];
+  if (lang === "EN") return [{ key: "en", header: "EU/USA INCI name" }];
+  if (lang === "EN_JA") return [{ key: "en", header: "EU/USA INCI name" }, { key: "ja", header: "일문명" }];
+  if (lang === "EN_ZH") return [{ key: "en", header: "EU/USA INCI name" }, { key: "zh", header: "중문명" }];
+  return [{ key: "en", header: "EU/USA INCI name" }, { key: "kr", header: "국문명" }]; // BOTH
+}
+
+// 전성분표(박스형) 전용 - 표 컬럼 헤더("국문명" 등)와 달리 박스 제목은 "Ingredient list"/"국문전성분"처럼
+// 문장형이라 별도로 둔다.
+export function langListBoxTitle(key: LangColumnKey): string {
+  if (key === "kr") return "국문전성분";
+  if (key === "ja") return "일문전성분";
+  if (key === "zh") return "중문전성분";
+  return "Ingredient list"; // en
+}
+
+// ExpandedRow/ComplexGroupedItem 둘 다에서 쓸 수 있도록 inci_en/kr/cn/jp를 가진 최소 형태만 요구한다.
+export function pickLangValue(row: { inci_en?: string; inci_kr?: string; inci_cn?: string; inci_jp?: string }, key: LangColumnKey): string {
+  if (key === "kr") return row.inci_kr || "";
+  if (key === "ja") return row.inci_jp || "";
+  if (key === "zh") return row.inci_cn || "";
+  return row.inci_en || ""; // en
 }
 export type VolatilityType = "NONE" | "FULL_VOLATILE" | "PARTIAL_RESIDUAL";
 
@@ -847,6 +906,8 @@ export function computeUniformPercentDecimals(rows: ExpandedRow[], minDecimals =
 export type ComplexGroupedItem = {
   inci_en: string;
   inci_kr: string;
+  inci_cn?: string;
+  inci_jp?: string;
   ratio: number | null;
   cas: string;
   finalPercent: number;
@@ -927,6 +988,9 @@ export function buildComplexGroupedRows(
           return {
             inci_en: c.inci_en || c.component_name_en || "",
             inci_kr: c.inci_kr || c.component_name_kr || "",
+            // 구성성분 자체 등록값 우선, 없으면 원료관리(원료 전체 기준) 값으로 보완.
+            inci_cn: c.inci_cn || material?.inci_cn || "",
+            inci_jp: c.inci_jp || material?.inci_jp || "",
             ratio,
             cas: c.cas_no || "-",
             finalPercent,
@@ -939,6 +1003,9 @@ export function buildComplexGroupedRows(
           {
             inci_en: first.inci_en || first.raw_name || "",
             inci_kr: first.inci_kr || first.raw_name || "",
+            // 구성성분이 등록 안 된 단일원료는 원료관리(plm_raw_materials)의 값을 그대로 쓴다.
+            inci_cn: material?.inci_cn || "",
+            inci_jp: material?.inci_jp || "",
             ratio: null,
             cas: first.cas_no || "-",
             finalPercent: input, // 단일원료(구성성분 미등록): 원료 비율 자체가 곧 이 성분의 최종 함량
@@ -960,6 +1027,8 @@ export function buildComplexGroupedRows(
         {
           inci_en: first.inci_en || first.raw_name || "",
           inci_kr: first.inci_kr || first.raw_name || "",
+          inci_cn: material?.inci_cn || "",
+          inci_jp: material?.inci_jp || "",
           ratio: null,
           cas: first.cas_no || "-",
           finalPercent: input,
@@ -1123,22 +1192,18 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
   const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   const grouped = buildComplexGroupedRows(effectiveLines, components, materialsByRawCode, basis);
   const inputDecimals = basis === "DRY" ? 2 : 8;
-  // 국문/영문 중 선택된 쪽만 컬럼으로 넣는다 - No. + (Trade Name 여부) + (선택된 언어 컬럼 수) + %Sub Ingredient in Raw Ingredient...
-  const langColCount = lang === "BOTH" ? 2 : 1;
+  // 선택된 언어 컬럼만 넣는다 - No. + (Trade Name 여부) + (선택된 언어 컬럼 수) + %Sub Ingredient in Raw Ingredient...
+  const cols = langColumns(lang);
+  const langColCount = cols.length;
   const tradeNameColCount = withTradeName ? 1 : 0;
   const tradeNameHeader = withTradeName ? "<th>Trade Name</th>" : "";
-  const langHeaders = [
-    lang !== "KR" ? "<th>EU/USA INCI name</th>" : "",
-    lang !== "EN" ? "<th>국문명</th>" : "",
-  ].join("");
+  const langHeaders = cols.map((c) => `<th>${c.header}</th>`).join("");
   // 건조 후(DRY)는 나눗셈이 섞여 대부분 딱 안 끝나므로 기존처럼 8자리 고정 반올림을 유지하고,
   // 배합 시(MIX)/공개처방(일반, PUBLIC)만 정확히 끝나는 자리까지 동적으로 늘린다.
   const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
 
   const body = grouped
     .map((g, i) => {
-      const en = eLines(g.items.map((x) => x.inci_en));
-      const kr = eLines(g.items.map((x) => x.inci_kr));
       const ratio =
         g.items.length === 1 && g.items[0].ratio === null
           ? "-"
@@ -1151,10 +1216,7 @@ export async function buildComplexComponentTableHtml(f: any, lines: any[], basis
         )
       );
       const cas = eLines(g.items.map((x) => x.cas));
-      const langCells = [
-        lang !== "KR" ? `<td>${en}</td>` : "",
-        lang !== "EN" ? `<td>${kr}</td>` : "",
-      ].join("");
+      const langCells = cols.map((c) => `<td>${eLines(g.items.map((x) => pickLangValue(x, c.key)))}</td>`).join("");
       // Trade Name(영문 전용, 원료관리에 등록된 값 그대로)은 No. 바로 다음 컬럼에 넣는다.
       const tradeNameCell = withTradeName ? `<td>${e(g.trade_name || "-")}</td>` : "";
       // 알러젠 구성성분(향료 등의 자기 100% 안에 이미 포함된 하위 성분, g.allergenItems)은 이 표에
@@ -1221,13 +1283,18 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
   const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
-  const langColCount = lang === "BOTH" ? 2 : 1;
-  const langHeaders = [
-    lang !== "KR" ? "<th>EU/USA INCI name</th>" : "",
-    lang !== "EN" ? "<th>국문명</th>" : "",
-  ].join("");
+  // 중문/일문(EN_JA/EN_ZH)은 plm_formula_lines에 스냅샷이 없어 원료관리(plm_raw_materials)에서 바로
+  // 조회해야 한다 - 복합성분표(buildComplexComponentTableHtml)와 동일한 패턴.
+  const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
+  const cols = langColumns(lang);
+  const langColCount = cols.length;
+  const langHeaders = cols.map((c) => `<th>${c.header}</th>`).join("");
   // 복합 전개 + 단일을 모두 합산해 INCI 단위 단일성분표 생성
-  const rows = mergeRows([...complexRows(effectiveLines, components, functionLookup), ...singleRows(effectiveLines, components, functionLookup)]);
+  const rows = mergeRows([
+    ...complexRows(effectiveLines, components, functionLookup, materialsByRawCode),
+    ...singleRows(effectiveLines, components, functionLookup, materialsByRawCode),
+  ]);
   // Percentage(%) 표시 자릿수:
   // - 배합 시(MIX)는 입력값들의 곱셈만으로 계산되어 항상 "정확히 끝나는" 소수이므로, 그 자리까지
   //   보여주는 BigInt 기반 정확 표시(exactPercent, 최소 14~최대 15자리)를 그대로 쓴다.
@@ -1244,10 +1311,7 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
 
   const body = visibleRows
     .map((x, i) => {
-      const langCells = [
-        lang !== "KR" ? `<td>${e(x.inci_en)}</td>` : "",
-        lang !== "EN" ? `<td>${e(x.inci_kr)}</td>` : "",
-      ].join("");
+      const langCells = cols.map((c) => `<td>${e(pickLangValue(x, c.key))}</td>`).join("");
       const percentCell = e(basis === "DRY" ? fixedPct(x.final_percent, decimals) : (x.exactPercent ? exactDecimalToString(x.exactPercent, decimals) : fixedPct(x.final_percent, decimals)));
       return `<tr>
   <td class="center">${i + 1}</td>
@@ -1292,8 +1356,15 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
 // ============================================================
 export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines: effectiveLines, components } = await resolveLinesForBasis(f, lines, basis);
+  // 중문/일문(EN_JA/EN_ZH)은 plm_formula_lines에 스냅샷이 없어 원료관리(plm_raw_materials)에서 바로
+  // 조회해야 한다 - 복합성분표/단일성분표와 동일한 패턴.
+  const materials = await fetchRawMaterialsByCodes(effectiveLines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
   // 단일성분표와 동일한 순서를 보장하기 위해 mergeRows() 결과(함량 내림차순)를 그대로 사용
-  const rows = mergeRows([...complexRows(effectiveLines, components), ...singleRows(effectiveLines, components)]);
+  const rows = mergeRows([
+    ...complexRows(effectiveLines, components, undefined, materialsByRawCode),
+    ...singleRows(effectiveLines, components, undefined, materialsByRawCode),
+  ]);
 
   // 이 basis 기준으로 실제 표시기준(Leave-on 0.001% / Rinse-off 0.01%) 미만인 알러젠은 "표시대상
   // 성분" 표뿐 아니라 전성분/국문전성분 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을
@@ -1306,19 +1377,17 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
     (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
   );
 
-  const inciEn = visibleRows.map((x) => x.inci_en).filter(Boolean).join(", ");
-  const inciKr = visibleRows.map((x) => x.inci_kr).filter(Boolean).join(", ");
+  const boxes = langColumns(lang)
+    .map((c) => {
+      const content = visibleRows.map((x) => pickLangValue(x, c.key)).filter(Boolean).join(", ");
+      return `<div class="box">
+  <div class="bt">${e(langListBoxTitle(c.key))}</div>
+  <div class="bb">${e(content || "-")}</div>
+</div>`;
+    })
+    .join("");
 
-  const enBox = lang !== "KR" ? `<div class="box">
-  <div class="bt">Ingredient list</div>
-  <div class="bb">${e(inciEn || "-")}</div>
-</div>` : "";
-  const krBox = lang !== "EN" ? `<div class="box">
-  <div class="bt">국문전성분</div>
-  <div class="bb">${e(inciKr || "-")}</div>
-</div>` : "";
-
-  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), `${enBox}${krBox}`, f, basisAlerts);
+  return baseHtml(`Ingredient List for Development${basisTitleSuffix(basis)}`, kovasMeta(f), boxes, f, basisAlerts);
 }
 
 // ============================================================

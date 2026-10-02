@@ -23,8 +23,11 @@ import {
   fetchFormulaLinesForPdf,
   fixedPct,
   kovasMeta,
+  langColumns,
   langFileSuffix,
+  langListBoxTitle,
   mergeRows,
+  pickLangValue,
   NOTES,
   orderSheetMeta,
   OrderSheetRow,
@@ -208,11 +211,22 @@ async function loadExpandedRows(formula: any, basis: DocBasis = "MIX") {
 // ============================================================
 // 단일성분표 엑셀: PDF(No/INCI/국문명/%/CAS/EC/Function)와 동일한 컬럼 + 상단정보/하단각주 추가
 // ============================================================
+// 엑셀 컬럼 폭 - 언어별로 예상 텍스트 길이가 달라 표마다(단일/복합) 다른 폭을 쓴다.
+const SINGLE_LANG_COL_WIDTH: Record<string, number> = { en: 30, kr: 20, ja: 24, zh: 24 };
+const COMPLEX_LANG_COL_WIDTH: Record<string, number> = { en: 40, kr: 30, ja: 32, zh: 32 };
+
 export async function downloadSingleComponentExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
   const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   const functionLookup = buildIngredientFunctionLookup(await fetchIngredientFunctionEntries());
-  const allRows = mergeRows([...complexRows(lines, components, functionLookup), ...singleRows(lines, components, functionLookup)]);
+  // 중문/일문(EN_JA/EN_ZH)은 plm_formula_lines에 스냅샷이 없어 원료관리(plm_raw_materials)에서 바로
+  // 조회해야 한다 - PDF(buildSingleComponentTableHtml)와 동일한 패턴.
+  const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
+  const allRows = mergeRows([
+    ...complexRows(lines, components, functionLookup, materialsByRawCode),
+    ...singleRows(lines, components, functionLookup, materialsByRawCode),
+  ]);
   // 알러젠(향료 등의 100% 자체 항목 안에 이미 포함된 하위 성분)은 PDF와 동일하게 이 표에서 아예
   // 제외한다 - 등록된 알러젠을 전부 나열하면 실제로는 표시기준 미만인 것까지 포함되어 "이 알러젠들이
   // 모두 유의미하게 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 하단 "표시대상 성분"
@@ -225,9 +239,8 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   // 건조 후(DRY)는 나눗셈이 섞여 들어가 딱 떨어지지 않는 소수가 나오므로 PDF와 동일하게 8자리 고정 반올림.
   const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(rows);
   const percentNumFmt = "0." + "0".repeat(decimals);
-  const showEn = lang !== "KR";
-  const showKr = lang !== "EN";
-  const langColCount = (showEn ? 1 : 0) + (showKr ? 1 : 0);
+  const cols = langColumns(lang);
+  const langColCount = cols.length;
   const percentColIndex = 1 + langColCount + 1;
 
   const wb = new ExcelJS.Workbook();
@@ -235,8 +248,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   const colCount = 5 + langColCount;
   ws.columns = [
     { width: 6 },
-    ...(showEn ? [{ width: 30 }] : []),
-    ...(showKr ? [{ width: 20 }] : []),
+    ...cols.map((c) => ({ width: SINGLE_LANG_COL_WIDTH[c.key] || 24 })),
     { width: 8 + decimals },
     { width: 16 },
     { width: 12 },
@@ -248,8 +260,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
 
   const headerRow = ws.addRow([
     "No.",
-    ...(showEn ? ["EU/USA INCI name"] : []),
-    ...(showKr ? ["국문명"] : []),
+    ...cols.map((c) => c.header),
     "Percentage(%)",
     "CAS No.",
     "EC No.",
@@ -271,8 +282,7 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
     const percentValue = basis === "DRY" ? Number(pct(x.final_percent)) : (x.exactPercent ? exactDecimalToNumber(x.exactPercent) : Number(pct(x.final_percent)));
     const row = ws.addRow([
       i + 1,
-      ...(showEn ? [x.inci_en] : []),
-      ...(showKr ? [x.inci_kr] : []),
+      ...cols.map((c) => pickLangValue(x, c.key)),
       percentValue,
       x.cas_no || "-",
       x.ec_no || "-",
@@ -309,7 +319,14 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
 // ============================================================
 export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX", lang: DocLang = "BOTH") {
   const { lines, components } = await loadExpandedRows(formula, basis);
-  const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
+  // 중문/일문(EN_JA/EN_ZH)은 plm_formula_lines에 스냅샷이 없어 원료관리(plm_raw_materials)에서 바로
+  // 조회해야 한다 - PDF(buildInciListHtml)와 동일한 패턴.
+  const materials = await fetchRawMaterialsByCodes(lines.map((x) => x.raw_code));
+  const materialsByRawCode = new Map(materials.map((m) => [m.raw_code, m]));
+  const rows = mergeRows([
+    ...complexRows(lines, components, undefined, materialsByRawCode),
+    ...singleRows(lines, components, undefined, materialsByRawCode),
+  ]);
   const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   // PDF(buildInciListHtml)와 동일하게, 이 basis 기준으로 실제 표시기준 미만인 알러젠은 전성분/국문전성분
   // 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을 이름으로 노출할 이유가 없기 때문.
@@ -320,10 +337,7 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   const visibleRows = rows.filter(
     (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
   );
-  const inciEn = visibleRows.map((x) => x.inci_en).filter(Boolean).join(", ");
-  const inciKr = visibleRows.map((x) => x.inci_kr).filter(Boolean).join(", ");
-  const showEn = lang !== "KR";
-  const showKr = lang !== "EN";
+  const cols = langColumns(lang);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("전성분표");
@@ -352,8 +366,10 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
     ws.getRow(bodyRow.number).height = estimateWrappedRowHeight(content || "-", totalColWidth);
   };
 
-  if (showEn) writeBox("Ingredient list", inciEn);
-  if (showKr) writeBox("국문전성분", inciKr);
+  for (const c of cols) {
+    const content = visibleRows.map((x) => pickLangValue(x, c.key)).filter(Boolean).join(", ");
+    writeBox(langListBoxTitle(c.key), content);
+  }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
   await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
@@ -375,9 +391,8 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const inputDecimals = basis === "DRY" ? 2 : 8;
   // PDF와 동일한 규칙: 건조 후(DRY)는 8자리 고정, 배합 시(MIX)/공개처방(일반, PUBLIC)은 정확히 끝나는 자리까지 동적으로 늘림
   const finalPercentDecimals = basis !== "DRY" ? computeUniformFinalPercentDecimals(grouped) : 8;
-  const showEn = lang !== "KR";
-  const showKr = lang !== "EN";
-  const langColCount = (showEn ? 1 : 0) + (showKr ? 1 : 0);
+  const cols = langColumns(lang);
+  const langColCount = cols.length;
   const tradeNameColCount = withTradeName ? 1 : 0;
   // 언어 컬럼 뒤에 오는 고정 컬럼들의 1-based 인덱스 (No.=1 -> Trade Name(있으면) -> 언어 컬럼 -> %Sub~Function)
   const ratioCol = 1 + tradeNameColCount + langColCount + 1;
@@ -391,8 +406,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   ws.columns = [
     { width: 6 },
     ...(withTradeName ? [{ width: 26 }] : []),
-    ...(showEn ? [{ width: 40 }] : []),
-    ...(showKr ? [{ width: 30 }] : []),
+    ...cols.map((c) => ({ width: COMPLEX_LANG_COL_WIDTH[c.key] || 30 })),
     { width: 18 },
     { width: 18 },
     { width: 18 },
@@ -406,8 +420,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   const headerRow = ws.addRow([
     "No.",
     ...(withTradeName ? ["Trade Name"] : []),
-    ...(showEn ? ["EU/USA INCI name"] : []),
-    ...(showKr ? ["국문명"] : []),
+    ...cols.map((c) => c.header),
     "% Sub Ingredient in Raw Ingredient",
     "%Raw Ingredient in Formula",
     "Final % in Formula",
@@ -427,8 +440,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   }
 
   grouped.forEach((g, i) => {
-    const en = g.items.map((x) => x.inci_en).join("\n");
-    const kr = g.items.map((x) => x.inci_kr).join("\n");
+    const langValues = cols.map((c) => g.items.map((x) => pickLangValue(x, c.key)).join("\n"));
     const ratio = g.items.length === 1 && g.items[0].ratio === null ? "-" : g.items.map((x) => fixedPct(x.ratio, 8)).join("\n");
     const finalPercent = g.items
       .map((x) =>
@@ -442,8 +454,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     const row = ws.addRow([
       i + 1,
       ...(withTradeName ? [g.trade_name || "-"] : []),
-      ...(showEn ? [en] : []),
-      ...(showKr ? [kr] : []),
+      ...langValues,
       ratio,
       fixedPct(g.input, inputDecimals),
       finalPercent,
@@ -454,8 +465,7 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
     row.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
     let col = 2;
     if (withTradeName) { row.getCell(col).alignment = { vertical: "middle" }; col++; }
-    if (showEn) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
-    if (showKr) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
+    for (let k = 0; k < cols.length; k++) { row.getCell(col).alignment = { vertical: "middle", wrapText: true }; col++; }
     row.getCell(ratioCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     row.getCell(inputCol).alignment = { vertical: "middle", horizontal: "center" };
     row.getCell(finalCol).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
