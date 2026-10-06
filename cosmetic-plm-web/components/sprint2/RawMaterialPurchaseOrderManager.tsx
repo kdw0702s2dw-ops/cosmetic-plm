@@ -15,7 +15,10 @@ import {
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import Toast, { type ToastState } from "@/components/common/Toast";
+import PurchaseOrderRawMaterialSummaryPanel from "@/components/sprint2/PurchaseOrderRawMaterialSummaryPanel";
 import "@/styles/enterprise-v50.css";
+
+type View = "list" | "summary";
 
 function formatCurrency(n: number | null | undefined) {
   return (n ?? 0).toLocaleString("ko-KR");
@@ -67,6 +70,7 @@ export default function RawMaterialPurchaseOrderManager() {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteMaterials;
 
+  const [view, setView] = useState<View>("list");
   const [filter, setFilter] = useState<PurchaseOrderListFilter>({ status: "", paymentStatus: "" });
   const [list, setList] = useState<PurchaseOrderSummary[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -277,6 +281,15 @@ export default function RawMaterialPurchaseOrderManager() {
       <Toast toast={toast} onClose={() => setToast(null)} />
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+        <button className={view === "list" ? "v50-button" : "v50-button-light"} onClick={() => setView("list")}>발주 목록</button>
+        <button className={view === "summary" ? "v50-button" : "v50-button-light"} onClick={() => setView("summary")}>월별·연도별 원료 발주금액 집계</button>
+      </div>
+
+      {view === "summary" && <PurchaseOrderRawMaterialSummaryPanel />}
+
+      {view === "list" && (
+      <>
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <h2 style={{ margin: 0 }}>발주 목록</h2>
@@ -470,6 +483,8 @@ export default function RawMaterialPurchaseOrderManager() {
             </div>
           )}
         </section>
+      )}
+      </>
       )}
     </div>
   );

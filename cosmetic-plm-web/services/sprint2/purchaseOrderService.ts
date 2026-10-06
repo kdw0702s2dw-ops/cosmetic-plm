@@ -204,3 +204,60 @@ export function emptyPurchaseOrder(): PurchaseOrder {
     items: [emptyPurchaseOrderItem()],
   };
 }
+
+// ---- 원료별 발주금액 집계(월별·연도별) ----
+// "원료 코드 또는 명칭으로 검색해서 월별, 년도별 원료의 총 발주 금액을 확인" 요청사항 대응.
+// v_plm_purchase_order_items_detail에는 발주일/진행상태가 없어서, 먼저 헤더 목록(fetchPurchaseOrders)에서
+// 기간으로 발주 id를 추려내고 취소(상태="취소") 건을 제외한 뒤, 그 id들의 품목만 조회해서 원료코드 기준으로
+// 그룹 합계한다 - 새 DB 뷰/마이그레이션 없이 기존 조회 함수들을 재사용.
+export type RawMaterialPurchaseOrderSummaryRow = {
+  raw_code: string;
+  raw_name: string | null;
+  trade_name: string | null;
+  item_count: number;
+  total_amount_sum: number; // 총액(부가세 포함) 합계
+};
+
+export type RawMaterialPurchaseOrderSummaryFilter = {
+  dateFrom: string;
+  dateTo: string;
+  keyword?: string; // 원료코드/원료명/Trade Name
+};
+
+export async function fetchPurchaseOrderRawMaterialSummary(
+  filter: RawMaterialPurchaseOrderSummaryFilter
+): Promise<RawMaterialPurchaseOrderSummaryRow[]> {
+  const orders = await fetchPurchaseOrders({ dateFrom: filter.dateFrom, dateTo: filter.dateTo });
+  const activeIds = orders.filter((o) => o.status !== "취소").map((o) => o.id);
+  if (activeIds.length === 0) return [];
+
+  const { data, error } = await supabaseProductionFinal
+    .from("v_plm_purchase_order_items_detail")
+    .select("*")
+    .in("purchase_order_id", activeIds);
+  if (error) throw error;
+
+  const map = new Map<string, RawMaterialPurchaseOrderSummaryRow>();
+  for (const it of (data || []) as PurchaseOrderItem[]) {
+    const code = it.raw_code;
+    if (!code) continue;
+    if (!map.has(code)) {
+      map.set(code, { raw_code: code, raw_name: it.raw_name || null, trade_name: it.trade_name || null, item_count: 0, total_amount_sum: 0 });
+    }
+    const g = map.get(code)!;
+    g.item_count += 1;
+    g.total_amount_sum += it.total_amount || 0;
+  }
+
+  let rows = Array.from(map.values());
+  const k = filter.keyword?.trim().toLowerCase();
+  if (k) {
+    rows = rows.filter(
+      (r) =>
+        r.raw_code.toLowerCase().includes(k) ||
+        (r.raw_name || "").toLowerCase().includes(k) ||
+        (r.trade_name || "").toLowerCase().includes(k)
+    );
+  }
+  return rows.sort((a, b) => b.total_amount_sum - a.total_amount_sum || a.raw_code.localeCompare(b.raw_code));
+}
