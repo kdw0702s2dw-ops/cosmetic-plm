@@ -16,6 +16,8 @@ import {
   fetchTradeNameMapByRawCode,
   downloadRawMaterialDocumentFile,
   buildDocDownloadFileName,
+  getDocExpiryStatus,
+  daysUntilExpiry,
 } from '@/services/sprint2/rawMaterialDocumentService';
 import {
   fetchFormulaLinesForPdf,
@@ -57,6 +59,21 @@ function emptyDocsMap(): Record<DocType, FormulaRawMaterialDocumentRow | null> {
 
 function docKey(rawMaterialId: string, docType: DocType) {
   return `${rawMaterialId}:${docType}`;
+}
+
+// COA 다운로드 밑에 유통기한을 표시 - 원료관리(RawMaterialDocUploader)와 서류 현황(RawMaterialDocStatusPanel)
+// 과 같은 기준(getDocExpiryStatus)으로 만료/임박 여부를 색으로 보여준다.
+function CoaExpiryNote({ doc }: { doc: FormulaRawMaterialDocumentRow }) {
+  if (!doc.expiry_date) return <span className="text-xs text-gray-400">유통기한 미입력</span>;
+  const status = getDocExpiryStatus(doc);
+  const color = status === 'expired' ? 'text-red-600' : status === 'warning' ? 'text-orange-600' : 'text-gray-400';
+  const suffix = status === 'expired' ? ' (만료)' : status === 'warning' ? ` (D-${daysUntilExpiry(doc.expiry_date)})` : '';
+  return <span className={`text-xs ${color}`}>유통기한 {doc.expiry_date}{suffix}</span>;
+}
+
+// MSDS 다운로드 밑에 발행일을 표시
+function MsdsIssueNote({ doc }: { doc: FormulaRawMaterialDocumentRow }) {
+  return <span className="text-xs text-gray-400">발행일 {doc.issue_date || '미입력'}</span>;
 }
 
 /**
@@ -337,18 +354,24 @@ export default function FormulaDocumentZipDownload({ formulaCode, revision, form
                     const doc = g.docs[t];
                     const key = docKey(g.rawMaterialId, t);
                     return (
-                      <td className="py-2 pr-2" key={t}>
+                      <td className="py-2 pr-2 align-top" key={t}>
                         {doc?.storage_path ? (
-                          <label className="inline-flex items-center gap-1 cursor-pointer">
-                            <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)} />
-                            <button
-                              type="button"
-                              onClick={() => handleSingleDownload(doc)}
-                              className="text-blue-600 hover:underline"
-                            >
-                              다운로드
-                            </button>
-                          </label>
+                          <div className="flex flex-col gap-0.5">
+                            <label className="inline-flex items-center gap-1 cursor-pointer">
+                              <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(key)} />
+                              <button
+                                type="button"
+                                onClick={() => handleSingleDownload(doc)}
+                                className="text-blue-600 hover:underline"
+                              >
+                                다운로드
+                              </button>
+                            </label>
+                            {/* 원료관리에서 입력한 유통기한(COA)/발행일(MSDS)을 그대로 보여줘서, 다른 화면으로
+                                옮기지 않고도 이 서류가 최신인지 바로 확인할 수 있게 한다. */}
+                            {t === 'COA' && <CoaExpiryNote doc={doc} />}
+                            {t === 'MSDS' && <MsdsIssueNote doc={doc} />}
+                          </div>
                         ) : required.includes(t) ? (
                           <span className="text-gray-400">없음</span>
                         ) : (

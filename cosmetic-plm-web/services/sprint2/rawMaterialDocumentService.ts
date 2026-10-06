@@ -86,6 +86,9 @@ export interface FormulaRawMaterialDocumentRow {
   file_name: string | null;
   storage_path: string | null;
   uploaded_at: string | null;
+  issue_date: string | null;
+  expiry_date: string | null;
+  doc_revision: string | null;
 }
 
 const BUCKET = 'raw-material-docs';
@@ -355,6 +358,9 @@ export async function getDocumentsForRawCodes(
         file_name: null,
         storage_path: null,
         uploaded_at: null,
+        issue_date: null,
+        expiry_date: null,
+        doc_revision: null,
       });
     } else {
       for (const d of matDocs) {
@@ -368,6 +374,9 @@ export async function getDocumentsForRawCodes(
           file_name: d.file_name,
           storage_path: d.storage_path,
           uploaded_at: d.uploaded_at,
+          issue_date: d.issue_date,
+          expiry_date: d.expiry_date,
+          doc_revision: d.doc_revision,
         });
       }
     }
