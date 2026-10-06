@@ -87,6 +87,7 @@ export default function EnterpriseSprint1Workspace() {
           <div>
             <div className="v50-menu-label">현재 사용 가능</div>
             {!isProduction && <button className={effectiveActive === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>}
+            <button className={effectiveActive === "unifiedBom" ? "active" : ""} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></button>
             {!isProduction && <button className={effectiveActive === "companyManager" ? "active" : ""} onClick={() => setActive("companyManager")}><span>업체관리</span></button>}
             <button className={effectiveActive === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
             {!isProduction && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
@@ -95,7 +96,6 @@ export default function EnterpriseSprint1Workspace() {
             {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
             {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
             {!isProduction && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
-            <button className={effectiveActive === "unifiedBom" ? "active" : ""} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></button>
             <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
             <button className={effectiveActive === "productionRecords" ? "active" : ""} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></button>
             <button className={effectiveActive === "shipmentManagement" ? "active" : ""} onClick={() => setActive("shipmentManagement")}><span>출고관리</span></button>
