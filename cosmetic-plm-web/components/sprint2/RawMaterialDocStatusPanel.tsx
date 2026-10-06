@@ -5,6 +5,8 @@ import {
   fetchRawMaterialDocumentStatus,
   downloadRawMaterialDocumentFile,
   requiredDocTypesForRawCode,
+  getDocExpiryStatus,
+  daysUntilExpiry,
   ALL_DOC_TYPES,
   DOC_TYPE_LABEL,
   type DocType,
@@ -25,6 +27,14 @@ type DocPresenceFilter = "all" | "has" | "missing";
 function missingCount(row: RawMaterialDocumentStatusRow) {
   const required = requiredDocTypesForRawCode(row.raw_code);
   return required.filter((t) => !row.docs[t]).length;
+}
+
+// 유통기한이 지난/임박한 서류 건수 - 필요 여부와 무관하게, 실제로 올라가 있는 서류 중에서만 센다.
+function expiredCount(row: RawMaterialDocumentStatusRow) {
+  return ALL_DOC_TYPES.filter((t) => getDocExpiryStatus(row.docs[t]) === "expired").length;
+}
+function warningCount(row: RawMaterialDocumentStatusRow) {
+  return ALL_DOC_TYPES.filter((t) => getDocExpiryStatus(row.docs[t]) === "warning").length;
 }
 
 /**
@@ -101,6 +111,8 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
             원료별 COA / MSDS / Composition / Allergen Sheet / IFRA 업로드 여부를 확인합니다. 코드·원료명·공급사명으로 검색할 수 있고, 코드·원료명을 클릭하면 해당 원료 편집 화면으로 이동합니다.
             <br />
             향료 원료(코드가 1FRA로 시작하거나, Z로 시작하면서 F로 끝나는 경우)만 Allergen Sheet/IFRA를 누락 기준에 포함합니다 — 그 외 원료는 해당 두 서류가 없어도 누락으로 계산하지 않습니다(회색 <b>–</b>로 표시).
+            <br />
+            원료 상세 화면에서 유통기한을 입력해두면 만료된 서류는 <b style={{ color: "#dc2626" }}>빨간 !</b>, 30일 이내 임박한 서류는 <b style={{ color: "#ea580c" }}>주황 !</b>로 표시됩니다(마우스를 올리면 유통기한 확인 가능).
           </p>
         </div>
         <button className="v50-button-light" onClick={() => load()} disabled={loading}>
@@ -160,6 +172,8 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
           <tbody>
             {filtered.map((row) => {
               const missing = missingCount(row);
+              const expired = expiredCount(row);
+              const warning = warningCount(row);
               const required = new Set(requiredDocTypesForRawCode(row.raw_code));
               return (
                 <tr key={row.id}>
@@ -169,18 +183,32 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
                   {ALL_DOC_TYPES.map((t: DocType) => {
                     const doc = row.docs[t];
                     const isRequired = required.has(t);
-                    return (
-                      <td key={t} style={{ textAlign: "center" }}>
-                        {doc ? (
+                    if (doc) {
+                      const expiryStatus = getDocExpiryStatus(doc);
+                      // 만료(빨강)/임박(주황)이면 체크 색을 바꾸고 유통기한 정보를 title에 덧붙인다.
+                      const color = expiryStatus === "expired" ? "#dc2626" : expiryStatus === "warning" ? "#ea580c" : "#16a34a";
+                      const expiryNote =
+                        expiryStatus === "expired"
+                          ? ` · 유통기한 만료(${doc.expiry_date})`
+                          : expiryStatus === "warning"
+                          ? ` · 유통기한 임박 D-${daysUntilExpiry(doc.expiry_date)}(${doc.expiry_date})`
+                          : "";
+                      return (
+                        <td key={t} style={{ textAlign: "center" }}>
                           <button
                             type="button"
                             onClick={() => handleDownload(t, doc)}
-                            title={`${doc.file_name} · ${new Date(doc.uploaded_at).toLocaleDateString("ko-KR")} (클릭 시 다운로드)`}
-                            style={{ color: "#16a34a", fontWeight: 800, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                            title={`${doc.file_name} · ${new Date(doc.uploaded_at).toLocaleDateString("ko-KR")}${expiryNote} (클릭 시 다운로드)`}
+                            style={{ color, fontWeight: 800, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                           >
-                            ✓
+                            {expiryStatus === "ok" || expiryStatus === "none" ? "✓" : "!"}
                           </button>
-                        ) : isRequired ? (
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={t} style={{ textAlign: "center" }}>
+                        {isRequired ? (
                           <span style={{ color: "#dc2626", fontWeight: 800 }} title="미보유">✗</span>
                         ) : (
                           <span style={{ color: "#cbd5e1", fontWeight: 700 }} title="이 원료에는 해당 서류가 필요하지 않습니다">–</span>
@@ -188,8 +216,8 @@ export default function RawMaterialDocStatusPanel({ onSelectMaterial }: Props) {
                       </td>
                     );
                   })}
-                  <td style={{ textAlign: "center", color: missing > 0 ? "#dc2626" : "#16a34a", fontWeight: 800 }}>
-                    {missing > 0 ? `누락 ${missing}건` : "완료"}
+                  <td style={{ textAlign: "center", fontWeight: 800, color: missing > 0 || expired > 0 ? "#dc2626" : warning > 0 ? "#ea580c" : "#16a34a" }}>
+                    {missing > 0 ? `누락 ${missing}건` : expired > 0 ? `만료 ${expired}건` : warning > 0 ? `임박 ${warning}건` : "완료"}
                   </td>
                 </tr>
               );

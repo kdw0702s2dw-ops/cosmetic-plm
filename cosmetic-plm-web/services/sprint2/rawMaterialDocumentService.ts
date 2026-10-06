@@ -39,6 +39,41 @@ export interface RawMaterialDocument {
   file_size: number | null;
   uploaded_at: string;
   uploaded_by: string | null;
+  issue_date: string | null;
+  expiry_date: string | null;
+  doc_revision: string | null;
+}
+
+// 유통기한이 이 일수 이내로 남았으면 "임박"으로 표시한다(지나면 "만료"). 서류 현황 화면과 원료 상세
+// 업로드 문서 섹션이 같은 기준을 쓰도록 여기 한 곳에서만 관리한다.
+export const DOC_EXPIRY_WARNING_DAYS = 30;
+
+export type DocExpiryStatus = "expired" | "warning" | "ok" | "none";
+
+/**
+ * 문서의 유통기한(expiry_date) 기준 상태 판정. expiry_date가 비어있으면 "none"(유효기간 개념이
+ * 없거나 아직 입력 안 한 서류 - 미보유와는 다르므로 별도 상태로 구분).
+ */
+export function getDocExpiryStatus(doc: { expiry_date?: string | null } | null | undefined): DocExpiryStatus {
+  if (!doc?.expiry_date) return "none";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const exp = new Date(doc.expiry_date);
+  exp.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((exp.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0) return "expired";
+  if (diffDays <= DOC_EXPIRY_WARNING_DAYS) return "warning";
+  return "ok";
+}
+
+/** 유통기한까지 남은 일수(지났으면 음수). expiry_date가 없으면 null. */
+export function daysUntilExpiry(expiryDate: string | null | undefined): number | null {
+  if (!expiryDate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const exp = new Date(expiryDate);
+  exp.setHours(0, 0, 0, 0);
+  return Math.round((exp.getTime() - today.getTime()) / 86400000);
 }
 
 export interface FormulaRawMaterialDocumentRow {
@@ -120,8 +155,11 @@ export async function uploadRawMaterialDocument(params: {
   docType: DocType;
   file: File;
   uploadedBy?: string;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  docRevision?: string | null;
 }): Promise<RawMaterialDocument> {
-  const { rawMaterialId, rawCode, docType, file, uploadedBy } = params;
+  const { rawMaterialId, rawCode, docType, file, uploadedBy, issueDate, expiryDate, docRevision } = params;
 
   const ext = file.name.split('.').pop() || 'bin';
   const storagePath = `${rawCode}/${docType.toLowerCase()}.${ext}`;
@@ -145,6 +183,12 @@ export async function uploadRawMaterialDocument(params: {
         file_size: file.size,
         uploaded_by: uploadedBy ?? null,
         uploaded_at: new Date().toISOString(),
+        // 교체 업로드 시 발행일/유통기한/리버전을 비워서 보내면(재업로드 폼에서 입력 안 함) 이전 값을
+        // 날려버리게 되므로, undefined일 때만 컬럼을 생략(upsert가 기존 값 유지)하고 null은 명시적
+        // "비움"으로 그대로 반영한다.
+        ...(issueDate !== undefined ? { issue_date: issueDate } : {}),
+        ...(expiryDate !== undefined ? { expiry_date: expiryDate } : {}),
+        ...(docRevision !== undefined ? { doc_revision: docRevision } : {}),
       },
       { onConflict: 'raw_material_id,doc_type' }
     )
@@ -153,6 +197,38 @@ export async function uploadRawMaterialDocument(params: {
 
   if (upsertError) {
     throw new Error(`문서 정보 저장 실패: ${upsertError.message}`);
+  }
+
+  return data as RawMaterialDocument;
+}
+
+/**
+ * 파일 재업로드 없이 발행일/유통기한/리버전만 수정한다(이미 올라간 COA/MSDS 등에 나중에 날짜 정보만
+ * 채워 넣는 경우를 위함).
+ */
+export async function updateRawMaterialDocumentMeta(params: {
+  rawMaterialId: string;
+  docType: DocType;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  docRevision?: string | null;
+}): Promise<RawMaterialDocument> {
+  const { rawMaterialId, docType, issueDate, expiryDate, docRevision } = params;
+
+  const { data, error } = await supabaseProductionFinal
+    .from('plm_raw_material_documents')
+    .update({
+      ...(issueDate !== undefined ? { issue_date: issueDate } : {}),
+      ...(expiryDate !== undefined ? { expiry_date: expiryDate } : {}),
+      ...(docRevision !== undefined ? { doc_revision: docRevision } : {}),
+    })
+    .eq('raw_material_id', rawMaterialId)
+    .eq('doc_type', docType)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`문서 정보 수정 실패: ${error.message}`);
   }
 
   return data as RawMaterialDocument;
