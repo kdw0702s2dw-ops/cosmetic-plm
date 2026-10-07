@@ -1397,8 +1397,9 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
 // (계산은 computeOrderSheetRows()에서 이미 끝난 상태 - buildComplexGroupedRows() 재사용)
 // ============================================================
 export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow[], personInCharge: string) {
-  // 이메일/전화번호는 신규 체크된 원료에 한해서만 노출한다 - 기존에 발주 이력이 있는 원료는
-  // 담당자가 이미 공급사 연락처를 알고 있으므로 문서를 불필요하게 채우지 않는다.
+  // 이메일/전화번호는 모든 행에 노출한다(요청사항: 추가 발주 때마다 일일이 업체 정보를 다시 찾지
+  // 않도록 신규/기존 구분 없이 전체 공급사 연락처를 문서에 기재). "신규 체크" 자체(☑/☐)는
+  // 그대로 유지한다 - 신규 원료인지 구분하는 용도는 그대로 두고, 연락처 노출 범위만 넓힌 것.
   const body = rows
     .map(
       (r, i) => `<tr>
@@ -1408,8 +1409,8 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
   <td class="right">${pct(r.percent)}</td>
   <td class="center">${r.isNew ? "☑" : "☐"}</td>
   <td>${e(r.supplier || "-")}</td>
-  <td>${r.isNew ? e(r.email || "-") : ""}</td>
-  <td>${r.isNew ? e(r.phone || "-") : ""}</td>
+  <td>${e(r.email || "-")}</td>
+  <td>${e(r.phone || "-")}</td>
   <td>${e(personInCharge || "-")}</td>
 </tr>`
     )

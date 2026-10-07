@@ -151,9 +151,10 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
                           <input type="checkbox" checked={r.isNew} onChange={(e) => s.updateOrderSheetRowIsNew(i, e.target.checked)} />
                         </td>
                         <td>{r.supplier || "-"}</td>
-                        {/* 이메일/전화번호는 신규 체크된 원료에만 문서에 실제로 출력된다 - 미리보기도 동일 규칙 */}
-                        <td style={{ color: r.isNew ? undefined : "#94a3b8" }}>{r.isNew ? (r.email || "-") : "-"}</td>
-                        <td style={{ color: r.isNew ? undefined : "#94a3b8" }}>{r.isNew ? (r.phone || "-") : "-"}</td>
+                        {/* 이메일/전화번호는 신규/기존 구분 없이 모든 행에 문서에 출력된다 - 미리보기도 동일하게 보여준다
+                            (요청사항: 추가 발주 때마다 업체 연락처를 따로 찾지 않도록 전체 공급사 연락처 제공). */}
+                        <td>{r.email || "-"}</td>
+                        <td>{r.phone || "-"}</td>
                       </tr>
                     ))
                   )}

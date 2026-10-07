@@ -547,11 +547,12 @@ export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: Ord
   if (rows.length === 0) {
     ws.addRow(["", "BOM 데이터가 없습니다.", "", "", "", "", "", "", ""]);
   }
-  // 이메일/전화번호는 신규 체크된 원료에 한해서만 채운다 - PDF와 동일한 규칙.
+  // 이메일/전화번호는 모든 행에 채운다(PDF와 동일 - 신규/기존 구분 없이 전체 공급사 연락처 제공).
+  // "신규 체크" 표시(O/빈칸)는 그대로 유지.
   rows.forEach((r, i) => {
     const row = ws.addRow([
       i + 1, r.raw_code, r.raw_name, Number(pct(r.percent)), r.isNew ? "O" : "", r.supplier || "-",
-      r.isNew ? (r.email || "-") : "", r.isNew ? (r.phone || "-") : "", personInCharge || "-",
+      r.email || "-", r.phone || "-", personInCharge || "-",
     ]);
     row.alignment = { vertical: "middle" };
     row.getCell(4).alignment = { vertical: "middle", horizontal: "right" };
