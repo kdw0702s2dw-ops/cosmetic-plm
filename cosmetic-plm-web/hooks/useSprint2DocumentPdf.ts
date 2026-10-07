@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   computeOrderSheetRows, createFormulaDocument, createRawMaterialOrderSheetDocument,
-  downloadHtmlDocument, fetchDocumentFormulas, fetchFormulaLinesForPdf, fetchPdfDocuments,
-  openPrintDocument, regenerateFormulaDocument, regenerateRawMaterialOrderSheetDocument,
+  deleteFormulaDocument, downloadHtmlDocument, fetchDocumentFormulas, fetchFormulaLinesForPdf, fetchPdfDocuments,
+  openPrintDocument, regenerateFormulaDocument, regenerateRawMaterialOrderSheetDocument, setFormulaDocBasisOverride,
   type DocBasis, type DocKind, type DocLang, type OrderSheetRow,
 } from "@/services/sprint2/documentPdfService";
 import { downloadLabJournalDocument } from "@/services/sprint2/labJournalExcelService";
@@ -125,6 +125,40 @@ export function useSprint2DocumentPdf() {
     }
   }
 
+  // 생성된 문서를 삭제해서 "미생성" 상태로 되돌린다(서류 발급 실수를 바로잡기 위한 기능 - 되돌릴 수 없어서
+  // 확인창을 한 번 거친다).
+  async function deleteDoc(existingDoc: any) {
+    if (!confirm(`"${existingDoc.title}" 문서를 삭제할까요? 삭제하면 "미생성" 상태로 돌아갑니다.`)) return;
+    setLoading(true);
+    try {
+      await deleteFormulaDocument(existingDoc.id);
+      if (selected?.id === existingDoc.id) setSelected(null);
+      await load();
+      setMessage("문서를 삭제했습니다.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "문서 삭제 오류");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // "제조는 원처방, 서류는 공개처방(일반)" 예외 플래그를 저장하고, 화면에 바로 반영되도록 formulas를
+  // 갱신한다(전체 재조회 없이 로컬 상태만 갱신 - 체크박스를 눌렀을 때 바로 기본 기준/경고가 바뀌어야 함).
+  async function setDocBasisOverride(formula: any, requiresPublicBasis: boolean) {
+    try {
+      await setFormulaDocBasisOverride(formula.formula_code, formula.revision, requiresPublicBasis);
+      setFormulas((prev) =>
+        prev.map((f) =>
+          f.formula_code === formula.formula_code && f.revision === formula.revision
+            ? { ...f, requires_public_basis_docs: requiresPublicBasis }
+            : f
+        )
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "기준 설정 저장 오류");
+    }
+  }
+
   async function downloadLabJournal(formula: any) {
     setLoading(true);
     try {
@@ -236,7 +270,7 @@ export function useSprint2DocumentPdf() {
   return {
     formulas, documents, keyword, setKeyword, selected, message, loading,
     existingDocByKey, groupedDocs,
-    load, createDoc, regenerateDoc, preview, download, print, downloadLabJournal, downloadDocExcel,
+    load, createDoc, regenerateDoc, deleteDoc, setDocBasisOverride, preview, download, print, downloadLabJournal, downloadDocExcel,
     orderSheetModal, openOrderSheetModal, updateOrderSheetRowIsNew, setOrderSheetPersonInCharge,
     closeOrderSheetModal, confirmOrderSheet,
   };

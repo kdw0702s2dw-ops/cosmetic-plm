@@ -26,8 +26,10 @@ function DocActions({ d, onPreview, onDownload, onPrint }: { d: any; onPreview: 
 
 // 처방 1건 펼침 영역 안에서 문서 종류(전성분표/복합성분표/단일성분표) 한 줄.
 // "PDF 보기/생성" 버튼은 상태에 따라 라벨/동작이 바뀐다: 미생성 -> 생성(createDoc), 생성됨 -> 보기(preview).
+// docBasisWarning: 이 처방이 "서류는 공개처방(일반) 기준" 예외로 지정돼 있는데 지금은 원처방 기준이
+// 선택된 상태 - true면 생성/재생성 전에 한 번 더 확인을 받는다(서류 발급 실수 방지 안전장치).
 function DocKindRow({
-  label, kind, formula, existing, s, canExportData, basis, lang,
+  label, kind, formula, existing, s, canExportData, basis, lang, docBasisWarning,
 }: {
   label: string;
   kind: DocKind;
@@ -37,10 +39,21 @@ function DocKindRow({
   canExportData: boolean;
   basis: DocBasis;
   lang: DocLang;
+  docBasisWarning: boolean;
 }) {
   const statusText = existing
     ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
     : "미생성";
+
+  function guardedCreate() {
+    if (docBasisWarning && !confirm("이 처방은 서류를 공개처방(일반) 기준으로 발급해야 하는 예외 처방으로 지정되어 있습니다. 그래도 원처방 기준으로 생성하시겠습니까?")) return;
+    s.createDoc(formula, kind, basis, lang);
+  }
+  function guardedRegenerate() {
+    if (docBasisWarning && !confirm("이 처방은 서류를 공개처방(일반) 기준으로 발급해야 하는 예외 처방으로 지정되어 있습니다. 그래도 원처방 기준으로 재생성하시겠습니까?")) return;
+    s.regenerateDoc(existing, formula, kind, basis, lang);
+  }
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
       <span style={{ width: 100, fontWeight: 800 }}>{label}</span>
@@ -49,10 +62,11 @@ function DocKindRow({
         {existing ? (
           <>
             <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
-            <button className="v50-button-light" onClick={() => s.regenerateDoc(existing, formula, kind, basis, lang)}>재생성</button>
+            <button className="v50-button-light" onClick={guardedRegenerate}>재생성</button>
+            <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.deleteDoc(existing)}>삭제</button>
           </>
         ) : (
-          <button className="v50-button-light" onClick={() => s.createDoc(formula, kind, basis, lang)}>PDF 생성</button>
+          <button className="v50-button-light" onClick={guardedCreate}>PDF 생성</button>
         )}
         {canExportData && <button className="v50-button" onClick={() => s.downloadDocExcel(formula, kind, label, basis, lang)}>엑셀 다운로드</button>}
       </div>
@@ -163,8 +177,13 @@ export default function DocumentPdfPanel() {
   // 처방 카드별 국문/영문 출력 언어 - 위 기준과 동일하게 3종에 공통 적용 (원료발주가처방은 대상 아님)
   const [langByFormula, setLangByFormula] = useState<Map<string, DocLang>>(new Map());
 
+  // 명시적으로 고른 적이 없으면(이 화면에 들어와서 버튼을 아직 안 눌렀으면), "서류는 공개처방(일반) 기준"
+  // 예외로 지정된 처방은 기본값을 공개처방(일반)으로 띄운다(요청사항: 서류 발급 실수 방지 안전장치).
+  // 한 번이라도 버튼을 눌러 명시적으로 고르면 그 값이 우선한다.
   function getBasis(f: any): DocBasis {
-    return basisByFormula.get(`${f.formula_code}|${f.revision}`) || "MIX";
+    const explicit = basisByFormula.get(`${f.formula_code}|${f.revision}`);
+    if (explicit) return explicit;
+    return f.requires_public_basis_docs ? "PUBLIC" : "MIX";
   }
   function setBasis(f: any, basis: DocBasis) {
     setBasisByFormula((prev) => new Map(prev).set(`${f.formula_code}|${f.revision}`, basis));
@@ -283,6 +302,25 @@ export default function DocumentPdfPanel() {
                       (전성분표/복합성분표/단일성분표에 공통 적용 · 원료발주가처방은 원처방 기준 고정)
                     </span>
                   </div>
+                  {/* 제조는 원처방이지만 서류는 공개처방(일반) 기준으로 발급해야 하는 예외 처방 지정 -
+                      체크하면 위 "기준"이 이 처방을 펼칠 때마다 공개처방(일반)으로 기본 선택되고,
+                      원처방으로 바꾸면 경고와 재확인이 뜬다(서류 발급 실수 방지). */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <span style={{ width: 100 }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "#b45309", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!f.requires_public_basis_docs}
+                        onChange={(e) => s.setDocBasisOverride(f, e.target.checked)}
+                      />
+                      이 처방은 서류를 공개처방(일반) 기준으로 발급 (제조는 원처방 유지, 예외 처방)
+                    </label>
+                  </div>
+                  {f.requires_public_basis_docs && getBasis(f) === "MIX" && (
+                    <p style={{ background: "#fef2f2", color: "#dc2626", fontWeight: 800, fontSize: 13, padding: "8px 12px", borderRadius: 8, margin: "8px 0" }}>
+                      ⚠ 이 처방은 서류를 공개처방(일반) 기준으로 발급해야 하는 예외 처방입니다. 지금은 원처방 기준이 선택되어 있습니다.
+                    </p>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>출력 언어</span>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -336,6 +374,7 @@ export default function DocumentPdfPanel() {
                       canExportData={auth.canExportData}
                       basis={getBasis(f)}
                       lang={getLang(f)}
+                      docBasisWarning={!!f.requires_public_basis_docs && getBasis(f) === "MIX"}
                     />
                   ))}
                   <OrderSheetDocRow
