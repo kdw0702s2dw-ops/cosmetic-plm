@@ -56,6 +56,7 @@ const emptyFormula: Sprint1Formula = {
   formula_code: "",
   revision: "R0",
   formula_name: "",
+  product_name: "",
   status: "DRAFT",
   product_type: "",
   customer: "",

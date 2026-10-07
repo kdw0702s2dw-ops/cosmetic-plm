@@ -393,6 +393,10 @@ export default function FormulaCorePanel() {
             )}
           </label>
           <Input label="처방명" value={s.formula.formula_name} onChange={(v) => updateFormula("formula_name", v)} />
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            제품명 (컨펌 후 확정)
+            <input className="v50-input" value={s.formula.product_name || ""} onChange={(e) => updateFormula("product_name", e.target.value)} placeholder="처방 컨펌 후 확정된 제품명 - 원료발주가처방에 사용" />
+          </label>
           <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
           <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
           <Input label="담당 연구원" value={s.formula.assigned_researcher} onChange={(v) => updateFormula("assigned_researcher", v)} />

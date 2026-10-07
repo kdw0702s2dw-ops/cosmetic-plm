@@ -449,12 +449,14 @@ export function kovasMeta(f: any) {
 }
 
 // 원료발주가처방 상단 메타 (개발번호/제품명/연구원 정보만 - 다른 3종 문서의 kovasMeta와 별개)
+// 제품명은 처방 컨펌 후 확정되는 값(plm_formulas.product_name)을 우선 쓰고, 아직 입력 전이면
+// 처방명으로 대체한다 - 다른 3종 문서(kovasMeta)는 항상 처방명을 쓰는 것과 다른 점.
 export function orderSheetMeta(f: any) {
   return {
     "개발번호": f.formula_code ?? "",
     "샘플번호": f.revision ?? "",
     "확정코드": f.confirmed_code ?? "",
-    "제품명": f.formula_name ?? "",
+    "제품명": f.product_name || f.formula_name || "",
     "연구원 정보": f.assigned_researcher ?? "",
   };
 }
@@ -681,15 +683,15 @@ export type DocLang = "KR" | "EN" | "BOTH" | "EN_JA" | "EN_ZH";
 export function langTitleSuffix(lang: DocLang): string {
   if (lang === "KR") return " (국문)";
   if (lang === "EN") return " (영문)";
-  if (lang === "EN_JA") return " (영문+일본)";
-  if (lang === "EN_ZH") return " (영문+중국)";
+  if (lang === "EN_JA") return " (영문+일문)";
+  if (lang === "EN_ZH") return " (영문+중문)";
   return "";
 }
 export function langFileSuffix(lang: DocLang): string {
   if (lang === "KR") return "_국문";
   if (lang === "EN") return "_영문";
-  if (lang === "EN_JA") return "_영문일본";
-  if (lang === "EN_ZH") return "_영문중국";
+  if (lang === "EN_JA") return "_영문일문";
+  if (lang === "EN_ZH") return "_영문중문";
   return "";
 }
 
@@ -1499,7 +1501,8 @@ export async function createRawMaterialOrderSheetDocument(formula: any, rows: Or
       formula_code: formula.formula_code,
       revision: formula.revision,
       document_type: "RAW_MATERIAL_ORDER_SHEET",
-      title: `${formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
+      // 제목도 확정 제품명을 우선 사용(미입력 시 처방명으로 대체) - orderSheetMeta와 동일한 규칙.
+      title: `${formula.product_name || formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
       status: "CREATED",
       payload_json: { formula, rows, personInCharge },
       html_content: html,
@@ -1518,7 +1521,8 @@ export async function regenerateRawMaterialOrderSheetDocument(existingDoc: any, 
   const { data, error } = await supabaseProductionFinal
     .from("plm_documents")
     .update({
-      title: `${formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
+      // 제목도 확정 제품명을 우선 사용(미입력 시 처방명으로 대체) - orderSheetMeta와 동일한 규칙.
+      title: `${formula.product_name || formula.formula_name} ${DOC_KIND_NAMES.RAW_MATERIAL_ORDER_SHEET}`,
       payload_json: { formula, rows, personInCharge },
       html_content: html,
       updated_at: new Date().toISOString(),

@@ -8,6 +8,9 @@ export type Sprint1Formula = {
   revision: string;
   confirmed_code?: string;
   formula_name: string;
+  // 처방 컨펌 후 확정된 제품명 - 원료발주가처방 문서는 이 값을 우선 사용한다(미입력 시 처방명으로 대체).
+  // 실험일지/전성분표/복합성분표/단일성분표는 기존대로 처방명(formula_name)을 사용한다.
+  product_name?: string;
   status?: string;
   product_type?: string;
   customer?: string;
