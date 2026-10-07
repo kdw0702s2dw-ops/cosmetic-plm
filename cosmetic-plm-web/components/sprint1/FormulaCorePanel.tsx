@@ -15,6 +15,12 @@ import "@/styles/enterprise-v50.css";
 
 const DEVELOPMENT_TYPES = ["신제품", "리뉴얼", "OEM", "ODM"];
 const PROGRESS_STATUSES = ["준비중", "개발중", "컨펌", "생산완료", "보류"];
+// "베이스 처방" - 다른 제품 처방들이 가져다 쓰는 기본/공용 베이스. 처방코드가 이 접두사들로 시작하면
+// 베이스 처방으로 간주한다(HG-001, SE-001 등). 새 접두사가 더 생기면 이 배열에만 추가하면 된다.
+const BASE_FORMULA_PREFIXES = ["HG-", "PP-", "SE-", "ES-"];
+function isBaseFormula(formulaCode: string | undefined | null) {
+  return !!formulaCode && BASE_FORMULA_PREFIXES.some((p) => formulaCode.startsWith(p));
+}
 // 처방 목록에서 진행상태를 배지 색으로 구분 - 준비중은 회색, 개발중은 기본색(파랑), 컨펌/생산완료는 초록, 보류는 주황.
 const PROGRESS_STATUS_BADGE_CLASS: Record<string, string> = { 준비중: "muted", 컨펌: "ok", 생산완료: "ok", 보류: "warn" };
 
@@ -151,6 +157,8 @@ export default function FormulaCorePanel() {
 
   // 진행상태 필터 - 목록에 표시 중인(=현재 선택된 Revision 기준) 진행상태로 좁혀서 본다. "전체"가 기본값.
   const [statusFilter, setStatusFilter] = useState<string>("전체");
+  // 베이스 처방 필터 - 진행상태와는 독립적인(어느 진행상태든 베이스 처방일 수 있는) 토글이라 별도 상태로 둔다.
+  const [baseOnly, setBaseOnly] = useState(false);
   const rowsWithPickedRevision = useMemo(
     () =>
       groupedFormulas.map(({ key, rep, revisions }) => {
@@ -168,13 +176,18 @@ export default function FormulaCorePanel() {
     }
     return counts;
   }, [rowsWithPickedRevision]);
-  const visibleRows = useMemo(
-    () =>
+  const baseCount = useMemo(
+    () => rowsWithPickedRevision.filter(({ pickedRow }) => isBaseFormula(pickedRow.formula_code)).length,
+    [rowsWithPickedRevision]
+  );
+  const visibleRows = useMemo(() => {
+    let rows =
       statusFilter === "전체"
         ? rowsWithPickedRevision
-        : rowsWithPickedRevision.filter(({ pickedRow }) => (pickedRow.progress_status || "미지정") === statusFilter),
-    [rowsWithPickedRevision, statusFilter]
-  );
+        : rowsWithPickedRevision.filter(({ pickedRow }) => (pickedRow.progress_status || "미지정") === statusFilter);
+    if (baseOnly) rows = rows.filter(({ pickedRow }) => isBaseFormula(pickedRow.formula_code));
+    return rows;
+  }, [rowsWithPickedRevision, statusFilter, baseOnly]);
 
   return (
     <div className="v50-page">
@@ -327,6 +340,17 @@ export default function FormulaCorePanel() {
               미지정 ({statusCounts["미지정"]})
             </button>
           )}
+          {/* 진행상태 필터와는 별개의 토글 - 어느 진행상태를 보고 있든 그 안에서 베이스 처방(HG-/PP-/SE-/ES-)만
+              더 좁혀 볼 수 있다. 구분을 위해 여백과 얇은 구분선을 둔다. */}
+          <span style={{ width: 1, background: "#e2e8f0", margin: "2px 4px" }} />
+          <button
+            type="button"
+            className={baseOnly ? "v50-button" : "v50-button-light"}
+            onClick={() => setBaseOnly((v) => !v)}
+            title="처방코드가 HG-/PP-/SE-/ES-로 시작하는 베이스(공용) 처방만 보기"
+          >
+            베이스 처방만 ({baseCount})
+          </button>
         </div>
 
         <div className="v50-table-wrap">
@@ -334,7 +358,9 @@ export default function FormulaCorePanel() {
             <thead><tr><th>처방코드</th><th>확정코드</th><th>처방명</th><th>고객사</th><th>담당 연구원</th><th>Revision</th><th>진행상태</th><th>총합</th><th>원가</th><th>열기</th></tr></thead>
             <tbody>
               {visibleRows.length === 0 && (
-                <tr><td colSpan={10} style={{ color: "#94a3b8" }}>해당 진행상태의 처방이 없습니다.</td></tr>
+                <tr><td colSpan={10} style={{ color: "#94a3b8" }}>
+                  {baseOnly ? "해당 조건의 베이스 처방이 없습니다." : "해당 진행상태의 처방이 없습니다."}
+                </td></tr>
               )}
               {visibleRows.map(({ key, rep, revisions, pickedRevision, pickedRow }) => {
                 return (
