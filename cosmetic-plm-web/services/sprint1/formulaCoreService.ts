@@ -112,13 +112,20 @@ export function buildRawMaterialSyncPatch(latest: any): Partial<Sprint1FormulaLi
   return patch;
 }
 
+// 처방 목록 조회 상한 - 예전에는 100으로 캡을 걸어뒀는데, 활성 처방(revision 단위) 총 개수가 100을
+// 넘어가면서 최근에 수정되지 않은(updated_at 기준 100위 밖) 처방이 처방 목록에서 통째로 사라지는
+// 버그가 있었다(방금 등록한 처방조차 다른 처방들의 updated_at이 더 최신이면 밀려날 수 있었음). 당장은
+// 처방 수가 수천 건 단위로 가는 상황은 아니라고 보고 상한을 크게 올려서 사실상 전체가 다 나오게 했다 -
+// 나중에 처방 수가 이 상한에 다시 가까워지면 그때는 진짜 페이지네이션(더 보기/무한 스크롤)으로 바꿔야 한다.
+const FORMULA_LIST_MAX_ROWS = 5000;
+
 export async function fetchSprint1Formulas(keyword = "") {
   let query = supabaseProductionFinal
     .from("plm_formulas")
     .select("*")
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(FORMULA_LIST_MAX_ROWS);
 
   if (keyword.trim()) {
     const k = keyword.trim();
@@ -205,8 +212,9 @@ export async function searchFormulasByRawCode(rawCode: string, percentage?: numb
     .sort((a, b) => b.percentage - a.percentage);
 }
 
-// 원료 사용처 검색 결과에서 처방을 열 때 사용 - fetchSprint1Formulas는 최근 100건으로 캡핑되어 있어
-// 검색된 처방이 그 안에 없을 수 있으므로, formula_code+revision으로 정확히 한 건만 조회한다.
+// 원료 사용처 검색 결과에서 처방을 열 때 사용 - fetchSprint1Formulas는 FORMULA_LIST_MAX_ROWS로 캡핑되어
+// 있어(지금은 넉넉하지만 이론상) 검색된 처방이 그 안에 없을 수 있으므로, formula_code+revision으로
+// 정확히 한 건만 조회한다.
 export async function fetchSprint1FormulaByKey(formulaCode: string, revision: string) {
   const { data, error } = await supabaseProductionFinal
     .from("plm_formulas")

@@ -418,6 +418,20 @@ export function useSprint1FormulaCore() {
     }
   }
 
+  // 방금 저장한 처방을 처방 목록에서 확실히 보이게 한다. loadFormulas()가 (검색 키워드가 남아있거나,
+  // 다른 처방들의 updated_at이 더 최신이라 목록 상한에 밀려나는 등 어떤 이유로든) 방금 저장한 처방을
+  // 빠뜨려서 돌려줄 가능성에 대비한 안전장치 - "저장은 됐는데 목록엔 안 보이고 검색해야 나온다"는
+  // 버그를 막기 위해 loadFormulas() 호출 뒤에 항상 한 번 더 보정한다.
+  function ensureInFormulas(row: any) {
+    setFormulas((prev) => {
+      const idx = prev.findIndex((f) => f.formula_code === row.formula_code && f.revision === row.revision);
+      if (idx === -1) return [row, ...prev];
+      const next = prev.slice();
+      next[idx] = row;
+      return next;
+    });
+  }
+
   async function openFormula(f: any) {
     setSelected(f);
     setFormula({ ...emptyFormula, ...f });
@@ -451,6 +465,10 @@ export function useSprint1FormulaCore() {
     setRawHits([]);
     setActiveRawRow(null);
     setLineWarnings({});
+    // 이전에 처방 목록을 검색해둔 채로 "신규 처방"을 누르면, 저장 직후 재조회가 그 검색어를 그대로
+    // 다시 적용해서 방금 만든 처방이 검색 결과에 안 걸려 목록에서 안 보이는 것처럼 보일 수 있었다 -
+    // 새 처방을 시작할 때는 검색어를 비워서 저장 후 목록이 항상 전체 기준으로 보이게 한다.
+    setKeyword("");
     setMessage("신규 처방 작성 시작");
   }
 
@@ -532,6 +550,7 @@ export function useSprint1FormulaCore() {
       const marketNotice = formula.exposure_type && !formula.target_market ? " (대상 시장 미지정 → KR 기준 적용)" : "";
 
       await loadFormulas();
+      ensureInFormulas(saved);
       const okMsg = `처방 저장 완료${alertCount > 0 ? ` (규제 경고 ${alertCount}건 기록)` : ""}${allergenCount > 0 ? ` (알러젠 ${allergenCount}건 계산)` : ""}${marketNotice}`;
       setMessage(okMsg);
       return { ok: true, message: okMsg };
@@ -613,6 +632,7 @@ export function useSprint1FormulaCore() {
       setDeletedLineNos([]);
 
       await loadFormulas();
+      ensureInFormulas(saved);
       const okMsg = `새 Revision(${trimmed}) 생성 완료`;
       setMessage(okMsg);
       return { ok: true, message: okMsg };
