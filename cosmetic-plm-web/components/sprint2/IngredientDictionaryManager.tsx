@@ -132,7 +132,7 @@ export default function IngredientDictionaryManager() {
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12 }}>
           <input className="v50-input" value={keyword} onChange={(e) => setKeyword(e.target.value)}
-            placeholder="INCI 한글명/영문명/CAS No 검색"
+            placeholder="INCI 한글명/영문명/CAS No/비고 검색"
             onKeyDown={(e) => e.key === "Enter" && onSearch()} style={{ flex: 1 }} />
           <button className="v50-button" onClick={onSearch}>검색</button>
         </div>

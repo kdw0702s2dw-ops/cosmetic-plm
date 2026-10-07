@@ -25,7 +25,7 @@ export type IngredientDictionaryPage = {
   total: number;
 };
 
-// 목록 조회: is_active=true만, 한글명/영문명/CAS No 검색 + 페이지네이션(count exact)
+// 목록 조회: is_active=true만, 한글명/영문명/CAS No/비고 검색 + 페이지네이션(count exact)
 export async function fetchIngredientDictionary(params: {
   keyword?: string;
   page: number; // 1부터 시작
@@ -44,7 +44,7 @@ export async function fetchIngredientDictionary(params: {
 
   if (keyword.trim()) {
     const k = keyword.trim();
-    q = q.or(`inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,cas_no.ilike.%${k}%`);
+    q = q.or(`inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,cas_no.ilike.%${k}%,note.ilike.%${k}%`);
   }
 
   const { data, error, count } = await q;
