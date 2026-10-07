@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   fetchCompanyById, searchCompaniesAutocomplete, saveCompany, type Company, type CompanyCategory,
@@ -44,9 +44,40 @@ export default function CompanyAutocompleteField({
   // useAnchorPosition은 hits 배열의 "길이"만 위치 추정에 쓰지만 참조 자체를 의존성으로 보므로,
   // 매 렌더마다 새 배열 리터럴을 넘기면 effect가 매번 재실행되어 무한 렌더 루프에 빠진다 - 길이가 실제로
   // 바뀔 때만 새 배열을 만들도록 useMemo로 참조를 고정한다.
-  const estimateCount = showQuickAdd ? 7 : showDropdown ? hits.length + 1 : 0;
-  const estimateItems = useMemo(() => new Array(estimateCount).fill(0), [estimateCount]);
-  const pos = useAnchorPosition(showDropdown || showQuickAdd ? "open" : null, () => inputRef.current, estimateItems);
+  // quickAdd(새 업체 등록/정보 수정) 팝업은 더 이상 입력창 기준 좌표(pos)를 쓰지 않는다 - 화면 중앙
+  // 모달로 바꿔서, 내용 길이나 입력창 위치와 무관하게 취소/저장 버튼이 항상 보이도록 했다(아래 참고).
+  const estimateItems = useMemo(() => new Array(showDropdown ? hits.length + 1 : 0).fill(0), [showDropdown, hits.length]);
+  const pos = useAnchorPosition(showDropdown ? "open" : null, () => inputRef.current, estimateItems);
+
+  // 입력창이 속한 화면이 다른 탭으로 전환되어 보이지 않게 되면(원료관리·출고관리 등 "keep-alive" 탭은
+  // 언마운트되지 않고 display:none으로만 숨겨짐) 열려 있던 자동완성 팝업을 자동으로 닫는다. 이 팝업은
+  // createPortal로 document.body에 바로 붙기 때문에 부모의 display:none을 타고 내려가지 않아서,
+  // 안 닫아주면 탭을 옮겨도 화면 위에 계속 떠 있는 버그가 있었다.
+  useEffect(() => {
+    if (!open) return;
+    let raf = 0;
+    const check = () => {
+      const el = inputRef.current;
+      if (el && el.offsetParent === null) {
+        setOpen(false);
+        setQuickAdd(null);
+        return;
+      }
+      raf = requestAnimationFrame(check);
+    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  // Esc로도 닫을 수 있게 - 팝업이 의도치 않게 화면 밖으로 밀려 취소 버튼을 못 누르는 경우의 대비책.
+  useEffect(() => {
+    if (!showQuickAdd) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") { setOpen(false); setQuickAdd(null); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showQuickAdd]);
 
   function onInputChange(v: string) {
     onChange({ value: v, companyId: null });
@@ -166,43 +197,60 @@ export default function CompanyAutocompleteField({
           />,
           document.body
         )}
-        {showQuickAdd && pos && createPortal(
-          <div style={{
-            position: "fixed", zIndex: 1000, left: pos.left, width: Math.max(pos.width, 260), top: pos.top, bottom: pos.bottom,
-            background: "white", border: "1px solid #cbd5e1", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            padding: 10, display: "grid", gap: 6,
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#334155" }}>
-              {quickAdd!.id ? `업체 정보 수정 (${preferredCategory})` : `새 업체 등록 (${preferredCategory})`}
-            </div>
-            <input className="v50-input" placeholder="업체명 국문" value={quickAdd!.name_kr} onChange={(e) => setQuickAdd({ ...quickAdd!, name_kr: e.target.value })} />
-            <input className="v50-input" placeholder="업체명 영문" value={quickAdd!.name_en} onChange={(e) => setQuickAdd({ ...quickAdd!, name_en: e.target.value })} />
-            <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
-            <input className="v50-input" placeholder="이메일 (선택)" type="email" value={quickAdd!.email} onChange={(e) => setQuickAdd({ ...quickAdd!, email: e.target.value })} />
-            <input className="v50-input" placeholder="전화번호 (선택)" value={quickAdd!.phone} onChange={(e) => setQuickAdd({ ...quickAdd!, phone: e.target.value })} />
-            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-              {/* 이 팝업은 createPortal로 document.body에 붙어서 .v50-root 밖으로 나가기 때문에,
-                  .v50-button 등 클래스가 의존하는 CSS 변수(--blue/--text/--line)를 상속받지 못해
-                  버튼이 안 보이는 문제가 있었다. 리터럴 색상값을 인라인으로 직접 지정해서 고정한다. */}
-              <button
-                type="button" onClick={() => setQuickAdd(null)}
-                style={{
-                  border: "1px solid #e2e8f0", background: "white", color: "#0f172a",
-                  borderRadius: 13, padding: "11px 15px", fontWeight: 900, cursor: "pointer",
-                }}
-              >
-                취소
-              </button>
-              <button
-                type="button" disabled={quickAddSaving} onClick={saveQuickAdd}
-                style={{
-                  border: 0, background: "#2563eb", color: "white",
-                  borderRadius: 13, padding: "11px 15px", fontWeight: 900,
-                  cursor: quickAddSaving ? "default" : "pointer", opacity: quickAddSaving ? 0.7 : 1,
-                }}
-              >
-                {quickAddSaving ? "저장 중…" : quickAdd!.id ? "저장" : "등록"}
-              </button>
+        {showQuickAdd && createPortal(
+          // 입력창 옆에 좌표(pos)로 띄우던 팝업을 화면 중앙 모달로 바꿨다. 기존 방식은 position:fixed
+          // 좌표를 여는 시점에 한 번만 계산해서 (1) 스크롤하면 입력창을 따라가지 못하고 열었던 화면
+          // 위치에 그대로 떠 있었고, (2) 입력창이 화면 아래쪽에 있으면 팝업이 뷰포트 밖으로 밀려나
+          // 취소/저장 버튼을 누를 수 없는 경우가 있었다. 모달은 뷰포트 중앙에 maxHeight+overflow로
+          // 고정되므로 입력창 위치나 스크롤 상태와 무관하게 버튼이 항상 보인다. 배경(backdrop) 클릭 또는
+          // Esc로도 닫을 수 있다.
+          <div
+            onClick={() => { setOpen(false); setQuickAdd(null); }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "min(360px, 100%)", maxHeight: "85vh", overflowY: "auto",
+                background: "white", border: "1px solid #cbd5e1", borderRadius: 12,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 16, display: "grid", gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#334155" }}>
+                {quickAdd!.id ? `업체 정보 수정 (${preferredCategory})` : `새 업체 등록 (${preferredCategory})`}
+              </div>
+              <input className="v50-input" placeholder="업체명 국문" value={quickAdd!.name_kr} onChange={(e) => setQuickAdd({ ...quickAdd!, name_kr: e.target.value })} />
+              <input className="v50-input" placeholder="업체명 영문" value={quickAdd!.name_en} onChange={(e) => setQuickAdd({ ...quickAdd!, name_en: e.target.value })} />
+              <input className="v50-input" placeholder="국가/지역 (선택)" value={quickAdd!.country} onChange={(e) => setQuickAdd({ ...quickAdd!, country: e.target.value })} />
+              <input className="v50-input" placeholder="이메일 (선택)" type="email" value={quickAdd!.email} onChange={(e) => setQuickAdd({ ...quickAdd!, email: e.target.value })} />
+              <input className="v50-input" placeholder="전화번호 (선택)" value={quickAdd!.phone} onChange={(e) => setQuickAdd({ ...quickAdd!, phone: e.target.value })} />
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                {/* 이 팝업은 createPortal로 document.body에 붙어서 .v50-root 밖으로 나가기 때문에,
+                    .v50-button 등 클래스가 의존하는 CSS 변수(--blue/--text/--line)를 상속받지 못해
+                    버튼이 안 보이는 문제가 있었다. 리터럴 색상값을 인라인으로 직접 지정해서 고정한다. */}
+                <button
+                  type="button" onClick={() => { setOpen(false); setQuickAdd(null); }}
+                  style={{
+                    border: "1px solid #e2e8f0", background: "white", color: "#0f172a",
+                    borderRadius: 13, padding: "11px 15px", fontWeight: 900, cursor: "pointer",
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button" disabled={quickAddSaving} onClick={saveQuickAdd}
+                  style={{
+                    border: 0, background: "#2563eb", color: "white",
+                    borderRadius: 13, padding: "11px 15px", fontWeight: 900,
+                    cursor: quickAddSaving ? "default" : "pointer", opacity: quickAddSaving ? 0.7 : 1,
+                  }}
+                >
+                  {quickAddSaving ? "저장 중…" : quickAdd!.id ? "저장" : "등록"}
+                </button>
+              </div>
             </div>
           </div>,
           document.body
