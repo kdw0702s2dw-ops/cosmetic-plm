@@ -1103,31 +1103,6 @@ export function buildComplexNoOrderMap(lines: any[]): Map<string, number> {
   return map;
 }
 
-// 이 raw_code가 현재(formula_code, revision) 이외의 다른 BOM 라인에도 등장한 적이 있는지 일괄 확인.
-// "회사에서 한 번도 쓰인 적 없는 원료(=이번이 첫 발주)"인지 판단하는 근거로 쓴다 - plm_raw_materials의
-// 등록일(created_at)은 실제 사용 이력과 무관할 수 있어 신뢰하지 않고, plm_formula_lines 실사용 이력을 직접 본다.
-export async function checkRawCodesUsedElsewhere(
-  rawCodes: string[],
-  excludeFormulaCode: string,
-  excludeRevision: string
-): Promise<Set<string>> {
-  const codes = Array.from(new Set(rawCodes.filter(Boolean)));
-  if (codes.length === 0) return new Set();
-
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_formula_lines")
-    .select("raw_code, formula_code, revision")
-    .in("raw_code", codes);
-  if (error) throw error;
-
-  const usedElsewhere = new Set<string>();
-  for (const row of data || []) {
-    if (row.formula_code === excludeFormulaCode && row.revision === excludeRevision) continue;
-    usedElsewhere.add(row.raw_code);
-  }
-  return usedElsewhere;
-}
-
 export type OrderSheetRow = {
   raw_code: string;
   raw_name: string;
@@ -1139,21 +1114,19 @@ export type OrderSheetRow = {
 };
 
 // 원료발주가처방 표 데이터 계산: buildComplexGroupedRows()로 raw_code 그룹핑/합산/내림차순 정렬을
-// 그대로 재사용하고(새 로직 작성 없음), 원료명·공급사는 plm_raw_materials에서, 신규 여부는
-// plm_formula_lines 실사용 이력에서 채운다. 미리보기 팝업이 이 결과를 초기값으로 보여주고,
-// 사용자가 신규체크/담당자를 확정한 뒤에만 실제 문서가 생성된다.
-// BOM 편집에서 수동으로 "신규" 체크한 라인(is_new_material)이 있으면, 실사용 이력 기반 자동판정과
-// 무관하게 항상 신규로 표시한다(OR 결합) - 담당자가 수기로 표기한 값을 자동판정이 덮어쓰지 않도록.
+// 그대로 재사용하고(새 로직 작성 없음), 원료명·공급사는 plm_raw_materials에서 채운다. 미리보기
+// 팝업이 이 결과를 초기값으로 보여주고, 사용자가 담당자를 확정한 뒤에만 실제 문서가 생성된다.
+// "신규 체크"는 처방관리 BOM 편집에서 수동으로 체크한 값(is_new_material)을 그대로/그 이상도 이하도
+// 아니게 반영한다 - 예전에는 "이 원료가 다른 처방/리비전에서 한 번도 안 쓰였으면 자동으로 신규"로
+// 판정하는 로직이 OR로 같이 걸려 있었는데, BOM에서 체크 안 한 원료까지 자동으로 체크된 것처럼 보여서
+// 혼란을 준다는 피드백에 따라 자동판정 로직은 제거하고 BOM 체크값만 단순하게 그대로 쓴다.
 export async function computeOrderSheetRows(formula: any, lines: any[]): Promise<OrderSheetRow[]> {
   const components = await fetchComponentsByRawCodes(lines.map((x) => x.raw_code));
   const grouped = buildComplexGroupedRows(lines, components).filter((g) => g.raw_code);
   const codes = grouped.map((g) => g.raw_code as string);
   const manuallyFlaggedNew = new Set(lines.filter((l) => l.is_new_material).map((l) => l.raw_code));
 
-  const [materials, usedElsewhere] = await Promise.all([
-    fetchRawMaterialsByCodes(codes),
-    checkRawCodesUsedElsewhere(codes, formula.formula_code, formula.revision),
-  ]);
+  const materials = await fetchRawMaterialsByCodes(codes);
   const materialByCode = new Map(materials.map((m) => [m.raw_code, m]));
 
   return grouped.map((g) => {
@@ -1163,7 +1136,7 @@ export async function computeOrderSheetRows(formula: any, lines: any[]): Promise
       raw_name: m?.raw_name || g.raw_name || "",
       percent: g.input,
       supplier: m?.supplier || "",
-      isNew: manuallyFlaggedNew.has(g.raw_code as string) || !usedElsewhere.has(g.raw_code as string),
+      isNew: manuallyFlaggedNew.has(g.raw_code as string),
       email: m?.email || "",
       phone: m?.phone || "",
     };
