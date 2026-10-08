@@ -28,7 +28,10 @@ export async function fetchDocumentFormulas(keyword = "") {
 
   if (keyword.trim()) {
     const k = keyword.trim();
-    q = q.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%`);
+    // confirmed_code(확정코드)도 검색 대상에 포함 - 처방코드가 P2026-xxx 형식이 아니라 바로
+    // 확정코드로 등록된 처방들은 처방코드/처방명으로만 검색하면 못 찾는 경우가 있었다
+    // (FormulaCorePanel.tsx의 처방 목록 검색과 동일한 패턴).
+    q = q.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%,confirmed_code.ilike.%${k}%`);
   }
 
   const { data, error } = await q;

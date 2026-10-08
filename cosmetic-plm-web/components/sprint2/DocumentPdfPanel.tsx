@@ -266,7 +266,7 @@ export default function DocumentPdfPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>처방 선택</h2>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
+          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={s.load}>검색</button>
         </div>
         {s.formulas.length === 0 && <p style={{ color: "#64748b" }}>처방 데이터가 없습니다.</p>}
