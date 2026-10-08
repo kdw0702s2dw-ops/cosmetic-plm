@@ -524,8 +524,10 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
 }
 
 // ============================================================
-// 원료발주가처방 엑셀: PDF(No/원료코드/원료명/함량(%)/신규 체크/공급사/연구 담당자)와 동일한 컬럼
-// rows/personInCharge는 미리보기 팝업에서 사용자가 확정한 값을 그대로 받는다 (재계산하지 않음)
+// 원료발주가처방 엑셀: PDF(No/원료코드/원료명/함량(%)/신규 체크/공급사/비고)와 동일한 컬럼
+// rows/personInCharge는 미리보기 팝업에서 사용자가 확정한 값을 그대로 받는다 (재계산하지 않음) -
+// 마지막 컬럼은 처방 담당 연구원이 아니라 발주 시마다 자유롭게 적는 메모용 칸이라 "비고"로 표기한다
+// (상단 메타의 "연구원 정보"가 실제 담당 연구원이고 이 컬럼과는 별개).
 // ============================================================
 export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: OrderSheetRow[], personInCharge: string) {
   const wb = new ExcelJS.Workbook();
@@ -536,7 +538,7 @@ export async function downloadRawMaterialOrderSheetExcel(formula: any, rows: Ord
   writeTitleRow(ws, "원료발주가처방", colCount);
   writeMetaRows(ws, orderSheetMeta(formula), colCount);
 
-  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "이메일", "전화번호", "연구 담당자"]);
+  const headerRow = ws.addRow(["No.", "원료코드", "원료명", "함량(%)", "신규 체크", "공급사", "이메일", "전화번호", "비고"]);
   headerRow.font = { bold: true };
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.eachCell((cell) => {

@@ -1416,10 +1416,12 @@ export async function buildRawMaterialOrderSheetHtml(f: any, rows: OrderSheetRow
     )
     .join("");
 
+  // 이 컬럼은 처방의 담당 연구원을 가리키는 게 아니라, 발주 시마다 자유롭게 적는 메모용 칸이라
+  // "연구 담당자"보다 "비고"가 맞는 이름이다(상단 메타의 "연구원 정보"가 실제 담당 연구원이고 이건 별개).
   return baseHtml("원료발주가처방", orderSheetMeta(f), `
 <table class="grid">
 <thead><tr>
-  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>이메일</th><th>전화번호</th><th>연구 담당자</th>
+  <th>No.</th><th>원료코드</th><th>원료명</th><th>함량(%)</th><th>신규 체크</th><th>공급사</th><th>이메일</th><th>전화번호</th><th>비고</th>
 </tr></thead>
 <tbody>${body || `<tr><td colspan="9">BOM 데이터가 없습니다.</td></tr>`}</tbody>
 </table>`, f);

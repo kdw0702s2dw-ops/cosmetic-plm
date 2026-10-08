@@ -123,14 +123,16 @@ function OrderSheetModal({ s }: { s: ReturnType<typeof useSprint2DocumentPdf> })
           <p>불러오는 중...</p>
         ) : (
           <>
+            {/* 이 입력값은 표의 "비고" 컬럼에 그대로 들어간다(상단의 "연구원 정보"=처방 담당 연구원과는
+                별개 - 발주할 때마다 자유롭게 적는 메모용 칸이라 라벨도 그 컬럼명과 맞춰서 "비고"로 표기). */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>연구 담당자</label>
+              <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>비고</label>
               <input
                 className="v50-input"
                 style={{ width: 240 }}
                 value={m.personInCharge}
                 onChange={(e) => s.setOrderSheetPersonInCharge(e.target.value)}
-                placeholder="연구 담당자 이름 입력"
+                placeholder="비고 입력"
               />
             </div>
             <div className="v50-table-wrap">
