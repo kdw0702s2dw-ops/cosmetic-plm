@@ -277,7 +277,13 @@ export default function DocumentPdfPanel() {
                 width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "12px 16px", background: "#f8fafc", border: "none", cursor: "pointer", fontWeight: 800,
               }}>
-                <span>{f.formula_name} ({f.formula_code}) · Rev {f.revision} · 총합 {f.total_percent}%</span>
+                {/* 처방코드가 항상 P2026-xxx 형식인 건 아니고, 처방에 따라 처방코드 자리에 바로 확정코드가
+                    들어간 경우도 있어서(예: 3HGTA011A) 괄호 안 값만 보고는 그게 처방코드인지 확정코드인지
+                    구분이 안 돼 목록에서 혼동을 줄 수 있었다. 확정된 처방은 확정코드를, 아직 확정 전인
+                    처방은 처방코드를 보여주되 어느 쪽인지 라벨로 명확히 구분한다. */}
+                <span>
+                  {f.formula_name} ({f.confirmed_code ? `확정코드 ${f.confirmed_code}` : `처방코드 ${f.formula_code}`}) · Rev {f.revision} · 총합 {f.total_percent}%
+                </span>
                 <span>{expanded ? "▲" : "▼"}</span>
               </button>
               {expanded && (
