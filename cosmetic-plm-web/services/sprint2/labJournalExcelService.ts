@@ -1,7 +1,7 @@
 "use client";
 
 import ExcelJS from "exceljs";
-import { fetchFormulaLinesForPdf } from "@/services/sprint2/documentPdfService";
+import { fetchFormulaLinesForPdf, sanitizeForFileName } from "@/services/sprint2/documentPdfService";
 
 const FONT_NAME = "맑은 고딕";
 
@@ -191,7 +191,9 @@ export async function downloadLabJournalDocument(formula: any) {
   const url = URL.createObjectURL(blob);
   const a = window.document.createElement("a");
   a.href = url;
-  a.download = `실험일지_${formula.formula_code}_${formula.revision}.xlsx`;
+  // 다운로드 파일명: "실험일지_처방명_Revision" (요청사항 - 처방코드 대신 처방명을 쓴다. 언어 선택이 없는
+  // 문서라 다른 3종과 달리 언어 코드는 붙지 않는다.)
+  a.download = `실험일지_${sanitizeForFileName(formula.formula_name)}_${formula.revision}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

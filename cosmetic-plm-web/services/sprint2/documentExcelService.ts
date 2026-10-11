@@ -5,7 +5,6 @@ import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService"
 import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
 import {
   ALLERGEN_BASE_LINE,
-  basisFileSuffix,
   basisTitleSuffix,
   type BasisAllergenAlert,
   buildComplexGroupedRows,
@@ -17,6 +16,7 @@ import {
   CONFIDENTIAL,
   type DocBasis,
   type DocLang,
+  docFileNameLangTag,
   exactAdd,
   exactDecimalToNumber,
   exactDecimalToString,
@@ -24,7 +24,6 @@ import {
   fixedPct,
   kovasMeta,
   langColumns,
-  langFileSuffix,
   langListBoxTitle,
   mergeRows,
   pickLangValue,
@@ -33,6 +32,7 @@ import {
   OrderSheetRow,
   pct,
   resolveLinesForBasis,
+  sanitizeForFileName,
   singleRows,
   toExactDecimal,
 } from "@/services/sprint2/documentPdfService";
@@ -311,7 +311,9 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
-  await downloadWorkbook(wb, `단일성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
+  // 다운로드 파일명: "Breakdown IL(언어코드)_처방명_Revision" (요청사항 - 기준(원처방/공개처방) 구분 없이
+  // 공통 형식. 처방코드 대신 처방명을 쓰고, 처방명에 파일명에 못 쓰는 문자가 있으면 안전하게 치환한다.)
+  await downloadWorkbook(wb, `Breakdown IL${docFileNameLangTag(lang)}_${sanitizeForFileName(formula.formula_name)}_${formula.revision}.xlsx`);
 }
 
 // ============================================================
@@ -372,7 +374,8 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
-  await downloadWorkbook(wb, `전성분표_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
+  // 다운로드 파일명: "Package IL(언어코드)_처방명_Revision" (요청사항 - 기준 구분 없이 공통 형식)
+  await downloadWorkbook(wb, `Package IL${docFileNameLangTag(lang)}_${sanitizeForFileName(formula.formula_name)}_${formula.revision}.xlsx`);
 }
 
 // ============================================================
@@ -520,7 +523,10 @@ export async function downloadComplexComponentExcel(formula: any, basis: DocBasi
   }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);
-  await downloadWorkbook(wb, `복합성분표${withTradeName ? "(TradeName)" : ""}_${formula.formula_code}_${formula.revision}${basisFileSuffix(basis)}${langFileSuffix(lang)}.xlsx`);
+  // 다운로드 파일명: "Full IL(언어코드)_처방명_Revision" (요청사항 - 복합성분표/복합성분표(Trade Name) 동일
+  // 형식, 기준 구분 없음. Trade Name 유무로 파일명이 달라지지 않으니 같은 처방/Revision을 두 버전 다
+  // 받으면 파일명이 겹친다 - 사용자 확인 후 그대로 적용.)
+  await downloadWorkbook(wb, `Full IL${docFileNameLangTag(lang)}_${sanitizeForFileName(formula.formula_name)}_${formula.revision}.xlsx`);
 }
 
 // ============================================================

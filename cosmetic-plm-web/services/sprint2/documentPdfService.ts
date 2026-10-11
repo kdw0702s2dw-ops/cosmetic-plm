@@ -698,6 +698,23 @@ export function langFileSuffix(lang: DocLang): string {
   return "";
 }
 
+// 전성분표/복합성분표(Trade Name 포함)/단일성분표 엑셀 다운로드 파일명 전용 언어 코드 - "Package IL(KE)_..."
+// 처럼 괄호 안에 넣는 약어다. KR=K(국문), EN=E(영문), BOTH=KE(국문+영문), EN_JA=JE(영문+일문),
+// EN_ZH=CE(영문+중문) - 위 langFileSuffix(제목 뒤에 "_국문"처럼 붙는 용도)와는 쓰임새가 달라 별도로 둔다.
+export function docFileNameLangTag(lang: DocLang): string {
+  if (lang === "KR") return "(K)";
+  if (lang === "EN") return "(E)";
+  if (lang === "EN_JA") return "(JE)";
+  if (lang === "EN_ZH") return "(CE)";
+  return "(KE)"; // BOTH
+}
+
+// 다운로드 파일명에 처방명(자유 텍스트)을 넣을 때 쓰는 안전 처리 - Windows에서 파일명에 못 쓰는 문자
+// (\ / : * ? " < > |)가 처방명에 섞여 있으면 다운로드가 깨지거나 실패할 수 있어 "-"로 치환한다.
+export function sanitizeForFileName(s: string | null | undefined): string {
+  return (s || "").replace(/[\\/:*?"<>|]/g, "-").trim();
+}
+
 // 전성분표/복합성분표/단일성분표가 공통으로 쓰는 "언어 컬럼" 정의 - lang 하나당 표시할 컬럼(들)을
 // 순서대로 반환한다. KR/EN/BOTH는 기존 동작 그대로(국문/영문), EN_JA/EN_ZH는 영문 옆에 일문/중문을
 // 추가로 보여준다. 전성분표(박스형)/복합성분표/단일성분표(표 형태) 3곳 모두, 그리고 PDF/엑셀 양쪽
