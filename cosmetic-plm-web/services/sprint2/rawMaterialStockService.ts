@@ -17,6 +17,7 @@ export type StockLedgerRow = {
   raw_code: string;
   ledger_date: string; // YYYY-MM-DD
   opening_stock: number;
+  incoming_stock: number; // 해당 날짜 입고재고량. 최종재고량 = opening_stock + incoming_stock - usage_today
   usage_today: number;
   closing_stock: number;
   note?: string | null;
@@ -92,6 +93,7 @@ export async function saveLedgerRows(rows: StockLedgerRow[]) {
     raw_code: r.raw_code,
     ledger_date: r.ledger_date,
     opening_stock: r.opening_stock,
+    incoming_stock: r.incoming_stock,
     usage_today: r.usage_today,
     closing_stock: r.closing_stock,
     note: r.note ?? null,

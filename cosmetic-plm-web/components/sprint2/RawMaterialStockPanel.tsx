@@ -11,6 +11,10 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+function sumUsage(entries: number[]) {
+  return entries.reduce((a, b) => a + b, 0);
+}
+
 export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const s = useRawMaterialStockCheck(refreshTick);
 
@@ -46,7 +50,9 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
-        날짜를 선택하고 원료별 금일사용량을 입력하면 최종재고량이 자동 계산되어 다음 날 현재재고량으로 이어집니다.
+        날짜를 선택하고 원료별 입고재고량·금일사용량을 입력하면 최종재고량(현재재고량 + 입고재고량 - 금일사용량)이
+        자동 계산되어 다음 날 현재재고량으로 이어집니다. 금일사용량은 하루에 여러 번 나눠 썼으면 &ldquo;+ 사용 추가&rdquo;로
+        칸을 늘려 각각 입력하세요(최대 10칸, 합계가 금일사용량으로 저장됩니다).
         (대상: 1ACA, 1BSA, 1CLA, 1FRA, 1OLA, 1LQA, 1WXA로 시작하는 원료)
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
@@ -71,7 +77,7 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
           <table className="v50-table">
             <thead>
               <tr>
-                <th>원료코드</th><th>원료명</th><th>현재재고량</th><th>금일사용량</th><th>최종재고량</th>
+                <th>원료코드</th><th>원료명</th><th>현재재고량</th><th>입고재고량</th><th>금일사용량</th><th>최종재고량</th>
               </tr>
             </thead>
             <tbody>
@@ -96,16 +102,52 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                   <td>
                     <input
                       className="v50-input" type="number" style={{ width: 120 }}
-                      value={r.usage_today || ""}
-                      onChange={(e) => s.updateUsage(r.raw_code, e.target.value)}
+                      value={r.incoming_stock || ""}
+                      onChange={(e) => s.updateIncoming(r.raw_code, e.target.value)}
                     />
+                  </td>
+                  <td>
+                    <div style={{ display: "grid", gap: 4 }}>
+                      {r.usage_entries.map((v, i) => (
+                        <div key={i} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <input
+                            className="v50-input" type="number" style={{ width: 120 }}
+                            value={v || ""}
+                            onChange={(e) => s.updateUsageEntry(r.raw_code, i, e.target.value)}
+                          />
+                          {r.usage_entries.length > 1 && (
+                            <button
+                              type="button"
+                              className="v50-button-light"
+                              style={{ padding: "2px 8px" }}
+                              onClick={() => s.removeUsageEntry(r.raw_code, i)}
+                              title="이 칸 삭제"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="v50-button-light"
+                        style={{ fontSize: 12, padding: "2px 8px" }}
+                        onClick={() => s.addUsageEntry(r.raw_code)}
+                        disabled={r.usage_entries.length >= s.MAX_USAGE_ENTRIES}
+                      >
+                        + 사용 추가 ({r.usage_entries.length}/{s.MAX_USAGE_ENTRIES})
+                      </button>
+                      {r.usage_entries.length > 1 && (
+                        <div style={{ fontWeight: 800, fontSize: 13 }}>합계: {fmt(sumUsage(r.usage_entries))}</div>
+                      )}
+                    </div>
                   </td>
                   <td style={{ fontWeight: 800 }}>{fmt(r.closing_stock)}</td>
                 </tr>
               ))}
               {pageRows.length === 0 && (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     {s.loading ? "불러오는 중..." : totalCount === 0 && searchTerm ? "검색 결과가 없습니다." : "대상 원료가 없습니다."}
                   </td>
                 </tr>
