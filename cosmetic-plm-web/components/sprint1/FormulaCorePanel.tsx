@@ -172,6 +172,10 @@ export default function FormulaCorePanel() {
     const counts: Record<string, number> = {};
     for (const { pickedRow } of rowsWithPickedRevision) {
       const st = pickedRow.progress_status || "미지정";
+      // "컨펌" 상태는 확정코드가 실제로 부여된 Revision만 센다. 처방코드가 같아서 하나로 묶인 draft
+      // 그룹의 대표 Revision이 진행상태만 "컨펌"이고 확정코드는 비어있는 경우까지 세면, 실제로 컨펌된
+      // 건과 섞여서 탭 숫자/목록이 서로 안 맞게 보이는 혼선이 생긴다(사용자 확인된 요청).
+      if (st === "컨펌" && !pickedRow.confirmed_code) continue;
       counts[st] = (counts[st] || 0) + 1;
     }
     return counts;
@@ -185,6 +189,9 @@ export default function FormulaCorePanel() {
       statusFilter === "전체"
         ? rowsWithPickedRevision
         : rowsWithPickedRevision.filter(({ pickedRow }) => (pickedRow.progress_status || "미지정") === statusFilter);
+    // "컨펌" 탭은 확정코드가 실제로 부여된 Revision만 보여준다 - 위 statusCounts와 동일한 기준이라
+    // 탭에 표시되는 숫자와 실제로 나열되는 행의 개수가 항상 일치한다.
+    if (statusFilter === "컨펌") rows = rows.filter(({ pickedRow }) => !!pickedRow.confirmed_code);
     if (baseOnly) rows = rows.filter(({ pickedRow }) => isBaseFormula(pickedRow.formula_code));
     return rows;
   }, [rowsWithPickedRevision, statusFilter, baseOnly]);
