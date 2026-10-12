@@ -125,6 +125,9 @@ export default function EnterpriseSprint1Workspace() {
           )}
         </header>
         <nav className="v50-tabs">
+          {/* 사이드바의 "통합 BOM" 메뉴와 동일하게 Production 역할에게도 보인다(원료/부자재/필름/원단/칼선을
+              전 직원이 확인하는 용도라 !isProduction 가드 없음) - 업체관리 앞(맨 앞)에 배치해달라는 요청. */}
+          <div className={`v50-tab ${effectiveActive === "unifiedBom" ? "active" : ""}`} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></div>
           {!isProduction && <div className={`v50-tab ${effectiveActive === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>}
           <div className={`v50-tab ${effectiveActive === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
           {!isProduction && <div className={`v50-tab ${effectiveActive === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>}
