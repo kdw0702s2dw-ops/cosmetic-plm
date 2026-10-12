@@ -76,6 +76,56 @@ export default function UnifiedBomPanel() {
         <>
           <section className="v50-panel" style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0 }}>Lot / EXP 선택</h2>
+              {s.selectedLot !== undefined && (
+                <button className="v50-button-light" onClick={s.changeLot}>Lot 변경</button>
+              )}
+            </div>
+            <p style={{ color: "#64748b", fontSize: 13 }}>
+              같은 처방(Revision)이라도 추가 발주로 Lot이 달라지면 BOM(특히 부자재)이 바뀔 수 있어, Lot별로
+              통합 BOM을 따로 관리합니다. Lot 목록은 생산실적관리에 등록된 Lot No./EXP를 그대로 가져옵니다
+              (여기서 새로 만들 수 없으며, 먼저 생산실적관리에 등록해야 합니다).
+            </p>
+            {s.lotLoading ? (
+              <p style={{ color: "#2563eb", fontWeight: 800 }}>Lot 목록 조회 중…</p>
+            ) : s.selectedLot !== undefined ? (
+              <p style={{ color: "#16a34a", fontWeight: 800 }}>
+                선택됨: {s.selectedLot === null
+                  ? "기존 자료 (Lot 미지정)"
+                  : `Lot ${s.selectedLot}${s.productionLots.find((l) => l.lot_no === s.selectedLot)?.exp_date ? ` · EXP ${s.productionLots.find((l) => l.lot_no === s.selectedLot)?.exp_date}` : ""}`}
+              </p>
+            ) : s.productionLots.length === 0 && !s.hasLegacyRows ? (
+              <p style={{ color: "#dc2626", fontWeight: 700 }}>
+                등록된 Lot이 없습니다. 생산실적관리에서 이 처방의 Lot을 먼저 등록한 뒤 다시 와서 선택하세요.
+              </p>
+            ) : (
+              <div className="v50-table-wrap">
+                <table className="v50-table">
+                  <thead><tr><th>Lot No.</th><th>EXP</th><th>생산일자</th><th></th></tr></thead>
+                  <tbody>
+                    {s.productionLots.map((lot) => (
+                      <tr key={lot.id || lot.lot_no}>
+                        <td>{lot.lot_no}</td>
+                        <td>{lot.exp_date || "-"}</td>
+                        <td>{lot.production_date || "-"}</td>
+                        <td><button className="v50-button-light" onClick={() => s.selectLot(lot.lot_no)}>선택</button></td>
+                      </tr>
+                    ))}
+                    {s.hasLegacyRows && (
+                      <tr>
+                        <td colSpan={3} style={{ color: "#64748b" }}>기존 자료 (Lot 미지정 - 이 기능 추가 전에 저장된 내용)</td>
+                        <td><button className="v50-button-light" onClick={() => s.selectLot(null)}>선택</button></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {s.selectedLot !== undefined && (
+          <section className="v50-panel" style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0 }}>통합 BOM (완제품 → 충전품 → 절단품 → 코팅품 → 처방 → 부자재)</h2>
               {canEdit && (
                 <div style={{ display: "flex", gap: 8 }}>
@@ -94,6 +144,7 @@ export default function UnifiedBomPanel() {
                 <thead>
                   <tr>
                     <th>No.</th><th>내용</th><th>품번</th><th>품명</th><th>변경사항</th><th>규격</th>
+                    {canEdit && <th>순서</th>}
                     {canEdit && <th>삭제</th>}
                   </tr>
                 </thead>
@@ -132,13 +183,21 @@ export default function UnifiedBomPanel() {
                         ) : (row.spec || "-")}
                       </td>
                       {canEdit && (
+                        <td>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button className="v50-button-light" onClick={() => s.moveBomRowUp(i)} disabled={i === 0} title="위로">▲</button>
+                            <button className="v50-button-light" onClick={() => s.moveBomRowDown(i)} disabled={i === s.bomRows.length - 1} title="아래로">▼</button>
+                          </div>
+                        </td>
+                      )}
+                      {canEdit && (
                         <td><button className="v50-button-light" onClick={() => s.removeBomRow(i)}>삭제</button></td>
                       )}
                     </tr>
                   ))}
                   {s.bomRows.length === 0 && (
                     <tr>
-                      <td colSpan={canEdit ? 7 : 6}>
+                      <td colSpan={canEdit ? 8 : 6}>
                         {canEdit ? "+ 행 추가로 통합 BOM 행을 추가하세요." : "등록된 통합 BOM이 없습니다."}
                       </td>
                     </tr>
@@ -147,6 +206,7 @@ export default function UnifiedBomPanel() {
               </table>
             </div>
           </section>
+          )}
 
           <section className="v50-panel" style={{ marginBottom: 18 }}>
             <h2>원료 BOM (참고)</h2>
