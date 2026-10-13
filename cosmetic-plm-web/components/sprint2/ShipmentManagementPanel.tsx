@@ -9,20 +9,18 @@ import "@/styles/enterprise-v50.css";
 type View = "input" | "list" | "customer";
 
 /**
- * 출고관리 - 생산관리 하위 도구였던 "출고관리"를 독립 메뉴로 분리한 화면(생산실적 관리와 동일한 구조).
+ * 출고관리 - 원래 독립 메뉴였다가 품질관리 하위 탭("제품 MSDS" 옆)으로 이동됨. 품질관리 화면이 이미
+ * 상단 타이틀/탭 틀(v50-page/v50-hero)을 갖고 있으므로 여기서는 중복되지 않게 내부 콘텐츠만 렌더링한다.
  * [입력] 출고 등록 폼 / [전체 목록] 전체 출고 기록 검색·조회·편집 / [업체별 보기] 고객사별 묶음 조회.
  */
 export default function ShipmentManagementPanel() {
   const [view, setView] = useState<View>("input");
 
   return (
-    <div className="v50-page">
-      <section className="v50-hero">
-        <div>
-          <h1 className="v50-title">출고관리</h1>
-          <p className="v50-desc">출고 건을 등록하고, 전체 이력과 고객사별 출고 현황을 확인합니다.</p>
-        </div>
-      </section>
+    <div>
+      <p className="v50-desc" style={{ marginBottom: 14 }}>
+        출고 건을 등록하고, 전체 이력과 고객사별 출고 현황을 확인합니다.
+      </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         <button className={view === "input" ? "v50-button" : "v50-button-light"} onClick={() => setView("input")}>입력</button>
