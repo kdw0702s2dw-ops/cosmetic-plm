@@ -50,7 +50,9 @@ export function useProductionSchedule(refreshToken?: number) {
 
   // 등록/수정 폼 상태
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [scheduleType, setScheduleType] = useState<ScheduleType>("제조");
+  // 신규 등록 시에는 여러 공정을 동시에 선택해 한 번에 각각의 일정으로 저장할 수 있다(토글 다중선택).
+  // 다만 "수정" 모드는 이미 존재하는 일정 1건을 고치는 것이므로 공정도 항상 1개만 유지된다.
+  const [scheduleTypes, setScheduleTypes] = useState<ScheduleType[]>(["제조"]);
   const [scheduleDate, setScheduleDate] = useState(todayStr());
   const [quantity, setQuantity] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -155,7 +157,7 @@ export function useProductionSchedule(refreshToken?: number) {
     setSelectedFormula(null);
     setKeyword("");
     setHits([]);
-    setScheduleType("제조");
+    setScheduleTypes(["제조"]);
     setScheduleDate(selectedDate || todayStr());
     setQuantity("");
     setAssignee("");
@@ -174,7 +176,7 @@ export function useProductionSchedule(refreshToken?: number) {
     });
     setKeyword("");
     setHits([]);
-    setScheduleType(item.schedule_type);
+    setScheduleTypes([item.schedule_type]);
     setScheduleDate(item.schedule_date);
     setQuantity(item.quantity != null ? String(item.quantity) : "");
     setAssignee(item.assignee || "");
@@ -187,6 +189,16 @@ export function useProductionSchedule(refreshToken?: number) {
     setAssignee(myName);
   }
 
+  // 공정 버튼 클릭 - 수정 모드에서는 기존처럼 1개만 선택되고(해당 일정 1건의 유형을 바꾸는 것이므로),
+  // 신규 등록 모드에서는 눌렀다 뗄 수 있는 다중선택(토글)으로 동작해 여러 공정을 동시에 선택할 수 있다.
+  function toggleScheduleType(t: ScheduleType) {
+    if (editingId) {
+      setScheduleTypes([t]);
+      return;
+    }
+    setScheduleTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+  }
+
   async function save() {
     if (!selectedFormula) {
       setMessage("처방을 먼저 검색해서 선택하세요.");
@@ -194,6 +206,10 @@ export function useProductionSchedule(refreshToken?: number) {
     }
     if (!scheduleDate) {
       setMessage("날짜를 입력하세요.");
+      return;
+    }
+    if (scheduleTypes.length === 0) {
+      setMessage("공정을 최소 1개 선택하세요.");
       return;
     }
     const qty = quantity.trim() === "" ? null : Number(quantity);
@@ -204,21 +220,44 @@ export function useProductionSchedule(refreshToken?: number) {
     setSaving(true);
     setMessage("");
     try {
-      await saveProductionSchedule({
-        id: editingId || undefined,
-        formula_code: selectedFormula.formula_code,
-        revision: selectedFormula.revision,
-        formula_name: selectedFormula.formula_name,
-        confirmed_code: selectedFormula.confirmed_code,
-        schedule_type: scheduleType,
-        schedule_date: scheduleDate,
-        quantity: qty,
-        assignee: assignee || null,
-        status,
-        memo: memo || null,
-        created_by: auth.profile?.email || undefined,
-      });
-      setMessage("저장 완료");
+      if (editingId) {
+        // 수정 모드 - 기존 일정 1건만 업데이트 (공정도 항상 1개 - toggleScheduleType이 보장).
+        await saveProductionSchedule({
+          id: editingId,
+          formula_code: selectedFormula.formula_code,
+          revision: selectedFormula.revision,
+          formula_name: selectedFormula.formula_name,
+          confirmed_code: selectedFormula.confirmed_code,
+          schedule_type: scheduleTypes[0],
+          schedule_date: scheduleDate,
+          quantity: qty,
+          assignee: assignee || null,
+          status,
+          memo: memo || null,
+          created_by: auth.profile?.email || undefined,
+        });
+        setMessage("저장 완료");
+      } else {
+        // 신규 등록 - 선택한 공정 수만큼 각각 별도 일정으로 동시에 생성 (날짜/수량/담당자/상태/메모는 동일하게 복사).
+        await Promise.all(
+          scheduleTypes.map((t) =>
+            saveProductionSchedule({
+              formula_code: selectedFormula.formula_code,
+              revision: selectedFormula.revision,
+              formula_name: selectedFormula.formula_name,
+              confirmed_code: selectedFormula.confirmed_code,
+              schedule_type: t,
+              schedule_date: scheduleDate,
+              quantity: qty,
+              assignee: assignee || null,
+              status,
+              memo: memo || null,
+              created_by: auth.profile?.email || undefined,
+            })
+          )
+        );
+        setMessage(scheduleTypes.length > 1 ? `${scheduleTypes.length}건 저장 완료` : "저장 완료");
+      }
       resetForm();
       await loadMonth();
     } catch (e) {
@@ -258,7 +297,7 @@ export function useProductionSchedule(refreshToken?: number) {
     items, itemsByDate, listItems, loading, message,
     keyword, setKeyword, hits, searching, search, selectedFormula, selectFormula,
     editingId, editItem, resetForm,
-    scheduleType, setScheduleType, scheduleDate, setScheduleDate,
+    scheduleTypes, toggleScheduleType, scheduleDate, setScheduleDate,
     quantity, setQuantity, assignee, setAssignee, assignToMe, myName,
     status, setStatus, memo, setMemo, saving, save,
     changeStatus, removeItem, isScheduleOverdue,

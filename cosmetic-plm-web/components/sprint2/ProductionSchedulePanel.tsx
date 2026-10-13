@@ -90,6 +90,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         처방을 검색해서 등록하면 칭량·제조·도포·타공·포장·출고 6개 공정 일정을 달력에서 관리할 수 있습니다.
+        공정은 여러 개를 동시에 선택할 수 있고(신규 등록 시), 선택한 공정 수만큼 같은 날짜·수량·담당자로 한 번에 등록됩니다.
         날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
@@ -140,18 +141,26 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
           )}
 
           <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-            {s.types.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => s.setScheduleType(t as ScheduleType)}
-                className={s.scheduleType === t ? "v50-button" : "v50-button-light"}
-                style={s.scheduleType === t ? { background: SCHEDULE_TYPE_COLORS[t], borderColor: SCHEDULE_TYPE_COLORS[t] } : undefined}
-              >
-                {t}
-              </button>
-            ))}
+            {s.types.map((t) => {
+              const selected = s.scheduleTypes.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => s.toggleScheduleType(t as ScheduleType)}
+                  className={selected ? "v50-button" : "v50-button-light"}
+                  style={selected ? { background: SCHEDULE_TYPE_COLORS[t], borderColor: SCHEDULE_TYPE_COLORS[t] } : undefined}
+                >
+                  {t}
+                </button>
+              );
+            })}
           </div>
+          {!s.editingId && s.scheduleTypes.length > 1 && (
+            <p style={{ fontSize: 12, color: "#2563eb", marginTop: 6 }}>
+              선택한 {s.scheduleTypes.length}개 공정으로 각각 일정이 생성됩니다: {s.scheduleTypes.join(", ")}
+            </p>
+          )}
 
           <div className="v50-grid-2" style={{ marginTop: 10 }}>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
