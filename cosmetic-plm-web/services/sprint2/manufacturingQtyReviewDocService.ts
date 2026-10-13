@@ -15,12 +15,10 @@ function fmt(v: number | null | undefined) {
 }
 
 function manufacturingQtyReviewMeta(sheet: ManufacturingQtyReviewSheet) {
+  const totalQty = sheet.formulas.reduce((sum, f) => sum + (f.target_qty_kg || 0), 0);
   return {
-    "처방코드": sheet.formula_code ?? "",
-    "처방명": sheet.formula_name ?? "",
-    "Revision": sheet.revision ?? "",
-    "확정코드": sheet.confirmed_code ?? "",
-    "목표 제조량(kg)": fmt(sheet.target_qty_kg),
+    "대상 처방 수": `${sheet.formulas.length}건`,
+    "목표 제조량 합계(kg)": fmt(totalQty),
   };
 }
 
@@ -28,6 +26,18 @@ export function buildManufacturingQtyReviewHtml(sheet: ManufacturingQtyReviewShe
   const meta = manufacturingQtyReviewMeta(sheet);
   const metaRows = Object.entries(meta)
     .map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td class="colon">:</td><td class="v">${escapeHtml(v)}</td></tr>`)
+    .join("");
+
+  const formulaRows = sheet.formulas
+    .map(
+      (f) => `<tr>
+  <td>${escapeHtml(f.formula_code)}</td>
+  <td>${escapeHtml(f.formula_name)}</td>
+  <td>${escapeHtml(f.revision)}</td>
+  <td>${escapeHtml(f.confirmed_code)}</td>
+  <td class="right">${escapeHtml(fmt(f.target_qty_kg))}</td>
+</tr>`
+    )
     .join("");
 
   const shortageRows = sheet.shortage_rows
@@ -46,7 +56,7 @@ export function buildManufacturingQtyReviewHtml(sheet: ManufacturingQtyReviewShe
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>제조량 검토 - 부족 원료 목록</title>
+<title>제조량 검토 - 합산 부족 원료 목록</title>
 <style>
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:Arial,'Malgun Gothic','Noto Sans KR',sans-serif}
 .page{width:1040px;margin:24px auto;background:white;padding:40px 44px;border:1px solid #dbe3ef}
@@ -68,10 +78,16 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 </head>
 <body>
 <div class="page">
-<div class="doctitle">제조량 검토 - 부족 원료 목록</div>
+<div class="doctitle">제조량 검토 - 합산 부족 원료 목록</div>
 <table class="meta">${metaRows}</table>
 
-<div class="sectiontitle">부족 원료 목록</div>
+<div class="sectiontitle">대상 처방 목록</div>
+<table class="grid">
+<thead><tr><th>처방코드</th><th>처방명</th><th>Rev</th><th>확정코드</th><th>목표 제조량(kg)</th></tr></thead>
+<tbody>${formulaRows || `<tr><td colspan="5">대상 처방이 없습니다.</td></tr>`}</tbody>
+</table>
+
+<div class="sectiontitle">합산 부족 원료 목록</div>
 <table class="grid">
 <thead><tr><th>원료코드</th><th>원료명</th><th>필요량</th><th>현재재고량</th><th>부족량</th></tr></thead>
 <tbody>${shortageRows || `<tr><td colspan="5">부족 원료가 없습니다.</td></tr>`}</tbody>
@@ -94,8 +110,25 @@ export async function downloadManufacturingQtyReviewExcel(sheet: ManufacturingQt
   const colCount = 5;
   ws.columns = [{ width: 16 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 14 }];
 
-  writeTitleRow(ws, "제조량 검토 - 부족 원료 목록", colCount);
+  writeTitleRow(ws, "제조량 검토 - 합산 부족 원료 목록", colCount);
   writeMetaRows(ws, manufacturingQtyReviewMeta(sheet), colCount);
+
+  ws.addRow([]);
+  const formulaHeaderRow = ws.addRow(["처방코드", "처방명", "Rev", "확정코드", "목표 제조량(kg)"]);
+  formulaHeaderRow.font = { bold: true };
+  formulaHeaderRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+  });
+  border(ws, formulaHeaderRow.number, 1, formulaHeaderRow.number, colCount);
+
+  sheet.formulas.forEach((f) => {
+    const row = ws.addRow([f.formula_code, f.formula_name || "", f.revision, f.confirmed_code || "", f.target_qty_kg]);
+    border(ws, row.number, 1, row.number, colCount);
+  });
+  if (sheet.formulas.length === 0) {
+    const row = ws.addRow(["대상 처방이 없습니다."]);
+    ws.mergeCells(row.number, 1, row.number, colCount);
+  }
 
   ws.addRow([]);
   const headerRow = ws.addRow(["원료코드", "원료명", "필요량", "현재재고량", "부족량"]);
@@ -119,5 +152,6 @@ export async function downloadManufacturingQtyReviewExcel(sheet: ManufacturingQt
   ws.mergeCells(confRow.number, 1, confRow.number, colCount);
   confRow.getCell(1).font = { size: 8, color: { argb: "FF94A3B8" } };
 
-  await downloadWorkbook(wb, `제조량검토_${sheet.formula_code}_${sheet.revision}.xlsx`);
+  const stamp = new Date().toISOString().slice(0, 10);
+  await downloadWorkbook(wb, `제조량검토_합산_${sheet.formulas.length}건_${stamp}.xlsx`);
 }
