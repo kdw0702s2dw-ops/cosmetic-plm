@@ -17,6 +17,7 @@ import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import PurchaseOrderRawMaterialSummaryPanel from "@/components/sprint2/PurchaseOrderRawMaterialSummaryPanel";
+import PurchaseOrderPrintModal, { type PurchaseOrderPrintTarget } from "@/components/sprint2/PurchaseOrderPrintModal";
 import "@/styles/enterprise-v50.css";
 
 type View = "list" | "summary";
@@ -90,6 +91,10 @@ export default function RawMaterialPurchaseOrderManager({
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  // 저장된 발주를 회사 공식 "발주서" 양식(PDF/엑셀)으로 출력하기 위한 대상 - null이면 모달 닫힘.
+  // 목록 행의 "발주서" 버튼을 누르면 상세(품목 포함)와 공급사 정보를 새로 불러와서 채운다.
+  const [printTarget, setPrintTarget] = useState<PurchaseOrderPrintTarget | null>(null);
+  const [printLoading, setPrintLoading] = useState(false);
 
   // 제조량 확인("합산 부족 원료 목록")에서 넘어온 공급사별 발주 초안 - 저장되지 않은 상태로만 보관하고,
   // 사용자가 "이 초안 불러오기"를 눌러야 아래 편집 폼에 올라간다(자동 저장 없음). 공급사가 등록 안
@@ -142,6 +147,28 @@ export default function RawMaterialPurchaseOrderManager({
       setMsg("");
     } catch (e: any) {
       setMsg("발주 조회 오류: " + e.message);
+    }
+  }
+
+  // 목록 행의 "발주서" 버튼 - 품목이 포함된 상세와 공급사 정보(상호/TEL)를 새로 불러온 뒤 출력 모달을 연다.
+  // 공급사 조회가 실패해도(드물게 삭제된 업체 등) 발주서 자체는 열 수 있게 하고, 모달에서 경고만 보여준다.
+  async function openPrintOrder(o: PurchaseOrderSummary) {
+    setPrintLoading(true);
+    try {
+      const detail = await fetchPurchaseOrderDetail(o.id);
+      let supplier: Company | null = null;
+      if (detail.supplier_company_id) {
+        try {
+          supplier = await fetchCompanyById(detail.supplier_company_id);
+        } catch {
+          supplier = null;
+        }
+      }
+      setPrintTarget({ order: detail, supplier });
+    } catch (e) {
+      setToast({ type: "error", text: "발주서 출력 준비 실패: " + (e instanceof Error ? e.message : String(e)) });
+    } finally {
+      setPrintLoading(false);
     }
   }
 
@@ -333,6 +360,9 @@ export default function RawMaterialPurchaseOrderManager({
       <Toast toast={toast} onClose={() => setToast(null)} />
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 
+      {/* key로 발주별로 재마운트시켜서, 다른 발주를 열 때마다 납기일자 등 입력값이 기본값으로 리셋되게 한다. */}
+      <PurchaseOrderPrintModal key={printTarget?.order.id || "none"} target={printTarget} onClose={() => setPrintTarget(null)} />
+
       {(pendingDrafts.length > 0 || unresolvedDraftRows.length > 0) && (
         <section className="v50-panel" style={{ marginBottom: 18, border: "1px solid #bfdbfe", background: "#eff6ff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -423,7 +453,7 @@ export default function RawMaterialPurchaseOrderManager({
                 <thead>
                   <tr>
                     <th>발주번호</th><th>발주일</th><th>품목수</th><th>공급가</th><th>부가세</th><th>총액</th>
-                    <th>결제예정일</th><th>결제일</th><th>진행상태</th><th>결제상태</th><th style={{ width: 110 }}>액션</th>
+                    <th>결제예정일</th><th>결제일</th><th>진행상태</th><th>결제상태</th><th style={{ width: 150 }}>액션</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -440,8 +470,9 @@ export default function RawMaterialPurchaseOrderManager({
                       <td><Badge text={o.status} color={STATUS_COLOR[o.status]} /></td>
                       <td><Badge text={o.payment_status} color={PAYMENT_STATUS_COLOR[o.payment_status]} /></td>
                       <td>
-                        <div style={{ display: "flex", gap: 6 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           <button className="v50-button-light" onClick={() => selectOrder(o.id)}>{canWrite ? "수정" : "보기"}</button>
+                          <button className="v50-button-light" disabled={printLoading} onClick={() => openPrintOrder(o)}>발주서</button>
                           {canWrite && <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(o)}>삭제</button>}
                         </div>
                       </td>
