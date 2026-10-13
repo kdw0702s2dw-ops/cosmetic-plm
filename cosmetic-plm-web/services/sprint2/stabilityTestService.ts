@@ -407,6 +407,48 @@ export async function saveCheckpointResult(
   return data as StabilityCheckpoint;
 }
 
+// 시료(상위) 상태 자동 정리 - 체크포인트가 추가/삭제/완료되거나 시험조건이 추가/삭제되는 등 완료율이
+// 바뀔 수 있는 변경 뒤에 호출부(훅)가 호출한다. 담당자가 수동으로 "중단"으로 바꾼 시료는 자동으로
+// 건드리지 않는다(연구 중단 결정은 체크포인트 완료 여부와 무관한 사람의 판단이므로). 체크포인트가
+// 하나도 없는 시료(시험조건을 아직 하나도 안 만든 상태)는 "완료"로 보지 않는다. 통계성 보정 로직이라
+// 실패해도 호출부의 원래 동작(저장/추가/삭제)을 막지 않도록 조용히 무시한다.
+export async function syncTestStatusFromCheckpoints(testId: string): Promise<void> {
+  try {
+    const { data: test } = await supabaseProductionFinal
+      .from("plm_stability_tests")
+      .select("id, status")
+      .eq("id", testId)
+      .maybeSingle();
+    if (!test || test.status === "중단") return;
+
+    const { data: conditionRows } = await supabaseProductionFinal
+      .from("plm_stability_conditions")
+      .select("id")
+      .eq("test_id", testId);
+    const conditionIds = ((conditionRows || []) as { id: string }[]).map((c) => c.id);
+
+    let allDone = false;
+    if (conditionIds.length > 0) {
+      const { data: checkpoints } = await supabaseProductionFinal
+        .from("plm_stability_checkpoints")
+        .select("status")
+        .in("condition_id", conditionIds);
+      const rows = (checkpoints || []) as { status: string }[];
+      allDone = rows.length > 0 && rows.every((cp) => cp.status === "완료");
+    }
+
+    const nextStatus: StabilityTestStatus = allDone ? "완료" : "진행중";
+    if (test.status !== nextStatus) {
+      await supabaseProductionFinal
+        .from("plm_stability_tests")
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq("id", testId);
+    }
+  } catch {
+    // 통계성 보정 - 실패해도 무시
+  }
+}
+
 const STABILITY_BUCKET = "stability-test-photos";
 
 // 체크포인트 시점의 외관 사진 업로드 - 여러 장 첨부 가능(호출부에서 파일별로 반복 호출 후 URL 배열에 추가).

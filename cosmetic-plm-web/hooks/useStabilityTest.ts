@@ -14,6 +14,7 @@ import {
   addStabilityCheckpoint,
   deleteStabilityCheckpoint,
   saveCheckpointResult,
+  syncTestStatusFromCheckpoints,
   uploadStabilityPhoto,
   isCheckpointOverdue,
   computeOverallJudgement,
@@ -299,9 +300,11 @@ export function useStabilityTest() {
         start_date: conditionStartDate,
         item_templates: itemTemplates,
       });
+      // 새 조건의 체크포인트들은 아직 완료 전이므로, 시료가 "완료"였다면 다시 "진행중"으로 되돌아간다.
+      await syncTestStatusFromCheckpoints(selectedTestId);
       setMessage("시험조건이 추가되었습니다.");
       setShowAddCondition(false);
-      await reloadConditions();
+      await Promise.all([reloadConditions(), loadTests()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "시험조건 추가 오류");
     } finally {
@@ -341,7 +344,10 @@ export function useStabilityTest() {
     if (!confirm("이 시험조건과 모든 체크포인트가 삭제됩니다. 계속하시겠습니까?")) return;
     try {
       await deleteStabilityCondition(id);
-      await reloadConditions();
+      // 남은 조건/체크포인트가 전부 완료 상태일 수도 있으므로(예: 미완료 조건을 통째로 지운 경우)
+      // 삭제 후에도 다시 완료 여부를 확인한다.
+      if (selectedTestId) await syncTestStatusFromCheckpoints(selectedTestId);
+      await Promise.all([reloadConditions(), loadTests()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "삭제 오류");
     }
@@ -350,7 +356,9 @@ export function useStabilityTest() {
   async function addExtraCheckpoint(conditionId: string, label: string, dueDate: string) {
     try {
       await addStabilityCheckpoint(conditionId, label, dueDate);
-      await reloadConditions();
+      // 새로 추가한 체크포인트는 아직 완료 전이므로, 시료가 "완료"였다면 다시 "진행중"으로 되돌아간다.
+      if (selectedTestId) await syncTestStatusFromCheckpoints(selectedTestId);
+      await Promise.all([reloadConditions(), loadTests()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "체크포인트 추가 오류");
     }
@@ -361,7 +369,9 @@ export function useStabilityTest() {
     try {
       await deleteStabilityCheckpoint(id);
       if (activeCheckpoint?.id === id) closeCheckpointForm();
-      await reloadConditions();
+      // 미완료 체크포인트를 지워서 남은 체크포인트가 전부 완료 상태가 될 수도 있으므로 다시 확인한다.
+      if (selectedTestId) await syncTestStatusFromCheckpoints(selectedTestId);
+      await Promise.all([reloadConditions(), loadTests()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "삭제 오류");
     }
@@ -429,9 +439,12 @@ export function useStabilityTest() {
         memo: checkpointMemo,
         recorded_by: myName,
       });
+      // 이 결과 저장으로 시료의 모든 체크포인트가 완료됐으면 시료 상태도 자동으로 "완료"로 바뀐다
+      // (담당자가 수동으로 "중단"으로 바꾼 시료는 건드리지 않음 - 서비스 함수 참고).
+      if (selectedTestId) await syncTestStatusFromCheckpoints(selectedTestId);
       setMessage("결과가 저장되었습니다.");
       closeCheckpointForm();
-      await reloadConditions();
+      await Promise.all([reloadConditions(), loadTests()]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "결과 저장 오류");
     } finally {
