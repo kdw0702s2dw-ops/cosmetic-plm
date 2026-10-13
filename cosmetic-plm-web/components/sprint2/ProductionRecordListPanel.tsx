@@ -163,7 +163,7 @@ export default function ProductionRecordListPanel() {
         <section className="v50-panel" style={{ marginBottom: 18 }}>
           <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>생산실적 수정</h2>
           <p style={{ fontSize: 13, color: "#334155", marginBottom: 10 }}>
-            <b>{editingRecord.confirmed_code || "-"}</b> · {editingRecord.product_name || editingRecord.formula_name || "-"} · Rev {editingRecord.revision}
+            <b>{editingRecord.confirmed_code || "-"}</b> · {editingRecord.product_name || editingRecord.formula_name || "-"}
             <span style={{ color: "#94a3b8" }}> (처방은 바꿀 수 없습니다 - 처방을 바꾸려면 삭제 후 새로 등록하세요)</span>
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -231,7 +231,7 @@ export default function ProductionRecordListPanel() {
           <table className="v50-table">
             <thead>
               <tr>
-                <th>생산일자</th><th>확정코드</th><th>제품명</th><th>Rev</th><th>Lot No.</th>
+                <th>생산일자</th><th>확정코드</th><th>제품명</th><th>Lot No.</th>
                 <th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
                 <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>비고</th><th style={{ width: 140 }}>작업</th>
               </tr>
@@ -242,7 +242,6 @@ export default function ProductionRecordListPanel() {
                   <td>{r.production_date}</td>
                   <td>{r.confirmed_code || "-"}</td>
                   <td>{r.product_name || r.formula_name || "-"}</td>
-                  <td>{r.revision}</td>
                   <td>{r.lot_no}</td>
                   <td>{fmt(r.target_qty_kg)}</td>
                   <td>{fmt(r.coating_qty)}</td>
@@ -258,12 +257,12 @@ export default function ProductionRecordListPanel() {
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
+              {records.length === 0 && <tr><td colSpan={11} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
             </tbody>
             {records.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                  <td colSpan={6} style={{ textAlign: "right" }}>합계</td>
+                  <td colSpan={5} style={{ textAlign: "right" }}>합계</td>
                   <td>{fmt(totals.coating)}</td>
                   <td>{fmt(totals.molded)}</td>
                   <td>{fmt(totals.ea)}</td>

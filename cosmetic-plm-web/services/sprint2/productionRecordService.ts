@@ -112,7 +112,31 @@ export async function fetchAllProductionRecords(filter: ProductionRecordListFilt
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data || []) as ProductionRecord[];
+  return attachLiveProductNames((data || []) as ProductionRecord[]);
+}
+
+// 생산실적에는 저장 시점의 제품명 스냅샷(product_name)이 남아있지만, 처방관리에서 "제품명(컨펌 후
+// 확정)"을 생산실적 등록 "이후"에 입력/수정하면 이미 등록된 생산실적에는 그 값이 반영되지 않는
+// 문제가 있었다("전체 목록/월별·연도별 집계의 제품명이 처방관리의 제품명(컨펌 후 확정)에 기입된
+// 내용을 따라가게 해달라" 요청사항). 그래서 조회 시마다 plm_formulas에서 해당 처방(formula_code+
+// revision)의 "현재" 제품명을 다시 가져와 있으면 그 값으로 덮어쓰고, 처방이 이미 삭제됐거나 제품명이
+// 아직 비어있으면 저장된 스냅샷(product_name) -> formula_name 순으로 기존 동작대로 폴백한다.
+async function attachLiveProductNames(records: ProductionRecord[]): Promise<ProductionRecord[]> {
+  if (records.length === 0) return records;
+  const codes = Array.from(new Set(records.map((r) => r.formula_code)));
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, product_name")
+    .in("formula_code", codes);
+  if (error || !data) return records; // 보강 조회가 실패해도 기존 스냅샷 표시는 그대로 유지
+  const liveMap = new Map<string, string | null | undefined>();
+  for (const f of data as { formula_code: string; revision: string; product_name?: string | null }[]) {
+    liveMap.set(`${f.formula_code}__${f.revision}`, f.product_name);
+  }
+  return records.map((r) => {
+    const live = liveMap.get(`${r.formula_code}__${r.revision}`);
+    return live ? { ...r, product_name: live } : r;
+  });
 }
 
 export async function deleteProductionRecord(id: string) {
