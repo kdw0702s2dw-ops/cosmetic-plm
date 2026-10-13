@@ -66,6 +66,9 @@ export function calcScenarioRow(row: ScenarioRowInput, actualQtyM: number): Scen
 }
 
 // 문서관리와 동일한 처방 검색(코드/명/고객사/제품유형) - documentPdfService.fetchDocumentFormulas와 동일 쿼리 재사용
+// 생산관리 전반(제조량 확인/불용성·수용성 HG/생산량 확인/생산실적 관리/통합 BOM)에서 공통으로 쓰는
+// 처방 검색 - 처방코드/처방명/고객사/제품유형뿐 아니라 확정코드로도 찾을 수 있다(원료 소싱 일정관리의
+// searchFormulasByCodeOrConfirmedCode와 동일하게 confirmed_code도 ilike 대상에 포함).
 export async function searchProductionFormulas(keyword = "") {
   let q = supabaseProductionFinal
     .from("plm_formulas")
@@ -75,7 +78,7 @@ export async function searchProductionFormulas(keyword = "") {
     .limit(100);
   if (keyword.trim()) {
     const k = keyword.trim();
-    q = q.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%`);
+    q = q.or(`formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,customer.ilike.%${k}%,product_type.ilike.%${k}%,confirmed_code.ilike.%${k}%`);
   }
   const { data, error } = await q;
   if (error) throw error;

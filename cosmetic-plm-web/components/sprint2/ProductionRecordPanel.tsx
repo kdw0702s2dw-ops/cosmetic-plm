@@ -22,7 +22,7 @@ export default function ProductionRecordPanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>처방 선택</h2>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사 검색" />
+          <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={s.search} disabled={s.searching}>{s.searching ? "검색 중…" : "검색"}</button>
         </div>
         {s.formula ? (
