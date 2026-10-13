@@ -7,8 +7,9 @@ import { fetchSprint1FormulaLines } from "@/services/sprint1/formulaCoreService"
 import { fetchLatestStockByRawCodes, isStockManagedRawCode } from "@/services/sprint2/rawMaterialStockService";
 import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 import {
-  calcCombinedShortageRows, deleteManufacturingQtyReviewSheet, fetchManufacturingQtyReviewSheets, saveManufacturingQtyReviewSheet,
-  type ManufacturingListFormula, type ManufacturingQtyReviewSheet, type ShortageRow,
+  buildPurchaseOrderDraftsFromShortage, calcCombinedShortageRows, deleteManufacturingQtyReviewSheet,
+  fetchManufacturingQtyReviewSheets, saveManufacturingQtyReviewSheet,
+  type ManufacturingListFormula, type ManufacturingQtyReviewSheet, type PurchaseOrderDraftResult, type ShortageRow,
 } from "@/services/sprint2/manufacturingQtyReviewService";
 import { downloadManufacturingQtyReviewExcel, printManufacturingQtyReviewSheet } from "@/services/sprint2/manufacturingQtyReviewDocService";
 
@@ -39,9 +40,12 @@ export function useManufacturingQtyReview(refreshToken?: number) {
   const [list, setList] = useState<ManufacturingListItem[]>([]);
 
   const [latestStock, setLatestStock] = useState<Map<string, { closing_stock: number; ledger_date: string }>>(new Map());
-  // 원료관리(plm_raw_materials)의 단가/통화/MOQ - 합산 부족 원료 목록에 연동해서 보여주고 발주 금액을
-  // 계산하는 데 쓴다("단가 MOQ 정보가 연동되서 함께 볼 수 있게... 발주 금액 계산" 요청사항).
-  const [rawMaterialInfo, setRawMaterialInfo] = useState<Map<string, { unit_price?: number | null; currency?: string; moq?: string }>>(new Map());
+  // 원료관리(plm_raw_materials)의 단가/통화/MOQ/공급사 - 합산 부족 원료 목록에 연동해서 보여주고 발주
+  // 금액을 계산하는 데 쓴다("단가 MOQ 정보가 연동되서 함께 볼 수 있게... 발주 금액 계산" 요청사항).
+  // 공급사(supplier_company_id/supplier_name)는 원료 발주관리 연동(발주 초안 생성)에 쓴다.
+  const [rawMaterialInfo, setRawMaterialInfo] = useState<
+    Map<string, { unit_price?: number | null; currency?: string; moq?: string; supplier_company_id?: string | null; supplier_name?: string | null }>
+  >(new Map());
   const [note, setNote] = useState("");
 
   const [history, setHistory] = useState<ManufacturingQtyReviewSheet[]>([]);
@@ -92,8 +96,17 @@ export function useManufacturingQtyReview(refreshToken?: number) {
     ]);
     setLatestStock(stock);
     setRawMaterialInfo(
-      new Map(materials.map((m) => [m.raw_code, { unit_price: m.unit_price, currency: m.currency, moq: m.moq }]))
+      new Map(materials.map((m) => [
+        m.raw_code,
+        { unit_price: m.unit_price, currency: m.currency, moq: m.moq, supplier_company_id: m.supplier_company_id, supplier_name: m.supplier },
+      ]))
     );
+  }
+
+  // 합산 부족 원료 목록 -> 공급사별 발주 초안(원료 발주관리 연동). 자동 저장은 하지 않고 초안만 만들어
+  // 반환하므로, 화면에서는 이 결과를 원료 발주관리 탭으로 넘겨 사용자가 확인 후 저장하게 한다.
+  function buildPurchaseOrderDrafts(): PurchaseOrderDraftResult {
+    return buildPurchaseOrderDraftsFromShortage(shortageRows);
   }
 
   // 고른 처방 + 입력한 목표 제조량을 제조 목록에 추가한다. 같은 처방코드+Rev가 이미 목록에 있으면
@@ -261,7 +274,7 @@ export function useManufacturingQtyReview(refreshToken?: number) {
     keyword, setKeyword, formulas, searching, search,
     staged, stageFormula, stagedQtyKg, updateStagedQtyKg, adding, addStagedToList,
     list, updateListQty, removeFromList, clearList,
-    shortageRows, totalOrderAmount, note, setNote,
+    shortageRows, totalOrderAmount, buildPurchaseOrderDrafts, note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
     printCurrent, downloadExcelCurrent, printHistoryItem, downloadExcelHistoryItem,
   };

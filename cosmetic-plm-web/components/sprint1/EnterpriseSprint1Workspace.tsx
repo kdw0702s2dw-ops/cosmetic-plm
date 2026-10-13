@@ -18,6 +18,7 @@ import RegulationEnginePanel from "@/components/sprint2/RegulationEnginePanel";
 import UnifiedBomPanel from "@/components/sprint2/UnifiedBomPanel";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import MySignatureWidget from "@/components/sprint1/MySignatureWidget";
+import type { PurchaseOrderDraftResult } from "@/services/sprint2/manufacturingQtyReviewService";
 import "@/styles/enterprise-v50.css";
 import "@/styles/enterprise-mobile.css";
 
@@ -38,6 +39,20 @@ export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
   const auth = useSprint1Auth();
   const isProduction = auth.isProductionRole;
+
+  // 생산관리(제조량 확인)의 "합산 부족 원료 목록" -> 원료 발주관리 연동용. "발주서 만들기"를 누르면
+  // 결과(공급사별 초안 + 공급사 미등록 원료 목록)를 여기 담아두고 원료 발주관리 탭으로 전환한다.
+  // requestId는 매 요청마다 새로 발급해서, 원료 발주관리 화면이 같은 요청을 중복 처리하지 않게 한다.
+  // 원료 발주관리는 KEEP_ALIVE_TABS에 없어 탭을 벗어났다 돌아오면 매번 재마운트되므로, 처리가 끝나면
+  // onDraftHandled로 여기 값을 null로 비워야 한다 - 안 비우면 재마운트 시 같은 요청이 다시 전달되어
+  // 이미 저장을 끝낸 발주 초안이 되살아나는 버그가 있었다.
+  // (render 중에 ref를 "소비"해서 비우는 방식도 검토했으나, 이 프로젝트의 eslint 설정에 "Cannot access
+  // refs during render" 규칙이 걸려 있어 새로운 유형의 에러가 생겨 폐기 - state + 콜백 방식을 유지한다.)
+  const [poDraftRequest, setPoDraftRequest] = useState<{ requestId: number; result: PurchaseOrderDraftResult } | null>(null);
+  function handleCreatePurchaseOrders(result: PurchaseOrderDraftResult) {
+    setPoDraftRequest({ requestId: Date.now(), result });
+    setActive("purchaseOrder");
+  }
 
   // Production 역할은 허용된 탭 밖에 있으면(초기값 home 포함) 접근 가능한 탭으로 이동
   useEffect(() => {
@@ -64,7 +79,7 @@ export default function EnterpriseSprint1Workspace() {
     if (tab === "formula") return <FormulaCoreWithAuthPanel />;
     if (tab === "docs") return <DocumentPdfPanel />;
     if (tab === "unifiedBom") return <UnifiedBomPanel />;
-    if (tab === "production") return <ProductionManagementPanel />;
+    if (tab === "production") return <ProductionManagementPanel onCreatePurchaseOrders={handleCreatePurchaseOrders} />;
     if (tab === "productionRecords") return <ProductionRecordManager />;
     if (tab === "quality") return <QualityManagementPanel />;
     return null;
@@ -73,7 +88,9 @@ export default function EnterpriseSprint1Workspace() {
   function renderActive() {
     if (effectiveActive === "sprint0") return <Sprint0Dashboard />;
     if (effectiveActive === "materialManager") return <MaterialManager />;
-    if (effectiveActive === "purchaseOrder") return <RawMaterialPurchaseOrderManager />;
+    if (effectiveActive === "purchaseOrder") {
+      return <RawMaterialPurchaseOrderManager initialDraftRequest={poDraftRequest} onDraftHandled={() => setPoDraftRequest(null)} />;
+    }
     if (effectiveActive === "companyManager") return <CompanyManager />;
     if (effectiveActive === "regulation") return <RegulationEnginePanel />;
     if (effectiveActive === "users") return <UserAdminPanel />;

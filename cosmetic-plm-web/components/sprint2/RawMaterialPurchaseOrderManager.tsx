@@ -12,6 +12,7 @@ import {
   type PurchaseOrder, type PurchaseOrderItem, type PurchaseOrderSummary, type PurchaseOrderListFilter,
   type PurchaseOrderStatus, type PurchaseOrderPaymentStatus,
 } from "@/services/sprint2/purchaseOrderService";
+import type { PurchaseOrderDraftGroup, PurchaseOrderDraftResult, PurchaseOrderDraftUnresolvedRow } from "@/services/sprint2/manufacturingQtyReviewService";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import Toast, { type ToastState } from "@/components/common/Toast";
@@ -66,7 +67,18 @@ type SupplierGroup = {
  * 목록은 공급사별로 섹션을 나눠서 보여준다 - 월말 결제처럼 여러 공급사에 각각 결제할 금액을
  * 한눈에 파악해야 하는 실무 흐름에 맞춘 것 (요청사항: "섹션이 나눠서 구분이 되어야해").
  */
-export default function RawMaterialPurchaseOrderManager() {
+export default function RawMaterialPurchaseOrderManager({
+  initialDraftRequest,
+  onDraftHandled,
+}: {
+  initialDraftRequest?: { requestId: number; result: PurchaseOrderDraftResult } | null;
+  // initialDraftRequest를 한 번 처리한 뒤 호출해서 상위(EnterpriseSprint1Workspace)의 보관값을 비워달라고
+  // 알려준다. 이 화면은 KEEP_ALIVE_TABS에 없어서 탭을 벗어났다 돌아오면 매번 새로 마운트되는데, 상위
+  // state를 안 비우면 handledDraftRequestId(ref)만 초기화돼서 같은 요청이 재전달되고, 이미 저장을
+  // 끝낸 발주 초안이 "가져온 발주 초안" 목록에 다시 나타나는 버그가 있었다(품질관리의 openTest/
+  // focusTestId·onFocusHandled와 동일한 1회성 전달 패턴을 따른 것).
+  onDraftHandled?: () => void;
+} = {}) {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteMaterials;
 
@@ -78,6 +90,14 @@ export default function RawMaterialPurchaseOrderManager() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+
+  // 제조량 확인("합산 부족 원료 목록")에서 넘어온 공급사별 발주 초안 - 저장되지 않은 상태로만 보관하고,
+  // 사용자가 "이 초안 불러오기"를 눌러야 아래 편집 폼에 올라간다(자동 저장 없음). 공급사가 등록 안
+  // 된 원료는 pendingDrafts에 못 들어가고 unresolvedDraftRows로 따로 안내한다.
+  // (loadDraft는 공급사 자동완성 state 선언 이후에 정의하므로 관련 useEffect도 그 아래에 둔다.)
+  const [pendingDrafts, setPendingDrafts] = useState<PurchaseOrderDraftGroup[]>([]);
+  const [unresolvedDraftRows, setUnresolvedDraftRows] = useState<PurchaseOrderDraftUnresolvedRow[]>([]);
+  const handledDraftRequestId = useRef<number | null>(null);
 
   const load = useCallback(async (f: PurchaseOrderListFilter) => {
     setListLoading(true);
@@ -181,6 +201,8 @@ export default function RawMaterialPurchaseOrderManager() {
       const id = await savePurchaseOrder({ ...order, created_by: order.created_by ?? auth.profile?.email });
       const saved = await fetchPurchaseOrderDetail(id);
       setOrder(saved);
+      // 발주 초안(제조량 확인 연동)에서 저장까지 끝난 공급사는 "가져온 초안" 목록에서 지운다.
+      setPendingDrafts((prev) => prev.filter((g) => g.supplier_company_id !== saved.supplier_company_id));
       setToast({ type: "success", text: "저장되었습니다: " + saved.order_no });
       await load(filter);
     } catch (e: any) {
@@ -268,6 +290,36 @@ export default function RawMaterialPurchaseOrderManager() {
     setSupplierOpen(false);
   }
 
+  function loadDraft(g: PurchaseOrderDraftGroup) {
+    if (order && order.items.some((i) => i.raw_code?.trim()) && !confirm("현재 편집 중인 내용이 사라집니다. 이 초안을 불러올까요?")) return;
+    setOrder(g.order);
+    setSupplierKeyword(g.supplier_name);
+    setMsg(`"${g.supplier_name}" 발주 초안을 불러왔습니다. 품목/수량/단가를 확인한 뒤 저장하세요.`);
+  }
+
+  // initialDraftRequest(제조량 확인에서 넘어온 1회성 발주 초안)를 반영한다. 외부에서 들어오는 prop을
+  // 로컬 state로 복사하는 의도적인 동기화라 react-hooks/set-state-in-effect 규칙이 걸리는데, 이
+  // 파일의 공급사명 조회 effect(위 pickSupplier 윗부분)에도 이미 있는 것과 같은 유형의 패턴이라
+  // 억제한다 - 처리 후 onDraftHandled로 상위 값을 바로 비워서 중복 처리를 막는 쪽이 핵심 로직이다.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!initialDraftRequest || handledDraftRequestId.current === initialDraftRequest.requestId) return;
+    handledDraftRequestId.current = initialDraftRequest.requestId;
+    const { drafts, unresolved } = initialDraftRequest.result;
+    setPendingDrafts(drafts);
+    setUnresolvedDraftRows(unresolved);
+    if (drafts.length > 0) {
+      loadDraft(drafts[0]);
+    } else {
+      setMsg("공급사가 등록된 부족 원료가 없어 발주 초안을 만들지 못했습니다. 아래 안내를 확인하세요.");
+    }
+    // 1회성 전달 - 처리했으니 상위 보관값을 비워달라고 알려준다(안 비우면 이 화면이 재마운트될 때
+    // 같은 요청이 다시 내려와서 이미 저장 끝난 초안이 되살아난다).
+    onDraftHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftRequest]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   return (
     <div className="v50-page">
       <section className="v50-hero">
@@ -280,6 +332,35 @@ export default function RawMaterialPurchaseOrderManager() {
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
+
+      {(pendingDrafts.length > 0 || unresolvedDraftRows.length > 0) && (
+        <section className="v50-panel" style={{ marginBottom: 18, border: "1px solid #bfdbfe", background: "#eff6ff" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <h2 style={{ margin: 0 }}>제조량 확인에서 가져온 발주 초안</h2>
+            <button className="v50-button-light" onClick={() => { setPendingDrafts([]); setUnresolvedDraftRows([]); onDraftHandled?.(); }}>닫기</button>
+          </div>
+          <p className="v50-desc" style={{ marginBottom: 8 }}>
+            합산 부족 원료 목록을 원료관리에 등록된 공급사 기준으로 묶은 초안입니다. 아직 저장되지 않았으니 품목·수량·단가를 확인한 뒤 아래에서 &ldquo;발주 저장&rdquo;을 눌러야 확정됩니다.
+          </p>
+          {pendingDrafts.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: unresolvedDraftRows.length > 0 ? 12 : 0 }}>
+              {pendingDrafts.map((g) => (
+                <div key={g.supplier_company_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", padding: "8px 12px", borderRadius: 8 }}>
+                  <span><strong>{g.supplier_name}</strong> · 품목 {g.order.items.length}건</span>
+                  <button className="v50-button-light" onClick={() => loadDraft(g)}>이 초안 불러오기</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {unresolvedDraftRows.length > 0 && (
+            <div style={{ fontSize: 12, color: "#b45309" }}>
+              <strong>공급사가 등록되지 않아 초안에 포함되지 못한 원료:</strong>{" "}
+              {unresolvedDraftRows.map((r) => `${r.raw_code}(${r.raw_name})`).join(", ")}
+              <br />원료관리에서 공급사를 먼저 등록하거나, 아래 발주 품목에서 직접 추가하세요.
+            </div>
+          )}
+        </section>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         <button className={view === "list" ? "v50-button" : "v50-button-light"} onClick={() => setView("list")}>발주 목록</button>

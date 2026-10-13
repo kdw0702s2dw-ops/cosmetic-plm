@@ -7,12 +7,19 @@ import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
 import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
+import type { PurchaseOrderDraftResult } from "@/services/sprint2/manufacturingQtyReviewService";
 import "@/styles/enterprise-v50.css";
+
+// 하위 도구 render에 공통으로 넘겨주는 컨텍스트 - 지금은 "제조량 확인"의 발주서 연동(원료 발주관리로
+// 전환)에만 쓰이지만, 다른 도구도 상위(워크스페이스) 동작이 필요해지면 여기에 추가하면 된다.
+type ToolRenderContext = {
+  onCreatePurchaseOrders?: (result: PurchaseOrderDraftResult) => void;
+};
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
 // 순서/명칭은 사용자 요청에 따라 지정됨: 생산_일정관리 -> 칭량_원료재고 -> 생산량 확인 -> 제조량 확인
 // -> 연구_불용성 HG -> 연구_수용성 HG (key/description/render는 기존 그대로, label과 배열 순서만 변경).
-const TOOLS: { key: string; label: string; description: string; render: (refreshTick: number) => React.ReactNode }[] = [
+const TOOLS: { key: string; label: string; description: string; render: (refreshTick: number, ctx: ToolRenderContext) => React.ReactNode }[] = [
   {
     key: "schedule",
     label: "생산_일정관리",
@@ -35,7 +42,7 @@ const TOOLS: { key: string; label: string; description: string; render: (refresh
     key: "manufacturingQtyReview",
     label: "제조량 확인",
     description: "목표 제조량 대비 재고 관리 대상 원료의 부족량을 계산해 부족 원료를 확인합니다.",
-    render: (refreshTick) => <ManufacturingQtyReviewPanel refreshTick={refreshTick} />,
+    render: (refreshTick, ctx) => <ManufacturingQtyReviewPanel refreshTick={refreshTick} onCreatePurchaseOrders={ctx.onCreatePurchaseOrders} />,
   },
   {
     key: "insolubleHg",
@@ -54,7 +61,9 @@ const TOOLS: { key: string; label: string; description: string; render: (refresh
 // 각각 분리됨(components/sprint2/ProductionRecordManager.tsx, ShipmentManagementPanel.tsx) - 여기
 // 도구 목록에서는 중복 노출하지 않는다.
 
-export default function ProductionManagementPanel() {
+export default function ProductionManagementPanel({
+  onCreatePurchaseOrders,
+}: { onCreatePurchaseOrders?: (result: PurchaseOrderDraftResult) => void } = {}) {
   const [activeTool, setActiveTool] = useState(TOOLS[0].key);
   // "새로고침" - 화면을 강제로 재마운트시키는 대신(그러면 선택된 처방/검색어 등 입력 중이던 값이
   // 전부 날아가 버림), 이 값을 증가시켜 각 하위 도구의 훅(useProductionSchedule 등)에 refreshToken
@@ -87,7 +96,7 @@ export default function ProductionManagementPanel() {
       </div>
       <p style={{ color: "#64748b", fontSize: 12, marginTop: 0, marginBottom: 14 }}>{current.description}</p>
 
-      <div key={activeTool}>{current.render(refreshTick)}</div>
+      <div key={activeTool}>{current.render(refreshTick, { onCreatePurchaseOrders })}</div>
     </div>
   );
 }

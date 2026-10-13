@@ -2,6 +2,7 @@
 
 import { useManufacturingQtyReview } from "@/hooks/useManufacturingQtyReview";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import type { PurchaseOrderDraftResult } from "@/services/sprint2/manufacturingQtyReviewService";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -15,9 +16,17 @@ function fmtMoney(v: number | null | undefined, currency?: string) {
   return `${Number(v).toLocaleString()}${currency ? " " + currency : ""}`;
 }
 
-export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTick?: number } = {}) {
+export default function ManufacturingQtyReviewPanel({
+  refreshTick,
+  onCreatePurchaseOrders,
+}: { refreshTick?: number; onCreatePurchaseOrders?: (result: PurchaseOrderDraftResult) => void } = {}) {
   const s = useManufacturingQtyReview(refreshTick);
   const auth = useSprint1Auth();
+
+  function handleCreatePurchaseOrders() {
+    const result = s.buildPurchaseOrderDrafts();
+    onCreatePurchaseOrders?.(result);
+  }
 
   return (
     <div>
@@ -101,9 +110,18 @@ export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTi
       </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
-        <h2>합산 부족 원료 목록</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0 }}>합산 부족 원료 목록</h2>
+          {onCreatePurchaseOrders && (
+            <button className="v50-button" onClick={handleCreatePurchaseOrders} disabled={s.shortageRows.length === 0}>
+              발주서 만들기
+            </button>
+          )}
+        </div>
         <p className="v50-desc" style={{ marginBottom: 8 }}>
           단가·MOQ는 원료관리에 등록된 값을 그대로 가져옵니다. 단가가 비어있는 원료는 발주 금액을 계산할 수 없어 &ldquo;-&rdquo;로 표시됩니다.
+          &ldquo;발주서 만들기&rdquo;를 누르면 원료관리에 등록된 공급사 기준으로 공급사별 발주 초안을 만들어 원료 발주관리 화면으로 보냅니다
+          (자동 저장되지 않으며, 내용을 확인한 뒤 직접 저장해야 합니다. 공급사가 등록 안 된 원료는 초안에 포함되지 않습니다).
         </p>
         <div className="v50-table-wrap" style={{ marginTop: 8 }}>
           <table className="v50-table">
