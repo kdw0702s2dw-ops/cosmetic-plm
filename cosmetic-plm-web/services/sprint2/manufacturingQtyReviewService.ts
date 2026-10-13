@@ -13,14 +13,19 @@ export type ShortageRow = {
   required_qty: number;
   current_stock: number;
   shortage_qty: number;
-  // 원료관리(plm_raw_materials)의 단가/MOQ를 연동해서 함께 보여주고, 부족량 기준 발주 금액을 계산한다
+  // 원료관리(plm_raw_materials)의 단가/MOQ를 연동해서 함께 보여주고, 발주 금액을 계산한다
   // ("합산 부족 원료 목록에서 단가 MOQ 정보가 연동되서... 발주 금액이랑 총 발주 금액도 계산" 요청사항).
   // 단가 정보가 없는 원료(unit_price 미입력)는 order_amount가 0으로 계산되므로 화면에서 별도로 구분
-  // 표시한다. moq는 원료관리에서 자유 텍스트("20kg/drum" 등)로 관리되는 값이라 발주 금액 계산(수량
-  // 반올림)에는 쓰지 않고, 발주 시 참고할 수 있도록 그대로 노출만 한다.
+  // 표시한다. moq는 원료관리에서 자유 텍스트로 관리되는 값이라 "20, 25"처럼 깔끔한 숫자가 아닌 값도
+  // 섞여 있을 수 있는데, 실제 데이터를 보면 거의 전부(plm_raw_materials.moq) 단순 숫자(kg)라서
+  // 순수 숫자로만 파싱되는 경우에 한해 order_qty/order_amount 계산에 반영한다(parseMoqKg 참고).
   unit_price?: number | null;
   currency?: string;
   moq?: string;
+  // 실제 발주해야 할 수량 - 부족량(shortage_qty)이 MOQ보다 적으면 MOQ만큼 발주해야 하므로
+  // max(shortage_qty, MOQ 숫자)로 올림한다(요청사항: "부족량이 MOQ보다 적어도 MOQ만큼 발주해야함").
+  // MOQ가 순수 숫자로 파싱되지 않으면(자유 텍스트 등) 보수적으로 shortage_qty를 그대로 쓴다.
+  order_qty?: number;
   order_amount?: number;
   // 원료관리에 등록된 공급사(plm_raw_materials.supplier_company_id) - 원료 발주관리와 연동해서 발주
   // 초안을 만들 때, 이 값 기준으로 공급사별 발주로 묶는다("합산 부족 원료 목록을 발주서로 연동" 요청사항).
@@ -28,6 +33,17 @@ export type ShortageRow = {
   supplier_company_id?: string | null;
   supplier_name?: string | null;
 };
+
+// MOQ는 원료관리에서 자유 텍스트로 입력받는 칸이라 이론상 "20kg/drum" 같은 복합 표기도 가능하지만,
+// 실제 DB 데이터는 거의 전부(plm_raw_materials.moq) 순수 숫자 문자열("20", "0.01" 등)이다. 순수
+// 숫자로 깔끔하게 파싱되는 경우에만 발주량 계산에 반영하고, 그 외(쉼표로 여러 값 나열 등 드문 경우)는
+// null을 반환해서 기존처럼 부족량 그대로를 쓰게 한다(잘못 해석해서 발주량을 틀리게 만들지 않기 위함).
+export function parseMoqKg(moq: string | null | undefined): number | null {
+  const trimmed = (moq || "").trim();
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
 
 // "제조 목록"에 담긴 처방 1건 - 처방 정보 + 그 처방의 목표 제조량(kg). 여러 처방을 한 목록에 담아
 // 원료를 합산할 수 있도록 단일 처방이 아니라 배열(formulas)로 시트를 구성한다.
@@ -70,8 +86,10 @@ function sumRequiredByRawCode(
 }
 
 // 필요량 합산 결과를 현재 재고와 비교해 부족량>0인 원료만 반환한다(제조 목록 전체 기준 합산 부족 원료 목록).
-// rawMaterialInfo가 주어지면 원료코드별 단가/통화/MOQ를 함께 싣고, 부족량 × 단가로 발주 금액을 계산한다
-// (단가가 없으면 order_amount는 0 - 화면에서 "-"로 표시해 실제 0원과 구분).
+// rawMaterialInfo가 주어지면 원료코드별 단가/통화/MOQ를 함께 싣고, 발주량(부족량과 MOQ 중 큰 값) ×
+// 단가로 발주 금액을 계산한다(단가가 없으면 order_amount는 0 - 화면에서 "-"로 표시해 실제 0원과 구분).
+// MOQ가 부족량보다 크면 부족량만큼이 아니라 MOQ만큼 발주해야 하므로(검토 요청사항: "부족량이 13kg이고
+// MOQ가 20kg이면 20kg 발주해야 하고 발주 금액도 그 기준으로 계산") order_qty를 따로 계산한다.
 export function calcCombinedShortageRows(
   entries: { lines: { raw_code?: string; raw_name?: string; percentage: number | string }[]; target_qty_kg: number }[],
   latestStock: Map<string, { closing_stock: number }>,
@@ -85,10 +103,12 @@ export function calcCombinedShortageRows(
     if (shortage_qty > 0) {
       const info = rawMaterialInfo?.get(raw_code);
       const unit_price = info?.unit_price ?? null;
-      const order_amount = Math.round(shortage_qty * (unit_price || 0) * 100) / 100;
+      const moqNum = parseMoqKg(info?.moq);
+      const order_qty = moqNum !== null ? Math.max(shortage_qty, moqNum) : shortage_qty;
+      const order_amount = Math.round(order_qty * (unit_price || 0) * 100) / 100;
       rows.push({
         raw_code, raw_name, required_qty, current_stock, shortage_qty,
-        unit_price, currency: info?.currency, moq: info?.moq, order_amount,
+        unit_price, currency: info?.currency, moq: info?.moq, order_qty, order_amount,
         supplier_company_id: info?.supplier_company_id ?? null, supplier_name: info?.supplier_name ?? null,
       });
     }
@@ -135,10 +155,12 @@ export function buildPurchaseOrderDraftsFromShortage(rows: ShortageRow[]): Purch
       });
     }
     const group = groups.get(r.supplier_company_id)!;
-    // 부족량(kg)을 발주 수량으로 그대로 가져온다 - MOQ는 "20kg/drum" 같은 자유 텍스트라 포장 단위
-    // 반올림까지는 자동으로 못 해주므로, 패킹 칸에 참고용으로만 채워주고 수량은 저장 전에 직접 확인/
-    // 조정하도록 안내한다(패널의 안내문).
-    const quantity = Math.round(r.shortage_qty * 1000) / 1000;
+    // 발주 수량은 부족량이 아니라 order_qty(부족량과 MOQ 숫자 중 큰 값)를 가져온다 - 부족량이 MOQ보다
+    // 적어도 그 공급사에서는 MOQ만큼 발주해야 하기 때문(검토 요청사항). order_qty가 없는(구버전 이력
+    // 등) 경우에만 보수적으로 shortage_qty로 대체한다. MOQ가 숫자로 안 읽히는 자유 텍스트인 경우는
+    // order_qty 계산 단계(calcCombinedShortageRows)에서 이미 shortage_qty로 대체돼 있으므로 여기서는
+    // 추가 처리가 필요 없다 - 패킹 칸에는 원문 그대로를 참고용으로 채워주고 저장 전 확인하도록 안내한다.
+    const quantity = Math.round((r.order_qty ?? r.shortage_qty) * 1000) / 1000;
     const unit_price = r.unit_price || 0;
     const item: PurchaseOrderItem = {
       ...emptyPurchaseOrderItem(),

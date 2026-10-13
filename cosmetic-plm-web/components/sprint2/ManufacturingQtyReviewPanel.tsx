@@ -120,6 +120,8 @@ export default function ManufacturingQtyReviewPanel({
         </div>
         <p className="v50-desc" style={{ marginBottom: 8 }}>
           단가·MOQ는 원료관리에 등록된 값을 그대로 가져옵니다. 단가가 비어있는 원료는 발주 금액을 계산할 수 없어 &ldquo;-&rdquo;로 표시됩니다.
+          부족량이 MOQ보다 적어도 그 공급사에는 MOQ만큼 발주해야 하므로, <b>발주량</b>은 부족량과 MOQ 중 큰 값으로 자동 올림되고
+          발주 금액도 그 발주량 기준으로 계산됩니다(MOQ가 숫자가 아닌 값이면 올림 없이 부족량 그대로 씁니다).
           &ldquo;발주서 만들기&rdquo;를 누르면 원료관리에 등록된 공급사 기준으로 공급사별 발주 초안을 만들어 원료 발주관리 화면으로 보냅니다
           (자동 저장되지 않으며, 내용을 확인한 뒤 직접 저장해야 합니다. 공급사가 등록 안 된 원료는 초안에 포함되지 않습니다).
         </p>
@@ -128,30 +130,37 @@ export default function ManufacturingQtyReviewPanel({
             <thead>
               <tr>
                 <th>원료코드</th><th>원료명</th><th>필요량(kg)</th><th>현재재고량(kg)</th><th>부족량(kg)</th>
-                <th>단가</th><th>MOQ</th><th>발주 금액</th>
+                <th>단가</th><th>MOQ</th><th>발주량(kg)</th><th>발주 금액</th>
               </tr>
             </thead>
             <tbody>
-              {s.shortageRows.map((r) => (
-                <tr key={r.raw_code}>
-                  <td>{r.raw_code}</td>
-                  <td style={{ color: "#dc2626", fontWeight: 700 }}>{r.raw_name}</td>
-                  <td>{fmt(r.required_qty)}</td>
-                  <td>{fmt(r.current_stock)}</td>
-                  <td style={{ color: "#dc2626", fontWeight: 800 }}>{fmt(r.shortage_qty)}</td>
-                  <td>{fmtMoney(r.unit_price, r.currency)}</td>
-                  <td>{r.moq || "-"}</td>
-                  <td style={{ fontWeight: 800 }}>{r.unit_price != null ? fmtMoney(r.order_amount, r.currency) : "-"}</td>
-                </tr>
-              ))}
+              {s.shortageRows.map((r) => {
+                const orderQty = r.order_qty ?? r.shortage_qty;
+                const moqApplied = orderQty > r.shortage_qty;
+                return (
+                  <tr key={r.raw_code}>
+                    <td>{r.raw_code}</td>
+                    <td style={{ color: "#dc2626", fontWeight: 700 }}>{r.raw_name}</td>
+                    <td>{fmt(r.required_qty)}</td>
+                    <td>{fmt(r.current_stock)}</td>
+                    <td style={{ color: "#dc2626", fontWeight: 800 }}>{fmt(r.shortage_qty)}</td>
+                    <td>{fmtMoney(r.unit_price, r.currency)}</td>
+                    <td>{r.moq || "-"}</td>
+                    <td style={{ fontWeight: 800, color: moqApplied ? "#b45309" : undefined }} title={moqApplied ? "MOQ 적용 - 부족량보다 MOQ만큼 더 발주합니다." : undefined}>
+                      {fmt(orderQty)}{moqApplied && " (MOQ)"}
+                    </td>
+                    <td style={{ fontWeight: 800 }}>{r.unit_price != null ? fmtMoney(r.order_amount, r.currency) : "-"}</td>
+                  </tr>
+                );
+              })}
               {s.shortageRows.length === 0 && (
-                <tr><td colSpan={8}>{s.loading ? "불러오는 중..." : s.list.length === 0 ? "제조 목록에 처방을 담으세요." : "부족 원료가 없습니다."}</td></tr>
+                <tr><td colSpan={9}>{s.loading ? "불러오는 중..." : s.list.length === 0 ? "제조 목록에 처방을 담으세요." : "부족 원료가 없습니다."}</td></tr>
               )}
             </tbody>
             {s.shortageRows.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                  <td colSpan={7} style={{ textAlign: "right" }}>총 발주 금액</td>
+                  <td colSpan={8} style={{ textAlign: "right" }}>총 발주 금액</td>
                   <td>{fmtMoney(s.totalOrderAmount)}</td>
                 </tr>
               </tfoot>
