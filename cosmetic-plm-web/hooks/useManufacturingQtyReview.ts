@@ -5,6 +5,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import { fetchSprint1FormulaLines } from "@/services/sprint1/formulaCoreService";
 import { fetchLatestStockByRawCodes, isStockManagedRawCode } from "@/services/sprint2/rawMaterialStockService";
+import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 import {
   calcCombinedShortageRows, deleteManufacturingQtyReviewSheet, fetchManufacturingQtyReviewSheets, saveManufacturingQtyReviewSheet,
   type ManufacturingListFormula, type ManufacturingQtyReviewSheet, type ShortageRow,
@@ -38,6 +39,9 @@ export function useManufacturingQtyReview(refreshToken?: number) {
   const [list, setList] = useState<ManufacturingListItem[]>([]);
 
   const [latestStock, setLatestStock] = useState<Map<string, { closing_stock: number; ledger_date: string }>>(new Map());
+  // 원료관리(plm_raw_materials)의 단가/통화/MOQ - 합산 부족 원료 목록에 연동해서 보여주고 발주 금액을
+  // 계산하는 데 쓴다("단가 MOQ 정보가 연동되서 함께 볼 수 있게... 발주 금액 계산" 요청사항).
+  const [rawMaterialInfo, setRawMaterialInfo] = useState<Map<string, { unit_price?: number | null; currency?: string; moq?: string }>>(new Map());
   const [note, setNote] = useState("");
 
   const [history, setHistory] = useState<ManufacturingQtyReviewSheet[]>([]);
@@ -46,8 +50,14 @@ export function useManufacturingQtyReview(refreshToken?: number) {
   const [message, setMessage] = useState("");
 
   const shortageRows: ShortageRow[] = useMemo(
-    () => calcCombinedShortageRows(list.map((i) => ({ lines: i.lines, target_qty_kg: i.target_qty_kg })), latestStock),
-    [list, latestStock]
+    () => calcCombinedShortageRows(list.map((i) => ({ lines: i.lines, target_qty_kg: i.target_qty_kg })), latestStock, rawMaterialInfo),
+    [list, latestStock, rawMaterialInfo]
+  );
+
+  // 부족 원료 전체의 발주 금액 합계(통화가 섞여 있어도 일단 숫자로만 합산 - 대부분 KRW 단일 통화 전제).
+  const totalOrderAmount = useMemo(
+    () => shortageRows.reduce((sum, r) => sum + (r.order_amount || 0), 0),
+    [shortageRows]
   );
 
   async function search() {
@@ -76,7 +86,14 @@ export function useManufacturingQtyReview(refreshToken?: number) {
     const targetedCodes = Array.from(
       new Set(items.flatMap((i) => i.lines.map((l: any) => l.raw_code)).filter(isStockManagedRawCode))
     );
-    setLatestStock(await fetchLatestStockByRawCodes(targetedCodes));
+    const [stock, materials] = await Promise.all([
+      fetchLatestStockByRawCodes(targetedCodes),
+      fetchRawMaterialsByCodes(targetedCodes),
+    ]);
+    setLatestStock(stock);
+    setRawMaterialInfo(
+      new Map(materials.map((m) => [m.raw_code, { unit_price: m.unit_price, currency: m.currency, moq: m.moq }]))
+    );
   }
 
   // 고른 처방 + 입력한 목표 제조량을 제조 목록에 추가한다. 같은 처방코드+Rev가 이미 목록에 있으면
@@ -244,7 +261,7 @@ export function useManufacturingQtyReview(refreshToken?: number) {
     keyword, setKeyword, formulas, searching, search,
     staged, stageFormula, stagedQtyKg, updateStagedQtyKg, adding, addStagedToList,
     list, updateListQty, removeFromList, clearList,
-    shortageRows, note, setNote,
+    shortageRows, totalOrderAmount, note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
     printCurrent, downloadExcelCurrent, printHistoryItem, downloadExcelHistoryItem,
   };

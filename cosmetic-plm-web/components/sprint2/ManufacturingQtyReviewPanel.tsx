@@ -9,6 +9,12 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+// 단가/발주 금액 표시 - 원료관리(RawMaterialManager)와 동일한 형식("220,000 KRW").
+function fmtMoney(v: number | null | undefined, currency?: string) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return `${Number(v).toLocaleString()}${currency ? " " + currency : ""}`;
+}
+
 export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const s = useManufacturingQtyReview(refreshTick);
   const auth = useSprint1Auth();
@@ -96,9 +102,17 @@ export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTi
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>합산 부족 원료 목록</h2>
+        <p className="v50-desc" style={{ marginBottom: 8 }}>
+          단가·MOQ는 원료관리에 등록된 값을 그대로 가져옵니다. 단가가 비어있는 원료는 발주 금액을 계산할 수 없어 &ldquo;-&rdquo;로 표시됩니다.
+        </p>
         <div className="v50-table-wrap" style={{ marginTop: 8 }}>
           <table className="v50-table">
-            <thead><tr><th>원료코드</th><th>원료명</th><th>필요량</th><th>현재재고량</th><th>부족량</th></tr></thead>
+            <thead>
+              <tr>
+                <th>원료코드</th><th>원료명</th><th>필요량(kg)</th><th>현재재고량(kg)</th><th>부족량(kg)</th>
+                <th>단가</th><th>MOQ</th><th>발주 금액</th>
+              </tr>
+            </thead>
             <tbody>
               {s.shortageRows.map((r) => (
                 <tr key={r.raw_code}>
@@ -107,12 +121,23 @@ export default function ManufacturingQtyReviewPanel({ refreshTick }: { refreshTi
                   <td>{fmt(r.required_qty)}</td>
                   <td>{fmt(r.current_stock)}</td>
                   <td style={{ color: "#dc2626", fontWeight: 800 }}>{fmt(r.shortage_qty)}</td>
+                  <td>{fmtMoney(r.unit_price, r.currency)}</td>
+                  <td>{r.moq || "-"}</td>
+                  <td style={{ fontWeight: 800 }}>{r.unit_price != null ? fmtMoney(r.order_amount, r.currency) : "-"}</td>
                 </tr>
               ))}
               {s.shortageRows.length === 0 && (
-                <tr><td colSpan={5}>{s.loading ? "불러오는 중..." : s.list.length === 0 ? "제조 목록에 처방을 담으세요." : "부족 원료가 없습니다."}</td></tr>
+                <tr><td colSpan={8}>{s.loading ? "불러오는 중..." : s.list.length === 0 ? "제조 목록에 처방을 담으세요." : "부족 원료가 없습니다."}</td></tr>
               )}
             </tbody>
+            {s.shortageRows.length > 0 && (
+              <tfoot>
+                <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
+                  <td colSpan={7} style={{ textAlign: "right" }}>총 발주 금액</td>
+                  <td>{fmtMoney(s.totalOrderAmount)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </section>

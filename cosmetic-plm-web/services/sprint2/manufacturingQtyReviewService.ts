@@ -9,6 +9,15 @@ export type ShortageRow = {
   required_qty: number;
   current_stock: number;
   shortage_qty: number;
+  // 원료관리(plm_raw_materials)의 단가/MOQ를 연동해서 함께 보여주고, 부족량 기준 발주 금액을 계산한다
+  // ("합산 부족 원료 목록에서 단가 MOQ 정보가 연동되서... 발주 금액이랑 총 발주 금액도 계산" 요청사항).
+  // 단가 정보가 없는 원료(unit_price 미입력)는 order_amount가 0으로 계산되므로 화면에서 별도로 구분
+  // 표시한다. moq는 원료관리에서 자유 텍스트("20kg/drum" 등)로 관리되는 값이라 발주 금액 계산(수량
+  // 반올림)에는 쓰지 않고, 발주 시 참고할 수 있도록 그대로 노출만 한다.
+  unit_price?: number | null;
+  currency?: string;
+  moq?: string;
+  order_amount?: number;
 };
 
 // "제조 목록"에 담긴 처방 1건 - 처방 정보 + 그 처방의 목표 제조량(kg). 여러 처방을 한 목록에 담아
@@ -52,9 +61,12 @@ function sumRequiredByRawCode(
 }
 
 // 필요량 합산 결과를 현재 재고와 비교해 부족량>0인 원료만 반환한다(제조 목록 전체 기준 합산 부족 원료 목록).
+// rawMaterialInfo가 주어지면 원료코드별 단가/통화/MOQ를 함께 싣고, 부족량 × 단가로 발주 금액을 계산한다
+// (단가가 없으면 order_amount는 0 - 화면에서 "-"로 표시해 실제 0원과 구분).
 export function calcCombinedShortageRows(
   entries: { lines: { raw_code?: string; raw_name?: string; percentage: number | string }[]; target_qty_kg: number }[],
-  latestStock: Map<string, { closing_stock: number }>
+  latestStock: Map<string, { closing_stock: number }>,
+  rawMaterialInfo?: Map<string, { unit_price?: number | null; currency?: string; moq?: string }>
 ): ShortageRow[] {
   const requiredByRawCode = sumRequiredByRawCode(entries);
   const rows: ShortageRow[] = [];
@@ -62,7 +74,13 @@ export function calcCombinedShortageRows(
     const current_stock = latestStock.get(raw_code)?.closing_stock ?? 0;
     const shortage_qty = Math.max(0, required_qty - current_stock);
     if (shortage_qty > 0) {
-      rows.push({ raw_code, raw_name, required_qty, current_stock, shortage_qty });
+      const info = rawMaterialInfo?.get(raw_code);
+      const unit_price = info?.unit_price ?? null;
+      const order_amount = Math.round(shortage_qty * (unit_price || 0) * 100) / 100;
+      rows.push({
+        raw_code, raw_name, required_qty, current_stock, shortage_qty,
+        unit_price, currency: info?.currency, moq: info?.moq, order_amount,
+      });
     }
   }
   return rows.sort((a, b) => a.raw_code.localeCompare(b.raw_code));

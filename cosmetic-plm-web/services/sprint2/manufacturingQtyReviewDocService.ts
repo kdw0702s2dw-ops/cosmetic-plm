@@ -14,11 +14,20 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+function fmtMoney(v: number | null | undefined, currency?: string) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return `${Number(v).toLocaleString()}${currency ? " " + currency : ""}`;
+}
+
 function manufacturingQtyReviewMeta(sheet: ManufacturingQtyReviewSheet) {
   const totalQty = sheet.formulas.reduce((sum, f) => sum + (f.target_qty_kg || 0), 0);
+  // 단가 정보가 없는(order_amount 미계산) 원료가 섞여 있어도 합계 자체는 항상 계산 가능한 값만 더한다
+  // (구버전에 저장된 이력엔 order_amount가 아예 없을 수 있어 || 0으로 안전하게 처리).
+  const totalOrderAmount = sheet.shortage_rows.reduce((sum, r) => sum + (r.order_amount || 0), 0);
   return {
     "대상 처방 수": `${sheet.formulas.length}건`,
     "목표 제조량 합계(kg)": fmt(totalQty),
+    "총 발주 금액": fmtMoney(totalOrderAmount),
   };
 }
 
@@ -48,6 +57,9 @@ export function buildManufacturingQtyReviewHtml(sheet: ManufacturingQtyReviewShe
   <td class="right">${escapeHtml(fmt(r.required_qty))}</td>
   <td class="right">${escapeHtml(fmt(r.current_stock))}</td>
   <td class="right">${escapeHtml(fmt(r.shortage_qty))}</td>
+  <td class="right">${escapeHtml(fmtMoney(r.unit_price, r.currency))}</td>
+  <td>${escapeHtml(r.moq || "-")}</td>
+  <td class="right">${escapeHtml(r.unit_price != null ? fmtMoney(r.order_amount, r.currency) : "-")}</td>
 </tr>`
     )
     .join("");
@@ -89,8 +101,8 @@ table.grid th,table.grid td{border:1px solid #999;padding:6px 8px;font-size:11px
 
 <div class="sectiontitle">합산 부족 원료 목록</div>
 <table class="grid">
-<thead><tr><th>원료코드</th><th>원료명</th><th>필요량</th><th>현재재고량</th><th>부족량</th></tr></thead>
-<tbody>${shortageRows || `<tr><td colspan="5">부족 원료가 없습니다.</td></tr>`}</tbody>
+<thead><tr><th>원료코드</th><th>원료명</th><th>필요량(kg)</th><th>현재재고량(kg)</th><th>부족량(kg)</th><th>단가</th><th>MOQ</th><th>발주 금액</th></tr></thead>
+<tbody>${shortageRows || `<tr><td colspan="8">부족 원료가 없습니다.</td></tr>`}</tbody>
 </table>
 
 <div class="confidential">${escapeHtml(CONFIDENTIAL)}</div>
@@ -107,31 +119,39 @@ export function printManufacturingQtyReviewSheet(sheet: ManufacturingQtyReviewSh
 export async function downloadManufacturingQtyReviewExcel(sheet: ManufacturingQtyReviewSheet) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("제조량 검토");
-  const colCount = 5;
-  ws.columns = [{ width: 16 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 14 }];
+  // 대상 처방 목록(5컬럼)과 합산 부족 원료 목록(단가/MOQ/발주 금액 추가로 8컬럼) 중 더 넓은 쪽인 8을
+  // 시트 전체 폭(제목/메타 행 병합 폭)으로 쓴다.
+  const colCount = 8;
+  ws.columns = [
+    { width: 16 }, { width: 22 }, { width: 14 }, { width: 14 }, { width: 14 },
+    { width: 16 }, { width: 14 }, { width: 16 },
+  ];
 
   writeTitleRow(ws, "제조량 검토 - 합산 부족 원료 목록", colCount);
   writeMetaRows(ws, manufacturingQtyReviewMeta(sheet), colCount);
 
+  // 대상 처방 목록은 5컬럼짜리 표라 이쪽은 그 폭(FORMULA_COL_COUNT)으로만 테두리/병합한다
+  // (전체 colCount=8은 단가/MOQ/발주 금액까지 더 넓은 부족 원료 목록 표 기준).
+  const FORMULA_COL_COUNT = 5;
   ws.addRow([]);
   const formulaHeaderRow = ws.addRow(["처방코드", "처방명", "Rev", "확정코드", "목표 제조량(kg)"]);
   formulaHeaderRow.font = { bold: true };
   formulaHeaderRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
   });
-  border(ws, formulaHeaderRow.number, 1, formulaHeaderRow.number, colCount);
+  border(ws, formulaHeaderRow.number, 1, formulaHeaderRow.number, FORMULA_COL_COUNT);
 
   sheet.formulas.forEach((f) => {
     const row = ws.addRow([f.formula_code, f.formula_name || "", f.revision, f.confirmed_code || "", f.target_qty_kg]);
-    border(ws, row.number, 1, row.number, colCount);
+    border(ws, row.number, 1, row.number, FORMULA_COL_COUNT);
   });
   if (sheet.formulas.length === 0) {
     const row = ws.addRow(["대상 처방이 없습니다."]);
-    ws.mergeCells(row.number, 1, row.number, colCount);
+    ws.mergeCells(row.number, 1, row.number, FORMULA_COL_COUNT);
   }
 
   ws.addRow([]);
-  const headerRow = ws.addRow(["원료코드", "원료명", "필요량", "현재재고량", "부족량"]);
+  const headerRow = ws.addRow(["원료코드", "원료명", "필요량(kg)", "현재재고량(kg)", "부족량(kg)", "단가", "MOQ", "발주 금액"]);
   headerRow.font = { bold: true };
   headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -139,12 +159,20 @@ export async function downloadManufacturingQtyReviewExcel(sheet: ManufacturingQt
   border(ws, headerRow.number, 1, headerRow.number, colCount);
 
   sheet.shortage_rows.forEach((r) => {
-    const row = ws.addRow([r.raw_code, r.raw_name, r.required_qty, r.current_stock, r.shortage_qty]);
+    const row = ws.addRow([
+      r.raw_code, r.raw_name, r.required_qty, r.current_stock, r.shortage_qty,
+      r.unit_price ?? "-", r.moq || "-", r.unit_price != null ? (r.order_amount ?? 0) : "-",
+    ]);
     border(ws, row.number, 1, row.number, colCount);
   });
   if (sheet.shortage_rows.length === 0) {
     const row = ws.addRow(["부족 원료가 없습니다."]);
     ws.mergeCells(row.number, 1, row.number, colCount);
+  } else {
+    const totalOrderAmount = sheet.shortage_rows.reduce((sum, r) => sum + (r.order_amount || 0), 0);
+    const totalRow = ws.addRow(["", "", "", "", "", "", "총 발주 금액", totalOrderAmount]);
+    totalRow.font = { bold: true };
+    border(ws, totalRow.number, 1, totalRow.number, colCount);
   }
 
   ws.addRow([]);
