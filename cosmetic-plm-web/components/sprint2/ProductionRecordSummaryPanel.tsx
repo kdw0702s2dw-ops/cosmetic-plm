@@ -34,7 +34,8 @@ function dateRangeOf(year: number, month: number | null): { dateFrom: string; da
 type FormulaSummary = {
   key: string;
   formula_code: string;
-  formula_name: string;
+  confirmed_code: string;
+  product_name: string;
   revision: string;
   count: number;
   targetQtyKg: number;
@@ -76,7 +77,10 @@ export default function ProductionRecordSummaryPanel() {
       const key = `${r.formula_code}__${r.revision}`;
       if (!map.has(key)) {
         map.set(key, {
-          key, formula_code: r.formula_code, formula_name: r.formula_name || "-", revision: r.revision,
+          key, formula_code: r.formula_code,
+          confirmed_code: r.confirmed_code || "-",
+          product_name: r.product_name || r.formula_name || "-",
+          revision: r.revision,
           count: 0, targetQtyKg: 0, coating: 0, molded: 0, ea: 0, pack: 0,
         });
       }
@@ -88,16 +92,17 @@ export default function ProductionRecordSummaryPanel() {
       g.ea += r.shipped_qty_ea || 0;
       g.pack += r.shipped_qty_pack || 0;
     }
-    return Array.from(map.values()).sort((a, b) => a.formula_code.localeCompare(b.formula_code));
+    return Array.from(map.values()).sort((a, b) => a.confirmed_code.localeCompare(b.confirmed_code));
   }, [records]);
 
   const grandTotal = useMemo(
     () => rows.reduce(
       (acc, g) => ({
-        count: acc.count + g.count, coating: acc.coating + g.coating, molded: acc.molded + g.molded,
+        targetQtyKg: acc.targetQtyKg + g.targetQtyKg, count: acc.count + g.count,
+        coating: acc.coating + g.coating, molded: acc.molded + g.molded,
         ea: acc.ea + g.ea, pack: acc.pack + g.pack,
       }),
-      { count: 0, coating: 0, molded: 0, ea: 0, pack: 0 }
+      { targetQtyKg: 0, count: 0, coating: 0, molded: 0, ea: 0, pack: 0 }
     ),
     [rows]
   );
@@ -136,7 +141,7 @@ export default function ProductionRecordSummaryPanel() {
           <table className="v50-table">
             <thead>
               <tr>
-                <th>처방코드</th><th>처방명</th><th>Rev</th><th>생산 건수</th>
+                <th>확정코드</th><th>제품명</th><th>총생산량 합계 (단위: kg)</th><th>생산 건수</th>
                 <th>코팅량 합계 (단위: m)</th><th>성형품 수량 합계 (단위: EA)</th>
                 <th>출고수량 합계(EA)</th><th>출고수량 합계(PACK)</th>
               </tr>
@@ -144,9 +149,9 @@ export default function ProductionRecordSummaryPanel() {
             <tbody>
               {rows.map((g) => (
                 <tr key={g.key}>
-                  <td>{g.formula_code}</td>
-                  <td>{g.formula_name}</td>
-                  <td>{g.revision}</td>
+                  <td>{g.confirmed_code}</td>
+                  <td>{g.product_name}</td>
+                  <td>{fmt(g.targetQtyKg)}</td>
                   <td>{g.count}</td>
                   <td>{fmt(g.coating)}</td>
                   <td>{fmt(g.molded)}</td>
@@ -159,7 +164,8 @@ export default function ProductionRecordSummaryPanel() {
             {rows.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                  <td colSpan={3} style={{ textAlign: "right" }}>전체 합계</td>
+                  <td colSpan={2} style={{ textAlign: "right" }}>전체 합계</td>
+                  <td>{fmt(grandTotal.targetQtyKg)}</td>
                   <td>{grandTotal.count}</td>
                   <td>{fmt(grandTotal.coating)}</td>
                   <td>{fmt(grandTotal.molded)}</td>

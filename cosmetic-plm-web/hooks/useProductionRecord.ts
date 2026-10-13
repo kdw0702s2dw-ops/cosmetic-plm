@@ -96,6 +96,7 @@ export function useProductionRecord() {
         revision: formula.revision,
         formula_name: formula.formula_name,
         confirmed_code: formula.confirmed_code,
+        product_name: formula.product_name || undefined,
         target_qty_kg: targetQtyKg,
         lot_no: trimmedLot,
         coating_qty: coatingQty === "" ? null : Number(coatingQty),
