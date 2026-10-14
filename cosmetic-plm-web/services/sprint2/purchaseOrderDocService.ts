@@ -137,8 +137,10 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   .headrow { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
   .headrow .spacer { width:72px; }
   .headline { flex:1; text-align:center; font-size:26px; font-weight:800; letter-spacing:16px; }
-  .seal { width:72px; height:72px; border:1px solid #333; display:flex; align-items:center; justify-content:center; font-size:12px; overflow:hidden; }
-  .seal img { max-width:100%; max-height:100%; object-fit:contain; }
+  .seal-wrap { width:72px; display:flex; flex-direction:column; }
+  .seal-label { font-size:11px; font-weight:700; text-align:center; border:1px solid #333; border-bottom:none; background:#f3f4f6; padding:3px 0; }
+  .seal { width:72px; height:58px; border:1px solid #333; display:flex; align-items:center; justify-content:center; font-size:12px; overflow:hidden; }
+  .seal img { max-width:82%; max-height:82%; object-fit:contain; }
   table.meta { width:100%; border-collapse:collapse; margin-bottom:0; }
   table.meta td { border:1px solid #333; padding:6px 9px; font-size:12px; vertical-align:middle; }
   .label { background:#f3f4f6; font-weight:700; text-align:center; white-space:nowrap; }
@@ -159,7 +161,10 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   <div class="headrow">
     <div class="spacer"></div>
     <div class="headline">발 주 서</div>
-    <div class="seal"><img src="data:image/png;base64,${PO_APPROVAL_STAMP_PNG_BASE64}" alt="승인" /></div>
+    <div class="seal-wrap">
+      <div class="seal-label">승 인</div>
+      <div class="seal"><img src="data:image/png;base64,${PO_APPROVAL_STAMP_PNG_BASE64}" alt="승인 도장" /></div>
+    </div>
   </div>
 
   <table class="meta">
@@ -191,8 +196,8 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
     <thead>
       <tr>
         <th style="width:6%;">순번</th><th>품목명/규격</th><th style="width:7%;">단위</th>
-        <th style="width:10%;">수량</th><th style="width:13%;">단가</th>
-        <th style="width:14%;">공급가액</th><th style="width:13%;">세액</th>
+        <th style="width:11%;">수량(kg)</th><th style="width:14%;">단가(원)</th>
+        <th style="width:15%;">공급가액(원)</th><th style="width:14%;">세액(원)</th>
       </tr>
     </thead>
     <tbody>
@@ -262,6 +267,17 @@ function setCell(
   return cell;
 }
 
+// 수량/단가처럼 소수점이 있을 수도 없을 수도 있는 숫자 칸 전용 - "#,##0.###" 하나로 고정하면 정수값도
+// Excel/LibreOffice 렌더러에 따라 끝에 불필요한 "."만 남아 보이는 경우가 있어("1." 처럼, 요청사항:
+// "수량에 1. 이런식으로 숫자뒤에 . 이 생성되는데 이것도 없애줘") 값을 미리 반올림해 정수인지 직접
+// 판별한 뒤, 정수면 소수점 구간이 아예 없는 "#,##0"을, 소수가 있으면 "#,##0.###"을 쓴다.
+function setQtyCell(ws: ExcelJS.Worksheet, r: number, c: number, rawValue: number) {
+  const rounded = Math.round((rawValue || 0) * 1000) / 1000;
+  const cell = setCell(ws, r, c, rounded, { align: "right", wrap: false });
+  cell.numFmt = Number.isInteger(rounded) ? "#,##0" : "#,##0.###";
+  return cell;
+}
+
 // PNG의 IHDR 청크에서 원본 가로/세로 픽셀 크기를 읽어온다 - 도장 이미지 비율을 유지한 채 배치하기 위함
 // (productCoaExcelService.ts의 동일한 헬퍼와 같은 방식).
 function getPngPixelSize(base64: string): { width: number; height: number } | null {
@@ -318,13 +334,25 @@ async function composeStampIntoBox(boxWidth: number, boxHeight: number, maxWidth
   }
 }
 
-// 승인 도장 박스(F1:G2 병합) 삽입 - composeStampIntoBox가 성공하면(브라우저 환경) 박스에 꽉 맞춘
-// 캔버스를 tl~br로 채워 넣고, 실패하면(캔버스를 못 쓰는 환경 등) 기존처럼 비율 유지 + ext 고정 크기로
-// 대체한다(완전히 실패하면 조용히 건너뛰고 빈 박스만 남긴다 - 승인란이 비어 있어도 나머지 발주서 생성은
-// 막지 않는다).
-async function addApprovalStamp(ws: ExcelJS.Worksheet, wb: ExcelJS.Workbook, r1: number, c1: number, r2: number, c2: number, boxWidth: number, boxHeight: number) {
+// 승인 도장 박스 삽입 - composeStampIntoBox가 성공하면(브라우저 환경) 박스에 꽉 맞춘 캔버스를 tl~br로
+// 채워 넣고, 실패하면(캔버스를 못 쓰는 환경 등) 기존처럼 비율 유지 + ext 고정 크기로 대체한다(완전히
+// 실패하면 조용히 건너뛰고 빈 박스만 남긴다 - 승인란이 비어 있어도 나머지 발주서 생성은 막지 않는다).
+// maxW/maxH는 도장 자체의 최대 표시 크기(박스보다 작게 둬서 여백을 주는 용도) - 기본값을 60에서
+// 50으로 줄였다(요청사항: "엑셀파일에서 도장이 왜 이렇게 크게 나오나").
+async function addApprovalStamp(
+  ws: ExcelJS.Worksheet,
+  wb: ExcelJS.Workbook,
+  r1: number,
+  c1: number,
+  r2: number,
+  c2: number,
+  boxWidth: number,
+  boxHeight: number,
+  maxW = 50,
+  maxH = 50
+) {
   try {
-    const composed = await composeStampIntoBox(boxWidth, boxHeight, 60, 60);
+    const composed = await composeStampIntoBox(boxWidth, boxHeight, maxW, maxH);
     if (composed) {
       const imageId = wb.addImage({ base64: composed.base64, extension: composed.extension });
       ws.addImage(imageId, { tl: { col: c1 - 1, row: r1 - 1 }, br: { col: c2, row: r2 } });
@@ -332,10 +360,10 @@ async function addApprovalStamp(ws: ExcelJS.Worksheet, wb: ExcelJS.Workbook, r1:
     }
     const natural = getPngPixelSize(PO_APPROVAL_STAMP_PNG_BASE64);
     const aspect = natural ? natural.width / natural.height : 1;
-    let width = Math.min(60, boxWidth);
+    let width = Math.min(maxW, boxWidth);
     let height = width / aspect;
-    if (height > boxHeight) {
-      height = boxHeight;
+    if (height > Math.min(maxH, boxHeight)) {
+      height = Math.min(maxH, boxHeight);
       width = height * aspect;
     }
     const colOffset = Math.max(0, (boxWidth - width) / 2) / boxWidth;
@@ -362,11 +390,16 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   // 높이가 겹쳐서 줄바꿈된 두 번째 줄이 가려졌었다. 컬럼을 넓히고 아래에서 관련 행 높이도 함께 키운다).
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 8 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 16 }];
 
-  // NO / PAGE - 오른쪽 위(F:G, 1~2행)는 승인 도장 박스로 비워둔다.
+  // NO / PAGE - 오른쪽 위(F:G)는 "승인" 라벨 + 그 아래 도장 박스로 비워둔다.
   setCell(ws, 1, 1, `NO : ${order.order_no || ""}`, { align: "left", wrap: false });
   ws.mergeCells(1, 1, 1, 3);
   setCell(ws, 1, 4, "PAGE : 1 / 1", { align: "right", wrap: false });
   ws.mergeCells(1, 4, 1, 5);
+  // 승인 라벨 (F1:G1) - 도장만 덩그러니 있으면 뭘 뜻하는지 안 보인다는 요청사항이라, 양식 예시처럼
+  // "승인"이라는 글자가 먼저 보이고 그 아래 칸에 도장이 찍히는 구조로 분리했다.
+  setCell(ws, 1, 6, "승 인", { bold: true, fill: true });
+  ws.mergeCells(1, 6, 1, 7);
+  border(ws, 1, 6, 1, 7);
   ws.getRow(1).height = 26;
 
   // 제목
@@ -374,13 +407,15 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   ws.mergeCells(2, 1, 2, 5);
   ws.getRow(2).height = 34;
 
-  // 승인 도장 박스 (F1:G2) - 박스 크기(픽셀)를 컬럼 폭(F=14,G=16 단위 -> 대략 103+117px)과 행 높이
-  // (26+34pt -> 대략 80px)로 추정해서, 그 크기에 정확히 맞춘 캔버스를 addApprovalStamp가 그려 넣는다.
-  ws.mergeCells(1, 6, 2, 7);
-  border(ws, 1, 6, 2, 7);
-  await addApprovalStamp(ws, wb, 1, 6, 2, 7, 220, 80);
-
-  ws.addRow([]);
+  // 승인 도장 박스 (F2:G3, "승인" 라벨 바로 아래) - 제목 행(34pt)과 그 다음 빈 행(여기서 40pt로
+  // 키움)을 합쳐 도장이 들어갈 세로 공간을 확보한다. 박스 크기(픽셀)를 컬럼 폭(F=14,G=16단위 -> 대략
+  // 103+117px)과 이 두 행의 높이(34+40pt -> 대략 99px)로 추정해서, 그 크기에 정확히 맞춘 캔버스를
+  // addApprovalStamp가 그려 넣는다. maxW/maxH(기본 50)로 도장 자체 크기를 박스보다 작게 제한해서
+  // 도장이 박스를 꽉 채우며 커 보이지 않게 한다(요청사항: "도장이 왜 이렇게 크게 나오나").
+  ws.mergeCells(2, 6, 3, 7);
+  border(ws, 2, 6, 3, 7);
+  ws.getRow(3).height = 40;
+  await addApprovalStamp(ws, wb, 2, 6, 3, 7, 220, 99);
 
   // 공급받는자 / 발주자 정보 (4행, 공급받는자 칸은 세로 병합)
   const metaStart = 4;
@@ -432,7 +467,7 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
 
   // 품목 표 헤더 - 품목별 "비고"는 발주서에 불필요해 뺐다(검토 요청사항).
   const tableHeaderRow = sumRowNum + 1;
-  const headerLabels = ["순번", "품목명/규격", "단위", "수량", "단가", "공급가액", "세액"];
+  const headerLabels = ["순번", "품목명/규격", "단위", "수량(kg)", "단가(원)", "공급가액(원)", "세액(원)"];
   headerLabels.forEach((label, i) => setCell(ws, tableHeaderRow, i + 1, label, { bold: true, fill: true }));
   border(ws, tableHeaderRow, 1, tableHeaderRow, colCount);
 
@@ -442,10 +477,8 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
     ws.getCell(r, 1).value = order.items.indexOf(it) + 1;
     setCell(ws, r, 2, it.raw_name || it.trade_name || it.raw_code, { align: "left" });
     setCell(ws, r, 3, it.unit || "", { wrap: false });
-    setCell(ws, r, 4, it.quantity || 0, { align: "right", wrap: false });
-    ws.getCell(r, 4).numFmt = "#,##0.###";
-    setCell(ws, r, 5, it.unit_price || 0, { align: "right", wrap: false });
-    ws.getCell(r, 5).numFmt = "#,##0.###";
+    setQtyCell(ws, r, 4, it.quantity || 0);
+    setQtyCell(ws, r, 5, it.unit_price || 0);
     setCell(ws, r, 6, it.supply_amount || 0, { align: "right", wrap: false });
     ws.getCell(r, 6).numFmt = "#,##0";
     setCell(ws, r, 7, it.vat_amount || 0, { align: "right", wrap: false });
