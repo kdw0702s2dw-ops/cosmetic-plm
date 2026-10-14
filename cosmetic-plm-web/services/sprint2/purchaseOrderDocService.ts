@@ -388,18 +388,21 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   // E/F/G를 넉넉히 잡아야 "상호"(발주자 상호 D:E 병합) 같은 긴 텍스트가 한 줄에서 잘리지 않는다
   // (지난 번 "주식회사 뉴트리어드바이저"가 칸에서 잘려 보이던 문제의 원인 - 좁은 컬럼 폭 + 얇은 행
   // 높이가 겹쳐서 줄바꿈된 두 번째 줄이 가려졌었다. 컬럼을 넓히고 아래에서 관련 행 높이도 함께 키운다).
-  ws.columns = [{ width: 6 }, { width: 30 }, { width: 8 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 16 }];
+  // C 폭은 사용자가 직접 수정해 보내준 참고 파일 값(12.125)을 그대로 반영 - "등록번호" 라벨이 더
+  // 여유 있게 보이도록.
+  ws.columns = [{ width: 6 }, { width: 30 }, { width: 12.125 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 16 }];
 
-  // NO / PAGE - 오른쪽 위(F:G)는 "승인" 라벨 + 그 아래 도장 박스로 비워둔다.
+  // NO / PAGE - "승인" 라벨 + 그 아래 도장 박스는 G열 한 칸만 쓴다(F열은 비워둠). 사용자가 직접
+  // 손봐서 보내준 참고 파일을 그대로 역산해보니, 원래 F:G 두 칸을 다 썼던 것과 달리 G열 하나만
+  // 써서 박스를 세로로 긴 모양(G열 폭 16단위 ≈ 117px, 2~3행 높이 ≈ 99px - 거의 정사각형에 가까움)
+  // 으로 좁혀야 도장이 "너무 크게" 보이지 않는다(요청사항 - 참고 파일의 드로잉 XML을 직접 까봐서
+  // F:G 2칸이 아니라 G 1칸만 병합돼 있는 걸 확인하고 그대로 반영).
   setCell(ws, 1, 1, `NO : ${order.order_no || ""}`, { align: "left", wrap: false });
   ws.mergeCells(1, 1, 1, 3);
   setCell(ws, 1, 4, "PAGE : 1 / 1", { align: "right", wrap: false });
   ws.mergeCells(1, 4, 1, 5);
-  // 승인 라벨 (F1:G1) - 도장만 덩그러니 있으면 뭘 뜻하는지 안 보인다는 요청사항이라, 양식 예시처럼
-  // "승인"이라는 글자가 먼저 보이고 그 아래 칸에 도장이 찍히는 구조로 분리했다.
-  setCell(ws, 1, 6, "승 인", { bold: true, fill: true });
-  ws.mergeCells(1, 6, 1, 7);
-  border(ws, 1, 6, 1, 7);
+  setCell(ws, 1, 7, "승 인", { bold: true, fill: true });
+  border(ws, 1, 7, 1, 7);
   ws.getRow(1).height = 26;
 
   // 제목
@@ -407,15 +410,15 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   ws.mergeCells(2, 1, 2, 5);
   ws.getRow(2).height = 34;
 
-  // 승인 도장 박스 (F2:G3, "승인" 라벨 바로 아래) - 제목 행(34pt)과 그 다음 빈 행(여기서 40pt로
-  // 키움)을 합쳐 도장이 들어갈 세로 공간을 확보한다. 박스 크기(픽셀)를 컬럼 폭(F=14,G=16단위 -> 대략
-  // 103+117px)과 이 두 행의 높이(34+40pt -> 대략 99px)로 추정해서, 그 크기에 정확히 맞춘 캔버스를
-  // addApprovalStamp가 그려 넣는다. maxW/maxH(기본 50)로 도장 자체 크기를 박스보다 작게 제한해서
-  // 도장이 박스를 꽉 채우며 커 보이지 않게 한다(요청사항: "도장이 왜 이렇게 크게 나오나").
-  ws.mergeCells(2, 6, 3, 7);
-  border(ws, 2, 6, 3, 7);
+  // 승인 도장 박스 (G2:G3, "승인" 라벨 바로 아래, G열 한 칸만) - 제목 행(34pt)과 그 다음 빈 행(여기서
+  // 40pt로 키움)을 합쳐 도장이 들어갈 세로 공간을 확보한다. 박스 크기(픽셀)를 G열 폭(16단위 -> 대략
+  // 117px)과 이 두 행의 높이(34+40pt -> 대략 99px)로 추정해서, 그 크기에 정확히 맞춘 캔버스를
+  // addApprovalStamp가 그려 넣는다. maxW/maxH를 70으로 둬서 거의 정사각형인 이 박스 안에 도장이
+  // 적당한 여백을 두고 들어간다(요청사항: "도장이 왜 이렇게 크게 나오나").
+  ws.mergeCells(2, 7, 3, 7);
+  border(ws, 2, 7, 3, 7);
   ws.getRow(3).height = 40;
-  await addApprovalStamp(ws, wb, 2, 6, 3, 7, 220, 99);
+  await addApprovalStamp(ws, wb, 2, 7, 3, 7, 117, 99, 70, 70);
 
   // 공급받는자 / 발주자 정보 (4행, 공급받는자 칸은 세로 병합)
   const metaStart = 4;
