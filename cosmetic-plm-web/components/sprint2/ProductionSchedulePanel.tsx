@@ -168,7 +168,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
               <input className="v50-input" type="date" value={s.scheduleDate} onChange={(e) => s.setScheduleDate(e.target.value)} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              수량
+              수량(kg)
               <input className="v50-input" type="number" value={s.quantity} onChange={(e) => s.setQuantity(e.target.value)} placeholder="선택 입력" />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -235,7 +235,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
           <div className="v50-table-wrap" style={{ marginTop: 10 }}>
             <table className="v50-table">
               <thead>
-                <tr><th>날짜</th><th>유형</th><th>처방코드</th><th>처방명</th><th>수량</th><th>담당자</th><th>상태</th><th></th></tr>
+                <tr><th>날짜</th><th>유형</th><th>확정코드</th><th>확정 제품명</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
               </thead>
               <tbody>
                 {s.listItems.map((item) => {
@@ -251,8 +251,8 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                           {item.schedule_type}
                         </span>
                       </td>
-                      <td>{item.formula_code}</td>
-                      <td>{item.formula_name || "-"}</td>
+                      <td>{item.confirmed_code || "-"}</td>
+                      <td>{item.product_name || item.formula_name || "-"}</td>
                       <td>{item.quantity ?? "-"}</td>
                       <td>{item.assignee || "-"}</td>
                       <td><StatusSelect item={item} s={s} /></td>

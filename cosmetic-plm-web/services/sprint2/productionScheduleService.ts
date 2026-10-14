@@ -28,6 +28,9 @@ export type ProductionSchedule = {
   revision: string;
   formula_name?: string | null;
   confirmed_code?: string | null;
+  // 처방 컨펌 후 확정된 제품명(plm_formulas.product_name) - DB(plm_production_schedules)에는 저장되지
+  // 않고, 조회할 때마다 attachLiveFormulaInfo가 plm_formulas에서 최신값을 가져와 채워 넣는다(아래 참고).
+  product_name?: string | null;
   schedule_type: ScheduleType;
   schedule_date: string; // YYYY-MM-DD
   quantity?: number | null;
@@ -58,7 +61,35 @@ export async function fetchProductionSchedules(from: string, to: string): Promis
     .lte("schedule_date", to)
     .order("schedule_date", { ascending: true });
   if (error) throw error;
-  return (data || []) as ProductionSchedule[];
+  return attachLiveFormulaInfo((data || []) as ProductionSchedule[]);
+}
+
+// 일정에는 등록 시점의 확정코드 스냅샷만 저장돼 있는데, 처방관리에서 확정코드/제품명(컨펌 후 확정)을
+// 일정 등록 "이후"에 입력하거나 수정하면 이미 등록된 일정에는 반영되지 않는 문제가 있다(생산실적관리와
+// 동일한 문제 - services/sprint2/productionRecordService.ts의 attachLiveProductNames 참고). 그래서
+// 조회할 때마다 plm_formulas에서 해당 처방(formula_code+revision)의 "현재" 확정코드/제품명을 다시
+// 가져와 있으면 그 값으로 덮어쓰고, 처방이 이미 삭제됐거나 값이 비어있으면 저장된 스냅샷으로 폴백한다.
+async function attachLiveFormulaInfo(items: ProductionSchedule[]): Promise<ProductionSchedule[]> {
+  if (items.length === 0) return items;
+  const codes = Array.from(new Set(items.map((i) => i.formula_code)));
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, confirmed_code, product_name")
+    .in("formula_code", codes);
+  if (error || !data) return items; // 보강 조회가 실패해도 기존 스냅샷 표시는 그대로 유지
+  const liveMap = new Map<string, { confirmed_code?: string | null; product_name?: string | null }>();
+  for (const f of data as { formula_code: string; revision: string; confirmed_code?: string | null; product_name?: string | null }[]) {
+    liveMap.set(`${f.formula_code}__${f.revision}`, { confirmed_code: f.confirmed_code, product_name: f.product_name });
+  }
+  return items.map((item) => {
+    const live = liveMap.get(`${item.formula_code}__${item.revision}`);
+    if (!live) return item;
+    return {
+      ...item,
+      confirmed_code: live.confirmed_code || item.confirmed_code,
+      product_name: live.product_name || item.product_name,
+    };
+  });
 }
 
 export async function saveProductionSchedule(entry: ProductionSchedule): Promise<ProductionSchedule> {
