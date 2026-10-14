@@ -67,6 +67,13 @@ export type ManufacturingQtyReviewSheet = {
   created_at?: string;
 };
 
+// 재고 관리 대상(7개 접두사) 안에 있어도 외부에서 구매하지 않고 자체적으로 만들어 쓰는 원료 -
+// 합산 부족 원료 목록/발주서 생성 대상에서 아예 제외한다(요청사항: "정제수는 우리가 직접 만들기에
+// 발주할 필요가 없음"). 정제수(원료코드 1LQA004A)가 현재 유일한 대상 - plm_raw_materials에 이름이
+// 비슷한 다른 "정제수" 레코드도 있지만(사용금지/legacy 버전) 재고 관리 대상 접두사(1LQA)에 속하는
+// 건 이 코드뿐이라 raw_code로 정확히 지정한다. 앞으로 자체 제조 원료가 늘어나면 이 Set에 추가한다.
+const SELF_PRODUCED_RAW_CODES = new Set(["1LQA004A"]);
+
 // BOM 라인 중 재고 관리 대상(7개 접두사) 원료만 대상으로, 처방(목표 제조량 포함) 여러 건의 필요량을
 // raw_code 기준으로 합산한다. 처방이 1건뿐이면 기존 단일 처방 계산과 동일한 결과가 나온다.
 function sumRequiredByRawCode(
@@ -76,6 +83,7 @@ function sumRequiredByRawCode(
   for (const entry of entries) {
     for (const l of entry.lines) {
       if (!isStockManagedRawCode(l.raw_code)) continue;
+      if (l.raw_code && SELF_PRODUCED_RAW_CODES.has(l.raw_code)) continue;
       const rawCode = l.raw_code!;
       const required_qty = (entry.target_qty_kg * Number(l.percentage || 0)) / 100;
       const existing = requiredByRawCode.get(rawCode);
