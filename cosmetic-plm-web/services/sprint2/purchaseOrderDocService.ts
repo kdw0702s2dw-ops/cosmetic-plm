@@ -107,6 +107,9 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   const vatTotal = sumField(order, "vat_amount");
   const grandTotal = supplyTotal + vatTotal;
 
+  // 품목별 "비고"(발주 초안 생성 시 자동으로 들어가는 "제조량 확인 · 합산 부족 원료 목록에서 생성" 같은
+  // 내부용 문구)는 발주서에는 불필요한 내용이라 표에서 아예 뺀다(검토 요청사항). 전체 비고(아래 footer의
+  // 배송 안내 등)는 별도 항목이라 그대로 유지한다.
   const itemRows = order.items
     .map(
       (it, idx) => `<tr>
@@ -117,13 +120,12 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
         <td class="r">${fmtAmount(it.unit_price)}</td>
         <td class="r">${fmtAmount(it.supply_amount)}</td>
         <td class="r">${fmtAmount(it.vat_amount)}</td>
-        <td class="l">${esc(it.note || "")}</td>
       </tr>`
     )
     .join("");
   const blankCount = Math.max(0, MIN_ITEM_ROWS - order.items.length);
   const blankRows = Array.from({ length: blankCount })
-    .map(() => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td class="r">-</td><td class="r">-</td><td></td></tr>`)
+    .map(() => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td class="r">-</td><td class="r">-</td></tr>`)
     .join("");
 
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
@@ -146,6 +148,7 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   table.items th { background:#f3f4f6; font-weight:700; }
   .l { text-align:left; }
   .r { text-align:right; }
+  .grandtotal td { font-weight:800; font-size:12.5px; background:#f8fafc; }
   table.footer { width:100%; border-collapse:collapse; margin-top:0; }
   table.footer td { border:1px solid #333; padding:6px 9px; font-size:12px; vertical-align:top; }
   .note-cell { white-space:pre-line; }
@@ -182,14 +185,14 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
       <td class="label">종목</td><td>${esc(PO_ISSUER.biz_item)}</td>
     </tr>
   </table>
-  <div class="sum">합계금액 : 일금 ${numberToKoreanWon(grandTotal)}</div>
+  <div class="sum">합계금액 : 일금 ${numberToKoreanWon(grandTotal)} (₩${fmtAmount(grandTotal)})</div>
 
   <table class="items">
     <thead>
       <tr>
-        <th style="width:5%;">순번</th><th>품목명/규격</th><th style="width:6%;">단위</th>
-        <th style="width:9%;">수량</th><th style="width:11%;">단가</th>
-        <th style="width:12%;">공급가액</th><th style="width:11%;">세액</th><th style="width:14%;">비고</th>
+        <th style="width:6%;">순번</th><th>품목명/규격</th><th style="width:7%;">단위</th>
+        <th style="width:10%;">수량</th><th style="width:13%;">단가</th>
+        <th style="width:14%;">공급가액</th><th style="width:13%;">세액</th>
       </tr>
     </thead>
     <tbody>
@@ -199,7 +202,10 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
         <td colspan="5" style="font-weight:700;">합 계</td>
         <td class="r" style="font-weight:700;">${fmtAmount(supplyTotal)}</td>
         <td class="r" style="font-weight:700;">${fmtAmount(vatTotal)}</td>
-        <td></td>
+      </tr>
+      <tr class="grandtotal">
+        <td colspan="5">총 합계 (VAT 포함)</td>
+        <td class="r" colspan="2">₩ ${fmtAmount(grandTotal)}</td>
       </tr>
     </tbody>
   </table>
@@ -235,8 +241,11 @@ export function printPurchaseOrder(order: PurchaseOrder, supplier: Company | nul
 
 // ============================================================
 // 엑셀 (.xlsx) - 위 PDF 양식과 같은 구조를 exceljs 표/병합/테두리로 재현.
+// 품목별 "비고" 컬럼은 발주서에 불필요해 뺐고(검토 요청사항), 그만큼 전체 7컬럼으로 줄었다
+// (순번/품목명/단위/수량/단가/공급가액/세액).
 // ============================================================
 const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+const COL_COUNT = 7;
 
 function setCell(
   ws: ExcelJS.Worksheet,
@@ -253,38 +262,123 @@ function setCell(
   return cell;
 }
 
+// PNG의 IHDR 청크에서 원본 가로/세로 픽셀 크기를 읽어온다 - 도장 이미지 비율을 유지한 채 배치하기 위함
+// (productCoaExcelService.ts의 동일한 헬퍼와 같은 방식).
+function getPngPixelSize(base64: string): { width: number; height: number } | null {
+  try {
+    const bin = atob(base64);
+    if (bin.length < 24) return null;
+    const readU32 = (offset: number) =>
+      (((bin.charCodeAt(offset) << 24) | (bin.charCodeAt(offset + 1) << 16) | (bin.charCodeAt(offset + 2) << 8) | bin.charCodeAt(offset + 3)) >>> 0);
+    return { width: readU32(16), height: readU32(20) };
+  } catch {
+    return null;
+  }
+}
+
+// 승인 도장을 박스(boxWidth x boxHeight)와 정확히 같은 픽셀 크기의 새 캔버스 중앙에 미리 그려 넣는다.
+// Excel/LibreOffice/Google Sheets마다 addImage의 앵커 해석이 조금씩 달라, 셀 픽셀 크기를 우리가
+// 추정한 값(estimate)과 실제 렌더링 값이 달라도 - 이 캔버스를 tl~br(셀을 정확히 채우는 앵커)로 넣으면
+// 각 프로그램이 "그 시점의 실제 셀 크기"에 맞춰 캔버스 전체를 늘리므로 그 안에 이미 중앙 정렬해 그려둔
+// 도장은 항상 박스 경계와 정확히 맞고, 패딩이 있어 약간 늘어나도 도장 자체가 찌그러져 보이지 않는다
+// (지난 번 승인란이 "칸이랑 도장 사이즈가 안 맞는다"는 문제의 근본 원인 - 고정 ext 크기로 왼쪽 위에만
+// 작게 배치했던 것을 이 방식으로 교체).
+async function composeStampIntoBox(boxWidth: number, boxHeight: number, maxWidth: number, maxHeight: number): Promise<{ base64: string; extension: "png" } | null> {
+  if (typeof document === "undefined") return null;
+  try {
+    const el: HTMLImageElement = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("stamp image decode failed"));
+      img.src = `data:image/png;base64,${PO_APPROVAL_STAMP_PNG_BASE64}`;
+    });
+    const naturalW = el.naturalWidth || getPngPixelSize(PO_APPROVAL_STAMP_PNG_BASE64)?.width || 1;
+    const naturalH = el.naturalHeight || getPngPixelSize(PO_APPROVAL_STAMP_PNG_BASE64)?.height || 1;
+    const aspect = naturalW / naturalH;
+
+    let drawW = Math.min(maxWidth, boxWidth);
+    let drawH = drawW / aspect;
+    if (drawH > Math.min(maxHeight, boxHeight)) {
+      drawH = Math.min(maxHeight, boxHeight);
+      drawW = drawH * aspect;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(boxWidth);
+    canvas.height = Math.round(boxHeight);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    const dx = Math.round((boxWidth - drawW) / 2);
+    const dy = Math.round((boxHeight - drawH) / 2);
+    ctx.drawImage(el, dx, dy, Math.round(drawW), Math.round(drawH));
+    const base64 = canvas.toDataURL("image/png").split(",")[1];
+    return base64 ? { base64, extension: "png" } : null;
+  } catch {
+    return null;
+  }
+}
+
+// 승인 도장 박스(F1:G2 병합) 삽입 - composeStampIntoBox가 성공하면(브라우저 환경) 박스에 꽉 맞춘
+// 캔버스를 tl~br로 채워 넣고, 실패하면(캔버스를 못 쓰는 환경 등) 기존처럼 비율 유지 + ext 고정 크기로
+// 대체한다(완전히 실패하면 조용히 건너뛰고 빈 박스만 남긴다 - 승인란이 비어 있어도 나머지 발주서 생성은
+// 막지 않는다).
+async function addApprovalStamp(ws: ExcelJS.Worksheet, wb: ExcelJS.Workbook, r1: number, c1: number, r2: number, c2: number, boxWidth: number, boxHeight: number) {
+  try {
+    const composed = await composeStampIntoBox(boxWidth, boxHeight, 60, 60);
+    if (composed) {
+      const imageId = wb.addImage({ base64: composed.base64, extension: composed.extension });
+      ws.addImage(imageId, { tl: { col: c1 - 1, row: r1 - 1 }, br: { col: c2, row: r2 } });
+      return;
+    }
+    const natural = getPngPixelSize(PO_APPROVAL_STAMP_PNG_BASE64);
+    const aspect = natural ? natural.width / natural.height : 1;
+    let width = Math.min(60, boxWidth);
+    let height = width / aspect;
+    if (height > boxHeight) {
+      height = boxHeight;
+      width = height * aspect;
+    }
+    const colOffset = Math.max(0, (boxWidth - width) / 2) / boxWidth;
+    const rowOffset = Math.max(0, (boxHeight - height) / 2) / boxHeight;
+    const imageId = wb.addImage({ base64: PO_APPROVAL_STAMP_PNG_BASE64, extension: "png" });
+    ws.addImage(imageId, { tl: { col: c1 - 1 + colOffset * (c2 - c1 + 1), row: r1 - 1 + rowOffset * (r2 - r1 + 1) }, ext: { width: Math.round(width), height: Math.round(height) } });
+  } catch {
+    // 도장 삽입 실패 시 조용히 넘어가고 빈 박스만 남긴다.
+  }
+}
+
 export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier: Company | null | undefined, extra: PurchaseOrderDocExtra) {
   const supplierName = companyDisplayName(supplier) || "-";
   const supplyTotal = sumField(order, "supply_amount");
   const vatTotal = sumField(order, "vat_amount");
   const grandTotal = supplyTotal + vatTotal;
-  const colCount = 8;
+  const colCount = COL_COUNT;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("발주서");
-  ws.columns = [{ width: 6 }, { width: 30 }, { width: 8 }, { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 16 }];
+  // A 순번, B 품목명/규격, C 단위, D 수량, E 단가, F 공급가액, G 세액 (비고 컬럼 삭제로 7컬럼).
+  // E/F/G를 넉넉히 잡아야 "상호"(발주자 상호 D:E 병합) 같은 긴 텍스트가 한 줄에서 잘리지 않는다
+  // (지난 번 "주식회사 뉴트리어드바이저"가 칸에서 잘려 보이던 문제의 원인 - 좁은 컬럼 폭 + 얇은 행
+  // 높이가 겹쳐서 줄바꿈된 두 번째 줄이 가려졌었다. 컬럼을 넓히고 아래에서 관련 행 높이도 함께 키운다).
+  ws.columns = [{ width: 6 }, { width: 30 }, { width: 8 }, { width: 10 }, { width: 16 }, { width: 14 }, { width: 16 }];
 
-  // NO / PAGE - 오른쪽 위(G:H, 1~2행)는 승인 도장 박스로 비워둔다.
+  // NO / PAGE - 오른쪽 위(F:G, 1~2행)는 승인 도장 박스로 비워둔다.
   setCell(ws, 1, 1, `NO : ${order.order_no || ""}`, { align: "left", wrap: false });
-  ws.mergeCells(1, 1, 1, 4);
-  setCell(ws, 1, 5, "PAGE : 1 / 1", { align: "right", wrap: false });
-  ws.mergeCells(1, 5, 1, 6);
+  ws.mergeCells(1, 1, 1, 3);
+  setCell(ws, 1, 4, "PAGE : 1 / 1", { align: "right", wrap: false });
+  ws.mergeCells(1, 4, 1, 5);
   ws.getRow(1).height = 26;
 
   // 제목
   setCell(ws, 2, 1, "발   주   서", { bold: true, size: 20 });
-  ws.mergeCells(2, 1, 2, 6);
-  ws.getRow(2).height = 32;
+  ws.mergeCells(2, 1, 2, 5);
+  ws.getRow(2).height = 34;
 
-  // 승인 도장 박스 (G1:H2) - PDF와 동일한 도장 이미지를 넣는다. 이미지가 박스보다 작아도(가로세로
-  // 비율을 유지한 채) 왼쪽 위에 자연스럽게 들어가도록 tl+ext 앵커만 쓴다(br까지 지정하면 박스를
-  // 꽉 채우려고 이미지가 늘어나 찌그러져 보임). addImage의 tl.col/tl.row는 0-indexed라 1-indexed
-  // 대상 컬럼(G=7)에서 1을 빼야 한다 - 이 코드베이스의 다른 3곳(productCoaExcelService 등)과
-  // 동일한 `col: c1 - 1` 패턴(로컬 리뷰에서 col: 7로 썼던 버그 발견 - H열에 앵커되던 문제 수정).
-  ws.mergeCells(1, 7, 2, 8);
-  border(ws, 1, 7, 2, 8);
-  const stampImageId = wb.addImage({ base64: PO_APPROVAL_STAMP_PNG_BASE64, extension: "png" });
-  ws.addImage(stampImageId, { tl: { col: 6, row: 0 }, ext: { width: 64, height: 64 } });
+  // 승인 도장 박스 (F1:G2) - 박스 크기(픽셀)를 컬럼 폭(F=14,G=16 단위 -> 대략 103+117px)과 행 높이
+  // (26+34pt -> 대략 80px)로 추정해서, 그 크기에 정확히 맞춘 캔버스를 addApprovalStamp가 그려 넣는다.
+  ws.mergeCells(1, 6, 2, 7);
+  border(ws, 1, 6, 2, 7);
+  await addApprovalStamp(ws, wb, 1, 6, 2, 7, 220, 80);
 
   ws.addRow([]);
 
@@ -301,38 +395,44 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   ws.getRow(metaStart).height = 90;
 
   setCell(ws, metaStart, 3, "등록번호", { bold: true, fill: true });
-  ws.mergeCells(metaStart, 4, metaStart, 8);
+  ws.mergeCells(metaStart, 4, metaStart, 7);
   setCell(ws, metaStart, 4, PO_ISSUER.biz_no, { align: "left" });
 
   setCell(ws, metaStart + 1, 3, "상호", { bold: true, fill: true });
   ws.mergeCells(metaStart + 1, 4, metaStart + 1, 5);
   setCell(ws, metaStart + 1, 4, PO_ISSUER.name_kr, { align: "left" });
   setCell(ws, metaStart + 1, 6, "성명", { bold: true, fill: true });
-  ws.mergeCells(metaStart + 1, 7, metaStart + 1, 8);
   setCell(ws, metaStart + 1, 7, PO_ISSUER.ceo_name, { align: "left" });
 
   setCell(ws, metaStart + 2, 3, "주소", { bold: true, fill: true });
-  ws.mergeCells(metaStart + 2, 4, metaStart + 2, 8);
+  ws.mergeCells(metaStart + 2, 4, metaStart + 2, 7);
   setCell(ws, metaStart + 2, 4, PO_ISSUER.address, { align: "left" });
 
   setCell(ws, metaStart + 3, 3, "업태", { bold: true, fill: true });
   ws.mergeCells(metaStart + 3, 4, metaStart + 3, 5);
   setCell(ws, metaStart + 3, 4, PO_ISSUER.biz_type, { align: "left" });
   setCell(ws, metaStart + 3, 6, "종목", { bold: true, fill: true });
-  ws.mergeCells(metaStart + 3, 7, metaStart + 3, 8);
   setCell(ws, metaStart + 3, 7, PO_ISSUER.biz_item, { align: "left" });
+
+  // 상호/주소/업태 행은 원래 기본 행 높이(약 15pt)로는 두 줄로 줄바꿈된 텍스트가 잘려 보일 수 있어
+  // (예: "주식회사 뉴트리어드바이저" 13자) 세 행 모두 여유 있게 키운다 - 컬럼을 넓혀도 렌더러마다
+  // 글자 폭 계산이 조금씩 달라(Excel/LibreOffice/Google Sheets) 한 줄에 다 안 들어갈 수 있는데,
+  // 행이 충분히 높으면 두 줄로 줄바꿈되어도 잘리지 않고 전부 보인다.
+  ws.getRow(metaStart + 1).height = 28;
+  ws.getRow(metaStart + 2).height = 28;
+  ws.getRow(metaStart + 3).height = 28;
 
   border(ws, metaStart, 1, metaStart + 3, colCount);
 
   // 합계금액(일금)
   const sumRowNum = metaStart + 4;
-  setCell(ws, sumRowNum, 1, `합계금액 : 일금 ${numberToKoreanWon(grandTotal)}`, { bold: true, align: "left" });
+  setCell(ws, sumRowNum, 1, `합계금액 : 일금 ${numberToKoreanWon(grandTotal)} (₩${fmtAmount(grandTotal)})`, { bold: true, align: "left" });
   ws.mergeCells(sumRowNum, 1, sumRowNum, colCount);
   border(ws, sumRowNum, 1, sumRowNum, colCount);
 
-  // 품목 표 헤더
+  // 품목 표 헤더 - 품목별 "비고"는 발주서에 불필요해 뺐다(검토 요청사항).
   const tableHeaderRow = sumRowNum + 1;
-  const headerLabels = ["순번", "품목명/규격", "단위", "수량", "단가", "공급가액", "세액", "비고"];
+  const headerLabels = ["순번", "품목명/규격", "단위", "수량", "단가", "공급가액", "세액"];
   headerLabels.forEach((label, i) => setCell(ws, tableHeaderRow, i + 1, label, { bold: true, fill: true }));
   border(ws, tableHeaderRow, 1, tableHeaderRow, colCount);
 
@@ -350,7 +450,6 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
     ws.getCell(r, 6).numFmt = "#,##0";
     setCell(ws, r, 7, it.vat_amount || 0, { align: "right", wrap: false });
     ws.getCell(r, 7).numFmt = "#,##0";
-    setCell(ws, r, 8, it.note || "", { align: "left" });
     border(ws, r, 1, r, colCount);
     r++;
   }
@@ -368,17 +467,28 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   ws.getCell(r, 6).numFmt = "#,##0";
   setCell(ws, r, 7, vatTotal, { bold: true, align: "right", wrap: false });
   ws.getCell(r, 7).numFmt = "#,##0";
-  setCell(ws, r, 8, "", { wrap: false });
   border(ws, r, 1, r, colCount);
   r++;
 
-  // 납기일자/납품장소, 유효일자/결제조건, 비고
+  // 총 합계(VAT 포함) - 공급가액/세액 합계는 바로 위 행에 이미 있지만, 그 둘을 더한 최종 금액이 따로
+  // 안 보인다는 요청사항이 있어 강조된 한 줄로 추가한다(위쪽 "합계금액: 일금 ..." 줄은 한글 표기라
+  // 숫자로도 바로 확인할 수 있게 여기 추가).
+  setCell(ws, r, 1, "총 합계 (VAT 포함)", { bold: true, fill: true });
+  ws.mergeCells(r, 1, r, 5);
+  setCell(ws, r, 6, grandTotal, { bold: true, align: "right", wrap: false, size: 11 });
+  ws.getCell(r, 6).numFmt = "#,##0";
+  ws.mergeCells(r, 6, r, 7);
+  border(ws, r, 1, r, colCount);
+  ws.getRow(r).height = 20;
+  r++;
+
+  // 납기일자/납품장소, 유효일자/결제조건, 비고(전체 배송 안내 등 - 품목별 비고와는 다른 항목이라 유지)
   setCell(ws, r, 1, "납기일자", { bold: true, fill: true });
   setCell(ws, r, 2, extra.delivery_date || "", { align: "left" });
   ws.mergeCells(r, 2, r, 3);
   setCell(ws, r, 4, "납품장소", { bold: true, fill: true });
   setCell(ws, r, 5, extra.delivery_place || "", { align: "left" });
-  ws.mergeCells(r, 5, r, 8);
+  ws.mergeCells(r, 5, r, 7);
   border(ws, r, 1, r, colCount);
   r++;
 
@@ -387,13 +497,13 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   ws.mergeCells(r, 2, r, 3);
   setCell(ws, r, 4, "결제조건", { bold: true, fill: true });
   setCell(ws, r, 5, extra.payment_terms || "", { align: "left" });
-  ws.mergeCells(r, 5, r, 8);
+  ws.mergeCells(r, 5, r, 7);
   border(ws, r, 1, r, colCount);
   r++;
 
   setCell(ws, r, 1, "비고", { bold: true, fill: true });
   setCell(ws, r, 2, extra.note || "", { align: "left" });
-  ws.mergeCells(r, 2, r, 8);
+  ws.mergeCells(r, 2, r, 7);
   ws.getRow(r).height = Math.max(40, (extra.note || "").split("\n").length * 16);
   border(ws, r, 1, r, colCount);
 
