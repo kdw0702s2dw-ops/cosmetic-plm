@@ -22,9 +22,12 @@ export type ShortageRow = {
   unit_price?: number | null;
   currency?: string;
   moq?: string;
-  // 실제 발주해야 할 수량 - 부족량(shortage_qty)이 MOQ보다 적으면 MOQ만큼 발주해야 하므로
-  // max(shortage_qty, MOQ 숫자)로 올림한다(요청사항: "부족량이 MOQ보다 적어도 MOQ만큼 발주해야함").
-  // MOQ가 순수 숫자로 파싱되지 않으면(자유 텍스트 등) 보수적으로 shortage_qty를 그대로 쓴다.
+  // 실제 발주해야 할 수량 - MOQ(moq)는 "최소 주문량"이 아니라 원료가 포장되어 나오는 단위(포장단위,
+  // 예: 15kg들이 포장)라서 그 배수로만 주문할 수 있다. 따라서 단순히 max(shortage_qty, MOQ)가 아니라
+  // ceil(부족량 / 포장단위) × 포장단위로 올림한다(검토 요청사항: "패킹은 15kg인데 부족량이 40kg이면
+  // 15kg 포장 3개, 즉 45kg를 주문해야 함" - ceilToPackingMultiple 참고). 부족량이 포장단위보다 작은
+  // 경우는 포장 1개(=포장단위 그대로)가 되어 기존 max() 방식과 결과가 같다. MOQ가 순수 숫자로
+  // 파싱되지 않거나(자유 텍스트 등) 0 이하이면 포장단위 제약이 없다고 보고 shortage_qty를 그대로 쓴다.
   order_qty?: number;
   order_amount?: number;
   // 원료관리에 등록된 공급사(plm_raw_materials.supplier_company_id) - 원료 발주관리와 연동해서 발주
@@ -85,11 +88,23 @@ function sumRequiredByRawCode(
   return requiredByRawCode;
 }
 
+// MOQ는 실제로는 "최소 주문량"이 아니라 원료가 포장되어 나오는 단위(포장단위, 예: 15kg들이 포장)다.
+// 부족량을 채우려면 그 포장단위의 정수배로만 주문할 수 있으므로, ceil(부족량 / 포장단위) × 포장단위로
+// 올림한다(검토 요청사항: "패킹은 15kg인데 부족량이 40kg이면 15kg 포장 3개, 즉 45kg를 주문해야 함" -
+// 기존에 썼던 max(부족량, MOQ) 방식은 부족량이 포장단위의 배수를 넘어서면(예: 부족량 40kg, 포장단위
+// 15kg) 틀린 값을 냈다 - max(40,15)=40은 포장 2.67개가 되어 실제로 주문할 수 없는 수량이었음).
+function ceilToPackingMultiple(shortageQty: number, packingUnit: number): number {
+  // 부동소수점 오차로 정확히 배수인 값(예: 40/20이 2.0000000000000004로 계산되는 경우)이 한 포장
+  // 더 올림되지 않도록 아주 작은 허용오차(EPS)를 두고 올림한다.
+  const EPS = 1e-6;
+  const units = Math.ceil(shortageQty / packingUnit - EPS);
+  return Math.round(units * packingUnit * 1e6) / 1e6;
+}
+
 // 필요량 합산 결과를 현재 재고와 비교해 부족량>0인 원료만 반환한다(제조 목록 전체 기준 합산 부족 원료 목록).
-// rawMaterialInfo가 주어지면 원료코드별 단가/통화/MOQ를 함께 싣고, 발주량(부족량과 MOQ 중 큰 값) ×
-// 단가로 발주 금액을 계산한다(단가가 없으면 order_amount는 0 - 화면에서 "-"로 표시해 실제 0원과 구분).
-// MOQ가 부족량보다 크면 부족량만큼이 아니라 MOQ만큼 발주해야 하므로(검토 요청사항: "부족량이 13kg이고
-// MOQ가 20kg이면 20kg 발주해야 하고 발주 금액도 그 기준으로 계산") order_qty를 따로 계산한다.
+// rawMaterialInfo가 주어지면 원료코드별 단가/통화/MOQ를 함께 싣고, 발주량(부족량을 포장단위의 배수로
+// 올림한 값, ceilToPackingMultiple 참고) × 단가로 발주 금액을 계산한다(단가가 없으면 order_amount는
+// 0 - 화면에서 "-"로 표시해 실제 0원과 구분).
 export function calcCombinedShortageRows(
   entries: { lines: { raw_code?: string; raw_name?: string; percentage: number | string }[]; target_qty_kg: number }[],
   latestStock: Map<string, { closing_stock: number }>,
@@ -104,7 +119,7 @@ export function calcCombinedShortageRows(
       const info = rawMaterialInfo?.get(raw_code);
       const unit_price = info?.unit_price ?? null;
       const moqNum = parseMoqKg(info?.moq);
-      const order_qty = moqNum !== null ? Math.max(shortage_qty, moqNum) : shortage_qty;
+      const order_qty = moqNum !== null && moqNum > 0 ? ceilToPackingMultiple(shortage_qty, moqNum) : shortage_qty;
       const order_amount = Math.round(order_qty * (unit_price || 0) * 100) / 100;
       rows.push({
         raw_code, raw_name, required_qty, current_stock, shortage_qty,
@@ -155,11 +170,12 @@ export function buildPurchaseOrderDraftsFromShortage(rows: ShortageRow[]): Purch
       });
     }
     const group = groups.get(r.supplier_company_id)!;
-    // 발주 수량은 부족량이 아니라 order_qty(부족량과 MOQ 숫자 중 큰 값)를 가져온다 - 부족량이 MOQ보다
-    // 적어도 그 공급사에서는 MOQ만큼 발주해야 하기 때문(검토 요청사항). order_qty가 없는(구버전 이력
-    // 등) 경우에만 보수적으로 shortage_qty로 대체한다. MOQ가 숫자로 안 읽히는 자유 텍스트인 경우는
-    // order_qty 계산 단계(calcCombinedShortageRows)에서 이미 shortage_qty로 대체돼 있으므로 여기서는
-    // 추가 처리가 필요 없다 - 패킹 칸에는 원문 그대로를 참고용으로 채워주고 저장 전 확인하도록 안내한다.
+    // 발주 수량은 부족량이 아니라 order_qty(부족량을 포장단위 MOQ의 배수로 올림한 값, 계산 단계는
+    // calcCombinedShortageRows의 ceilToPackingMultiple 참고)를 가져온다 - 원료가 포장단위로만
+    // 공급되기 때문(검토 요청사항). order_qty가 없는(구버전 이력 등) 경우에만 보수적으로 shortage_qty로
+    // 대체한다. MOQ가 숫자로 안 읽히는 자유 텍스트인 경우는 order_qty 계산 단계에서 이미 shortage_qty로
+    // 대체돼 있으므로 여기서는 추가 처리가 필요 없다 - 패킹 칸에는 원문 그대로를 참고용으로 채워주고
+    // 저장 전 확인하도록 안내한다.
     const quantity = Math.round((r.order_qty ?? r.shortage_qty) * 1000) / 1000;
     const unit_price = r.unit_price || 0;
     const item: PurchaseOrderItem = {
