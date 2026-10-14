@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { border, downloadWorkbook } from "@/services/sprint2/documentExcelService";
 import { companyDisplayName, type Company } from "@/services/sprint2/companyService";
 import type { PurchaseOrder } from "@/services/sprint2/purchaseOrderService";
+import { PO_APPROVAL_STAMP_PNG_BASE64 } from "@/services/sprint2/purchaseOrderAssets";
 
 // 원료 발주관리에서 저장된 발주를 사용자가 올려준 회사 공식 "발주서" 양식(NO/PAGE, 승인란, 발주자/
 // 공급받는자 정보, 품목표, 합계금액(일금 ...원정), 납기일자/유효일자/결제조건/비고)에 맞춰 PDF/엑셀로
@@ -134,7 +135,8 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   .headrow { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
   .headrow .spacer { width:72px; }
   .headline { flex:1; text-align:center; font-size:26px; font-weight:800; letter-spacing:16px; }
-  .seal { width:72px; height:72px; border:1px solid #333; display:flex; align-items:center; justify-content:center; font-size:12px; }
+  .seal { width:72px; height:72px; border:1px solid #333; display:flex; align-items:center; justify-content:center; font-size:12px; overflow:hidden; }
+  .seal img { max-width:100%; max-height:100%; object-fit:contain; }
   table.meta { width:100%; border-collapse:collapse; margin-bottom:0; }
   table.meta td { border:1px solid #333; padding:6px 9px; font-size:12px; vertical-align:middle; }
   .label { background:#f3f4f6; font-weight:700; text-align:center; white-space:nowrap; }
@@ -154,7 +156,7 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   <div class="headrow">
     <div class="spacer"></div>
     <div class="headline">발 주 서</div>
-    <div class="seal">승 인</div>
+    <div class="seal"><img src="data:image/png;base64,${PO_APPROVAL_STAMP_PNG_BASE64}" alt="승인" /></div>
   </div>
 
   <table class="meta">
@@ -262,16 +264,28 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   const ws = wb.addWorksheet("발주서");
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 8 }, { width: 10 }, { width: 12 }, { width: 14 }, { width: 12 }, { width: 16 }];
 
-  // NO / PAGE
+  // NO / PAGE - 오른쪽 위(G:H, 1~2행)는 승인 도장 박스로 비워둔다.
   setCell(ws, 1, 1, `NO : ${order.order_no || ""}`, { align: "left", wrap: false });
   ws.mergeCells(1, 1, 1, 4);
   setCell(ws, 1, 5, "PAGE : 1 / 1", { align: "right", wrap: false });
-  ws.mergeCells(1, 5, 1, 8);
+  ws.mergeCells(1, 5, 1, 6);
+  ws.getRow(1).height = 26;
 
   // 제목
   setCell(ws, 2, 1, "발   주   서", { bold: true, size: 20 });
-  ws.mergeCells(2, 1, 2, 8);
+  ws.mergeCells(2, 1, 2, 6);
   ws.getRow(2).height = 32;
+
+  // 승인 도장 박스 (G1:H2) - PDF와 동일한 도장 이미지를 넣는다. 이미지가 박스보다 작아도(가로세로
+  // 비율을 유지한 채) 왼쪽 위에 자연스럽게 들어가도록 tl+ext 앵커만 쓴다(br까지 지정하면 박스를
+  // 꽉 채우려고 이미지가 늘어나 찌그러져 보임). addImage의 tl.col/tl.row는 0-indexed라 1-indexed
+  // 대상 컬럼(G=7)에서 1을 빼야 한다 - 이 코드베이스의 다른 3곳(productCoaExcelService 등)과
+  // 동일한 `col: c1 - 1` 패턴(로컬 리뷰에서 col: 7로 썼던 버그 발견 - H열에 앵커되던 문제 수정).
+  ws.mergeCells(1, 7, 2, 8);
+  border(ws, 1, 7, 2, 8);
+  const stampImageId = wb.addImage({ base64: PO_APPROVAL_STAMP_PNG_BASE64, extension: "png" });
+  ws.addImage(stampImageId, { tl: { col: 6, row: 0 }, ext: { width: 64, height: 64 } });
+
   ws.addRow([]);
 
   // 공급받는자 / 발주자 정보 (4행, 공급받는자 칸은 세로 병합)
