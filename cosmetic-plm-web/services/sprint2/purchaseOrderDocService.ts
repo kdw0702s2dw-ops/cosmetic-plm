@@ -430,7 +430,7 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
     `${supplierName} 귀하\n\n발주일자 : ${order.order_date}\nTEL : ${supplier?.phone || "-"}    FAX : -\n\n납기일 내에 인도해 주시기 바랍니다.`,
     { align: "left", wrap: true }
   );
-  ws.getRow(metaStart).height = 90;
+  ws.getRow(metaStart).height = 28;
 
   setCell(ws, metaStart, 3, "등록번호", { bold: true, fill: true });
   ws.mergeCells(metaStart, 4, metaStart, 7);
