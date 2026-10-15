@@ -160,7 +160,7 @@ function AddConditionForm({ s }: { s: S }) {
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button className="v50-button" onClick={editing ? s.submitEditCondition : s.submitAddCondition} disabled={s.savingCondition}>
-          {s.savingCondition ? (editing ? "수정 중…" : "추가 중…") : (editing ? "조건 수정 저장" : "조건 추가")}
+          {s.savingCondition ? (editing ? "수정 중…" : "등록 중…") : (editing ? "조건 수정 저장" : "등록")}
         </button>
         <button className="v50-button-light" onClick={s.cancelConditionForm}>취소</button>
       </div>
