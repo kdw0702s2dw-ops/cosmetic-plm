@@ -122,7 +122,7 @@ export default function StabilityHomePanel({ onOpenTest }: { onOpenTest: (testId
                     <td style={{ color: st === "지연" ? "#dc2626" : undefined, fontWeight: st === "지연" ? 800 : undefined }}>{cp.due_date}</td>
                     <td>{test?.confirmed_code || "-"}</td>
                     <td>{test?.revision || "-"}</td>
-                    <td>{test?.sample_name || test?.product_name || test?.formula_name || test?.formula_code || "-"}</td>
+                    <td>{test?.product_name || test?.sample_name || test?.formula_name || test?.formula_code || "-"}</td>
                     <td>{cp.condition?.condition_label || "-"} · {cp.checkpoint_label}</td>
                     <td>{test?.assignee || "-"}</td>
                     <td><span className={`v50-badge ${st === "지연" ? "danger" : st === "임박" ? "warn" : st === "완료" ? "ok" : ""}`}>{st}</span></td>
