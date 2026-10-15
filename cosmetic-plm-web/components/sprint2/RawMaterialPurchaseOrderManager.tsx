@@ -18,6 +18,7 @@ import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import PurchaseOrderRawMaterialSummaryPanel from "@/components/sprint2/PurchaseOrderRawMaterialSummaryPanel";
 import PurchaseOrderPrintModal, { type PurchaseOrderPrintTarget } from "@/components/sprint2/PurchaseOrderPrintModal";
+import PurchaseOrderInspectionModal, { type PurchaseOrderInspectionTarget } from "@/components/sprint2/PurchaseOrderInspectionModal";
 import "@/styles/enterprise-v50.css";
 
 type View = "list" | "summary";
@@ -95,6 +96,9 @@ export default function RawMaterialPurchaseOrderManager({
   // 목록 행의 "발주서" 버튼을 누르면 상세(품목 포함)와 공급사 정보를 새로 불러와서 채운다.
   const [printTarget, setPrintTarget] = useState<PurchaseOrderPrintTarget | null>(null);
   const [printLoading, setPrintLoading] = useState(false);
+  // 품목별 "검수조서"(원료 입고정보) 입력/출력 모달 대상 - null이면 모달 닫힘. 입고일/사진/비고를
+  // 저장하면 handleInspectionSaved가 아래 편집 중인 order.items를 같이 갱신한다.
+  const [inspectionTarget, setInspectionTarget] = useState<PurchaseOrderInspectionTarget | null>(null);
 
   // 제조량 확인("합산 부족 원료 목록")에서 넘어온 공급사별 발주 초안 - 저장되지 않은 상태로만 보관하고,
   // 사용자가 "이 초안 불러오기"를 눌러야 아래 편집 폼에 올라간다(자동 저장 없음). 공급사가 등록 안
@@ -208,6 +212,19 @@ export default function RawMaterialPurchaseOrderManager({
 
   function removeItemRow(i: number) {
     setOrder((prev) => (prev ? { ...prev, items: prev.items.filter((_, idx) => idx !== i) } : prev));
+  }
+
+  // 검수조서 모달에서 입고일/사진/비고를 저장하면, 지금 편집 중인 order.items에도 같은 내용을 반영해서
+  // 모달을 닫지 않고도 화면이 바로 최신 상태로 보이게 한다. 모달이 다시 열렸을 때도 최신 값을 보여주도록
+  // inspectionTarget도 함께 갱신한다.
+  function handleInspectionSaved(updated: PurchaseOrderItem) {
+    setOrder((prev) => {
+      if (!prev) return prev;
+      const items = prev.items.map((it) => (it.id === updated.id ? { ...it, ...updated } : it));
+      return { ...prev, items };
+    });
+    setInspectionTarget((prev) => (prev && prev.item.id === updated.id ? { ...prev, item: { ...prev.item, ...updated } } : prev));
+    setToast({ type: "success", text: "검수조서가 저장되었습니다." });
   }
 
   const itemTotals = useMemo(() => {
@@ -362,6 +379,7 @@ export default function RawMaterialPurchaseOrderManager({
 
       {/* key로 발주별로 재마운트시켜서, 다른 발주를 열 때마다 납기일자 등 입력값이 기본값으로 리셋되게 한다. */}
       <PurchaseOrderPrintModal key={printTarget?.order.id || "none"} target={printTarget} onClose={() => setPrintTarget(null)} />
+      <PurchaseOrderInspectionModal key={inspectionTarget?.item.id || "none"} target={inspectionTarget} onClose={() => setInspectionTarget(null)} onSaved={handleInspectionSaved} />
 
       {(pendingDrafts.length > 0 || unresolvedDraftRows.length > 0) && (
         <section className="v50-panel" style={{ marginBottom: 18, border: "1px solid #bfdbfe", background: "#eff6ff" }}>
@@ -568,7 +586,14 @@ export default function RawMaterialPurchaseOrderManager({
                       <td><input className="v50-input" type="number" style={{ width: 90 }} value={it.vat_amount} onChange={(e) => updateItem(i, { vat_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td style={{ fontWeight: 800 }}><input className="v50-input" type="number" style={{ width: 100 }} value={it.total_amount} onChange={(e) => updateItem(i, { total_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 100 }} value={it.note || ""} onChange={(e) => updateItem(i, { note: e.target.value })} disabled={!canWrite} /></td>
-                      <td>{canWrite && <button className="v50-button-light" onClick={() => removeItemRow(i)}>삭제</button>}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {/* 품목이 저장되어 id가 생긴 뒤에만 검수조서(입고일/사진/비고)를 쓸 수 있다 - 아직
+                              저장 전인 새 행은 먼저 "발주 저장"을 눌러야 버튼이 나타난다. */}
+                          {it.id && <button className="v50-button-light" onClick={() => setInspectionTarget({ order, item: it })}>검수조서</button>}
+                          {canWrite && <button className="v50-button-light" onClick={() => removeItemRow(i)}>삭제</button>}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {order.items.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>품목이 없습니다.</td></tr>}

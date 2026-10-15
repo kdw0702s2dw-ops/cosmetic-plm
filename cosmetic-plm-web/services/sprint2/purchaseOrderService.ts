@@ -34,6 +34,11 @@ export type PurchaseOrderItem = {
   vat_amount: number;
   total_amount: number;
   note?: string | null;
+  // 검수조서(원료 입고정보) 전용 - 입고일/사진은 발주 품목 저장(savePurchaseOrderItems, 전체 교체 저장)
+  // 대상이 아니라 updatePurchaseOrderItemInspection()으로 품목 1건만 직접 수정한다(발주 편집 폼에서
+  // 다른 품목을 고치는 중에 입고 검수 내용이 날아가지 않도록).
+  received_date?: string | null; // 입고일 YYYY-MM-DD
+  photo_urls?: string[]; // 원료 사진(여러 장 가능) - Supabase Storage 공개 URL 목록
 };
 
 export type PurchaseOrder = {
@@ -138,6 +143,11 @@ export async function savePurchaseOrderHeader(order: PurchaseOrder): Promise<Pur
 
 // 발주 품목 저장 - 기존 품목을 전부 지우고 현재 화면의 품목으로 다시 채우는 RPC(plm_save_purchase_order_items)를
 // 호출한다. raw_name/trade_name은 조회 전용(조인 결과)이라 저장 대상에서 제외한다.
+// received_date/photo_urls(검수조서)도 반드시 함께 보내야 한다 - RPC가 품목을 전체 삭제 후 새 id로
+// 재삽입하는 방식이라, 이 두 필드를 안 보내면 검수조서 모달에서 이미 저장해둔 입고일/사진이 "발주 저장"을
+// 다시 누르는 순간 통째로 사라진다(실제 재현된 버그). order.items는 상세 조회(fetchPurchaseOrderDetail,
+// v_plm_purchase_order_items_detail 뷰 - 이 두 컬럼 포함)나 검수조서 저장 후 갱신(handleInspectionSaved)을
+// 통해 항상 최신 값을 들고 있으므로, 여기서 그대로 다시 실어 보내면 새로 생성되는 행에도 그대로 보존된다.
 export async function savePurchaseOrderItems(orderId: string, items: PurchaseOrderItem[]): Promise<void> {
   const clean = items
     .filter((i) => i.raw_code?.trim())
@@ -152,6 +162,8 @@ export async function savePurchaseOrderItems(orderId: string, items: PurchaseOrd
       vat_amount: i.vat_amount || 0,
       total_amount: i.total_amount || 0,
       note: i.note || null,
+      received_date: i.received_date || null,
+      photo_urls: i.photo_urls || [],
     }));
 
   const { error } = await supabaseProductionFinal.rpc("plm_save_purchase_order_items", {
@@ -172,6 +184,44 @@ export async function deletePurchaseOrder(id: string): Promise<void> {
   // items는 on delete cascade라 헤더만 지우면 품목도 함께 삭제된다.
   const { error } = await supabaseProductionFinal.from("plm_raw_material_purchase_orders").delete().eq("id", id);
   if (error) throw error;
+}
+
+// ---- 검수조서(원료 입고정보) ----
+// "원료를 발주하고 입고되면 검수조서 양식 파일에 내용을 기입해야 하는데, 발주관리에 이미 있는 내용을
+// 활용해서 효율적으로 하고 싶다"는 요청사항 대응. 품목(원료명/발주일/단가/수량/공급가/부가세/총액/비고)은
+// 이미 발주 데이터에 있으므로, 여기서는 검수조서에만 필요한 입고일/사진만 품목에 추가로 저장한다.
+
+const PO_INSPECTION_PHOTO_BUCKET = "purchase-order-inspection-photos";
+
+export type PurchaseOrderItemInspectionPatch = {
+  received_date?: string | null;
+  note?: string | null;
+  photo_urls?: string[];
+};
+
+// 품목 1건만 직접 UPDATE - savePurchaseOrderItems(RPC, 발주의 전체 품목을 지우고 다시 넣는 방식)와 달리
+// 이 품목 행만 바꾼다. 검수(입고일/사진)는 발주 편집 폼을 열어둔 채로 하는 작업이 아니라 별도 모달에서
+// 하므로, 혹시 그 사이 발주 편집 폼에서 다른 품목이 수정 중이어도 서로 덮어쓰지 않는다.
+export async function updatePurchaseOrderItemInspection(
+  itemId: string,
+  patch: PurchaseOrderItemInspectionPatch
+): Promise<void> {
+  const { error } = await supabaseProductionFinal
+    .from("plm_raw_material_purchase_order_items")
+    .update(patch)
+    .eq("id", itemId);
+  if (error) throw error;
+}
+
+// 검수조서용 원료 사진 업로드 - 호출 전에 lib/imageJpegConvert.ts의 convertImageToJpeg()로 용량을
+// 줄인 File을 넘겨받는다(용량 최적화는 호출부 책임, 이 함수는 업로드/URL 발급만 담당).
+export async function uploadPurchaseOrderInspectionPhoto(itemId: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `${itemId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabaseProductionFinal.storage.from(PO_INSPECTION_PHOTO_BUCKET).upload(path, file);
+  if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
+  const { data } = supabaseProductionFinal.storage.from(PO_INSPECTION_PHOTO_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // 금액 자동계산 - 화면(품목 행)에서 단가/수량/부가세율이 바뀔 때마다 호출해서 공급가/부가세/총액을

@@ -3,8 +3,9 @@
 import ExcelJS from "exceljs";
 import { border, downloadWorkbook } from "@/services/sprint2/documentExcelService";
 import { companyDisplayName, type Company } from "@/services/sprint2/companyService";
-import type { PurchaseOrder } from "@/services/sprint2/purchaseOrderService";
+import type { PurchaseOrder, PurchaseOrderItem } from "@/services/sprint2/purchaseOrderService";
 import { PO_APPROVAL_STAMP_PNG_BASE64 } from "@/services/sprint2/purchaseOrderAssets";
+import { sanitizeForFileName } from "@/services/sprint2/documentPdfService";
 
 // 원료 발주관리에서 저장된 발주를 사용자가 올려준 회사 공식 "발주서" 양식(NO/PAGE, 승인란, 발주자/
 // 공급받는자 정보, 품목표, 합계금액(일금 ...원정), 납기일자/유효일자/결제조건/비고)에 맞춰 PDF/엑셀로
@@ -544,4 +545,99 @@ export async function downloadPurchaseOrderExcel(order: PurchaseOrder, supplier:
   border(ws, r, 1, r, colCount);
 
   await downloadWorkbook(wb, `발주서_${order.order_no || "draft"}_${supplierName}.xlsx`);
+}
+
+// ============================================================
+// 검수조서(원료 입고정보) - "원료를 발주하고 입고되면 검수조서 양식 파일에 내용을 기입해야 하는데,
+// 발주관리에 이미 있는 내용을 활용해서 효율적으로 하고 싶다"는 요청사항 대응. 사용자가 올려준 양식
+// (제목 "원료 입고정보", "1. 원료 사진" + "2. 발주 정보" 표 + 비고)과 같은 구조로 HTML 문서를 만든다.
+// 품목(원료명/단가/수량/공급가/부가세/총액/비고)과 발주일은 이미 저장된 발주 데이터에서, 입고일/사진은
+// 품목에 추가로 저장해둔 검수 정보(received_date/photo_urls)에서 가져온다.
+// ============================================================
+function itemDisplayName(item: PurchaseOrderItem): string {
+  return item.trade_name || item.raw_name || item.raw_code || "";
+}
+
+// 다운로드 파일명 - 요청사항대로 "검수조서(원료발주 전자결제 업로드 파일)_원료명" 형식을 고정하고,
+// Windows에서 파일명에 못 쓰는 문자만 sanitizeForFileName(기존 문서 다운로드 공용 헬퍼)으로 치환한다.
+export function inspectionReportFileName(item: PurchaseOrderItem): string {
+  const name = itemDisplayName(item) || item.raw_code || "원료";
+  return sanitizeForFileName(`검수조서(원료발주 전자결제 업로드 파일)_${name}`);
+}
+
+// autoPrint=true일 때만 onload 자동 인쇄 스크립트를 넣는다 - "HTML 다운로드"로 받은 파일은 나중에
+// 다시 열어볼 때마다 인쇄창이 뜨면 불편하므로 빼고, 바로 인쇄/PDF 생성 용도(printInspectionReport)에만
+// 넣는다. 사진이 원격 URL이라 로드가 끝난 뒤에 인쇄되도록 onload를 그대로 사용(발주서와 동일한 관례).
+export function buildInspectionReportHtml(item: PurchaseOrderItem, order: PurchaseOrder, opts: { autoPrint?: boolean } = {}): string {
+  const name = itemDisplayName(item);
+  const photos = item.photo_urls || [];
+  const photoSection =
+    photos.length > 0
+      ? photos
+          .map(
+            (url, idx) => `<div class="photo-box">
+              <div class="photo-label">원료 사진 ${idx + 1}</div>
+              <div class="photo-frame"><img src="${esc(url)}" alt="원료 사진 ${idx + 1}" /></div>
+            </div>`
+          )
+          .join("")
+      : `<p style="color:#94a3b8;">등록된 사진이 없습니다.</p>`;
+
+  const infoRows: Array<[string, string]> = [
+    ["품목", name || "-"],
+    ["발주일", order.order_date || "-"],
+    ["입고일", item.received_date || "-"],
+    ["단가", `${fmtAmount(item.unit_price)} 원`],
+    ["수량(kg)", fmtQty(item.quantity)],
+    ["공급가", `${fmtAmount(item.supply_amount)} 원`],
+    ["부가세", `${fmtAmount(item.vat_amount)} 원`],
+    ["총금액", `${fmtAmount(item.total_amount)} 원`],
+  ];
+  const infoRowsHtml = infoRows.map(([k, v]) => `<tr><td class="label">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("");
+
+  const printScript = opts.autoPrint ? `<script>window.onload = () => { window.print(); }</script>` : "";
+
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<title>원료 입고정보 ${esc(name)}</title>
+<style>
+  * { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; box-sizing: border-box; }
+  body { padding: 28px; color: #111827; font-size: 13px; }
+  .doctitle { text-align:center; font-size:22px; font-weight:800; margin-bottom:18px; }
+  .section-title { font-size:15px; font-weight:800; margin:18px 0 8px; border-bottom:2px solid #333; padding-bottom:4px; }
+  .photo-gallery { display:flex; flex-wrap:wrap; gap:14px; }
+  .photo-box { width: 260px; }
+  .photo-label { text-align:center; font-weight:700; font-size:12px; border:1px solid #333; border-bottom:none; background:#f3f4f6; padding:4px 0; }
+  .photo-frame { border:1px solid #333; height: 220px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo-frame img { max-width:100%; max-height:100%; object-fit:contain; }
+  table.info { width:100%; border-collapse:collapse; margin-top:4px; }
+  table.info td { border:1px solid #333; padding:8px 10px; font-size:13px; }
+  table.info td.label { background:#f3f4f6; font-weight:700; width:28%; white-space:nowrap; }
+  .note-box { border:1px solid #333; min-height:70px; margin-top:4px; padding:8px 10px; white-space:pre-line; font-size:13px; }
+  @media print { body { padding:0; } }
+</style></head>
+<body>
+  <div class="doctitle">원료 입고정보</div>
+
+  <div class="section-title">1. 원료 사진</div>
+  <div class="photo-gallery">${photoSection}</div>
+
+  <div class="section-title">2. 발주 정보</div>
+  <table class="info">${infoRowsHtml}</table>
+  <div style="margin-top:10px;">
+    <div style="font-weight:700; font-size:13px; margin-bottom:4px;">비고</div>
+    <div class="note-box">${esc(item.note || "")}</div>
+  </div>
+  ${printScript}
+</body></html>`;
+}
+
+export function printInspectionReport(item: PurchaseOrderItem, order: PurchaseOrder) {
+  const html = buildInspectionReportHtml(item, order, { autoPrint: true });
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("팝업이 차단되었습니다. 팝업을 허용해주세요.");
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
 }
