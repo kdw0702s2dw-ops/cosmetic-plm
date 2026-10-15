@@ -8,6 +8,7 @@ import {
   TEST_PROGRESS_OPTIONS,
   type ShipmentRecordInput,
 } from "@/services/sprint2/shipmentRecordService";
+import { fetchAllProductionRecords, type ProductionRecord } from "@/services/sprint2/productionRecordService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import CompanyAutocompleteField from "@/components/common/CompanyAutocompleteField";
@@ -31,6 +32,40 @@ export default function ShipmentInputPanel() {
   const [draft, setDraft] = useState<ShipmentRecordInput>(newShipmentDraft());
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+
+  // 생산실적 검색/연동 - "생산실적 관리에서 입력한 내용들을 출고관리 쪽으로 연동해달라"는 요청에 따라,
+  // 제품코드/제품명/LOT (EXP)/제조일을 생산실적에서 찾아 한 번에 채워 넣을 수 있게 한다. 채워진 값은
+  // 아래 일반 입력칸과 동일하게 자유롭게 고쳐 쓸 수 있다(자동입력은 어디까지나 편의 기능).
+  const [prodKeyword, setProdKeyword] = useState("");
+  const [prodHits, setProdHits] = useState<ProductionRecord[]>([]);
+  const [prodSearching, setProdSearching] = useState(false);
+
+  async function searchProductionRecords() {
+    if (!prodKeyword.trim()) {
+      setProdHits([]);
+      return;
+    }
+    setProdSearching(true);
+    try {
+      setProdHits(await fetchAllProductionRecords({ keyword: prodKeyword }));
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : "생산실적 검색 오류" });
+    } finally {
+      setProdSearching(false);
+    }
+  }
+
+  function pickProductionRecord(r: ProductionRecord) {
+    setDraft((prev) => ({
+      ...prev,
+      product_code: r.confirmed_code || r.formula_code,
+      product_name: r.product_name || r.formula_name || "",
+      lot_exp: r.exp_date ? `${r.lot_no} (EXP ${r.exp_date})` : r.lot_no,
+      manufacture_date: r.production_date || null,
+    }));
+    setProdHits([]);
+    setProdKeyword("");
+  }
 
   async function handleAdd() {
     setAdding(true);
@@ -58,6 +93,40 @@ export default function ShipmentInputPanel() {
 
       <section className="v50-panel">
         <h2>출고 등록</h2>
+
+        <div style={{ marginTop: 10 }}>
+          <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 2 }}>
+            생산실적에서 불러오기 (확정코드/제품명/Lot No로 검색 후 선택하면 제품코드·제품명·LOT (EXP)·제조일이 자동으로 채워집니다)
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              className="v50-input" style={{ maxWidth: 280 }} value={prodKeyword}
+              onChange={(e) => setProdKeyword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && searchProductionRecords()}
+              placeholder="확정코드/제품명/Lot No 검색"
+            />
+            <button className="v50-button-light" onClick={searchProductionRecords} disabled={prodSearching}>{prodSearching ? "검색 중…" : "검색"}</button>
+          </div>
+          {prodHits.length > 0 && (
+            <div className="v50-table-wrap" style={{ marginTop: 8 }}>
+              <table className="v50-table">
+                <thead><tr><th>생산일자</th><th>확정코드</th><th>제품명</th><th>Lot No.</th><th></th></tr></thead>
+                <tbody>
+                  {prodHits.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.production_date}</td>
+                      <td>{r.confirmed_code || "-"}</td>
+                      <td>{r.product_name || r.formula_name || "-"}</td>
+                      <td>{r.lot_no}</td>
+                      <td><button className="v50-button-light" onClick={() => pickProductionRecord(r)}>선택</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 10 }}>
           <Field label="출고일">
             <input className="v50-input" type="date" value={draft.shipment_date || ""} onChange={(e) => setDraft({ ...draft, shipment_date: e.target.value || null })} />
@@ -80,6 +149,9 @@ export default function ShipmentInputPanel() {
           </Field>
           <Field label="LOT (EXP)">
             <input className="v50-input" value={draft.lot_exp || ""} onChange={(e) => setDraft({ ...draft, lot_exp: e.target.value })} />
+          </Field>
+          <Field label="제조일">
+            <input className="v50-input" type="date" value={draft.manufacture_date || ""} onChange={(e) => setDraft({ ...draft, manufacture_date: e.target.value || null })} />
           </Field>
           <Field label="기능성">
             <select className="v50-input" value={draft.functional_claim} onChange={(e) => setDraft({ ...draft, functional_claim: e.target.value as ShipmentRecordInput["functional_claim"] })}>

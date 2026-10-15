@@ -19,6 +19,9 @@ export type ShipmentRecord = {
   product_code: string | null;
   product_name: string | null;
   lot_exp: string | null;
+  // 제조일(생산실적관리의 생산일자) - 출고 등록 시 생산실적을 검색해서 선택하면 그 생산실적의
+  // 생산일자가 자동으로 채워진다(업무 효율을 위한 연동 요청). 직접 입력/수정도 가능한 일반 날짜 칸.
+  manufacture_date: string | null; // YYYY-MM-DD
   functional_claim: FunctionalClaim;
   heavy_metal_status: TestProgressStatus;
   microbial_status: TestProgressStatus;
@@ -38,6 +41,7 @@ const emptyDraft: ShipmentRecordInput = {
   product_code: "",
   product_name: "",
   lot_exp: "",
+  manufacture_date: null,
   functional_claim: "해당없음",
   heavy_metal_status: "해당없음",
   microbial_status: "해당없음",

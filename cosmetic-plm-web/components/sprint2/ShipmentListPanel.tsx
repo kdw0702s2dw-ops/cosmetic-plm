@@ -89,7 +89,7 @@ export default function ShipmentListPanel() {
     return rows.filter((r) => {
       const haystack = [
         r.shipment_date, r.customer, r.quantity != null ? String(r.quantity) : "",
-        r.product_code, r.product_name, r.lot_exp,
+        r.product_code, r.product_name, r.lot_exp, r.manufacture_date,
       ]
         .filter(Boolean)
         .join(" ")
@@ -101,7 +101,8 @@ export default function ShipmentListPanel() {
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
-        등록된 모든 출고 기록을 검색·조회합니다. 출고일·고객사·수량·제품코드·제품명·LOT (EXP)로 검색할 수 있습니다.
+        등록된 모든 출고 기록을 검색·조회합니다. 출고일·고객사·수량·제품코드·제품명·LOT (EXP)·제조일로 검색할 수 있습니다.
+        제조일은 생산실적관리의 생산일자와 연동됩니다(출고 등록 시 생산실적을 검색해서 선택하면 자동으로 채워짐).
       </p>
 
       {errorMsg && <p style={{ color: "#dc2626", fontWeight: 800 }}>{errorMsg}</p>}
@@ -116,7 +117,7 @@ export default function ShipmentListPanel() {
             className="v50-input"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="출고일/고객사/수량/제품코드/제품명/LOT (EXP) 검색"
+            placeholder="출고일/고객사/수량/제품코드/제품명/LOT (EXP)/제조일 검색"
             style={{ flex: 1, maxWidth: 360 }}
           />
         </div>
@@ -124,7 +125,7 @@ export default function ShipmentListPanel() {
           {/* 컬럼이 많고 제품명·LOT(EXP)처럼 긴 값이 들어가는 칸도 있어서, 표 자체가 화면보다 넓어질 수
               있다 - v50-table-wrap의 가로 스크롤로 보고, 각 칸은 min-width를 줘서 값이 잘려 보이지
               않게 한다(원료관리 등 다른 화면과 동일하게 폭이 좁아지면 스크롤로 해결). */}
-          <table className="v50-table" style={{ minWidth: 1360 }}>
+          <table className="v50-table" style={{ minWidth: 1490 }}>
             <thead>
               <tr>
                 <th style={{ minWidth: 130 }}>출고일</th>
@@ -133,6 +134,7 @@ export default function ShipmentListPanel() {
                 <th style={{ minWidth: 130 }}>제품코드</th>
                 <th style={{ minWidth: 260 }}>제품명</th>
                 <th style={{ minWidth: 220 }}>LOT (EXP)</th>
+                <th style={{ minWidth: 130 }}>제조일</th>
                 <th style={{ minWidth: 140 }}>기능성</th>
                 <th style={{ minWidth: 110 }}>중금속</th>
                 <th style={{ minWidth: 110 }}>미생물</th>
@@ -190,6 +192,13 @@ export default function ShipmentListPanel() {
                     </td>
                     <td>
                       {canWrite ? (
+                        <input className="v50-input" style={{ minWidth: 130 }} type="date" value={r.manufacture_date || ""}
+                          onChange={(e) => editCell(r.id, { manufacture_date: e.target.value || null })}
+                          onBlur={(e) => persistCell(r.id, { manufacture_date: e.target.value || null })} />
+                      ) : (r.manufacture_date || "-")}
+                    </td>
+                    <td>
+                      {canWrite ? (
                         <select className="v50-input" style={{ minWidth: 140 }} value={r.functional_claim}
                           onChange={(e) => { const v = e.target.value as ShipmentRecord["functional_claim"]; editCell(r.id, { functional_claim: v }); persistCell(r.id, { functional_claim: v }); }}>
                           {FUNCTIONAL_CLAIM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -221,10 +230,10 @@ export default function ShipmentListPanel() {
                 );
               })}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={canWrite ? 10 : 9} style={{ color: "#94a3b8" }}>{rows.length === 0 ? "등록된 출고 기록이 없습니다." : "검색 조건에 맞는 기록이 없습니다."}</td></tr>
+                <tr><td colSpan={canWrite ? 11 : 10} style={{ color: "#94a3b8" }}>{rows.length === 0 ? "등록된 출고 기록이 없습니다." : "검색 조건에 맞는 기록이 없습니다."}</td></tr>
               )}
               {loading && rows.length === 0 && (
-                <tr><td colSpan={canWrite ? 10 : 9} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>
+                <tr><td colSpan={canWrite ? 11 : 10} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>
               )}
             </tbody>
           </table>
