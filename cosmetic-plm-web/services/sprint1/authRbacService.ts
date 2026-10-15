@@ -140,6 +140,14 @@ export function canWriteQuality(role?: string | null) {
   return role === "Admin" || role === "Researcher" || role === "QA";
 }
 
+// 출고관리(plm_shipment_records) 삭제 전용 - 등록/수정은 canWriteProduction(Admin/Researcher/Production)과
+// 동일하게 유지하되, 삭제만 Admin으로 제한한다("삭제 버튼은 그대로 보이되 실제 삭제는 Admin만" 요청).
+// RLS에도 plm_shipment_records_delete_admin_only(RESTRICTIVE, Admin만 통과)로 동일하게 걸려있음 - 프론트만
+// 막고 RLS를 안 맞추면 버튼이 안 보여도 다른 경로로 뚫릴 수 있다는 이중 방어 원칙(AGENTS.md)에 따른 것.
+export function canDeleteShipmentRecords(role?: string | null) {
+  return role === "Admin";
+}
+
 export async function fetchUserProfiles() {
   const { data, error } = await supabaseProductionFinal
     .from("plm_user_profiles")

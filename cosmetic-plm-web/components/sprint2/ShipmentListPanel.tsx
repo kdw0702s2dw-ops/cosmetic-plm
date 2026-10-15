@@ -26,6 +26,10 @@ function fmtQty(q: number | null) {
 export default function ShipmentListPanel() {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteProduction;
+  // 삭제 버튼은 기존대로 canWrite(Admin/Researcher/Production) 기준으로 그대로 보이되, 실제 삭제 실행은
+  // Admin만 가능하도록 제한한다(버튼 노출은 유지하고 권한만 바꿔달라는 요청) - RLS도 Admin만 통과하는
+  // RESTRICTIVE 정책을 추가해뒀으므로, 아래 프론트 체크를 우회해도 DB에서 다시 막힌다.
+  const canDelete = auth.canDeleteShipmentRecords;
   const [rows, setRows] = useState<ShipmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -66,6 +70,10 @@ export default function ShipmentListPanel() {
   }
 
   async function handleDelete(row: ShipmentRecord) {
+    if (!canDelete) {
+      setErrorMsg("출고 기록 삭제는 관리자(Admin)만 실행할 수 있습니다.");
+      return;
+    }
     if (!confirm(`${row.shipment_date || ""} ${row.customer || ""} ${row.product_name || ""} 출고 기록을 삭제하시겠습니까?`)) return;
     try {
       await deleteShipmentRecord(row.id);
