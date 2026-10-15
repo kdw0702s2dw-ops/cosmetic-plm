@@ -37,6 +37,15 @@ const PAYMENT_STATUS_COLOR: Record<PurchaseOrderPaymentStatus, { bg: string; fg:
   미결제: { bg: "#fee2e2", fg: "#dc2626" },
   결제완료: { bg: "#dcfce7", fg: "#16a34a" },
 };
+// "검수조서" 버튼 등록 여부 표시색 - 기존 STATUS_COLOR.부분입고와 같은 노랑 계열을 재사용해 디자인
+// 톤을 맞춘다. 색만으로 구분하면 색약 사용자가 놓칠 수 있어 버튼 라벨도 "검수조서 완료"로 같이 바꾼다.
+const INSPECTION_DONE_COLOR = { bg: "#fde047", fg: "#854d0e" };
+
+// 입고일 또는 사진이 하나라도 등록돼 있으면 "검수조서 등록됨"으로 간주한다 - 비고만 입력된 경우는
+// 검수조서 작성이 아니라 발주 품목 비고를 쓴 것과 구분이 어려워 신호로 쓰지 않는다.
+function isInspectionRegistered(item: PurchaseOrderItem): boolean {
+  return Boolean(item.received_date) || Boolean(item.photo_urls && item.photo_urls.length > 0);
+}
 
 function Badge({ text, color }: { text: string; color: { bg: string; fg: string } }) {
   return (
@@ -589,8 +598,18 @@ export default function RawMaterialPurchaseOrderManager({
                       <td>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {/* 품목이 저장되어 id가 생긴 뒤에만 검수조서(입고일/사진/비고)를 쓸 수 있다 - 아직
-                              저장 전인 새 행은 먼저 "발주 저장"을 눌러야 버튼이 나타난다. */}
-                          {it.id && <button className="v50-button-light" onClick={() => setInspectionTarget({ order, item: it })}>검수조서</button>}
+                              저장 전인 새 행은 먼저 "발주 저장"을 눌러야 버튼이 나타난다. 입고일/사진이 이미
+                              등록된 품목은 버튼을 노란색으로 바꾸고 라벨도 "완료"로 바꿔서 한눈에 등록 여부를
+                              구분할 수 있게 한다(요청사항: "검수조서 등록되면 노란색으로 변해서 알 수 있게"). */}
+                          {it.id && (
+                            <button
+                              className="v50-button-light"
+                              style={isInspectionRegistered(it) ? { background: INSPECTION_DONE_COLOR.bg, color: INSPECTION_DONE_COLOR.fg, fontWeight: 800, border: "none" } : undefined}
+                              onClick={() => setInspectionTarget({ order, item: it })}
+                            >
+                              {isInspectionRegistered(it) ? "검수조서 완료" : "검수조서"}
+                            </button>
+                          )}
                           {canWrite && <button className="v50-button-light" onClick={() => removeItemRow(i)}>삭제</button>}
                         </div>
                       </td>

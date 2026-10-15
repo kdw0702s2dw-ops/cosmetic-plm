@@ -195,7 +195,10 @@ export function buildPurchaseOrderDraftsFromShortage(rows: ShortageRow[]): Purch
       unit: "kg",
       packing: r.moq || "",
       ...calcItemAmounts({ unit_price, quantity, vat_rate: 0.1 }),
-      note: "제조량 확인 · 합산 부족 원료 목록에서 생성",
+      // 비고는 자동으로 채우지 않는다(요청사항: "비고에 제조량 확인 문구가 자동으로 기입되지 않도록") -
+      // 이 발주 초안이 "제조량 확인 · 합산 부족 원료 목록"에서 왔다는 사실은 화면(가져온 발주 초안 안내
+      // 영역)에서 이미 보여주고 있고, 비고는 실제 발주 메모를 위해 비워둔 채로 시작한다(위 ...emptyPurchaseOrderItem()이
+      // 채워둔 빈 문자열 기본값을 그대로 둔다 - 여기서 따로 덮어쓰지 않음).
     };
     group.order.items.push(item);
   }

@@ -108,9 +108,8 @@ export function buildPurchaseOrderHtml(order: PurchaseOrder, supplier: Company |
   const vatTotal = sumField(order, "vat_amount");
   const grandTotal = supplyTotal + vatTotal;
 
-  // 품목별 "비고"(발주 초안 생성 시 자동으로 들어가는 "제조량 확인 · 합산 부족 원료 목록에서 생성" 같은
-  // 내부용 문구)는 발주서에는 불필요한 내용이라 표에서 아예 뺀다(검토 요청사항). 전체 비고(아래 footer의
-  // 배송 안내 등)는 별도 항목이라 그대로 유지한다.
+  // 품목별 "비고"는 자유 메모 성격이라 발주서 양식에는 불필요해 표에서 아예 뺀다(검토 요청사항). 전체
+  // 비고(아래 footer의 배송 안내 등)는 별도 항목이라 그대로 유지한다.
   const itemRows = order.items
     .map(
       (it, idx) => `<tr>
