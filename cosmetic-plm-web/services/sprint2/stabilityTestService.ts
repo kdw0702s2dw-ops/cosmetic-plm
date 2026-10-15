@@ -43,6 +43,9 @@ export type StabilityTest = {
   revision: string;
   formula_name?: string | null;
   confirmed_code?: string | null;
+  // 처방 컨펌 후 확정된 제품명(plm_formulas.product_name) - plm_stability_tests에는 저장되지 않고,
+  // fetchStabilityTests가 조회 시마다 attachLiveFormulaInfoToTests로 plm_formulas에서 채워 넣는 live 값.
+  product_name?: string | null;
   sample_name?: string | null;
   lot_no?: string | null;
   manufacture_date?: string | null;
@@ -221,6 +224,29 @@ export function suggestJudgement(item: StabilityItemTemplate, value: string): "�
 
 export { searchFormulasByCodeOrConfirmedCode } from "./sourcingScheduleService";
 
+// 시료 등록 시점의 확정코드/처방명 스냅샷은 저장돼 있지만 제품명(컨펌 후 확정)은 저장되지 않고, 처방관리에서
+// 확정코드가 나중에 바뀌어도 반영되지 않는 문제가 있다(체크포인트 쪽의 attachLiveFormulaInfoToCheckpoints와
+// 동일한 문제/해결 방식). 조회할 때마다 plm_formulas에서 해당 처방(formula_code+revision)의 "현재" 확정코드/
+// 제품명을 다시 가져와 있으면 그 값으로 덮어쓰고, 처방이 삭제됐거나 값이 비어있으면 스냅샷으로 폴백한다.
+async function attachLiveFormulaInfoToTests(items: StabilityTest[]): Promise<StabilityTest[]> {
+  const codes = Array.from(new Set(items.map((t) => t.formula_code).filter(Boolean)));
+  if (codes.length === 0) return items;
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, confirmed_code, product_name")
+    .in("formula_code", codes);
+  if (error || !data) return items; // 보강 조회가 실패해도 기존 스냅샷 표시는 그대로 유지
+  const liveMap = new Map<string, { confirmed_code?: string | null; product_name?: string | null }>();
+  for (const f of data as { formula_code: string; revision: string; confirmed_code?: string | null; product_name?: string | null }[]) {
+    liveMap.set(`${f.formula_code}__${f.revision}`, { confirmed_code: f.confirmed_code, product_name: f.product_name });
+  }
+  return items.map((t) => {
+    const live = liveMap.get(`${t.formula_code}__${t.revision}`);
+    if (!live) return t;
+    return { ...t, confirmed_code: live.confirmed_code || t.confirmed_code, product_name: live.product_name };
+  });
+}
+
 export async function fetchStabilityTests(): Promise<StabilityTest[]> {
   const { data, error } = await supabaseProductionFinal
     .from("plm_stability_tests")
@@ -228,7 +254,7 @@ export async function fetchStabilityTests(): Promise<StabilityTest[]> {
     .order("updated_at", { ascending: false })
     .limit(200);
   if (error) throw error;
-  return (data || []) as StabilityTest[];
+  return attachLiveFormulaInfoToTests((data || []) as StabilityTest[]);
 }
 
 export async function saveStabilityTest(entry: StabilityTest): Promise<StabilityTest> {
@@ -510,7 +536,8 @@ export function buildStabilityCertificateHtml(test: StabilityTest, conditions: S
 
   const metaRows = [
     ["처방코드", test.formula_code], ["확정코드", test.confirmed_code || "-"],
-    ["시료명", test.sample_name || test.formula_name || "-"], ["Revision", test.revision],
+    ["제품명(확정)", test.product_name || "-"], ["처방명", test.formula_name || "-"],
+    ["시료명", test.sample_name || "-"], ["Revision", test.revision],
     ["Lot No.", test.lot_no || "-"], ["제조일자", test.manufacture_date || "-"],
     ["보관 위치", test.storage_location || "-"], ["담당자", test.assignee || "-"],
   ]

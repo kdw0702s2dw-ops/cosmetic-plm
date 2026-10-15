@@ -47,8 +47,22 @@ function TestForm({ s }: { s: S }) {
         </div>
       )}
       {s.selectedFormula ? (
-        <div style={{ fontSize: 13, color: "#334155", marginTop: 10 }}>
-          <b>{s.selectedFormula.formula_code}</b> ({s.selectedFormula.revision}) {s.selectedFormula.formula_name || "-"}
+        <div className="v50-card" style={{ padding: 10, marginTop: 10, background: "#f8fafc" }}>
+          <div style={{ fontSize: 13, color: "#334155" }}>
+            <b>{s.selectedFormula.formula_code}</b> ({s.selectedFormula.revision}) {s.selectedFormula.formula_name || "-"}
+          </div>
+          {/* 확정코드/제품명은 선택한 처방에서 그대로 연동되는 값이라 직접 입력하지 않고 읽기 전용으로 보여준다
+              (처방관리에서 바뀌면 이 화면도 다시 검색/선택 시 최신값을 따라간다). */}
+          <div className="v50-grid-2" style={{ marginTop: 8 }}>
+            <label style={{ display: "grid", gap: 4, fontWeight: 800, fontSize: 12 }}>
+              확정코드
+              <input className="v50-input" value={s.selectedFormula.confirmed_code || "-"} readOnly disabled style={{ background: "#eef2f7", color: "#475569" }} />
+            </label>
+            <label style={{ display: "grid", gap: 4, fontWeight: 800, fontSize: 12 }}>
+              제품명 (컨펌 후 확정)
+              <input className="v50-input" value={s.selectedFormula.product_name || "-"} readOnly disabled style={{ background: "#eef2f7", color: "#475569" }} />
+            </label>
+          </div>
         </div>
       ) : (
         <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 10 }}>처방을 검색해서 선택하세요.</p>
@@ -292,7 +306,7 @@ export default function StabilityTestPanel({
             <h2 style={{ margin: 0, fontSize: 15 }}>시료 목록 ({s.allTestsCount})</h2>
             {s.canWrite && <button className="v50-button-light" onClick={s.newTestForm}>+ 새 시료</button>}
           </div>
-          <input className="v50-input" style={{ marginTop: 8 }} value={s.listKeyword} onChange={(e) => s.setListKeyword(e.target.value)} placeholder="처방코드/시료명/Lot No 검색" />
+          <input className="v50-input" style={{ marginTop: 8 }} value={s.listKeyword} onChange={(e) => s.setListKeyword(e.target.value)} placeholder="처방코드/확정코드/시료명/Lot No 검색" />
 
           {s.showTestForm && <TestForm s={s} />}
 
@@ -304,8 +318,10 @@ export default function StabilityTestPanel({
                 className={s.selectedTestId === t.id ? "v50-button" : "v50-button-light"}
                 style={{ textAlign: "left", justifyContent: "flex-start", display: "block", padding: "8px 10px" }}
               >
-                <div style={{ fontWeight: 800, fontSize: 13 }}>{t.sample_name || t.formula_name || t.formula_code}</div>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>{t.sample_name || t.product_name || t.formula_name || t.formula_code}</div>
                 <div style={{ fontSize: 11, opacity: 0.85 }}>{t.formula_code} · Lot {t.lot_no || "-"} · {t.status}</div>
+                {/* 시료명(자유 입력)과는 별개로, 제품명(컨펌 후 확정)과 처방명을 항상 함께 보여준다. */}
+                <div style={{ fontSize: 11, opacity: 0.75, marginTop: 1 }}>제품명 {t.product_name || "-"} · 처방명 {t.formula_name || "-"}</div>
               </button>
             ))}
             {s.tests.length === 0 && <p style={{ color: "#94a3b8", fontSize: 12 }}>{s.loading ? "불러오는 중..." : "등록된 시료가 없습니다."}</p>}
@@ -320,9 +336,13 @@ export default function StabilityTestPanel({
               <section className="v50-panel">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <h2 style={{ margin: 0 }}>{s.selectedTest.sample_name || s.selectedTest.formula_name}</h2>
+                    <h2 style={{ margin: 0 }}>{s.selectedTest.sample_name || s.selectedTest.product_name || s.selectedTest.formula_name}</h2>
                     <p style={{ color: "#64748b", fontSize: 13, margin: "4px 0 0" }}>
                       {s.selectedTest.formula_code} (Rev {s.selectedTest.revision}) · 확정코드 {s.selectedTest.confirmed_code || "-"} · Lot {s.selectedTest.lot_no || "-"} · 담당자 {s.selectedTest.assignee || "-"}
+                    </p>
+                    {/* 시료명(자유 입력)과는 별개로, 제품명(컨펌 후 확정)과 처방명을 항상 함께 보여준다. */}
+                    <p style={{ color: "#64748b", fontSize: 12, margin: "2px 0 0" }}>
+                      제품명(확정) {s.selectedTest.product_name || "-"} · 처방명 {s.selectedTest.formula_name || "-"}
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

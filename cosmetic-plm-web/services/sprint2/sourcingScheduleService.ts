@@ -57,7 +57,7 @@ export async function searchFormulasByCodeOrConfirmedCode(keyword: string) {
   if (!k) return [];
   const { data, error } = await supabaseProductionFinal
     .from("plm_formulas")
-    .select("formula_code, revision, formula_name, confirmed_code")
+    .select("formula_code, revision, formula_name, confirmed_code, product_name")
     .eq("is_active", true)
     .or(`formula_code.ilike.%${k}%,confirmed_code.ilike.%${k}%`)
     .order("updated_at", { ascending: false })

@@ -35,7 +35,14 @@ import {
   type StabilityCheckpoint,
 } from "@/services/sprint2/stabilityTestService";
 
-type FormulaRef = { formula_code: string; revision: string; formula_name?: string; confirmed_code?: string };
+type FormulaRef = {
+  formula_code: string;
+  revision: string;
+  formula_name?: string;
+  confirmed_code?: string;
+  // 처방관리의 제품명(컨펌 후 확정) - 선택한 처방에 연동되는 읽기 전용 값(TestForm에서 직접 입력하지 않음).
+  product_name?: string;
+};
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -179,6 +186,7 @@ export function useStabilityTest() {
     setSelectedFormula({
       formula_code: t.formula_code, revision: t.revision,
       formula_name: t.formula_name || undefined, confirmed_code: t.confirmed_code || undefined,
+      product_name: t.product_name || undefined,
     });
     setFormulaKeyword("");
     setFormulaHits([]);
