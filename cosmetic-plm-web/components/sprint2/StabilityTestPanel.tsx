@@ -8,6 +8,7 @@ import {
   type StabilityConditionWithCheckpoints,
   type StabilityCheckpoint,
   type StabilityTestStatus,
+  type StabilityItemTemplate,
 } from "@/services/sprint2/stabilityTestService";
 import "@/styles/enterprise-v50.css";
 
@@ -18,6 +19,22 @@ function judgementBadgeClass(j: string) {
   if (j === "부적합") return "danger";
   if (j === "관찰필요") return "warn";
   return "";
+}
+
+// 결과 입력 화면의 "기준" 칸 - 해당 항목을 "새 시험조건 추가"에서 구성할 때 입력한 기준(숫자형은
+// 최소~최대, 텍스트형은 기준 설명)을 그대로 보여준다. 항목이 조건 추가 이후 삭제됐거나(수동 추가 항목 등)
+// 기준을 비워뒀으면 "-"로 표시한다.
+function specLabel(tmpl?: StabilityItemTemplate) {
+  if (!tmpl) return "-";
+  if (tmpl.type === "number") {
+    const min = tmpl.spec_min ?? null;
+    const max = tmpl.spec_max ?? null;
+    if (min == null && max == null) return "-";
+    if (min != null && max != null) return `${min} ~ ${max}${tmpl.unit || ""}`;
+    if (min != null) return `${min}${tmpl.unit || ""} 이상`;
+    return `${max}${tmpl.unit || ""} 이하`;
+  }
+  return tmpl.spec_text || "-";
 }
 
 function TestForm({ s }: { s: S }) {
@@ -178,22 +195,26 @@ function CheckpointResultForm({ s }: { s: S }) {
       </div>
       <div className="v50-table-wrap">
         <table className="v50-table">
-          <thead><tr><th>항목</th><th>측정값</th><th>판정</th></tr></thead>
+          <thead><tr><th>항목</th><th>기준</th><th>측정값</th><th>판정</th></tr></thead>
           <tbody>
-            {s.resultDraft.map((r, i) => (
-              <tr key={r.key}>
-                <td>{r.label}</td>
-                <td><input className="v50-input" value={r.value} onChange={(e) => s.updateResultValue(i, e.target.value)} /></td>
-                <td>
-                  <select className="v50-input" value={r.judgement} onChange={(e) => s.updateResultJudgement(i, e.target.value as typeof r.judgement)}>
-                    <option value="">-</option>
-                    <option value="적합">적합</option>
-                    <option value="부적합">부적합</option>
-                    <option value="관찰필요">관찰필요</option>
-                  </select>
-                </td>
-              </tr>
-            ))}
+            {s.resultDraft.map((r, i) => {
+              const tmpl = s.activeConditionForCheckpoint?.item_templates.find((t) => t.key === r.key);
+              return (
+                <tr key={r.key}>
+                  <td>{r.label}</td>
+                  <td style={{ color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>{specLabel(tmpl)}</td>
+                  <td><input className="v50-input" value={r.value} onChange={(e) => s.updateResultValue(i, e.target.value)} /></td>
+                  <td>
+                    <select className="v50-input" value={r.judgement} onChange={(e) => s.updateResultJudgement(i, e.target.value as typeof r.judgement)}>
+                      <option value="">-</option>
+                      <option value="적합">적합</option>
+                      <option value="부적합">부적합</option>
+                      <option value="관찰필요">관찰필요</option>
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
