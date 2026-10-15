@@ -94,8 +94,13 @@ export type CheckpointWithContext = StabilityCheckpoint & {
     test: {
       id: string;
       formula_code: string;
+      revision: string;
       sample_name: string | null;
       formula_name: string | null;
+      confirmed_code: string | null;
+      // 처방 컨펌 후 확정된 제품명(plm_formulas.product_name) - plm_stability_tests에는 저장되지
+      // 않고, attachLiveFormulaInfoToCheckpoints가 조회 시마다 plm_formulas에서 채워 넣는다.
+      product_name?: string | null;
       assignee: string | null;
       status: StabilityTestStatus;
     } | null;
@@ -254,7 +259,39 @@ export async function deleteStabilityTest(id: string) {
 }
 
 const CHECKPOINT_CONTEXT_SELECT =
-  "*, condition:plm_stability_conditions(id, condition_label, condition_type, test:plm_stability_tests(id, formula_code, sample_name, formula_name, assignee, status))";
+  "*, condition:plm_stability_conditions(id, condition_label, condition_type, test:plm_stability_tests(id, formula_code, revision, sample_name, formula_name, confirmed_code, assignee, status))";
+
+// 체크포인트 목록에는 시료 등록 시점의 확정코드 스냅샷만 들어있는데, 처방관리에서 확정코드/제품명(컨펌
+// 후 확정)을 시료 등록 "이후"에 입력하거나 수정하면 반영되지 않는 문제가 있다(생산일정관리와 동일한
+// 문제/해결 방식 - services/sprint2/productionScheduleService.ts의 attachLiveFormulaInfo 참고). 그래서
+// 조회할 때마다 plm_formulas에서 해당 처방(formula_code+revision)의 "현재" 확정코드/제품명을 다시
+// 가져와 있으면 그 값으로 덮어쓰고, 처방이 이미 삭제됐거나 값이 비어있으면 저장된 스냅샷으로 폴백한다.
+async function attachLiveFormulaInfoToCheckpoints(items: CheckpointWithContext[]): Promise<CheckpointWithContext[]> {
+  const codes = Array.from(new Set(items.map((cp) => cp.condition?.test?.formula_code).filter(Boolean))) as string[];
+  if (codes.length === 0) return items;
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, confirmed_code, product_name")
+    .in("formula_code", codes);
+  if (error || !data) return items; // 보강 조회가 실패해도 기존 스냅샷 표시는 그대로 유지
+  const liveMap = new Map<string, { confirmed_code?: string | null; product_name?: string | null }>();
+  for (const f of data as { formula_code: string; revision: string; confirmed_code?: string | null; product_name?: string | null }[]) {
+    liveMap.set(`${f.formula_code}__${f.revision}`, { confirmed_code: f.confirmed_code, product_name: f.product_name });
+  }
+  return items.map((cp) => {
+    const test = cp.condition?.test;
+    if (!test) return cp;
+    const live = liveMap.get(`${test.formula_code}__${test.revision}`);
+    if (!live) return cp;
+    return {
+      ...cp,
+      condition: cp.condition && {
+        ...cp.condition,
+        test: { ...test, confirmed_code: live.confirmed_code || test.confirmed_code, product_name: live.product_name },
+      },
+    };
+  });
+}
 
 // 품질관리 홈 달력용 - 특정 월(from~to, YYYY-MM-DD, inclusive)에 예정일이 있는 체크포인트를 시료/조건 정보와
 // 함께 전부 가져온다. 시료 전체를 대상으로 하므로(하나의 시료만 보는 fetchStabilityConditions와 다름) 별도 함수로 둔다.
@@ -266,7 +303,7 @@ export async function fetchAllStabilityCheckpoints(from: string, to: string): Pr
     .lte("due_date", to)
     .order("due_date", { ascending: true });
   if (error) throw error;
-  return (data || []) as unknown as CheckpointWithContext[];
+  return attachLiveFormulaInfoToCheckpoints((data || []) as unknown as CheckpointWithContext[]);
 }
 
 // 품질관리 홈 알림 배너/뱃지용 - 아직 완료되지 않은(예정) 체크포인트를 월과 무관하게 전부 가져온다.
@@ -279,7 +316,7 @@ export async function fetchOpenStabilityAlerts(): Promise<CheckpointWithContext[
     .order("due_date", { ascending: true })
     .limit(500);
   if (error) throw error;
-  return (data || []) as unknown as CheckpointWithContext[];
+  return attachLiveFormulaInfoToCheckpoints((data || []) as unknown as CheckpointWithContext[]);
 }
 
 export async function fetchStabilityConditions(testId: string): Promise<StabilityConditionWithCheckpoints[]> {

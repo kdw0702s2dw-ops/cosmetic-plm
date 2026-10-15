@@ -112,7 +112,7 @@ export default function StabilityHomePanel({ onOpenTest }: { onOpenTest: (testId
 
         <div id="stability-home-list" className="v50-table-wrap" style={{ marginTop: 12 }}>
           <table className="v50-table">
-            <thead><tr><th>날짜</th><th>시료</th><th>시험조건</th><th>담당자</th><th>상태</th><th></th></tr></thead>
+            <thead><tr><th>날짜</th><th>확정코드</th><th>Revision</th><th>시료</th><th>시험조건</th><th>담당자</th><th>상태</th><th></th></tr></thead>
             <tbody>
               {s.listItems.map((cp) => {
                 const st = statusOf(cp, s);
@@ -120,7 +120,9 @@ export default function StabilityHomePanel({ onOpenTest }: { onOpenTest: (testId
                 return (
                   <tr key={cp.id}>
                     <td style={{ color: st === "지연" ? "#dc2626" : undefined, fontWeight: st === "지연" ? 800 : undefined }}>{cp.due_date}</td>
-                    <td>{test?.sample_name || test?.formula_name || test?.formula_code || "-"}</td>
+                    <td>{test?.confirmed_code || "-"}</td>
+                    <td>{test?.revision || "-"}</td>
+                    <td>{test?.sample_name || test?.product_name || test?.formula_name || test?.formula_code || "-"}</td>
                     <td>{cp.condition?.condition_label || "-"} · {cp.checkpoint_label}</td>
                     <td>{test?.assignee || "-"}</td>
                     <td><span className={`v50-badge ${st === "지연" ? "danger" : st === "임박" ? "warn" : st === "완료" ? "ok" : ""}`}>{st}</span></td>
@@ -128,7 +130,7 @@ export default function StabilityHomePanel({ onOpenTest }: { onOpenTest: (testId
                   </tr>
                 );
               })}
-              {s.listItems.length === 0 && <tr><td colSpan={6} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>}
+              {s.listItems.length === 0 && <tr><td colSpan={8} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>}
             </tbody>
           </table>
         </div>
