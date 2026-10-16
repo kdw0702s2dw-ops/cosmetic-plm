@@ -76,7 +76,10 @@ const SELF_PRODUCED_RAW_CODES = new Set(["1LQA004A"]);
 
 // BOM 라인 중 재고 관리 대상(7개 접두사) 원료만 대상으로, 처방(목표 제조량 포함) 여러 건의 필요량을
 // raw_code 기준으로 합산한다. 처방이 1건뿐이면 기존 단일 처방 계산과 동일한 결과가 나온다.
-function sumRequiredByRawCode(
+// export: 칭량_원료재고 화면의 "오늘 제조한 처방으로 금일사용량 자동 반영" 기능(useRawMaterialStockCheck)도
+// 동일한 계산(BOM 비율 × 제조량)이 필요해서 재사용한다 - 원료 부족분 계산과 식이 똑같아야 두 화면의
+// 숫자가 서로 어긋나지 않는다.
+export function sumRequiredByRawCode(
   entries: { lines: { raw_code?: string; raw_name?: string; percentage: number | string }[]; target_qty_kg: number }[]
 ): Map<string, { raw_name: string; required_qty: number }> {
   const requiredByRawCode = new Map<string, { raw_name: string; required_qty: number }>();

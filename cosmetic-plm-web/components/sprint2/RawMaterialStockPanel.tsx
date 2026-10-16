@@ -65,6 +65,109 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
         </label>
       </section>
 
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>오늘 제조한 처방으로 금일사용량 자동 반영</h2>
+        <p className="v50-desc" style={{ marginBottom: 10 }}>
+          처방을 검색해서 제조 목록에 담고 제조량(kg)을 입력하세요. 목록에 담긴 처방들의 BOM 비율대로
+          재고 관리 대상 원료의 금일사용량을 자동으로 계산합니다. 당일에 여러 처방을 제조했다면 전부
+          목록에 담은 뒤 한 번에 반영하면 됩니다(같은 원료를 여러 처방이 쓰면 자동으로 합산됩니다).
+          &ldquo;반영&rdquo;을 눌러도 아래 표의 금일사용량 칸만 채워질 뿐 바로 저장되지는 않으니, 내용을
+          확인한 뒤 맨 아래 &ldquo;저장&rdquo;을 눌러야 합니다.
+        </p>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input
+            className="v50-input" style={{ maxWidth: 300 }} value={s.qtyKeyword}
+            onChange={(e) => s.setQtyKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && s.searchQtyFormulas()}
+            placeholder="처방코드/처방명/확정코드 검색"
+          />
+          <button className="v50-button-light" onClick={s.searchQtyFormulas} disabled={s.qtySearching}>
+            {s.qtySearching ? "검색 중…" : "검색"}
+          </button>
+        </div>
+
+        {s.qtyFormulas.length > 0 && (
+          <div className="v50-table-wrap" style={{ marginBottom: 10 }}>
+            <table className="v50-table">
+              <thead><tr><th>처방코드</th><th>처방명</th><th>Rev</th><th>확정코드</th><th></th></tr></thead>
+              <tbody>
+                {s.qtyFormulas.map((f) => (
+                  <tr key={`${f.formula_code}-${f.revision}`}>
+                    <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.confirmed_code || "-"}</td>
+                    <td><button className="v50-button-light" onClick={() => s.stageQtyFormula(f)}>선택</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {s.qtyStaged && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap", background: "#f8fafc", padding: "8px 12px", borderRadius: 8 }}>
+            <span style={{ fontWeight: 800 }}>
+              {s.qtyStaged.formula_code} · {s.qtyStaged.formula_name} · Rev {s.qtyStaged.revision} · 확정코드 {s.qtyStaged.confirmed_code || "-"}
+            </span>
+            <input
+              className="v50-input" type="number" style={{ width: 120 }} value={s.qtyStagedQtyKg}
+              onChange={(e) => s.setQtyStagedQtyKg(e.target.value)} placeholder="제조량(kg)"
+            />
+            <button className="v50-button-light" onClick={s.addQtyStagedToList} disabled={s.qtyAdding}>
+              {s.qtyAdding ? "담는 중…" : "제조 목록에 담기"}
+            </button>
+            <button className="v50-button-light" onClick={s.cancelQtyStaged}>취소</button>
+          </div>
+        )}
+
+        {s.manufacturingList.length > 0 && (
+          <>
+            <div className="v50-table-wrap" style={{ marginBottom: 10 }}>
+              <table className="v50-table">
+                <thead><tr><th>처방코드</th><th>처방명</th><th>확정코드</th><th>제조량(kg)</th><th></th></tr></thead>
+                <tbody>
+                  {s.manufacturingList.map((item, idx) => (
+                    <tr key={`${item.formula_code}-${item.revision}`}>
+                      <td>{item.formula_code}</td>
+                      <td>{item.formula_name || "-"}</td>
+                      <td>{item.confirmed_code || "-"}</td>
+                      <td>
+                        <input
+                          className="v50-input" type="number" style={{ width: 100 }}
+                          value={item.target_qty_kg || ""}
+                          onChange={(e) => s.updateManufacturingListQty(idx, e.target.value)}
+                        />
+                      </td>
+                      <td><button className="v50-button-light" onClick={() => s.removeFromManufacturingList(idx)}>삭제</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {s.requiredUsagePreview.length > 0 ? (
+              <div className="v50-table-wrap" style={{ marginBottom: 10 }}>
+                <table className="v50-table">
+                  <thead><tr><th>원료코드</th><th>원료명</th><th>계산된 사용량</th></tr></thead>
+                  <tbody>
+                    {s.requiredUsagePreview.map((r) => (
+                      <tr key={r.raw_code}>
+                        <td>{r.raw_code}</td><td>{r.raw_name}</td><td style={{ fontWeight: 800 }}>{fmt(r.required_qty)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={{ color: "#b45309", fontSize: 13 }}>
+                담긴 처방에 재고 관리 대상 원료(1ACA/1BSA/1CLA/1FRA/1OLA/1LQA/1WXA)가 없습니다.
+              </p>
+            )}
+
+            <button className="v50-button" onClick={s.applyManufacturingUsage}>금일사용량에 반영</button>
+          </>
+        )}
+      </section>
+
       <section className="v50-panel">
         <h2>대상 원료 재고</h2>
         <input

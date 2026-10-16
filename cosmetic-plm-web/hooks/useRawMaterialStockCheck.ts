@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   fetchLatestLedgerBefore, fetchLedgerForDate, fetchStockManagedRawMaterials, saveLedgerRows,
   type StockLedgerRow,
 } from "@/services/sprint2/rawMaterialStockService";
+import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
+import { fetchSprint1FormulaLines } from "@/services/sprint1/formulaCoreService";
+import { sumRequiredByRawCode } from "@/services/sprint2/manufacturingQtyReviewService";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -33,6 +36,24 @@ function recompute(r: StockRow): StockRow {
   return { ...r, closing_stock: r.opening_stock + r.incoming_stock - sumUsage(r.usage_entries) };
 }
 
+// ---- "오늘 제조한 처방으로 금일사용량 자동 반영" ----
+// 요청사항: "당일에 확정코드의 처방으로 300kg를 제조한다면 금일사용량에 일일이 원료를 찾아서 기재해야
+// 해서 비효율적이다 - 처방을 불러와서 제조량을 기입하면 자동으로 금일사용량이 연동됐으면 좋겠다"
+// + "당일에 처방 1개만 제조하는 게 아니라 여러 개 제조할 수 있으니 참고". 제조량 확인(manufacturingQtyReviewService)
+// 화면의 "제조 목록"과 동일한 패턴(처방 검색 -> 제조량 입력 -> 목록에 담기, 여러 처방을 목록에 함께
+// 담아 합산)을 그대로 재사용한다 - 같은 "BOM 비율 × 제조량" 계산(sumRequiredByRawCode)을 공유하므로
+// "합산 부족 원료 목록"과 이 화면의 숫자가 서로 어긋나지 않는다.
+type FormulaSearchHit = { formula_code: string; revision: string; formula_name?: string; confirmed_code?: string | null };
+type FormulaLineForUsage = { raw_code?: string; raw_name?: string; percentage: number | string };
+type ManufacturingListItem = {
+  formula_code: string;
+  revision: string;
+  formula_name?: string;
+  confirmed_code?: string | null;
+  target_qty_kg: number;
+  lines: FormulaLineForUsage[];
+};
+
 // refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
 // 초기값이라 무시) 현재 보고 있는 날짜의 원장을 다시 불러온다 - 선택된 날짜/입력 중인 값은 그대로 유지된다.
 export function useRawMaterialStockCheck(refreshToken?: number) {
@@ -42,6 +63,16 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  // "오늘 제조한 처방으로 금일사용량 자동 반영" - 처방 검색/담기/제조 목록 상태 (useManufacturingQtyReview의
+  // "제조 목록" 패턴과 동일).
+  const [qtyKeyword, setQtyKeyword] = useState("");
+  const [qtyFormulas, setQtyFormulas] = useState<FormulaSearchHit[]>([]);
+  const [qtySearching, setQtySearching] = useState(false);
+  const [qtyStaged, setQtyStaged] = useState<FormulaSearchHit | null>(null);
+  const [qtyStagedQtyKg, setQtyStagedQtyKg] = useState("");
+  const [qtyAdding, setQtyAdding] = useState(false);
+  const [manufacturingList, setManufacturingList] = useState<ManufacturingListItem[]>([]);
 
   useEffect(() => {
     fetchStockManagedRawMaterials()
@@ -92,6 +123,15 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, ledgerDate]);
 
+  // 원장 날짜를 바꾸면 "제조 목록"도 함께 비운다 - 담아둔 처방을 다른 날짜의 금일사용량에 잘못
+  // 반영하는 일이 없도록 한다(첫 마운트 때도 한 번 실행되지만 그때는 이미 비어 있어 영향 없음).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setManufacturingList([]);
+    setQtyStaged(null);
+    setQtyStagedQtyKg("");
+  }, [ledgerDate]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (refreshToken) loadForDate(ledgerDate);
@@ -139,6 +179,121 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
     );
   }
 
+  // 제조 목록(처방 + 제조량)에 담긴 처방들의 BOM 비율 × 제조량을 raw_code 기준으로 합산한다 - 여러
+  // 처방이 같은 원료를 쓰면 자동으로 더해진다("여러 개 제조할 수 있으니 참고" 요청사항 대응).
+  const requiredUsageByRawCode = useMemo(
+    () => sumRequiredByRawCode(manufacturingList.map((i) => ({ lines: i.lines, target_qty_kg: i.target_qty_kg }))),
+    [manufacturingList]
+  );
+  const requiredUsagePreview = useMemo(
+    () =>
+      Array.from(requiredUsageByRawCode, ([raw_code, v]) => ({ raw_code, raw_name: v.raw_name, required_qty: v.required_qty }))
+        .sort((a, b) => a.raw_code.localeCompare(b.raw_code)),
+    [requiredUsageByRawCode]
+  );
+
+  async function searchQtyFormulas() {
+    setQtySearching(true);
+    setMessage("");
+    try {
+      setQtyFormulas(await searchProductionFormulas(qtyKeyword));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "처방 검색 오류");
+    } finally {
+      setQtySearching(false);
+    }
+  }
+
+  function stageQtyFormula(f: FormulaSearchHit) {
+    setQtyStaged(f);
+    setQtyStagedQtyKg("");
+    setQtyFormulas([]);
+    setQtyKeyword("");
+  }
+
+  function cancelQtyStaged() {
+    setQtyStaged(null);
+    setQtyStagedQtyKg("");
+  }
+
+  // 고른 처방 + 입력한 제조량을 제조 목록에 담는다. 같은 처방코드+Rev가 이미 목록에 있으면 새 항목을
+  // 만들지 않고 기존 제조량에 더한다(같은 처방을 그날 나눠서 여러 번 담아도 합산되게).
+  async function addQtyStagedToList() {
+    if (!qtyStaged) {
+      setMessage("처방을 먼저 검색해서 선택하세요.");
+      return;
+    }
+    const qty = qtyStagedQtyKg.trim() === "" ? 0 : Number(qtyStagedQtyKg);
+    if (Number.isNaN(qty) || qty <= 0) {
+      setMessage("제조량을 0보다 크게 입력하세요.");
+      return;
+    }
+    setQtyAdding(true);
+    setMessage("");
+    try {
+      const existingIdx = manufacturingList.findIndex(
+        (i) => i.formula_code === qtyStaged.formula_code && i.revision === qtyStaged.revision
+      );
+      if (existingIdx >= 0) {
+        setManufacturingList((prev) =>
+          prev.map((i, idx) => (idx === existingIdx ? { ...i, target_qty_kg: i.target_qty_kg + qty } : i))
+        );
+      } else {
+        const lines = await fetchSprint1FormulaLines(qtyStaged.formula_code, qtyStaged.revision);
+        setManufacturingList((prev) => [
+          ...prev,
+          {
+            formula_code: qtyStaged.formula_code, revision: qtyStaged.revision,
+            formula_name: qtyStaged.formula_name, confirmed_code: qtyStaged.confirmed_code,
+            target_qty_kg: qty, lines,
+          },
+        ]);
+      }
+      setQtyStaged(null);
+      setQtyStagedQtyKg("");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "처방 담기 오류");
+    } finally {
+      setQtyAdding(false);
+    }
+  }
+
+  function updateManufacturingListQty(idx: number, value: string) {
+    const qty = value === "" ? 0 : Number(value);
+    setManufacturingList((prev) => prev.map((i, j) => (j === idx ? { ...i, target_qty_kg: qty } : i)));
+  }
+
+  function removeFromManufacturingList(idx: number) {
+    setManufacturingList((prev) => prev.filter((_, j) => j !== idx));
+  }
+
+  // 제조 목록 기준으로 계산된 필요량을 아래 표의 금일사용량에 반영한다 - 저장(save)까지 눌러야 실제로
+  // 저장되므로, 반영 후에도 사용자가 내용을 확인/수정할 수 있다. 아직 아무것도 입력 안 한 칸([0] 1개)은
+  // 그 값으로 바로 채우고, 이미 값이 있으면 "+ 사용 추가"와 동일하게 새 칸을 추가한다(최대 10칸 -
+  // 다 찼으면 마지막 칸에 더해서 값이 사라지지 않게 한다).
+  function applyManufacturingUsage() {
+    if (requiredUsageByRawCode.size === 0) {
+      setMessage("제조 목록에 처방을 먼저 담으세요.");
+      return;
+    }
+    setRows((prev) =>
+      prev.map((r) => {
+        const hit = requiredUsageByRawCode.get(r.raw_code);
+        if (!hit) return r;
+        const amount = Math.round(hit.required_qty * 1e6) / 1e6;
+        const untouched = r.usage_entries.length === 1 && r.usage_entries[0] === 0;
+        const entries = untouched
+          ? [amount]
+          : r.usage_entries.length < MAX_USAGE_ENTRIES
+          ? [...r.usage_entries, amount]
+          : r.usage_entries.map((v, i) => (i === r.usage_entries.length - 1 ? v + amount : v));
+        return recompute({ ...r, usage_entries: entries });
+      })
+    );
+    setMessage(`제조 목록 ${manufacturingList.length}건을 금일사용량에 반영했습니다 - 아래 표에서 확인한 뒤 "저장"을 눌러야 실제로 저장됩니다.`);
+    setManufacturingList([]);
+  }
+
   async function save() {
     setSaving(true);
     setMessage("");
@@ -162,5 +317,10 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
     ledgerDate, setLedgerDate, rows, loading, saving, message,
     updateIncoming, updateOpeningBaseline, updateUsageEntry, addUsageEntry, removeUsageEntry,
     MAX_USAGE_ENTRIES, save,
+    // 오늘 제조한 처방으로 금일사용량 자동 반영
+    qtyKeyword, setQtyKeyword, qtyFormulas, qtySearching, searchQtyFormulas,
+    qtyStaged, stageQtyFormula, cancelQtyStaged, qtyStagedQtyKg, setQtyStagedQtyKg, qtyAdding, addQtyStagedToList,
+    manufacturingList, updateManufacturingListQty, removeFromManufacturingList,
+    requiredUsagePreview, applyManufacturingUsage,
   };
 }
