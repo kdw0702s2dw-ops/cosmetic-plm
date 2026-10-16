@@ -148,6 +148,19 @@ export function canDeleteShipmentRecords(role?: string | null) {
   return role === "Admin";
 }
 
+// "등록자"를 이메일이 아니라 이름으로 보여줘야 하는 화면(예: 생산실적 관리 저장 이력)에서 사용 -
+// plm_user_profiles는 self_or_admin SELECT 정책이라 일반 사용자는 다른 사람 행을 직접 조회할 수
+// 없으므로, 이메일->이름만 최소로 노출하는 RPC(plm_user_display_names, SECURITY DEFINER)를 쓴다.
+export async function fetchUserDisplayNames(): Promise<Record<string, string>> {
+  const { data, error } = await supabaseProductionFinal.rpc("plm_user_display_names");
+  if (error) throw error;
+  const map: Record<string, string> = {};
+  for (const row of (data || []) as { email: string; display_name: string | null }[]) {
+    if (row.email && row.display_name) map[row.email] = row.display_name;
+  }
+  return map;
+}
+
 export async function fetchUserProfiles() {
   const { data, error } = await supabaseProductionFinal
     .from("plm_user_profiles")

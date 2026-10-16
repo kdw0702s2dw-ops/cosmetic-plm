@@ -121,7 +121,7 @@ export default function ProductionRecordPanel() {
                     <td>{fmt(h.molded_qty)}</td>
                     <td>{fmt(h.shipped_qty_ea)}</td>
                     <td>{fmt(h.shipped_qty_pack)}</td>
-                    <td>{h.created_by || "-"}</td>
+                    <td>{s.resolveCreatedBy(h.created_by)}</td>
                     <td>{h.note || "-"}</td>
                     <td>
                       <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import {
   deleteProductionRecord, fetchProductionRecords, saveProductionRecord, type ProductionRecord,
 } from "@/services/sprint2/productionRecordService";
 import { downloadProductionRecordsExcel } from "@/services/sprint2/productionRecordDocService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -34,6 +35,17 @@ export function useProductionRecord() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  // "등록자"(created_by, 이메일로 저장됨)를 표에는 이름으로 보여주기 위한 이메일->이름 맵. 화면
+  // 진입 시 한 번만 불러온다(사용자 목록이 자주 바뀌지 않으므로 매 조회마다 다시 불러올 필요 없음).
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetchUserDisplayNames().then(setDisplayNames).catch(() => {});
+  }, []);
+  function resolveCreatedBy(email?: string): string {
+    if (!email) return "-";
+    return displayNames[email] || email;
+  }
 
   async function search() {
     setSearching(true);
@@ -144,5 +156,6 @@ export function useProductionRecord() {
     shippedQtyEa, setShippedQtyEa, shippedQtyPack, setShippedQtyPack,
     productionDate, setProductionDate, expDate, setExpDate, note, setNote,
     history, loading, saving, message, save, removeHistory, downloadExcel,
+    resolveCreatedBy,
   };
 }
