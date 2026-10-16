@@ -153,6 +153,8 @@ export default function EnterpriseSprint1Workspace() {
           {!isProduction && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
           {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리</span></div>}
           <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
+          {/* 사이드바의 "생산실적 관리"와 동일 - Production 역할도 접근 가능한 탭이라 !isProduction 가드 없음(위 PRODUCTION_ALLOWED_TABS 참고). */}
+          <div className={`v50-tab ${effectiveActive === "productionRecords" ? "active" : ""}`} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></div>
           <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>
         </nav>
         <section className="v50-content">
