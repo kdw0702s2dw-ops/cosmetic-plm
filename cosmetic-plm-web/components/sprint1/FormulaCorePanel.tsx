@@ -4,6 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import { computeRawMaterialDiff, buildRawMaterialSyncPatch, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
+import {
+  computeYearStats, computeProductTypeStats, computeYearProductTypeMatrix, computeConfirmationStats,
+  type CountStat, type YearProductTypeMatrix, type ConfirmationStatsResult,
+} from "@/services/sprint1/formulaStatsService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
@@ -184,6 +188,16 @@ export default function FormulaCorePanel() {
     () => rowsWithPickedRevision.filter(({ pickedRow }) => isBaseFormula(pickedRow.formula_code)).length,
     [rowsWithPickedRevision]
   );
+
+  // 통계 탭 - "전체" 기준(진행상태/베이스 처방 필터와 무관하게 항상 전체 128건 등 기존 "전체" 탭과
+  // 같은 모수)으로 계산한다. rowsWithPickedRevision이 이미 "처방코드 1개당 1행(확정 Revision은
+  // 별도 행)"으로 묶어둔 결과라, 통계 탭의 합계도 "전체" 탭 숫자와 항상 일치한다.
+  const [showStats, setShowStats] = useState(false);
+  const statsRows = useMemo(() => rowsWithPickedRevision.map(({ pickedRow }) => pickedRow), [rowsWithPickedRevision]);
+  const yearStats = useMemo(() => computeYearStats(statsRows), [statsRows]);
+  const productTypeStats = useMemo(() => computeProductTypeStats(statsRows), [statsRows]);
+  const yearTypeMatrix = useMemo(() => computeYearProductTypeMatrix(statsRows), [statsRows]);
+  const confirmationStats = useMemo(() => computeConfirmationStats(statsRows), [statsRows]);
   const visibleRows = useMemo(() => {
     let rows =
       statusFilter === "전체"
@@ -226,10 +240,25 @@ export default function FormulaCorePanel() {
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>처방 목록</h2>
-          <button className="v50-button-light" onClick={() => s.loadFormulas()} disabled={s.loading}>
-            {s.loading ? "새로고침 중…" : "새로고침"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="v50-button-light" onClick={() => setShowStats((v) => !v)}>
+              {showStats ? "목록 보기" : "통계 보기"}
+            </button>
+            <button className="v50-button-light" onClick={() => s.loadFormulas()} disabled={s.loading}>
+              {s.loading ? "새로고침 중…" : "새로고침"}
+            </button>
+          </div>
         </div>
+
+        {showStats ? (
+          <FormulaStatsSection
+            yearStats={yearStats}
+            productTypeStats={productTypeStats}
+            matrix={yearTypeMatrix}
+            confirmationStats={confirmationStats}
+          />
+        ) : (
+        <>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, marginTop: 12 }}>
           <input className="v50-input" value={s.keyword} onChange={(e) => s.setKeyword(e.target.value)} placeholder="처방코드, 처방명, 고객사, 확정코드 검색" />
           <button className="v50-button" onClick={() => s.loadFormulas()}>검색</button>
@@ -407,6 +436,8 @@ export default function FormulaCorePanel() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
       </section>
 
       <section className="v50-panel" id="formula-basic-info">
@@ -803,5 +834,115 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
       <div className="v50-kpi-value">{value}</div>
       <div style={{ color: "#64748b", fontSize: 13, marginTop: 6 }}>{hint}</div>
     </article>
+  );
+}
+
+function fmtPct(n: number) {
+  return `${n.toFixed(1)}%`;
+}
+
+// "처방관리 > 통계" - 처방코드(P+연도)/확정코드(컨펌 여부)/제품유형 세 기준을 조합한 통계. 화면에 이미
+// 불러와둔 처방 목록(전체 탭과 같은 모수)을 그대로 집계하므로 별도 DB 조회가 없다.
+function FormulaStatsSection({
+  yearStats, productTypeStats, matrix, confirmationStats,
+}: {
+  yearStats: CountStat[];
+  productTypeStats: CountStat[];
+  matrix: YearProductTypeMatrix;
+  confirmationStats: ConfirmationStatsResult;
+}) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p className="v50-desc" style={{ marginBottom: 14 }}>
+        처방코드(P+연도 - 예: P2026-077 → 2026년 개발), 확정코드(컨펌 여부), 제품유형을 기준으로 집계합니다.
+        &ldquo;처방 목록&rdquo;의 &ldquo;전체&rdquo; 탭과 같은 기준(처방코드 1개당 1행, 확정된 Revision은 별도 행)으로 계산되어
+        합계가 항상 일치합니다.
+      </p>
+
+      <h3 style={{ marginBottom: 8 }}>연도별 개발 처방 수 (처방코드 기준)</h3>
+      <div className="v50-table-wrap" style={{ marginBottom: 20 }}>
+        <table className="v50-table">
+          <thead><tr><th>연도</th><th>처방 수</th></tr></thead>
+          <tbody>
+            {yearStats.map((s) => (
+              <tr key={s.label}><td>{s.label}</td><td>{s.count}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style={{ marginBottom: 8 }}>제품유형별 분포</h3>
+      <div className="v50-table-wrap" style={{ marginBottom: 20 }}>
+        <table className="v50-table">
+          <thead><tr><th>제품유형</th><th>처방 수</th></tr></thead>
+          <tbody>
+            {productTypeStats.map((s) => (
+              <tr key={s.label}><td>{s.label}</td><td>{s.count}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style={{ marginBottom: 8 }}>연도 × 제품유형 교차표</h3>
+      <div className="v50-table-wrap" style={{ marginBottom: 20 }}>
+        <table className="v50-table">
+          <thead>
+            <tr>
+              <th>연도</th>
+              {matrix.productTypes.map((t) => <th key={t}>{t}</th>)}
+              <th>합계</th>
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.years.map((y) => (
+              <tr key={y}>
+                <td>{y}</td>
+                {matrix.productTypes.map((t) => <td key={t}>{matrix.cell(y, t) || "-"}</td>)}
+                <td style={{ fontWeight: 800 }}>{matrix.rowTotal(y)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ fontWeight: 800 }}>합계</td>
+              {matrix.productTypes.map((t) => <td key={t} style={{ fontWeight: 800 }}>{matrix.colTotal(t)}</td>)}
+              <td style={{ fontWeight: 800 }}>{matrix.grandTotal}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style={{ marginBottom: 8 }}>확정률 (확정코드 보유 비율)</h3>
+      <p style={{ marginBottom: 10 }}>
+        전체 {confirmationStats.overall.total}건 중 {confirmationStats.overall.confirmed}건 확정 (
+        {fmtPct(confirmationStats.overall.rate)})
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 13 }}>연도별</div>
+          <div className="v50-table-wrap">
+            <table className="v50-table">
+              <thead><tr><th>연도</th><th>전체</th><th>확정</th><th>확정률</th></tr></thead>
+              <tbody>
+                {confirmationStats.byYear.map((s) => (
+                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 13 }}>제품유형별</div>
+          <div className="v50-table-wrap">
+            <table className="v50-table">
+              <thead><tr><th>제품유형</th><th>전체</th><th>확정</th><th>확정률</th></tr></thead>
+              <tbody>
+                {confirmationStats.byProductType.map((s) => (
+                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
