@@ -489,6 +489,11 @@ export default function FormulaCorePanel() {
             <input className="v50-input" type="number" value={s.formula.measured_moisture_percent ?? ""}
               onChange={(e) => updateFormula("measured_moisture_percent", e.target.value === "" ? null : Number(e.target.value))} />
           </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            코팅두께(㎜)
+            <input className="v50-input" type="number" value={s.formula.coating_thickness_mm ?? ""}
+              onChange={(e) => updateFormula("coating_thickness_mm", e.target.value === "" ? null : Number(e.target.value))} />
+          </label>
         </div>
         {showNewRevision && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, padding: 10, background: "#eff6ff", borderRadius: 10 }}>
