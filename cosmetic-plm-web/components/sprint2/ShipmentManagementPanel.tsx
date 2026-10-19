@@ -13,7 +13,7 @@ type View = "input" | "list" | "customer";
  * 상단 타이틀/탭 틀(v50-page/v50-hero)을 갖고 있으므로 여기서는 중복되지 않게 내부 콘텐츠만 렌더링한다.
  * [입력] 출고 등록 폼 / [전체 목록] 전체 출고 기록 검색·조회·편집 / [업체별 보기] 고객사별 묶음 조회.
  */
-export default function ShipmentManagementPanel() {
+export default function ShipmentManagementPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const [view, setView] = useState<View>("input");
 
   return (
@@ -29,8 +29,8 @@ export default function ShipmentManagementPanel() {
       </div>
 
       {view === "input" && <ShipmentInputPanel />}
-      {view === "list" && <ShipmentListPanel />}
-      {view === "customer" && <ShipmentCustomerViewPanel />}
+      {view === "list" && <ShipmentListPanel refreshTick={refreshTick} />}
+      {view === "customer" && <ShipmentCustomerViewPanel refreshTick={refreshTick} />}
     </div>
   );
 }

@@ -35,7 +35,9 @@ function todayStr() {
 // 단일 단계 결재를 쓰고, 확정 시 확정한 사람의 user id(approver_confirmed_by_id)를 기록해서 문서
 // 출력 시 그 사람의 실제 서명 이미지를 삽입한다. 2~16번 섹션은 sections 배열로 다루며, 각 섹션의
 // 행(label/value)만 값 편집이 가능하고 섹션 구성(제목/행 순서) 자체는 템플릿을 그대로 따른다.
-export function useProductMsds() {
+// refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) MSDS 목록만 다시 불러온다 - 작성 중인 폼 입력값은 그대로 유지된다.
+export function useProductMsds(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
   const myId = auth.profile?.id || null;
@@ -88,6 +90,10 @@ export function useProductMsds() {
     reloadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (refreshToken) reloadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   async function searchFormulas() {
     setFormulaSearching(true);

@@ -61,8 +61,10 @@ function DayCell({ date, s }: { date: string | null; s: S }) {
   );
 }
 
-export default function StabilityHomePanel({ onOpenTest }: { onOpenTest: (testId: string) => void }) {
-  const s = useStabilityHome();
+export default function StabilityHomePanel({
+  onOpenTest, refreshTick,
+}: { onOpenTest: (testId: string) => void; refreshTick?: number }) {
+  const s = useStabilityHome(refreshTick);
   const monthLabel = `${s.year}년 ${s.month}월`;
   const hasMyAlert = s.myOverdueCount + s.myDueSoonCount > 0;
 

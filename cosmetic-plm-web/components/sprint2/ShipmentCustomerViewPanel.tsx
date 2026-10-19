@@ -19,7 +19,7 @@ type CustomerGroup = {
  * 출고관리 > 업체별 보기 - 고객사별로 섹션을 나눠서 출고 건수·수량 합계와 세부 내역을 보여준다
  * (요청사항: "업체별로 볼 수 있는 기능도 만들어줘"). 수정은 "전체 목록" 탭에서 하고, 여기는 조회 전용.
  */
-export default function ShipmentCustomerViewPanel() {
+export default function ShipmentCustomerViewPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const [rows, setRows] = useState<ShipmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,6 +38,9 @@ export default function ShipmentCustomerViewPanel() {
   }, []);
 
   useEffect(() => { load(); }, []); // eslint-disable-line
+  // refreshTick: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값(0은 초기값이라 무시) -
+  // 값이 바뀌면 출고 기록을 다시 불러온다.
+  useEffect(() => { if (refreshTick) load(); }, [refreshTick, load]);
 
   const kw = keyword.trim().toLowerCase();
   const groups: CustomerGroup[] = useMemo(() => {

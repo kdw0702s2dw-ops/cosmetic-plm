@@ -189,8 +189,8 @@ function MsdsForm({ s }: { s: S }) {
   );
 }
 
-export default function ProductMsdsPanel() {
-  const s = useProductMsds();
+export default function ProductMsdsPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useProductMsds(refreshTick);
 
   if (s.showForm) {
     return (

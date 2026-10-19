@@ -33,7 +33,9 @@ function todayStr() {
 // 사람의 user id를 함께 기록해서(approver_confirmed_by_id) 문서 출력 시 plm_signatures에서 그
 // 사람의 실제 서명 이미지를 찾아 삽입할 수 있게 한다. 발행일(issueDate)은 결재와 무관하게 사용자가
 // 직접 입력하는 값이다.
-export function useProductCoa() {
+// refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) COA 목록만 다시 불러온다 - 작성 중인 폼 입력값은 그대로 유지된다.
+export function useProductCoa(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
   const myId = auth.profile?.id || null;
@@ -88,6 +90,10 @@ export function useProductCoa() {
     reloadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (refreshToken) reloadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   async function searchFormulas() {
     setFormulaSearching(true);

@@ -37,7 +37,9 @@ function todayStr() {
 // 품질관리 - 반제품/완제품 시험성적서. 처방(plm_formulas)을 선택하면 품목코드/고객사·제품명이 자동으로
 // 채워지고, 제품유형(반제품/완제품)에 맞는 고정 시험항목 목록이 만들어진다. 사용자는 항목별 시험기준/
 // 방법/결과/판정 값을 채운 뒤 저장하고, 저장 여부와 무관하게 현재 입력 상태 그대로 PDF/엑셀로 출력할 수 있다.
-export function useTestCertificate() {
+// refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) 성적서 목록만 다시 불러온다 - 작성 중인 폼 입력값은 그대로 유지된다.
+export function useTestCertificate(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
   const myId = auth.profile?.id || null;
@@ -98,6 +100,10 @@ export function useTestCertificate() {
     reloadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listProductFilter]);
+  useEffect(() => {
+    if (refreshToken) reloadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   async function searchFormulas() {
     setFormulaSearching(true);

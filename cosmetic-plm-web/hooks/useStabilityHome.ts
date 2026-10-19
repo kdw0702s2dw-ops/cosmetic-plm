@@ -12,7 +12,9 @@ import {
 
 // 품질관리 홈 - 전체 시료를 가로질러 이번 달 체크포인트를 달력으로 보여주고, 지연/임박 건을
 // 담당자 기준으로 집계해 알림 배너에 노출한다(생산일정관리의 달력 + 원료 소싱 일정관리의 알림을 합친 형태).
-export function useStabilityHome() {
+// refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
+// 초기값이라 무시) 달력 데이터와 지연/임박 알림을 다시 불러온다 - 선택된 날짜/월/"내 담당만 보기"는 그대로 유지된다.
+export function useStabilityHome(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
 
@@ -61,6 +63,10 @@ export function useStabilityHome() {
   useEffect(() => {
     loadAlerts();
   }, []);
+  useEffect(() => {
+    if (refreshToken) reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function prevMonth() {
     setSelectedDate(null);

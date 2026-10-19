@@ -323,8 +323,8 @@ function CertificateForm({ s }: { s: S }) {
   );
 }
 
-export default function TestCertificatePanel() {
-  const s = useTestCertificate();
+export default function TestCertificatePanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useTestCertificate(refreshTick);
 
   if (s.showForm) {
     return (

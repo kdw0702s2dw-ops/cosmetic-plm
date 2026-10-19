@@ -23,7 +23,7 @@ function fmtQty(q: number | null) {
  * 대상이 아니라 표에서 직접 보고 확인하는 값), 표 자체는 각 셀을 바로 편집할 수 있는 형태다
  * (텍스트/숫자/날짜는 포커스를 벗어날 때, 드롭다운은 선택 즉시 저장).
  */
-export default function ShipmentListPanel() {
+export default function ShipmentListPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteProduction;
   // 삭제 버튼은 기존대로 canWrite(Admin/Researcher/Production) 기준으로 그대로 보이되, 실제 삭제 실행은
@@ -49,6 +49,9 @@ export default function ShipmentListPanel() {
   }, []);
 
   useEffect(() => { load(); }, []); // eslint-disable-line
+  // refreshTick: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값(0은 초기값이라 무시) -
+  // 값이 바뀌면 출고 기록 목록만 다시 불러온다. 편집 중인 셀 값은 그대로 유지된다.
+  useEffect(() => { if (refreshTick) load(); }, [refreshTick, load]);
 
   // 각 셀 수정 - 화면에는 즉시 반영하고(낙관적 업데이트), DB 저장은 텍스트/숫자/날짜는 onBlur에서,
   // 드롭다운은 onChange에서 바로 호출한다(persistNow=true).

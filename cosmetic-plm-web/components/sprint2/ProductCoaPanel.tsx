@@ -227,8 +227,8 @@ function CoaForm({ s }: { s: S }) {
   );
 }
 
-export default function ProductCoaPanel() {
-  const s = useProductCoa();
+export default function ProductCoaPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useProductCoa(refreshTick);
 
   if (s.showForm) {
     return (

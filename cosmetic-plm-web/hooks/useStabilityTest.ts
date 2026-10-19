@@ -49,7 +49,9 @@ function todayStr() {
 }
 
 // 품질관리 - 화장품 안정성시험 관리. 시료(처방 연동) -> 시험조건(장기보존/가속/...) -> 체크포인트(시점별 결과) 3단 구조를 다룬다.
-export function useStabilityTest() {
+// refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은 초기값이라
+// 무시) 시료 목록(+ 현재 선택된 시료의 시험조건)만 다시 불러온다 - 입력 중인 폼/선택 상태는 그대로 유지된다.
+export function useStabilityTest(refreshToken?: number) {
   const auth = useSprint1Auth();
   const myName = auth.profile?.display_name || auth.profile?.email || "";
 
@@ -109,6 +111,12 @@ export function useStabilityTest() {
   useEffect(() => {
     loadTests();
   }, []);
+  useEffect(() => {
+    if (!refreshToken) return;
+    loadTests();
+    if (selectedTestId) reloadConditions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   const visibleTests = useMemo(() => {
     const k = listKeyword.trim().toLowerCase();
