@@ -2,12 +2,24 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-// 재고 관리 대상 원료 접두사 (7개) - 이 접두사로 시작하는 raw_code만 원료재고 검토/제조량 검토 대상
-export const STOCK_MANAGED_PREFIXES = ["1ACA", "1BSA", "1CLA", "1FRA", "1OLA", "1LQA", "1WXA"];
+// 재고 관리 대상 원료 "카테고리 코드" (영문 3자리) - raw_code 앞자리 숫자(1, 2, ...)는 신규 벤더/사급
+// 계열이 추가될 때마다 바뀌어 왔지만(1ACA -> 2ACA 추가 확인됨), 뒤의 영문 3자리는 고정되어 있다. 그래서
+// "숫자 1자리 + 카테고리 3자리" 패턴으로 판정하면, 앞으로 3ACA/2BSA 같은 새 자리수가 추가돼도 코드 수정
+// 없이 자동으로 재고관리 대상에 포함된다.
+export const STOCK_MANAGED_CATEGORY_CODES = ["ACA", "BSA", "CLA", "FRA", "OLA", "LQA", "WXA"];
+
+const STOCK_MANAGED_PATTERN = new RegExp(`^.(${STOCK_MANAGED_CATEGORY_CODES.join("|")})`);
+
+// 하위 호환/참고용: 실제로 존재가 확인된 접두사 목록 (현재까지 1ACA~1WXA, 2ACA). 판정 로직 자체는 더 이상
+// 이 배열을 쓰지 않고 위 STOCK_MANAGED_PATTERN(정규식)을 사용한다 - 새 접두사가 생겨도 이 배열을 고칠
+// 필요가 없다.
+export const STOCK_MANAGED_PREFIXES = [
+  "1ACA", "1BSA", "1CLA", "1FRA", "1OLA", "1LQA", "1WXA", "2ACA",
+];
 
 export function isStockManagedRawCode(rawCode: string | null | undefined) {
   if (!rawCode) return false;
-  return STOCK_MANAGED_PREFIXES.some((p) => rawCode.startsWith(p));
+  return STOCK_MANAGED_PATTERN.test(rawCode);
 }
 
 export type StockManagedRawMaterial = { raw_code: string; raw_name: string };
@@ -25,9 +37,11 @@ export type StockLedgerRow = {
   updated_at?: string;
 };
 
-// 재고 관리 대상 원료 목록 (원료명 표시용) - 7개 접두사 OR 조건
+// 재고 관리 대상 원료 목록 (원료명 표시용) - 카테고리 코드 OR 조건. "_"는 PostgREST ilike에서 "글자 1개"
+// 와일드카드라서 앞자리 숫자가 몇이든("1ACA...", "2ACA..." 등) 모두 매칭된다 - isStockManagedRawCode와
+// 동일한 "숫자 1자리 + 카테고리 3자리" 판정을 DB 쿼리 쪽에서도 똑같이 적용.
 export async function fetchStockManagedRawMaterials(): Promise<StockManagedRawMaterial[]> {
-  const orFilter = STOCK_MANAGED_PREFIXES.map((p) => `raw_code.ilike.${p}%`).join(",");
+  const orFilter = STOCK_MANAGED_CATEGORY_CODES.map((c) => `raw_code.ilike._${c}%`).join(",");
   const { data, error } = await supabaseProductionFinal
     .from("plm_raw_materials")
     .select("raw_code, raw_name")
