@@ -9,6 +9,7 @@ import {
   type SolubleHgHeaderInput, type SolubleHgSheet, type SolubleHgReferenceLine,
 } from "@/services/sprint2/solubleHgService";
 import { downloadSolubleHgExcel, printSolubleHgSheet } from "@/services/sprint2/solubleHgDocService";
+import { parseDecimal, parseDecimalOrNull } from "@/lib/parseDecimal";
 
 const emptyHeaderInput: SolubleHgHeaderInput = {
   component1_raw_code: "", component1_weight: 0,
@@ -61,7 +62,7 @@ export function useSolubleHgCheck(refreshToken?: number) {
         if (row.id !== id) return row;
         const updated: SolubleHgReferenceLine = key === "label"
           ? { ...row, label: value === "" ? null : value }
-          : { ...row, [key]: value === "" ? null : Number(value) };
+          : { ...row, [key]: parseDecimalOrNull(value) };
         const timers = referenceSaveTimers.current;
         const existing = timers.get(id);
         if (existing) clearTimeout(existing);
@@ -165,7 +166,7 @@ export function useSolubleHgCheck(refreshToken?: number) {
   }, [refreshToken]);
 
   function updateNumericField(key: keyof Omit<SolubleHgHeaderInput, "component1_raw_code" | "component2_raw_code" | "component3_raw_code" | "cutting_line_no" | "loss_rate_preset_key">, value: string) {
-    setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
+    setHeaderInput((prev) => ({ ...prev, [key]: parseDecimal(value) }));
   }
   function updateTextField(key: "component1_raw_code" | "component2_raw_code" | "component3_raw_code" | "cutting_line_no", value: string) {
     setHeaderInput((prev) => ({ ...prev, [key]: value }));
@@ -179,10 +180,10 @@ export function useSolubleHgCheck(refreshToken?: number) {
     setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: key, loss_rate: preset ? preset.rate : prev.loss_rate }));
   }
   function updateCustomLossRate(value: string) {
-    setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: null, loss_rate: value === "" ? 0 : Number(value) / 100 }));
+    setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: null, loss_rate: parseDecimal(value) / 100 }));
   }
   function updateManualNoticeCoatAmount(value: string) {
-    setHeaderInput((prev) => ({ ...prev, manual_notice_coat_amount: value === "" ? null : Number(value) }));
+    setHeaderInput((prev) => ({ ...prev, manual_notice_coat_amount: parseDecimalOrNull(value) }));
   }
 
   function buildCurrentSheet(): SolubleHgSheet {

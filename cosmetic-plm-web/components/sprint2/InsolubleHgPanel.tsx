@@ -5,6 +5,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import MaterialLookupCard from "@/components/common/MaterialLookupCard";
 import MaterialCodeAutocompleteInput from "@/components/common/MaterialCodeAutocompleteInput";
+import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -95,12 +96,12 @@ export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number
                       onChange={(e) => s.updateReferenceLine(row.id, "label", e.target.value)} />
                   </td>
                   <td>
-                    <input className="v50-input" type="number" value={row.coat_amount_10x10_g ?? ""}
-                      onChange={(e) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", e.target.value)} />
+                    <DecimalInput className="v50-input" value={row.coat_amount_10x10_g ?? null} blankOnZero={false}
+                      onChange={(v) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", v)} />
                   </td>
                   <td>
-                    <input className="v50-input" type="number" value={row.thickness_mm ?? ""}
-                      onChange={(e) => s.updateReferenceLine(row.id, "thickness_mm", e.target.value)} />
+                    <DecimalInput className="v50-input" value={row.thickness_mm ?? null} blankOnZero={false}
+                      onChange={(v) => s.updateReferenceLine(row.id, "thickness_mm", v)} />
                   </td>
                   <td>
                     <button
@@ -140,7 +141,7 @@ export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number
                     s.updateHeaderField(c.weightKey, String(m.weight_10x10cm ?? ""));
                   }}
                 />
-                <input className="v50-input" type="number" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey] || ""} onChange={(e) => s.updateHeaderField(c.weightKey, e.target.value)} />
+                <DecimalInput className="v50-input" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey]} onChange={(v) => s.updateHeaderField(c.weightKey, v)} />
               </div>
             </div>
           ))}
@@ -153,7 +154,7 @@ export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number
           {NUMERIC_FIELDS.map((f) => (
             <label key={f.key} style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               {f.label}
-              <input className="v50-input" type="number" value={s.headerInput[f.key] || ""} onChange={(e) => s.updateHeaderField(f.key, e.target.value)} />
+              <DecimalInput className="v50-input" value={s.headerInput[f.key]} onChange={(v) => s.updateHeaderField(f.key, v)} />
             </label>
           ))}
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -170,20 +171,20 @@ export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number
           {s.headerInput.loss_rate_preset_key === null && (
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               로스율 직접 입력(%)
-              <input className="v50-input" type="number" value={s.headerInput.loss_rate * 100 || ""} onChange={(e) => s.updateCustomLossRate(e.target.value)} />
+              <DecimalInput className="v50-input" value={s.headerInput.loss_rate * 100} onChange={(v) => s.updateCustomLossRate(v)} />
             </label>
           )}
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             문안용 도포량 (수동)
-            <input className="v50-input" type="number" value={s.headerInput.manual_notice_coat_amount ?? ""} onChange={(e) => s.updateManualNoticeCoatAmount(e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.manual_notice_coat_amount ?? null} blankOnZero={false} onChange={(v) => s.updateManualNoticeCoatAmount(v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             가로(cm) (반칼)
-            <input className="v50-input" type="number" value={s.headerInput.half_cut_width_cm || ""} onChange={(e) => s.updateHeaderField("half_cut_width_cm", e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.half_cut_width_cm} onChange={(v) => s.updateHeaderField("half_cut_width_cm", v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             세로(cm) (반칼)
-            <input className="v50-input" type="number" value={s.headerInput.half_cut_height_cm || ""} onChange={(e) => s.updateHeaderField("half_cut_height_cm", e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.half_cut_height_cm} onChange={(v) => s.updateHeaderField("half_cut_height_cm", v)} />
           </label>
         </div>
       </section>

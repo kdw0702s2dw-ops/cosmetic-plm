@@ -5,6 +5,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { LOSS_RATE_PRESETS } from "@/services/sprint2/insolubleHgService";
 import MaterialLookupCard from "@/components/common/MaterialLookupCard";
 import MaterialCodeAutocompleteInput from "@/components/common/MaterialCodeAutocompleteInput";
+import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -89,12 +90,12 @@ export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number }
                       onChange={(e) => s.updateReferenceLine(row.id, "label", e.target.value)} />
                   </td>
                   <td>
-                    <input className="v50-input" type="number" value={row.coat_amount_10x10_g ?? ""}
-                      onChange={(e) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", e.target.value)} />
+                    <DecimalInput className="v50-input" value={row.coat_amount_10x10_g ?? null} blankOnZero={false}
+                      onChange={(v) => s.updateReferenceLine(row.id, "coat_amount_10x10_g", v)} />
                   </td>
                   <td>
-                    <input className="v50-input" type="number" value={row.thickness_mm ?? ""}
-                      onChange={(e) => s.updateReferenceLine(row.id, "thickness_mm", e.target.value)} />
+                    <DecimalInput className="v50-input" value={row.thickness_mm ?? null} blankOnZero={false}
+                      onChange={(v) => s.updateReferenceLine(row.id, "thickness_mm", v)} />
                   </td>
                   <td>
                     <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeReferenceLine(row.id)}>삭제</button>
@@ -125,7 +126,7 @@ export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number }
                     s.updateNumericField(c.weightKey, String(m.weight_10x10cm ?? ""));
                   }}
                 />
-                <input className="v50-input" type="number" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey] || ""} onChange={(e) => s.updateNumericField(c.weightKey, e.target.value)} />
+                <DecimalInput className="v50-input" placeholder="중량" style={{ width: 100 }} value={s.headerInput[c.weightKey]} onChange={(v) => s.updateNumericField(c.weightKey, v)} />
               </div>
             </div>
           ))}
@@ -137,7 +138,7 @@ export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number }
         <div className="v50-grid-2">
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             총중량
-            <input className="v50-input" type="number" value={s.headerInput.total_weight || ""} onChange={(e) => s.updateNumericField("total_weight", e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.total_weight} onChange={(v) => s.updateNumericField("total_weight", v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             칼선(No.)
@@ -145,11 +146,11 @@ export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number }
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             칼선면적 중량
-            <input className="v50-input" type="number" value={s.headerInput.cutting_area_a4_weight || ""} onChange={(e) => s.updateNumericField("cutting_area_a4_weight", e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.cutting_area_a4_weight} onChange={(v) => s.updateNumericField("cutting_area_a4_weight", v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             10x10㎠ 중량
-            <input className="v50-input" type="number" value={s.headerInput.a4_10x10_weight || ""} onChange={(e) => s.updateNumericField("a4_10x10_weight", e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.a4_10x10_weight} onChange={(v) => s.updateNumericField("a4_10x10_weight", v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             로스율
@@ -161,12 +162,12 @@ export default function SolubleHgPanel({ refreshTick }: { refreshTick?: number }
           {s.headerInput.loss_rate_preset_key === null && (
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               로스율 직접 입력(%)
-              <input className="v50-input" type="number" value={s.headerInput.loss_rate * 100 || ""} onChange={(e) => s.updateCustomLossRate(e.target.value)} />
+              <DecimalInput className="v50-input" value={s.headerInput.loss_rate * 100} onChange={(v) => s.updateCustomLossRate(v)} />
             </label>
           )}
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             문안용 도포량 (수동, 참고용 - 계산 미반영)
-            <input className="v50-input" type="number" value={s.headerInput.manual_notice_coat_amount ?? ""} onChange={(e) => s.updateManualNoticeCoatAmount(e.target.value)} />
+            <DecimalInput className="v50-input" value={s.headerInput.manual_notice_coat_amount ?? null} blankOnZero={false} onChange={(v) => s.updateManualNoticeCoatAmount(v)} />
           </label>
         </div>
       </section>

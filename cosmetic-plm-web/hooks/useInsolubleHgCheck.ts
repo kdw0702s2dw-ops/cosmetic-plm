@@ -8,6 +8,7 @@ import {
   LOSS_RATE_PRESETS, type InsolubleHgHeaderInput, type InsolubleHgSheet, type InsolubleHgReferenceLine,
 } from "@/services/sprint2/insolubleHgService";
 import { downloadInsolubleHgExcel, printInsolubleHgSheet } from "@/services/sprint2/insolubleHgDocService";
+import { parseDecimal, parseDecimalOrNull } from "@/lib/parseDecimal";
 
 const emptyHeaderInput: InsolubleHgHeaderInput = {
   fabric_material_code: "", fabric_standard_weight: 0, film_material_code: "", film_standard_weight: 0, total_weight: 0,
@@ -79,7 +80,7 @@ export function useInsolubleHgCheck(refreshToken?: number) {
         if (row.id !== id) return row;
         const updated: InsolubleHgReferenceLine = key === "label"
           ? { ...row, label: value === "" ? null : value }
-          : { ...row, [key]: value === "" ? null : Number(value) };
+          : { ...row, [key]: parseDecimalOrNull(value) };
         const timers = referenceSaveTimers.current;
         const existing = timers.get(id);
         if (existing) clearTimeout(existing);
@@ -185,7 +186,7 @@ export function useInsolubleHgCheck(refreshToken?: number) {
   }, [refreshToken]);
 
   function updateHeaderField(key: keyof Omit<InsolubleHgHeaderInput, "cutting_line_no" | "loss_rate_preset_key" | "fabric_material_code" | "film_material_code">, value: string) {
-    setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
+    setHeaderInput((prev) => ({ ...prev, [key]: parseDecimal(value) }));
   }
   function setCuttingLineNo(value: string) {
     setHeaderInput((prev) => ({ ...prev, cutting_line_no: value }));
@@ -203,10 +204,10 @@ export function useInsolubleHgCheck(refreshToken?: number) {
     setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: key, loss_rate: preset ? preset.rate : prev.loss_rate }));
   }
   function updateCustomLossRate(value: string) {
-    setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: null, loss_rate: value === "" ? 0 : Number(value) / 100 }));
+    setHeaderInput((prev) => ({ ...prev, loss_rate_preset_key: null, loss_rate: parseDecimal(value) / 100 }));
   }
   function updateManualNoticeCoatAmount(value: string) {
-    setHeaderInput((prev) => ({ ...prev, manual_notice_coat_amount: value === "" ? null : Number(value) }));
+    setHeaderInput((prev) => ({ ...prev, manual_notice_coat_amount: parseDecimalOrNull(value) }));
   }
 
   function buildCurrentSheet(): InsolubleHgSheet {

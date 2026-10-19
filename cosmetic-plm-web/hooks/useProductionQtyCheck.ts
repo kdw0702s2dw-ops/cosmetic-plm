@@ -6,6 +6,7 @@ import {
   searchProductionFormulas, type ProductionQtyHeaderInput, type ProductionQtySheet, type ScenarioRowInput,
 } from "@/services/sprint2/productionQtyService";
 import { downloadProductionQtyExcel, printProductionQtySheet } from "@/services/sprint2/productionQtyDocService";
+import { parseDecimal } from "@/lib/parseDecimal";
 
 const emptyHeaderInput: ProductionQtyHeaderInput = {
   manufacture_qty_kg: 0, loss_percent: 0, coat_max_10x10: 0, coating_length_m: 0, coating_width_cm: 0, coating_loss_m: 0,
@@ -68,11 +69,15 @@ export function useProductionQtyCheck(refreshToken?: number) {
   }, [refreshToken]);
 
   function updateHeaderField(key: keyof ProductionQtyHeaderInput, value: string) {
-    setHeaderInput((prev) => ({ ...prev, [key]: value === "" ? 0 : Number(value) }));
+    setHeaderInput((prev) => ({ ...prev, [key]: parseDecimal(value) }));
   }
 
   function updateScenarioRow(index: number, patch: Partial<ScenarioRowInput>) {
     setScenarioRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }
+  // 시나리오 표의 숫자 칸(DecimalInput) 전용 - 문자열 입력을 안전하게 숫자로 변환해서 updateScenarioRow에 넘긴다.
+  function updateScenarioRowField(index: number, key: keyof ScenarioRowInput, value: string) {
+    updateScenarioRow(index, { [key]: parseDecimal(value) } as Partial<ScenarioRowInput>);
   }
   function addScenarioRow() {
     setScenarioRows((prev) => [...prev, { molded_size_m: 0, cutting_line_qty: 0 }]);
@@ -150,7 +155,7 @@ export function useProductionQtyCheck(refreshToken?: number) {
   return {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     headerInput, updateHeaderField, headerResult,
-    scenarioRows, scenarioResults, updateScenarioRow, addScenarioRow, removeScenarioRow,
+    scenarioRows, scenarioResults, updateScenarioRow, updateScenarioRowField, addScenarioRow, removeScenarioRow,
     note, setNote,
     history, loading, saving, message, save, loadFromHistory, removeHistory,
     printCurrent, downloadExcelCurrent, printHistoryItem, downloadExcelHistoryItem,

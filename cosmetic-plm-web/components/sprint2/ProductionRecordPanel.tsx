@@ -1,6 +1,7 @@
 "use client";
 
 import { useProductionRecord } from "@/hooks/useProductionRecord";
+import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -54,7 +55,7 @@ export default function ProductionRecordPanel() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             목표 제조량(kg)
-            <input className="v50-input" type="number" value={s.targetQtyKg || ""} onChange={(e) => s.updateTargetQtyKg(e.target.value)} />
+            <DecimalInput className="v50-input" value={s.targetQtyKg} onChange={(v) => s.updateTargetQtyKg(v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             Lot No.

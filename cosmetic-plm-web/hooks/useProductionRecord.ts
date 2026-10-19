@@ -8,6 +8,7 @@ import {
 import { downloadProductionRecordsExcel } from "@/services/sprint2/productionRecordDocService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
+import { parseDecimal } from "@/lib/parseDecimal";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -59,7 +60,7 @@ export function useProductionRecord() {
   }
 
   function updateTargetQtyKg(value: string) {
-    setTargetQtyKg(value === "" ? 0 : Number(value));
+    setTargetQtyKg(parseDecimal(value));
   }
 
   async function selectFormula(f: any) {

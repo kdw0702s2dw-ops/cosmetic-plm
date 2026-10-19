@@ -18,6 +18,8 @@ import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import PurchaseOrderRawMaterialSummaryPanel from "@/components/sprint2/PurchaseOrderRawMaterialSummaryPanel";
 import PurchaseOrderPrintModal, { type PurchaseOrderPrintTarget } from "@/components/sprint2/PurchaseOrderPrintModal";
+import DecimalInput from "@/components/common/DecimalInput";
+import { parseDecimal } from "@/lib/parseDecimal";
 import PurchaseOrderInspectionModal, { type PurchaseOrderInspectionTarget } from "@/components/sprint2/PurchaseOrderInspectionModal";
 import "@/styles/enterprise-v50.css";
 
@@ -586,14 +588,14 @@ export default function RawMaterialPurchaseOrderManager({
                             document.body
                           )}
                       </td>
-                      <td><input className="v50-input" type="number" style={{ width: 90 }} value={it.unit_price} onChange={(e) => updateItem(i, { unit_price: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
-                      <td><input className="v50-input" type="number" style={{ width: 80 }} value={it.quantity} onChange={(e) => updateItem(i, { quantity: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
+                      <td><DecimalInput className="v50-input" style={{ width: 90 }} value={it.unit_price} blankOnZero={false} onChange={(v) => updateItem(i, { unit_price: parseDecimal(v) })} disabled={!canWrite} /></td>
+                      <td><DecimalInput className="v50-input" style={{ width: 80 }} value={it.quantity} blankOnZero={false} onChange={(v) => updateItem(i, { quantity: parseDecimal(v) })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 60 }} value={it.unit || ""} onChange={(e) => updateItem(i, { unit: e.target.value })} placeholder="kg" disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 100 }} value={it.packing || ""} onChange={(e) => updateItem(i, { packing: e.target.value })} placeholder="20kg/drum" disabled={!canWrite} /></td>
-                      <td><input className="v50-input" type="number" style={{ width: 100 }} value={it.supply_amount} onChange={(e) => updateItem(i, { supply_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
-                      <td><input className="v50-input" type="number" step="0.01" style={{ width: 70 }} value={it.vat_rate} onChange={(e) => updateItem(i, { vat_rate: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
-                      <td><input className="v50-input" type="number" style={{ width: 90 }} value={it.vat_amount} onChange={(e) => updateItem(i, { vat_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
-                      <td style={{ fontWeight: 800 }}><input className="v50-input" type="number" style={{ width: 100 }} value={it.total_amount} onChange={(e) => updateItem(i, { total_amount: Number(e.target.value) || 0 })} disabled={!canWrite} /></td>
+                      <td><DecimalInput className="v50-input" style={{ width: 100 }} value={it.supply_amount} blankOnZero={false} onChange={(v) => updateItem(i, { supply_amount: parseDecimal(v) })} disabled={!canWrite} /></td>
+                      <td><DecimalInput className="v50-input" style={{ width: 70 }} value={it.vat_rate} blankOnZero={false} onChange={(v) => updateItem(i, { vat_rate: parseDecimal(v) })} disabled={!canWrite} /></td>
+                      <td><DecimalInput className="v50-input" style={{ width: 90 }} value={it.vat_amount} blankOnZero={false} onChange={(v) => updateItem(i, { vat_amount: parseDecimal(v) })} disabled={!canWrite} /></td>
+                      <td style={{ fontWeight: 800 }}><DecimalInput className="v50-input" style={{ width: 100 }} value={it.total_amount} blankOnZero={false} onChange={(v) => updateItem(i, { total_amount: parseDecimal(v) })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 100 }} value={it.note || ""} onChange={(e) => updateItem(i, { note: e.target.value })} disabled={!canWrite} /></td>
                       <td>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

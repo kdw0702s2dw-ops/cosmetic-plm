@@ -2,6 +2,7 @@
 
 import { useProductionQtyCheck } from "@/hooks/useProductionQtyCheck";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -71,10 +72,10 @@ export default function ProductionQtyCheckPanel({ refreshTick }: { refreshTick?:
           {HEADER_FIELDS.map((f) => (
             <label key={f.key} style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               {f.label}
-              <input
-                className="v50-input" type="number"
-                value={s.headerInput[f.key] || ""}
-                onChange={(e) => s.updateHeaderField(f.key, e.target.value)}
+              <DecimalInput
+                className="v50-input"
+                value={s.headerInput[f.key]}
+                onChange={(v) => s.updateHeaderField(f.key, v)}
               />
             </label>
           ))}
@@ -105,8 +106,8 @@ export default function ProductionQtyCheckPanel({ refreshTick }: { refreshTick?:
             <tbody>
               {s.scenarioResults.map((r, i) => (
                 <tr key={i}>
-                  <td><input className="v50-input" type="number" style={{ width: 100 }} value={s.scenarioRows[i].molded_size_m || ""} onChange={(e) => s.updateScenarioRow(i, { molded_size_m: e.target.value === "" ? 0 : Number(e.target.value) })} /></td>
-                  <td><input className="v50-input" type="number" style={{ width: 90 }} value={s.scenarioRows[i].cutting_line_qty || ""} onChange={(e) => s.updateScenarioRow(i, { cutting_line_qty: e.target.value === "" ? 0 : Number(e.target.value) })} /></td>
+                  <td><DecimalInput className="v50-input" style={{ width: 100 }} value={s.scenarioRows[i].molded_size_m} onChange={(v) => s.updateScenarioRowField(i, "molded_size_m", v)} /></td>
+                  <td><DecimalInput className="v50-input" style={{ width: 90 }} value={s.scenarioRows[i].cutting_line_qty} onChange={(v) => s.updateScenarioRowField(i, "cutting_line_qty", v)} /></td>
                   <td>{fmtInt(s.headerResult.actual_qty_m)}</td>
                   <td style={{ fontWeight: 800 }}>{fmtInt(r.sample_qty)}</td>
                   <td><button className="v50-button-light" onClick={() => s.removeScenarioRow(i)}>삭제</button></td>
