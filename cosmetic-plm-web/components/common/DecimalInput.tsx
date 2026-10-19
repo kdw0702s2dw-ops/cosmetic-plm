@@ -3,12 +3,17 @@
 import { useState, type CSSProperties } from "react";
 
 type DecimalInputProps = {
-  value: number;
+  value: number | null | undefined;
   onChange: (raw: string) => void;
   className?: string;
   style?: CSSProperties;
   placeholder?: string;
   onBlur?: () => void;
+  // true(기본값): value가 정확히 0이면 "아직 입력 안 함"으로 간주해 빈 칸으로 보여준다(원재고/사용량
+  // 입력칸처럼 0과 "입력 없음"을 화면에서 굳이 구분하지 않던 기존 관례 유지).
+  // false: 0도 실제로 입력된 값으로 보고 "0"을 그대로 보여준다(단가·수분율처럼 null과 0이 서로 다른
+  // 의미를 갖는 필드 - 빈 칸은 null, "0"은 실제 0으로 저장된 값).
+  blankOnZero?: boolean;
 };
 
 // 소수점 포함 숫자 입력용 공용 컴포넌트.
@@ -24,9 +29,18 @@ type DecimalInputProps = {
 // 이 컴포넌트는 포커스가 있는 동안(입력 중)에는 사용자가 타이핑한 문자열을 그대로 보여주고, 포커스를
 // 벗어날 때만 실제 숫자값으로 다시 동기화한다 - 그래서 "0.02"를 한 글자씩 입력하는 중간 과정이 전부
 // 화면에 그대로 보인다.
-export default function DecimalInput({ value, onChange, className, style, placeholder, onBlur }: DecimalInputProps) {
+export default function DecimalInput({
+  value, onChange, className, style, placeholder, onBlur, blankOnZero = true,
+}: DecimalInputProps) {
   const [draft, setDraft] = useState<string | null>(null);
-  const displayValue = draft !== null ? draft : value === 0 ? "" : String(value);
+  const displayValue =
+    draft !== null
+      ? draft
+      : value === null || value === undefined
+      ? ""
+      : blankOnZero && value === 0
+      ? ""
+      : String(value);
 
   return (
     <input

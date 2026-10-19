@@ -14,6 +14,7 @@ import RawMaterialDocUploader from "@/components/sprint2/RawMaterialDocUploader"
 import RawMaterialDocStatusPanel from "@/components/sprint2/RawMaterialDocStatusPanel";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import CompanyAutocompleteField from "@/components/common/CompanyAutocompleteField";
+import DecimalInput from "@/components/common/DecimalInput";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { COSING_FUNCTIONS } from "@/services/sprint2/cosingFunctions";
 import "@/styles/enterprise-v50.css";
@@ -571,7 +572,12 @@ export default function RawMaterialManager() {
           />
           <Field label="이메일"><input className="v50-input" type="email" value={rm.email || ""} onChange={(e) => setRm({ ...rm, email: e.target.value })} /></Field>
           <Field label="전화번호"><input className="v50-input" value={rm.phone || ""} onChange={(e) => setRm({ ...rm, phone: e.target.value })} /></Field>
-          <Field label="단가"><input className="v50-input" type="number" value={rm.unit_price ?? ""} onChange={(e) => setRm({ ...rm, unit_price: e.target.value === "" ? null : Number(e.target.value) })} /></Field>
+          <Field label="단가">
+            <DecimalInput
+              className="v50-input" value={rm.unit_price ?? null} blankOnZero={false}
+              onChange={(v) => setRm({ ...rm, unit_price: v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null })}
+            />
+          </Field>
           <Field label="MOQ"><input className="v50-input" value={rm.moq || ""} onChange={(e) => setRm({ ...rm, moq: e.target.value })} /></Field>
           <Field label="Lead time"><input className="v50-input" value={rm.lead_time || ""} onChange={(e) => setRm({ ...rm, lead_time: e.target.value })} /></Field>
           <Field label="Origin"><input className="v50-input" value={rm.origin_country || ""} onChange={(e) => setRm({ ...rm, origin_country: e.target.value })} /></Field>

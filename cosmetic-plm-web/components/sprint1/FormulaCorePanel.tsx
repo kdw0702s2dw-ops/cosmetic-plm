@@ -11,6 +11,7 @@ import {
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import SearchDropdown from "@/components/common/SearchDropdown";
+import DecimalInput from "@/components/common/DecimalInput";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import FormulaLoadModal from "@/components/sprint1/FormulaLoadModal";
 import DisclosureBomSection from "@/components/sprint1/DisclosureBomSection";
@@ -486,13 +487,13 @@ export default function FormulaCorePanel() {
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             실측 수분율(%) (건조 후 전성분 계산용)
-            <input className="v50-input" type="number" value={s.formula.measured_moisture_percent ?? ""}
-              onChange={(e) => updateFormula("measured_moisture_percent", e.target.value === "" ? null : Number(e.target.value))} />
+            <DecimalInput className="v50-input" value={s.formula.measured_moisture_percent ?? null} blankOnZero={false}
+              onChange={(v) => updateFormula("measured_moisture_percent", v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             코팅두께(㎜)
-            <input className="v50-input" type="number" value={s.formula.coating_thickness_mm ?? ""}
-              onChange={(e) => updateFormula("coating_thickness_mm", e.target.value === "" ? null : Number(e.target.value))} />
+            <DecimalInput className="v50-input" value={s.formula.coating_thickness_mm ?? null} blankOnZero={false}
+              onChange={(v) => updateFormula("coating_thickness_mm", v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null)} />
           </label>
         </div>
         {showNewRevision && (
