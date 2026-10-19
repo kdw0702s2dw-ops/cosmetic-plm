@@ -65,12 +65,26 @@ export default function ProductionManagementPanel({
   onCreatePurchaseOrders,
 }: { onCreatePurchaseOrders?: (result: PurchaseOrderDraftResult) => void } = {}) {
   const [activeTool, setActiveTool] = useState(TOOLS[0].key);
+  // 한 번이라도 연 도구는 계속 마운트 상태로 둔다(visitedTools) - 탭을 넘나들어도 선택된 처방·검색어·
+  // 달력 월 등 작업 중이던 값이 날아가지 않게 하기 위해서다. 안 본 도구까지 전부 처음부터 마운트해
+  // 불필요하게 API를 호출하지 않도록, 실제로 한 번 눌러서 연 도구만 visitedTools에 추가한다.
+  const [visitedTools, setVisitedTools] = useState<Set<string>>(() => new Set([TOOLS[0].key]));
   // "새로고침" - 화면을 강제로 재마운트시키는 대신(그러면 선택된 처방/검색어 등 입력 중이던 값이
-  // 전부 날아가 버림), 이 값을 증가시켜 각 하위 도구의 훅(useProductionSchedule 등)에 refreshToken
-  // prop으로 전달한다. 각 훅은 refreshToken이 바뀌면 화면에 보이는 데이터(이력/원장/일정 등)만
-  // 다시 불러오고, 선택된 처방·입력 중인 값은 그대로 유지한다.
-  const [refreshTick, setRefreshTick] = useState(0);
+  // 전부 날아가 버림), 도구별로 따로 관리하는 이 값을 증가시켜 해당 하위 도구의 훅(useProductionSchedule
+  // 등)에 refreshToken prop으로 전달한다. 각 훅은 refreshToken이 바뀌면 화면에 보이는 데이터(이력/원장/
+  // 일정 등)만 다시 불러오고, 선택된 처방·입력 중인 값은 그대로 유지한다. 도구별로 독립된 값이라 "지금
+  // 보고 있는 도구"만 새로고침되고, 뒤에 마운트된 채로 숨겨진 다른 도구는 영향받지 않는다.
+  const [refreshTicks, setRefreshTicks] = useState<Record<string, number>>({});
   const current = TOOLS.find((t) => t.key === activeTool) || TOOLS[0];
+
+  function selectTool(key: string) {
+    setActiveTool(key);
+    setVisitedTools((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }
+
+  function refreshCurrent() {
+    setRefreshTicks((prev) => ({ ...prev, [activeTool]: (prev[activeTool] || 0) + 1 }));
+  }
 
   return (
     <div className="v50-page">
@@ -79,14 +93,14 @@ export default function ProductionManagementPanel({
           <h1 className="v50-title">생산관리</h1>
           <p className="v50-desc">생산과 관련된 계산·확인 도구를 모아둔 화면입니다.</p>
         </div>
-        <button className="v50-button" onClick={() => setRefreshTick((t) => t + 1)}>새로고침</button>
+        <button className="v50-button" onClick={refreshCurrent}>새로고침 ({current.label})</button>
       </section>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
         {TOOLS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setActiveTool(t.key)}
+            onClick={() => selectTool(t.key)}
             className={activeTool === t.key ? "v50-button" : "v50-button-light"}
             title={t.description}
           >
@@ -96,7 +110,11 @@ export default function ProductionManagementPanel({
       </div>
       <p style={{ color: "#64748b", fontSize: 12, marginTop: 0, marginBottom: 14 }}>{current.description}</p>
 
-      <div key={activeTool}>{current.render(refreshTick, { onCreatePurchaseOrders })}</div>
+      {TOOLS.filter((t) => visitedTools.has(t.key)).map((t) => (
+        <div key={t.key} style={{ display: t.key === activeTool ? "block" : "none" }}>
+          {t.render(refreshTicks[t.key] || 0, { onCreatePurchaseOrders })}
+        </div>
+      ))}
     </div>
   );
 }
