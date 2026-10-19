@@ -92,7 +92,28 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
       ]);
       const built: StockRow[] = materials.map((m) => {
         const existing = existingMap.get(m.raw_code);
+        const prior = priorMap.get(m.raw_code);
         if (existing) {
+          // 과거 버그(이미 수정됨): "저장"이 화면에 보이는 원료 전체를 한 번에 저장하는 구조였어서,
+          // 어떤 원료 하나만 최초 등록(현재재고량) 입력하고 저장해도 아직 한 번도 입력한 적 없는 다른
+          // 원료들까지 opening/incoming/usage/closing이 전부 0인 "빈" 행이 같이 저장돼버린 적이 있다.
+          // 그런 빈 행은(이 날짜 이전 이력도 전혀 없고, 이 날짜 행 자체도 완전히 0) 실제로 아무 정보도
+          // 담고 있지 않으므로, 여전히 "최초 등록 대기" 상태로 취급해 입력칸을 계속 보여준다(DB 행을
+          // 지우지 않고도 다시 입력할 수 있게 하는 안전장치 - 다음 저장 때 실제 값을 입력하면 이 빈 행은
+          // 그 값으로 덮어써진다).
+          const isBlankPlaceholder =
+            !prior &&
+            Number(existing.opening_stock) === 0 &&
+            Number(existing.incoming_stock || 0) === 0 &&
+            Number(existing.usage_today) === 0 &&
+            Number(existing.closing_stock) === 0;
+          if (isBlankPlaceholder) {
+            return {
+              raw_code: m.raw_code, raw_name: m.raw_name,
+              opening_stock: 0, incoming_stock: 0, usage_entries: [0], closing_stock: 0,
+              openingEditable: true,
+            };
+          }
           return {
             raw_code: m.raw_code, raw_name: m.raw_name,
             opening_stock: Number(existing.opening_stock),
@@ -102,7 +123,6 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             closing_stock: Number(existing.closing_stock), openingEditable: false,
           };
         }
-        const prior = priorMap.get(m.raw_code);
         const opening = prior ? Number(prior.closing_stock) : 0;
         return {
           raw_code: m.raw_code, raw_name: m.raw_name,
@@ -298,11 +318,20 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
     setSaving(true);
     setMessage("");
     try {
-      const payload: StockLedgerRow[] = rows.map((r) => ({
-        raw_code: r.raw_code, ledger_date: ledgerDate,
-        opening_stock: r.opening_stock, incoming_stock: r.incoming_stock,
-        usage_today: sumUsage(r.usage_entries), closing_stock: r.closing_stock,
-      }));
+      // "저장"은 화면에 보이는 대상 원료 전체를 한 번에 저장한다(날짜별 입고재고량/금일사용량은 원료마다
+      // 따로 저장할 이유가 없어서). 문제는 아직 한 번도 이력이 없는 "최초 등록"(openingEditable) 원료 중
+      // 이번에 전혀 손대지 않은 것들 - 전부 opening/incoming/사용량이 기본값 0인 채로 같이 저장돼버리면,
+      // 그 순간 해당 날짜 원장 행이 생겨서 다시 불러올 때 openingEditable이 false로 바뀌어 입력칸이
+      // 사라진다("원료 A의 현재재고량만 입력하고 저장했더니 다른 미등록 원료들도 입력이 안 된다" 버그).
+      // 그래서 "최초 등록 대상이면서 이번 저장에서 아무것도 입력하지 않은" 행은 저장 대상에서 제외해
+      // 다음에 열었을 때도 계속 최초 등록 입력칸으로 남아있게 한다.
+      const payload: StockLedgerRow[] = rows
+        .filter((r) => !(r.openingEditable && r.opening_stock === 0 && r.incoming_stock === 0 && sumUsage(r.usage_entries) === 0))
+        .map((r) => ({
+          raw_code: r.raw_code, ledger_date: ledgerDate,
+          opening_stock: r.opening_stock, incoming_stock: r.incoming_stock,
+          usage_today: sumUsage(r.usage_entries), closing_stock: r.closing_stock,
+        }));
       await saveLedgerRows(payload);
       await loadForDate(ledgerDate);
       setMessage("저장 완료");
