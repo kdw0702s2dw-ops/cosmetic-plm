@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRawMaterialStockCheck } from "@/hooks/useRawMaterialStockCheck";
+import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
 const PAGE_SIZE = 20;
@@ -131,10 +132,10 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                       <td>{item.formula_name || "-"}</td>
                       <td>{item.confirmed_code || "-"}</td>
                       <td>
-                        <input
-                          className="v50-input" type="number" style={{ width: 100 }}
-                          value={item.target_qty_kg || ""}
-                          onChange={(e) => s.updateManufacturingListQty(idx, e.target.value)}
+                        <DecimalInput
+                          className="v50-input" style={{ width: 100 }}
+                          value={item.target_qty_kg}
+                          onChange={(v) => s.updateManufacturingListQty(idx, v)}
                         />
                       </td>
                       <td><button className="v50-button-light" onClick={() => s.removeFromManufacturingList(idx)}>삭제</button></td>
@@ -191,10 +192,10 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                   <td>
                     {r.openingEditable ? (
                       <div>
-                        <input
-                          className="v50-input" type="number" style={{ width: 120 }}
-                          value={r.opening_stock || ""}
-                          onChange={(e) => s.updateOpeningBaseline(r.raw_code, e.target.value)}
+                        <DecimalInput
+                          className="v50-input" style={{ width: 120 }}
+                          value={r.opening_stock}
+                          onChange={(v) => s.updateOpeningBaseline(r.raw_code, v)}
                         />
                         <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>최초 등록 - 초기 재고량 입력 필요</div>
                       </div>
@@ -203,20 +204,20 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                     )}
                   </td>
                   <td>
-                    <input
-                      className="v50-input" type="number" style={{ width: 120 }}
-                      value={r.incoming_stock || ""}
-                      onChange={(e) => s.updateIncoming(r.raw_code, e.target.value)}
+                    <DecimalInput
+                      className="v50-input" style={{ width: 120 }}
+                      value={r.incoming_stock}
+                      onChange={(v) => s.updateIncoming(r.raw_code, v)}
                     />
                   </td>
                   <td>
                     <div style={{ display: "grid", gap: 4 }}>
                       {r.usage_entries.map((v, i) => (
                         <div key={i} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                          <input
-                            className="v50-input" type="number" style={{ width: 120 }}
-                            value={v || ""}
-                            onChange={(e) => s.updateUsageEntry(r.raw_code, i, e.target.value)}
+                          <DecimalInput
+                            className="v50-input" style={{ width: 120 }}
+                            value={v}
+                            onChange={(val) => s.updateUsageEntry(r.raw_code, i, val)}
                           />
                           {r.usage_entries.length > 1 && (
                             <button

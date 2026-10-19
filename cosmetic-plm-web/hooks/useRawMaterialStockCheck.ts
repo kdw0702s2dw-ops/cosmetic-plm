@@ -32,6 +32,16 @@ function sumUsage(entries: number[]) {
   return entries.reduce((a, b) => a + b, 0);
 }
 
+// 입력 중인 문자열을 안전하게 숫자로 변환한다. DecimalInput은 "-", "." 처럼 아직 완성되지 않은 중간
+// 입력 상태도 그대로 넘겨줄 수 있는데, Number("-")나 Number(".")는 NaN이라 그대로 state에 들어가면
+// 합계 계산(closing_stock 등)이 NaN으로 오염된다 - 그런 미완성 값은 0으로 취급한다(최종 저장 전에
+// 사용자가 입력을 완성하면 그때 정상 숫자로 반영됨).
+function parseDecimal(value: string): number {
+  if (value === "") return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function recompute(r: StockRow): StockRow {
   return { ...r, closing_stock: r.opening_stock + r.incoming_stock - sumUsage(r.usage_entries) };
 }
@@ -159,17 +169,17 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
   }, [refreshToken]);
 
   function updateIncoming(rawCode: string, value: string) {
-    const incoming = value === "" ? 0 : Number(value);
+    const incoming = parseDecimal(value);
     setRows((prev) => prev.map((r) => (r.raw_code === rawCode ? recompute({ ...r, incoming_stock: incoming }) : r)));
   }
 
   function updateOpeningBaseline(rawCode: string, value: string) {
-    const opening = value === "" ? 0 : Number(value);
+    const opening = parseDecimal(value);
     setRows((prev) => prev.map((r) => (r.raw_code === rawCode ? recompute({ ...r, opening_stock: opening }) : r)));
   }
 
   function updateUsageEntry(rawCode: string, index: number, value: string) {
-    const usage = value === "" ? 0 : Number(value);
+    const usage = parseDecimal(value);
     setRows((prev) =>
       prev.map((r) => {
         if (r.raw_code !== rawCode) return r;
@@ -279,7 +289,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
   }
 
   function updateManufacturingListQty(idx: number, value: string) {
-    const qty = value === "" ? 0 : Number(value);
+    const qty = parseDecimal(value);
     setManufacturingList((prev) => prev.map((i, j) => (j === idx ? { ...i, target_qty_kg: qty } : i)));
   }
 
