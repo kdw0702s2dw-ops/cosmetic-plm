@@ -81,6 +81,17 @@ export async function fetchLatestLedgerBefore(rawCodes: string[], beforeDate: st
   return map;
 }
 
+// "사용량 통계"용: 원료 1개의 전체 원장 이력(날짜 오름차순) 조회 - 일별/월별/년별 집계는 호출 측(훅)에서 계산한다.
+export async function fetchLedgerHistory(rawCode: string): Promise<StockLedgerRow[]> {
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_material_stock_ledger")
+    .select("*")
+    .eq("raw_code", rawCode)
+    .order("ledger_date", { ascending: true });
+  if (error) throw error;
+  return (data || []) as StockLedgerRow[];
+}
+
 // "제조량 검토"용: raw_code별 가장 최근(날짜 무관) closing_stock 조회
 export async function fetchLatestStockByRawCodes(rawCodes: string[]): Promise<Map<string, { closing_stock: number; ledger_date: string }>> {
   if (rawCodes.length === 0) return new Map();

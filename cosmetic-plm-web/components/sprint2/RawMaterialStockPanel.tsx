@@ -200,7 +200,15 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                         <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>최초 등록 - 초기 재고량 입력 필요</div>
                       </div>
                     ) : (
-                      fmt(r.opening_stock)
+                      <div>
+                        {fmt(r.opening_stock)}
+                        {r.openingMismatch && (
+                          <div style={{ fontSize: 11, color: "#b45309", marginTop: 2, maxWidth: 160 }}>
+                            ⚠ 전일({r.openingMismatch.priorDate}) 최종재고량({fmt(r.openingMismatch.priorClosing)})과 다름 -
+                            이후에 전일 날짜가 수정된 것으로 보입니다. 필요하면 이 날짜를 다시 확인하세요.
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td>

@@ -26,6 +26,12 @@ export type StockRow = {
   usage_entries: number[]; // 금일사용량을 나눠 입력한 값들 - 합계가 usage_today로 저장됨
   closing_stock: number; // = opening_stock + incoming_stock - sum(usage_entries)
   openingEditable: boolean; // 이력이 전혀 없는 원료의 최초 등록(baseline)일 때만 true
+  // "저장 시점 freeze 방식" 때문에 생길 수 있는 불일치 경고: 이 날짜의 현재재고량(opening_stock)이
+  // 이미 저장돼 있는데, 그 값이 "바로 전날(prior) 원장의 최종재고량"과 다르면 표시된다. 전형적인 발생
+  // 원인은 이 날짜를 먼저 저장한 뒤 그보다 이전 날짜를 나중에 수정/정정한 경우 - 이 날짜 쪽은 저장 시점에
+  // 고정(freeze)된 값을 그대로 쓰기 때문에 자동으로 다시 계산되지 않는다. 자동 재계산은 하지 않고(사용자
+  // 결정: 경고 표시만), 화면에서 사람이 직접 확인 후 필요하면 이 날짜의 현재재고량을 수정하도록 안내한다.
+  openingMismatch: { priorDate: string; priorClosing: number } | null;
 };
 
 function sumUsage(entries: number[]) {
@@ -121,16 +127,24 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             return {
               raw_code: m.raw_code, raw_name: m.raw_name,
               opening_stock: 0, incoming_stock: 0, usage_entries: [0], closing_stock: 0,
-              openingEditable: true,
+              openingEditable: true, openingMismatch: null,
             };
           }
+          const existingOpening = Number(existing.opening_stock);
+          const priorClosing = prior ? Number(prior.closing_stock) : null;
+          // 부동소수점 누적 오차로 인한 거짓 경고를 피하기 위해 아주 작은 차이는 무시한다.
+          const openingMismatch =
+            prior && priorClosing !== null && Math.abs(existingOpening - priorClosing) > 1e-6
+              ? { priorDate: prior.ledger_date, priorClosing }
+              : null;
           return {
             raw_code: m.raw_code, raw_name: m.raw_name,
-            opening_stock: Number(existing.opening_stock),
+            opening_stock: existingOpening,
             incoming_stock: Number(existing.incoming_stock || 0),
             // 저장된 값은 합계 1개뿐이라, 다시 열람할 때는 입력칸 1개에 그 합계를 그대로 보여준다.
             usage_entries: [Number(existing.usage_today)],
             closing_stock: Number(existing.closing_stock), openingEditable: false,
+            openingMismatch,
           };
         }
         const opening = prior ? Number(prior.closing_stock) : 0;
@@ -138,6 +152,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
           raw_code: m.raw_code, raw_name: m.raw_name,
           opening_stock: opening, incoming_stock: 0, usage_entries: [0], closing_stock: opening,
           openingEditable: !prior, // 과거 이력이 전혀 없으면 최초 등록 baseline 입력 필요
+          openingMismatch: null,
         };
       });
       setRows(built);

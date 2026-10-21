@@ -5,6 +5,7 @@ import ProductionQtyCheckPanel from "@/components/sprint2/ProductionQtyCheckPane
 import InsolubleHgPanel from "@/components/sprint2/InsolubleHgPanel";
 import SolubleHgPanel from "@/components/sprint2/SolubleHgPanel";
 import RawMaterialStockPanel from "@/components/sprint2/RawMaterialStockPanel";
+import RawMaterialUsageStatsPanel from "@/components/sprint2/RawMaterialUsageStatsPanel";
 import ManufacturingQtyReviewPanel from "@/components/sprint2/ManufacturingQtyReviewPanel";
 import ProductionSchedulePanel from "@/components/sprint2/ProductionSchedulePanel";
 import type { PurchaseOrderDraftResult } from "@/services/sprint2/manufacturingQtyReviewService";
@@ -17,8 +18,9 @@ type ToolRenderContext = {
 };
 
 // 생산관리 하위 도구 목록 - 새 도구는 이 배열에 항목만 추가하면 좌측 목록에 자동으로 나타난다.
-// 순서/명칭은 사용자 요청에 따라 지정됨: 생산_일정관리 -> 칭량_원료재고 -> 생산량 확인 -> 제조량 확인
-// -> 연구_불용성 HG -> 연구_수용성 HG (key/description/render는 기존 그대로, label과 배열 순서만 변경).
+// 순서/명칭은 사용자 요청에 따라 지정됨: 생산_일정관리 -> 칭량_원료재고 -> 사용량 통계 -> 생산량 확인
+// -> 제조량 확인 -> 연구_불용성 HG -> 연구_수용성 HG ("사용량 통계"는 칭량_원료재고 바로 다음에 추가됨 -
+// 같은 원장 데이터를 보는 화면이라 가까이 배치).
 const TOOLS: { key: string; label: string; description: string; render: (refreshTick: number, ctx: ToolRenderContext) => React.ReactNode }[] = [
   {
     key: "schedule",
@@ -31,6 +33,12 @@ const TOOLS: { key: string; label: string; description: string; render: (refresh
     label: "칭량_원료재고",
     description: "재고 관리 대상 원료의 날짜별 현재재고량/금일사용량/최종재고량을 원장으로 관리합니다.",
     render: (refreshTick) => <RawMaterialStockPanel refreshTick={refreshTick} />,
+  },
+  {
+    key: "usageStats",
+    label: "사용량 통계",
+    description: "원료를 선택해서 일별/월별/년별 사용량 추이를 그래프와 표로 확인합니다.",
+    render: (refreshTick) => <RawMaterialUsageStatsPanel refreshTick={refreshTick} />,
   },
   {
     key: "qtyCheck",
