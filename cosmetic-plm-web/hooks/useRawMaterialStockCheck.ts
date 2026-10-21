@@ -8,6 +8,11 @@ import {
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import { fetchSprint1FormulaLines } from "@/services/sprint1/formulaCoreService";
 import { sumRequiredByRawCode } from "@/services/sprint2/manufacturingQtyReviewService";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import {
+  logFormulaApplyEvents, logManualEditEvents,
+  type ApplyFormulaLogInput, type ManualEditLogInput,
+} from "@/services/sprint2/rawMaterialUsageLogService";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -32,6 +37,10 @@ export type StockRow = {
   // 고정(freeze)된 값을 그대로 쓰기 때문에 자동으로 다시 계산되지 않는다. 자동 재계산은 하지 않고(사용자
   // 결정: 경고 표시만), 화면에서 사람이 직접 확인 후 필요하면 이 날짜의 현재재고량을 수정하도록 안내한다.
   openingMismatch: { priorDate: string; priorClosing: number } | null;
+  // 이미 저장돼 있던 금일사용량(합계) - "수정 이력" 판정 기준값. 이 날짜에 저장된 적이 없는 행(최초
+  // 등록 대기 행, carry-forward로 opening만 채워진 아직 저장 전 행)은 비교할 "이전 값"이 없으므로
+  // null이다. save()에서 이 값과 지금 화면의 금일사용량 합계가 다르면 "수정"으로 보고 이력에 남긴다.
+  originalUsageToday: number | null;
 };
 
 function sumUsage(entries: number[]) {
@@ -73,6 +82,7 @@ type ManufacturingListItem = {
 // refreshToken: 생산관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은
 // 초기값이라 무시) 현재 보고 있는 날짜의 원장을 다시 불러온다 - 선택된 날짜/입력 중인 값은 그대로 유지된다.
 export function useRawMaterialStockCheck(refreshToken?: number) {
+  const auth = useSprint1Auth();
   const [ledgerDate, setLedgerDate] = useState(todayStr());
   const [materials, setMaterials] = useState<{ raw_code: string; raw_name: string }[]>([]);
   const [rows, setRows] = useState<StockRow[]>([]);
@@ -89,6 +99,10 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
   const [qtyStagedQtyKg, setQtyStagedQtyKg] = useState("");
   const [qtyAdding, setQtyAdding] = useState(false);
   const [manufacturingList, setManufacturingList] = useState<ManufacturingListItem[]>([]);
+  // "반영"을 누른 처방별 원료 사용량 breakdown을 저장(save) 전까지 모아둔다 - 저장할 때 한꺼번에
+  // "처방 반영 이력"으로 기록한다(manufacturingList는 반영 즉시 비워지므로 breakdown을 따로 안 쌓아두면
+  // 어떤 처방이 반영됐는지 저장 시점엔 알 수 없다). 날짜를 바꾸면 비운다(아래 ledgerDate 이펙트).
+  const [pendingFormulaUsageLog, setPendingFormulaUsageLog] = useState<ApplyFormulaLogInput[]>([]);
 
   useEffect(() => {
     fetchStockManagedRawMaterials()
@@ -127,7 +141,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             return {
               raw_code: m.raw_code, raw_name: m.raw_name,
               opening_stock: 0, incoming_stock: 0, usage_entries: [0], closing_stock: 0,
-              openingEditable: true, openingMismatch: null,
+              openingEditable: true, openingMismatch: null, originalUsageToday: null,
             };
           }
           const existingOpening = Number(existing.opening_stock);
@@ -144,7 +158,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             // 저장된 값은 합계 1개뿐이라, 다시 열람할 때는 입력칸 1개에 그 합계를 그대로 보여준다.
             usage_entries: [Number(existing.usage_today)],
             closing_stock: Number(existing.closing_stock), openingEditable: false,
-            openingMismatch,
+            openingMismatch, originalUsageToday: Number(existing.usage_today),
           };
         }
         const opening = prior ? Number(prior.closing_stock) : 0;
@@ -152,7 +166,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
           raw_code: m.raw_code, raw_name: m.raw_name,
           opening_stock: opening, incoming_stock: 0, usage_entries: [0], closing_stock: opening,
           openingEditable: !prior, // 과거 이력이 전혀 없으면 최초 등록 baseline 입력 필요
-          openingMismatch: null,
+          openingMismatch: null, originalUsageToday: null, // 이 날짜엔 아직 저장된 적이 없어 "이전 값"이 없음
         };
       });
       setRows(built);
@@ -175,6 +189,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
     setManufacturingList([]);
     setQtyStaged(null);
     setQtyStagedQtyKg("");
+    setPendingFormulaUsageLog([]);
   }, [ledgerDate]);
 
   useEffect(() => {
@@ -335,6 +350,22 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
         return recompute({ ...r, usage_entries: entries });
       })
     );
+
+    // 처방별로 어떤 원료에 얼마씩 반영됐는지 지금(반영 시점) 미리 계산해서 모아둔다 - manufacturingList는
+    // 바로 아래에서 비우기 때문에, 저장 시점에는 "어떤 처방이었는지" 정보가 이미 사라진 뒤라서다.
+    const newLogEntries: ApplyFormulaLogInput[] = manufacturingList.flatMap((item) => {
+      const byRaw = sumRequiredByRawCode([{ lines: item.lines, target_qty_kg: item.target_qty_kg }]);
+      return Array.from(byRaw, ([raw_code, v]) => ({
+        raw_code, ledger_date: ledgerDate,
+        formula_code: item.formula_code, formula_revision: item.revision,
+        formula_name: item.formula_name, confirmed_code: item.confirmed_code,
+        target_qty_kg: item.target_qty_kg,
+        applied_usage: Math.round(v.required_qty * 1e6) / 1e6,
+        created_by: auth.profile?.email || null,
+      }));
+    });
+    setPendingFormulaUsageLog((prev) => [...prev, ...newLogEntries]);
+
     setMessage(`제조 목록 ${manufacturingList.length}건을 금일사용량에 반영했습니다 - 아래 표에서 확인한 뒤 "저장"을 눌러야 실제로 저장됩니다.`);
     setManufacturingList([]);
   }
@@ -357,9 +388,37 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
           opening_stock: r.opening_stock, incoming_stock: r.incoming_stock,
           usage_today: sumUsage(r.usage_entries), closing_stock: r.closing_stock,
         }));
+
+      // "수정 이력" 대상 판정: 이 날짜에 이미 저장된 적이 있는 행(originalUsageToday가 있음) 중,
+      // 지금 화면의 금일사용량 합계가 그 값과 달라진 행만 - 예: 250kg로 저장돼 있던 걸 200kg로
+      // 고쳐서 다시 저장하는 경우(요청사항 대응). 처음 저장하는 행(원래값 없음)은 "수정"이 아니라
+      // 최초 입력이라 여기 포함하지 않는다.
+      const manualEdits: ManualEditLogInput[] = rows
+        .filter((r) => r.originalUsageToday !== null && Math.abs(sumUsage(r.usage_entries) - r.originalUsageToday) > 1e-6)
+        .map((r) => ({
+          raw_code: r.raw_code, ledger_date: ledgerDate,
+          old_usage_today: r.originalUsageToday as number, new_usage_today: sumUsage(r.usage_entries),
+          created_by: auth.profile?.email || null,
+        }));
+
       await saveLedgerRows(payload);
-      await loadForDate(ledgerDate);
-      setMessage("저장 완료");
+
+      // 이력 기록은 "있으면 좋은" 부가 정보라, 여기서 실패해도 이미 끝난 원장 저장 자체를 되돌리지
+      // 않는다 - 대신 저장은 완료됐다고 알리되 이력 기록 실패 사실만 별도로 알려준다.
+      try {
+        if (pendingFormulaUsageLog.length > 0) await logFormulaApplyEvents(pendingFormulaUsageLog);
+        if (manualEdits.length > 0) await logManualEditEvents(manualEdits);
+        setPendingFormulaUsageLog([]);
+        await loadForDate(ledgerDate);
+        setMessage("저장 완료");
+      } catch (logErr) {
+        setPendingFormulaUsageLog([]);
+        await loadForDate(ledgerDate);
+        setMessage(
+          "저장은 완료됐지만 사용량 이력 기록에는 실패했습니다: " +
+            (logErr instanceof Error ? logErr.message : String(logErr))
+        );
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "저장 오류");
     } finally {
