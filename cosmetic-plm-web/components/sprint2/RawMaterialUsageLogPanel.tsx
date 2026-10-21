@@ -36,14 +36,21 @@ function fmtTime(iso: string | undefined) {
   return d.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+// 확정코드/제조량은 "처방 반영"에만 있는 값이라(수정 이력엔 없음) 별도 칸으로 바로 눈에 띄게 보여주고,
+// fmt()가 null/undefined를 "-"로 바꿔주는 걸 그대로 활용해 수정 이력 행에서는 자동으로 "-"가 찍히게 한다.
+function fmtKg(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return `${fmt(v)}kg`;
+}
+
 // 처방 반영/수정 이력 한 줄을 사람이 읽기 쉬운 문장으로 풀어준다 - 유형별로 담긴 필드가 달라서
-// (처방반영: 처방정보+제조량+반영량 / 수정: 이전값→이후값) 표의 "상세" 칸 하나로 합쳐서 보여준다.
+// (처방반영: 처방정보+반영량 / 수정: 이전값→이후값) 표의 "상세" 칸 하나로 합쳐서 보여준다. 확정코드와
+// 제조량은 "확정코드"/"제조량" 칸에 따로 나오므로 여기서는 중복 없이 처방코드/Rev/처방명과 반영량만 담는다.
 function detailText(r: UsageLogRow): string {
   if (r.event_type === "apply_formula") {
     const parts = [r.formula_code, r.formula_revision ? `Rev ${r.formula_revision}` : null, r.formula_name].filter(Boolean);
     const head = parts.join(" · ") || "-";
-    const confirmed = r.confirmed_code ? ` · 확정코드 ${r.confirmed_code}` : "";
-    return `${head}${confirmed} · 제조량 ${fmt(r.target_qty_kg)}kg → 이 원료에 ${fmt(r.applied_usage)} 반영`;
+    return `${head} → 이 원료에 ${fmt(r.applied_usage)} 반영`;
   }
   const delta = (r.new_usage_today ?? 0) - (r.old_usage_today ?? 0);
   const sign = delta > 0 ? "+" : "";
@@ -108,8 +115,8 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           <table className="v50-table">
             <thead>
               <tr>
-                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th style={{ minWidth: 280 }}>상세</th>
-                <th>처리자</th><th>처리시각</th>
+                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th>확정코드</th><th>제조량</th>
+                <th style={{ minWidth: 240 }}>상세</th><th>처리자</th><th>처리시각</th>
               </tr>
             </thead>
             <tbody>
@@ -119,6 +126,8 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
                   <td><Badge eventType={r.event_type} /></td>
                   <td style={{ fontWeight: 700 }}>{r.raw_code}</td>
                   <td>{s.rawNameByCode.get(r.raw_code) || "-"}</td>
+                  <td>{r.confirmed_code || "-"}</td>
+                  <td>{fmtKg(r.target_qty_kg)}</td>
                   <td>{detailText(r)}</td>
                   <td>{r.created_by || "-"}</td>
                   <td>{fmtTime(r.created_at)}</td>
@@ -126,7 +135,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
               ))}
               {s.rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ color: "#94a3b8" }}>
+                  <td colSpan={9} style={{ color: "#94a3b8" }}>
                     {s.loading ? "불러오는 중..." : "해당 기간에 이력이 없습니다."}
                   </td>
                 </tr>
