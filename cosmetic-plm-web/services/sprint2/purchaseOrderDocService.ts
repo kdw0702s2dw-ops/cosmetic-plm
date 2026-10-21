@@ -640,3 +640,79 @@ export function printInspectionReport(item: PurchaseOrderItem, order: PurchaseOr
   w.document.write(html);
   w.document.close();
 }
+
+// ============================================================
+// 원료 발주 안내서(칭량실 공유용) - "발주된 원료가 칭량실에는 알 수 없기에, 어떤 원료를 발주했는지
+// 미리 알려주기 위한" 내부 공유용 문서(요청사항). 공급사에 보내는 정식 "발주서"와 달리 단가/공급가/
+// 부가세/결제조건 같은 금액·거래 정보는 빼고, 입고를 맞이하는 쪽이 필요로 하는 식별 정보(원료코드/
+// 원료명/제조사/공급사/발주량/패킹)만 담는다. PDF는 기존 발주서/검수조서와 동일하게 "브라우저 인쇄 ->
+// PDF로 저장" 방식.
+// 제조사는 발주 품목(plm_raw_material_purchase_order_items)에는 저장돼 있지 않고 원료 마스터
+// (plm_raw_materials)에만 있어서, 호출하는 쪽(컴포넌트)이 rawMaterialService.fetchRawMaterialsByCodes로
+// 미리 조회해 "원료코드 -> 제조사명" 맵으로 넘겨준다(이 서비스 파일은 원료 마스터를 직접 조회하지 않음 -
+// 발주서/검수조서와 마찬가지로 이미 갖고 있는 데이터를 문서로만 옮기는 역할에 집중).
+// ============================================================
+export function buildIncomingNoticeHtml(
+  order: PurchaseOrder,
+  supplier: Company | null | undefined,
+  manufacturerByCode: Map<string, string>
+): string {
+  const supplierName = companyDisplayName(supplier) || "-";
+  const validItems = order.items.filter((it) => it.raw_code?.trim());
+  const rows = validItems
+    .map(
+      (it, idx) => `<tr>
+        <td>${idx + 1}</td>
+        <td>${esc(it.raw_code)}</td>
+        <td style="text-align:left;">${esc(itemDisplayName(it))}</td>
+        <td>${esc(manufacturerByCode.get(it.raw_code) || "-")}</td>
+        <td>${fmtQty(it.quantity)}${esc(it.unit ? ` ${it.unit}` : "")}</td>
+        <td>${esc(it.packing || "-")}</td>
+        <td style="text-align:left;">${esc(it.note || "")}</td>
+      </tr>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">
+<title>원료 발주 안내서 ${esc(order.order_no || "")}</title>
+<style>
+  * { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; box-sizing: border-box; }
+  body { padding: 28px; color: #111827; font-size: 13px; }
+  .doctitle { text-align:center; font-size:22px; font-weight:800; margin-bottom:6px; }
+  .subtitle { text-align:center; font-size:12px; color:#64748b; margin-bottom:18px; }
+  table.info { width:100%; border-collapse:collapse; margin-bottom:18px; }
+  table.info td { border:1px solid #333; padding:8px 10px; font-size:13px; }
+  table.info td.label { background:#f3f4f6; font-weight:700; width:16%; white-space:nowrap; }
+  table.items { width:100%; border-collapse:collapse; }
+  table.items th, table.items td { border:1px solid #333; padding:7px 8px; font-size:12.5px; text-align:center; }
+  table.items th { background:#f3f4f6; font-weight:700; }
+  @media print { body { padding:0; } }
+</style></head>
+<body>
+  <div class="doctitle">원료 발주 안내서</div>
+  <div class="subtitle">칭량실 공유용 - 아래 원료가 발주되었으니 입고 시 확인 바랍니다.</div>
+
+  <table class="info">
+    <tr><td class="label">발주번호</td><td>${esc(order.order_no || "-")}</td><td class="label">발주일</td><td>${esc(order.order_date || "-")}</td></tr>
+    <tr><td class="label">공급사</td><td colspan="3">${esc(supplierName)}</td></tr>
+  </table>
+
+  <table class="items">
+    <thead><tr><th>#</th><th>원료코드</th><th>원료명</th><th>제조사</th><th>발주량</th><th>패킹</th><th>비고</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="7">발주 품목이 없습니다.</td></tr>`}</tbody>
+  </table>
+
+  <script>window.onload = () => { window.print(); }</script>
+</body></html>`;
+}
+
+export function printIncomingNotice(order: PurchaseOrder, supplier: Company | null | undefined, manufacturerByCode: Map<string, string>) {
+  const html = buildIncomingNoticeHtml(order, supplier, manufacturerByCode);
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("팝업이 차단되었습니다. 팝업을 허용해주세요.");
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+}

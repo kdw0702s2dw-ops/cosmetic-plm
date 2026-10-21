@@ -12,6 +12,8 @@ import {
   type PurchaseOrder, type PurchaseOrderItem, type PurchaseOrderSummary, type PurchaseOrderListFilter,
   type PurchaseOrderStatus, type PurchaseOrderPaymentStatus,
 } from "@/services/sprint2/purchaseOrderService";
+import { printIncomingNotice } from "@/services/sprint2/purchaseOrderDocService";
+import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService";
 import type { PurchaseOrderDraftGroup, PurchaseOrderDraftResult, PurchaseOrderDraftUnresolvedRow } from "@/services/sprint2/manufacturingQtyReviewService";
 import SearchDropdown from "@/components/common/SearchDropdown";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
@@ -107,6 +109,9 @@ export default function RawMaterialPurchaseOrderManager({
   // 목록 행의 "발주서" 버튼을 누르면 상세(품목 포함)와 공급사 정보를 새로 불러와서 채운다.
   const [printTarget, setPrintTarget] = useState<PurchaseOrderPrintTarget | null>(null);
   const [printLoading, setPrintLoading] = useState(false);
+  // "칭량실 안내서" 출력 중 로딩 상태 - 입력할 추가 항목이 없어(발주서와 달리 모달 없이) 버튼을 누르면
+  // 바로 발주 상세 + 공급사 + 원료별 제조사를 불러와서 인쇄창을 띄운다.
+  const [noticeLoading, setNoticeLoading] = useState(false);
   // 품목별 "검수조서"(원료 입고정보) 입력/출력 모달 대상 - null이면 모달 닫힘. 입고일/사진/비고를
   // 저장하면 handleInspectionSaved가 아래 편집 중인 order.items를 같이 갱신한다.
   const [inspectionTarget, setInspectionTarget] = useState<PurchaseOrderInspectionTarget | null>(null);
@@ -184,6 +189,32 @@ export default function RawMaterialPurchaseOrderManager({
       setToast({ type: "error", text: "발주서 출력 준비 실패: " + (e instanceof Error ? e.message : String(e)) });
     } finally {
       setPrintLoading(false);
+    }
+  }
+
+  // 목록 행의 "칭량실 안내" 버튼 - 발주된 원료가 칭량실에는 알려지지 않으니, 발주 상세 + 공급사 +
+  // 원료별 제조사(원료 마스터에서 조회, 발주 품목에는 없는 정보)를 모아 안내서를 바로 인쇄(PDF)한다.
+  // 금액/결제 정보가 없는 문서라 발주서와 달리 별도 입력 모달 없이 버튼 1번으로 바로 출력된다.
+  async function openIncomingNotice(o: PurchaseOrderSummary) {
+    setNoticeLoading(true);
+    try {
+      const detail = await fetchPurchaseOrderDetail(o.id);
+      let supplier: Company | null = null;
+      if (detail.supplier_company_id) {
+        try {
+          supplier = await fetchCompanyById(detail.supplier_company_id);
+        } catch {
+          supplier = null;
+        }
+      }
+      const codes = detail.items.map((it) => it.raw_code).filter(Boolean);
+      const materials = await fetchRawMaterialsByCodes(codes);
+      const manufacturerByCode = new Map(materials.map((m) => [m.raw_code, m.manufacturer || ""]));
+      printIncomingNotice(detail, supplier, manufacturerByCode);
+    } catch (e) {
+      setToast({ type: "error", text: "칭량실 안내서 출력 준비 실패: " + (e instanceof Error ? e.message : String(e)) });
+    } finally {
+      setNoticeLoading(false);
     }
   }
 
@@ -482,7 +513,7 @@ export default function RawMaterialPurchaseOrderManager({
                 <thead>
                   <tr>
                     <th>발주번호</th><th>발주일</th><th>품목수</th><th>공급가</th><th>부가세</th><th>총액</th>
-                    <th>결제예정일</th><th>결제일</th><th>진행상태</th><th>결제상태</th><th style={{ width: 150 }}>액션</th>
+                    <th>결제예정일</th><th>결제일</th><th>진행상태</th><th>결제상태</th><th style={{ width: 190 }}>액션</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -502,6 +533,7 @@ export default function RawMaterialPurchaseOrderManager({
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           <button className="v50-button-light" onClick={() => selectOrder(o.id)}>{canWrite ? "수정" : "보기"}</button>
                           <button className="v50-button-light" disabled={printLoading} onClick={() => openPrintOrder(o)}>발주서</button>
+                          <button className="v50-button-light" disabled={noticeLoading} onClick={() => openIncomingNotice(o)} title="발주된 원료를 칭량실에 알리는 안내서(PDF)를 출력합니다">칭량실 안내</button>
                           {canWrite && <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(o)}>삭제</button>}
                         </div>
                       </td>
