@@ -76,7 +76,46 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
       </p>
       {s.message && <p style={{ color: "#dc2626", fontWeight: 800 }}>{s.message}</p>}
 
+      <section className="v50-panel" style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>처방 반영 요약</h3>
+        <p style={{ color: "#64748b", fontSize: 12, marginTop: 0, marginBottom: 12 }}>
+          어떤 처방을 언제·얼마나 제조했는지만 한 줄로 간략하게 봅니다(원료별 상세는 아래 표에서 확인).
+        </p>
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead>
+              <tr>
+                <th>날짜</th><th>확정코드</th><th>처방코드</th><th>처방명</th><th>제조량</th>
+                <th>반영 원료 수</th><th>처리자</th><th>처리시각</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.applyFormulaSummary.map((g) => (
+                <tr key={g.key}>
+                  <td>{g.ledger_date}</td>
+                  <td style={{ fontWeight: 700 }}>{g.confirmed_code || "-"}</td>
+                  <td>{[g.formula_code, g.formula_revision ? `Rev ${g.formula_revision}` : null].filter(Boolean).join(" · ") || "-"}</td>
+                  <td>{g.formula_name || "-"}</td>
+                  <td>{fmtKg(g.target_qty_kg)}</td>
+                  <td>{g.raw_material_count}개</td>
+                  <td>{s.resolveCreatedBy(g.created_by)}</td>
+                  <td>{fmtTime(g.created_at)}</td>
+                </tr>
+              ))}
+              {s.applyFormulaSummary.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ color: "#94a3b8" }}>
+                    {s.loading ? "불러오는 중..." : "해당 기간에 처방 반영 이력이 없습니다."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="v50-panel">
+        <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>상세 이력</h3>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 2 }}>기간</label>
@@ -129,7 +168,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
                   <td>{r.confirmed_code || "-"}</td>
                   <td>{fmtKg(r.target_qty_kg)}</td>
                   <td>{detailText(r)}</td>
-                  <td>{r.created_by || "-"}</td>
+                  <td>{s.resolveCreatedBy(r.created_by)}</td>
                   <td>{fmtTime(r.created_at)}</td>
                 </tr>
               ))}
