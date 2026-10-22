@@ -7,6 +7,7 @@ import {
   fetchUsageNotes,
   type UsageNote,
 } from "@/services/sprint2/rawMaterialUsageNoteService";
+import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
 import "@/styles/enterprise-v50.css";
 
 interface Props {
@@ -30,6 +31,18 @@ export default function RawMaterialUsageNotesSection({ canWrite, createdBy }: Pr
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // "처리자"를 이메일이 아니라 이름으로 보여주기 위한 이메일->이름 맵 - 바로 옆 사용량 이력 표들
+  // (useRawMaterialUsageLog의 resolveCreatedBy)과 같은 방식. 이 섹션은 그 훅을 쓰지 않는 독립
+  // 컴포넌트라 동일한 패턴을 그대로 다시 가져왔다.
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetchUserDisplayNames().then(setDisplayNames).catch(() => {});
+  }, []);
+  function resolveCreatedBy(email?: string | null): string {
+    if (!email) return "-";
+    return displayNames[email] || email;
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,7 +117,7 @@ export default function RawMaterialUsageNotesSection({ canWrite, createdBy }: Pr
             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
               <div style={{ color: "#334155", fontSize: 13, whiteSpace: "pre-wrap" }}>{item.note}</div>
               <span style={{ color: "#64748b", fontSize: 12, whiteSpace: "nowrap" }}>
-                {item.created_by || "-"} · {fmtDateTime(item.created_at)}
+                {resolveCreatedBy(item.created_by)} · {fmtDateTime(item.created_at)}
               </span>
             </div>
             {canWrite && (
