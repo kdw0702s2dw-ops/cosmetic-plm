@@ -18,6 +18,11 @@ import {
 
 type FormulaRef = { formula_code: string; revision: string; formula_name?: string; confirmed_code?: string };
 
+// "날짜 1순위 -> 확정코드 2순위 -> 공정 3순위" 정렬 요청 대응 - 같은 확정코드(=같은 처방)의 일정들이
+// 한데 모이고, 그 안에서는 알파벳순이 아니라 실제 공정 진행 순서(SCHEDULE_TYPES: 칭량->제조->도포->
+// 타공->포장->출고)대로 보여서 지금 어느 단계인지 한눈에 보기 쉽게 한다.
+const SCHEDULE_TYPE_ORDER = new Map(SCHEDULE_TYPES.map((t, i) => [t, i]));
+
 function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -125,10 +130,17 @@ export function useProductionSchedule(refreshToken?: number) {
     return map;
   }, [items]);
 
-  // 선택한 날짜가 있으면 그 날짜만, 없으면 이번 달 전체를 날짜순으로.
+  // 선택한 날짜가 있으면 그 날짜만, 없으면 이번 달 전체를, 1순위 날짜 -> 2순위 확정코드 -> 3순위 공정
+  // 진행 순서로 정렬한다.
   const listItems = useMemo(() => {
     const base = selectedDate ? items.filter((i) => i.schedule_date === selectedDate) : items;
-    return [...base].sort((a, b) => (a.schedule_date === b.schedule_date ? a.schedule_type.localeCompare(b.schedule_type) : a.schedule_date.localeCompare(b.schedule_date)));
+    return [...base].sort((a, b) => {
+      if (a.schedule_date !== b.schedule_date) return a.schedule_date.localeCompare(b.schedule_date);
+      const ac = a.confirmed_code || "";
+      const bc = b.confirmed_code || "";
+      if (ac !== bc) return ac.localeCompare(bc);
+      return (SCHEDULE_TYPE_ORDER.get(a.schedule_type) ?? 0) - (SCHEDULE_TYPE_ORDER.get(b.schedule_type) ?? 0);
+    });
   }, [items, selectedDate]);
 
   async function search() {
