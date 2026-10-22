@@ -495,6 +495,7 @@ export default function FormulaCorePanel() {
             <DecimalInput className="v50-input" value={s.formula.coating_thickness_mm ?? null} blankOnZero={false}
               onChange={(v) => updateFormula("coating_thickness_mm", v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null)} />
           </label>
+          <Input label="칼선정보" value={s.formula.cutting_line_info} onChange={(v) => updateFormula("cutting_line_info", v)} />
         </div>
         {showNewRevision && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, padding: 10, background: "#eff6ff", borderRadius: 10 }}>

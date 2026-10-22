@@ -23,6 +23,9 @@ export type Sprint1Formula = {
   claim?: string;
   measured_moisture_percent?: number | null;
   coating_thickness_mm?: number | null;
+  // 칼선(다이컷) 정보 - 예: "칼판(연구)-0006". 코팅두께 옆에 자유 입력으로 받는다(규격화된 체계가
+  // 없어 숫자/문자 혼용 가능해서 DecimalInput이 아닌 일반 텍스트).
+  cutting_line_info?: string;
   // 공개처방(일반)/공개처방(건조)를 원처방과 독립적으로 저장한 적이 있는지 - 자세한 내용은
   // services/sprint2/formulaDisclosureService.ts 참고. false면 지금까지와 동일하게 동작한다.
   public_bom_customized?: boolean;
