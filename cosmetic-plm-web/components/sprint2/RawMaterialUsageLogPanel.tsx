@@ -2,6 +2,9 @@
 
 import { useRawMaterialUsageLog, type DatePreset } from "@/hooks/useRawMaterialUsageLog";
 import type { UsageLogRow } from "@/services/sprint2/rawMaterialUsageLogService";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import { canWriteProduction } from "@/services/sprint1/authRbacService";
+import RawMaterialUsageNotesSection from "@/components/sprint2/RawMaterialUsageNotesSection";
 import "@/styles/enterprise-v50.css";
 
 const PRESET_OPTIONS: { key: DatePreset; label: string }[] = [
@@ -66,6 +69,7 @@ function detailText(r: UsageLogRow): string {
  */
 export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const s = useRawMaterialUsageLog(refreshTick);
+  const auth = useSprint1Auth();
 
   return (
     <div>
@@ -113,6 +117,8 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           </table>
         </div>
       </section>
+
+      <RawMaterialUsageNotesSection canWrite={canWriteProduction(auth.profile?.role)} createdBy={auth.profile?.email} />
 
       <section className="v50-panel">
         <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>상세 이력</h3>
