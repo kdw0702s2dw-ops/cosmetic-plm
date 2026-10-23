@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRawMaterialStockCheck } from "@/hooks/useRawMaterialStockCheck";
 import DecimalInput from "@/components/common/DecimalInput";
+import Toast from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const PAGE_SIZE = 20;
@@ -57,6 +58,7 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
         (대상: 1ACA, 1BSA, 1CLA, 1FRA, 1OLA, 1LQA, 1WXA로 시작하는 원료)
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
+      <Toast toast={s.toast} onClose={() => s.setToast(null)} />
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>날짜 선택</h2>

@@ -13,6 +13,7 @@ import {
   logFormulaApplyEvents, logManualEditEvents,
   type ApplyFormulaLogInput, type ManualEditLogInput,
 } from "@/services/sprint2/rawMaterialUsageLogService";
+import { type ToastState } from "@/components/common/Toast";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -89,6 +90,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [toast, setToast] = useState<ToastState>(null);
 
   // "오늘 제조한 처방으로 금일사용량 자동 반영" - 처방 검색/담기/제조 목록 상태 (useManufacturingQtyReview의
   // "제조 목록" 패턴과 동일).
@@ -411,16 +413,20 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
         setPendingFormulaUsageLog([]);
         await loadForDate(ledgerDate);
         setMessage("저장 완료");
+        setToast({ type: "success", text: "저장 완료" });
       } catch (logErr) {
         setPendingFormulaUsageLog([]);
         await loadForDate(ledgerDate);
-        setMessage(
+        const logErrText =
           "저장은 완료됐지만 사용량 이력 기록에는 실패했습니다: " +
-            (logErr instanceof Error ? logErr.message : String(logErr))
-        );
+            (logErr instanceof Error ? logErr.message : String(logErr));
+        setMessage(logErrText);
+        setToast({ type: "error", text: logErrText });
       }
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "저장 오류");
+      const errText = e instanceof Error ? e.message : "저장 오류";
+      setMessage(errText);
+      setToast({ type: "error", text: errText });
     } finally {
       setSaving(false);
     }
@@ -428,6 +434,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
 
   return {
     ledgerDate, setLedgerDate, rows, loading, saving, message,
+    toast, setToast,
     updateIncoming, updateOpeningBaseline, updateUsageEntry, addUsageEntry, removeUsageEntry,
     MAX_USAGE_ENTRIES, save,
     // 오늘 제조한 처방으로 금일사용량 자동 반영
