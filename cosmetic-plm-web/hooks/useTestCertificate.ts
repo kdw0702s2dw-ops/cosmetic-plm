@@ -21,7 +21,7 @@ import {
   confirmApproverStage,
 } from "@/services/sprint2/testCertificateService";
 import { fetchSignaturesByUserIds } from "@/services/sprint1/signatureService";
-import { openCertificatePrint, downloadCertificateHtml } from "@/services/sprint2/testCertificatePdfService";
+import { openCertificatePrint, downloadCertificateHtml, type CertSignatureMap } from "@/services/sprint2/testCertificatePdfService";
 import { downloadCertificateExcel } from "@/services/sprint2/testCertificateExcelService";
 
 type FormulaRef = { id: string; formula_code: string; revision: string; formula_name?: string; customer?: string };
@@ -376,22 +376,30 @@ export function useTestCertificate(refreshToken?: number) {
     }
   }
 
-  function printCurrentCertificate() {
-    openCertificatePrint(buildCurrentCertificate());
-  }
-
-  function downloadCurrentHtml() {
-    downloadCertificateHtml(buildCurrentCertificate());
-  }
-
-  // 엑셀 출력 시점에 작성/검토/승인 확정자 각자의 서명 이미지를 조회한다.
-  async function downloadCurrentExcel() {
+  // 출력 시점에 작성/검토/승인 확정자 각자의 서명 이미지를 조회한다. 엑셀 다운로드는 처음부터 이
+  // 방식을 쓰고 있었고, HTML 다운로드/인쇄도 동일하게 맞춘다.
+  async function loadSignatureMap(): Promise<CertSignatureMap> {
     const map = await fetchSignaturesByUserIds([writerConfirmedById, reviewerConfirmedById, approverConfirmedById]);
-    await downloadCertificateExcel(buildCurrentCertificate(), {
+    return {
       writer: writerConfirmedById ? map[writerConfirmedById] : undefined,
       reviewer: reviewerConfirmedById ? map[reviewerConfirmedById] : undefined,
       approver: approverConfirmedById ? map[approverConfirmedById] : undefined,
-    });
+    };
+  }
+
+  async function printCurrentCertificate() {
+    const signatures = await loadSignatureMap();
+    openCertificatePrint(buildCurrentCertificate(), signatures);
+  }
+
+  async function downloadCurrentHtml() {
+    const signatures = await loadSignatureMap();
+    downloadCertificateHtml(buildCurrentCertificate(), signatures);
+  }
+
+  async function downloadCurrentExcel() {
+    const signatures = await loadSignatureMap();
+    await downloadCertificateExcel(buildCurrentCertificate(), signatures);
   }
 
   return {

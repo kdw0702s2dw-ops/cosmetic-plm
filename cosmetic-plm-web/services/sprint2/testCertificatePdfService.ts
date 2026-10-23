@@ -1,11 +1,16 @@
 "use client";
 
 import type { CertItem, TestCertificate } from "./testCertificateService";
-import { APPROVAL_STAMP_DATA_URL } from "./testCertificateAssets";
 
 // 반제품/완제품 시험성적서 PDF - 사용자가 업로드한 엑셀 양식("반제품_완제품 시험성적서 양식.xlsx")의
 // 레이아웃(문서번호 + 제목박스+결재란(도장) / 품목코드~종합판정 헤더 / No.~시험결과및판정 표)을 그대로 재현한다.
 // 인쇄 버튼으로 브라우저 인쇄 대화상자를 열어 PDF로 저장하는 기존 문서관리 패턴(openPrintDocument)과 동일하게 동작한다.
+// 결재란 서명: 제품 COA/MSDS와 동일하게, 작성/검토/승인 각 단계를 실제로 "확정"한 담당자가 본인 서명
+// 이미지를 등록해두었을 때만(plm_signatures) 그 이미지를 삽입한다 - 엑셀 다운로드(testCertificateExcelService)는
+// 처음부터 이 방식이었는데, HTML/인쇄 출력은 고정된 범용 도장 이미지(APPROVAL_STAMP_DATA_URL)를 그대로
+// 쓰고 있어 "확정 시 내 서명이 자동 삽입"되지 않던 것을 여기서 맞춰준다.
+
+export type CertSignatureMap = { writer?: string | null; reviewer?: string | null; approver?: string | null };
 
 function e(v: any) {
   return String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m] || m));
@@ -18,16 +23,20 @@ function fmtDate(v: any) {
   return String(v).slice(0, 10);
 }
 
-// 결재란 도장 셀 - 담당자가 실제로 해당 단계를 "확정"해서 confirmedAt이 기록된 경우에만 도장 이미지를
-// 찍는다(이름만 적혀 있다고 도장이 찍히지 않음). 담당자 자체가 지정되어 있지 않으면(예: 검토자 없음)
-// 업로드 양식과 동일하게 사선으로 "해당 없음"을 표시하고, 담당자는 있지만 아직 확정 전이면 빈 칸으로 둔다.
-function signatureCellHtml(name: string, confirmedAt?: string | null) {
+// 결재란 서명 셀 - 담당자가 실제로 해당 단계를 "확정"해서 confirmedAt이 기록된 경우에만(그리고 본인이
+// 서명 이미지를 등록해두었을 때만) 서명 이미지를 넣는다. 확정은 됐지만 서명 이미지를 아직 등록하지
+// 않았으면 이름만 표기한다. 담당자 자체가 지정되어 있지 않으면(예: 검토자 없음) 업로드 양식과 동일하게
+// 사선으로 "해당 없음"을 표시하고, 담당자는 있지만 아직 확정 전이면 빈 칸으로 둔다.
+function signatureCellHtml(name: string, confirmedAt?: string | null, signatureUrl?: string | null) {
   const hasPerson = !!name && name.trim() !== "" && name.trim() !== "-";
   if (!hasPerson) {
     return `<div class="slashwrap"></div>`;
   }
+  if (confirmedAt && signatureUrl) {
+    return `<div class="stampwrap"><img class="stamp-img" src="${e(signatureUrl)}" alt="signature"/></div>`;
+  }
   if (confirmedAt) {
-    return `<div class="stampwrap"><img class="stamp-img" src="${APPROVAL_STAMP_DATA_URL}" alt="승인"/></div>`;
+    return `<div class="stampwrap"><span class="signed-name">${e(name)}</span></div>`;
   }
   return `<div class="stampwrap"></div>`;
 }
@@ -86,7 +95,7 @@ function itemRowsHtml(items: CertItem[]) {
   return rows.join("");
 }
 
-export function buildCertificateHtml(cert: TestCertificate): string {
+export function buildCertificateHtml(cert: TestCertificate, signatures: CertSignatureMap = {}): string {
   const title = cert.product_type === "반제품" ? "반제품 시험성적서\nSemi-Finished Product (Bulk) Certificate of Analysis" : "완제품 시험성적서\nFinished Product Certificate of Analysis";
 
   return `<!doctype html>
@@ -108,7 +117,8 @@ table{border-collapse:collapse;width:100%}
 .approvalbox .label{font-weight:bold;font-size:13px;background:#f8fafc}
 .approvalbox .kwlabel{font-weight:bold;font-size:14px;line-height:1.8}
 .stampwrap,.slashwrap{height:44px;position:relative;display:flex;align-items:center;justify-content:center}
-.stamp-img{width:38px;height:38px;object-fit:contain}
+.stamp-img{max-width:64px;max-height:40px;object-fit:contain}
+.signed-name{font-weight:700;font-size:10px;font-family:'Brush Script MT',cursive}
 .slashwrap{background:linear-gradient(to top right, transparent calc(50% - 1px), #94a3b8 calc(50% - 1px), #94a3b8 calc(50% + 1px), transparent calc(50% + 1px));}
 .namecell{font-weight:600}
 
@@ -138,7 +148,7 @@ table{border-collapse:collapse;width:100%}
 <td>
 <table class="approvalbox">
 <tr><td rowspan="3" class="kwlabel">결<br/>재</td><td class="label">작성</td><td class="label">검토</td><td class="label">승인</td></tr>
-<tr><td>${signatureCellHtml(cert.writer_name || "", cert.writer_confirmed_at)}</td><td>${signatureCellHtml(cert.reviewer_name || "", cert.reviewer_confirmed_at)}</td><td>${signatureCellHtml(cert.approver_name || "", cert.approver_confirmed_at)}</td></tr>
+<tr><td>${signatureCellHtml(cert.writer_name || "", cert.writer_confirmed_at, signatures.writer)}</td><td>${signatureCellHtml(cert.reviewer_name || "", cert.reviewer_confirmed_at, signatures.reviewer)}</td><td>${signatureCellHtml(cert.approver_name || "", cert.approver_confirmed_at, signatures.approver)}</td></tr>
 <tr><td class="namecell">${e(cert.writer_name || "-")}</td><td class="namecell">${e(cert.reviewer_name || "-")}</td><td class="namecell">${e(cert.approver_name || "-")}</td></tr>
 </table>
 </td>
@@ -179,16 +189,16 @@ ${itemRowsHtml(cert.items)}
 </html>`;
 }
 
-export function openCertificatePrint(cert: TestCertificate) {
+export function openCertificatePrint(cert: TestCertificate, signatures: CertSignatureMap = {}) {
   const win = window.open("", "_blank");
   if (!win) throw new Error("팝업이 차단되었습니다.");
   win.document.open();
-  win.document.write(buildCertificateHtml(cert));
+  win.document.write(buildCertificateHtml(cert, signatures));
   win.document.close();
 }
 
-export function downloadCertificateHtml(cert: TestCertificate) {
-  const html = buildCertificateHtml(cert);
+export function downloadCertificateHtml(cert: TestCertificate, signatures: CertSignatureMap = {}) {
+  const html = buildCertificateHtml(cert, signatures);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = window.document.createElement("a");
