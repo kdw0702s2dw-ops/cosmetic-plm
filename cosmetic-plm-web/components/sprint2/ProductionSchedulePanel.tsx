@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useProductionSchedule } from "@/hooks/useProductionSchedule";
 import { SCHEDULE_TYPE_COLORS, type ProductionSchedule, type ScheduleStatus, type ScheduleType } from "@/services/sprint2/productionScheduleService";
 import "@/styles/enterprise-v50.css";
@@ -85,6 +85,42 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
   useEffect(() => {
     if (s.editingId) setShowForm(true);
   }, [s.editingId]);
+
+  // 문서관리 "처방 선택" 아코디언과 동일한 방식 - 같은 처방(formula_code+revision)의 공정 일정들을
+  // 하나로 묶어 접어둔다. confirmed_code는 확정 전이면 비어 있을 수 있어 그룹 키로 쓰지 않는다.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const groupedSchedule = useMemo(() => {
+    const groups: { key: string; label: string; anyOverdue: boolean; items: ProductionSchedule[] }[] = [];
+    const indexByKey = new Map<string, number>();
+    for (const item of s.listItems) {
+      const key = `${item.formula_code}__${item.revision}`;
+      let idx = indexByKey.get(key);
+      if (idx === undefined) {
+        idx = groups.length;
+        indexByKey.set(key, idx);
+        groups.push({
+          key,
+          label: `${item.product_name || item.formula_name || "-"} (${item.confirmed_code ? `확정코드 ${item.confirmed_code}` : `처방코드 ${item.formula_code}`}) · Rev ${item.revision}`,
+          anyOverdue: false,
+          items: [],
+        });
+      }
+      const g = groups[idx];
+      g.items.push(item);
+      if (s.isScheduleOverdue(item)) g.anyOverdue = true;
+    }
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.listItems]);
 
   return (
     <div>
@@ -232,42 +268,63 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
             </div>
           )}
 
-          <div className="v50-table-wrap" style={{ marginTop: 10 }}>
-            <table className="v50-table">
-              <thead>
-                <tr><th>날짜</th><th>유형</th><th>확정코드</th><th>확정 제품명</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
-              </thead>
-              <tbody>
-                {s.listItems.map((item) => {
-                  const overdue = s.isScheduleOverdue(item);
-                  return (
-                    <tr key={item.id}>
-                      <td style={{ color: overdue ? "#dc2626" : undefined, fontWeight: overdue ? 800 : undefined }}>
-                        {item.schedule_date}{overdue && " (지연)"}
-                      </td>
-                      <td>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[item.schedule_type] }} />
-                          {item.schedule_type}
-                        </span>
-                      </td>
-                      <td>{item.confirmed_code || "-"}</td>
-                      <td>{item.product_name || item.formula_name || "-"}</td>
-                      <td>{item.quantity ?? "-"}</td>
-                      <td>{item.assignee || "-"}</td>
-                      <td><StatusSelect item={item} s={s} /></td>
-                      <td style={{ display: "flex", gap: 4 }}>
-                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.editItem(item)}>수정</button>
-                        <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.id!)}>삭제</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {s.listItems.length === 0 && (
-                  <tr><td colSpan={8} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div style={{ marginTop: 10 }}>
+            {groupedSchedule.map((g) => {
+              const expanded = expandedGroups.has(g.key);
+              return (
+                <div key={g.key} className="v50-card" style={{ padding: 0, marginBottom: 8, overflow: "hidden" }}>
+                  <button
+                    onClick={() => toggleGroup(g.key)}
+                    style={{
+                      width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "10px 14px", background: "#f8fafc", border: "none", cursor: "pointer", fontWeight: 800, fontSize: 13,
+                    }}
+                  >
+                    <span style={{ color: g.anyOverdue ? "#dc2626" : undefined }}>
+                      {g.label} · {g.items.length}건{g.anyOverdue && " ●"}
+                    </span>
+                    <span>{expanded ? "▲" : "▼"}</span>
+                  </button>
+                  {expanded && (
+                    <div className="v50-table-wrap" style={{ margin: "0 14px 10px" }}>
+                      <table className="v50-table">
+                        <thead>
+                          <tr><th>날짜</th><th>유형</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                          {g.items.map((item) => {
+                            const overdue = s.isScheduleOverdue(item);
+                            return (
+                              <tr key={item.id}>
+                                <td style={{ color: overdue ? "#dc2626" : undefined, fontWeight: overdue ? 800 : undefined }}>
+                                  {item.schedule_date}{overdue && " (지연)"}
+                                </td>
+                                <td>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[item.schedule_type] }} />
+                                    {item.schedule_type}
+                                  </span>
+                                </td>
+                                <td>{item.quantity ?? "-"}</td>
+                                <td>{item.assignee || "-"}</td>
+                                <td><StatusSelect item={item} s={s} /></td>
+                                <td style={{ display: "flex", gap: 4 }}>
+                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.editItem(item)}>수정</button>
+                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.id!)}>삭제</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {groupedSchedule.length === 0 && (
+              <p style={{ color: "#94a3b8", textAlign: "center", padding: "16px 0" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</p>
+            )}
           </div>
         </section>
       </div>
