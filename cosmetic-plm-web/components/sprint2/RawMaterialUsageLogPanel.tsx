@@ -54,11 +54,11 @@ function detailText(r: UsageLogRow): string {
   if (r.event_type === "apply_formula") {
     const parts = [r.formula_code, r.formula_revision ? `Rev ${r.formula_revision}` : null, r.formula_name].filter(Boolean);
     const head = parts.join(" · ") || "-";
-    return `${head} → 이 원료에 ${fmt(r.applied_usage)} 반영`;
+    return `${head} → 이 원료에 ${fmtKg(r.applied_usage)} 반영`;
   }
   const delta = (r.new_usage_today ?? 0) - (r.old_usage_today ?? 0);
   const sign = delta > 0 ? "+" : "";
-  return `${fmt(r.old_usage_today)} → ${fmt(r.new_usage_today)} (${sign}${fmt(delta)})`;
+  return `${fmtKg(r.old_usage_today)} → ${fmtKg(r.new_usage_today)} (${sign}${fmtKg(delta)})`;
 }
 
 // 입고재고량 반영 이력 한 줄을 사람이 읽기 쉬운 문장으로 풀어준다 - 이 날짜에 처음 입력한 경우
@@ -69,7 +69,7 @@ function incomingDetailText(r: IncomingStockLogRow): string {
   }
   const delta = r.new_incoming_stock - r.old_incoming_stock;
   const sign = delta > 0 ? "+" : "";
-  return `${fmtKg(r.old_incoming_stock)} → ${fmtKg(r.new_incoming_stock)} (${sign}${fmt(delta)})`;
+  return `${fmtKg(r.old_incoming_stock)} → ${fmtKg(r.new_incoming_stock)} (${sign}${fmtKg(delta)})`;
 }
 
 /**
@@ -101,7 +101,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           <table className="v50-table">
             <thead>
               <tr>
-                <th>날짜</th><th>확정코드</th><th>처방코드</th><th>처방명</th><th>제조량</th>
+                <th>날짜</th><th>확정코드</th><th>처방코드</th><th>처방명</th><th>제조량(kg)</th>
                 <th>반영 원료 수</th><th>처리자</th><th>처리시각</th>
               </tr>
             </thead>
@@ -208,7 +208,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           <table className="v50-table">
             <thead>
               <tr>
-                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th>확정코드</th><th>제조량</th>
+                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th>확정코드</th><th>제조량(kg)</th>
                 <th style={{ minWidth: 240 }}>상세</th><th>처리자</th><th>처리시각</th>
               </tr>
             </thead>

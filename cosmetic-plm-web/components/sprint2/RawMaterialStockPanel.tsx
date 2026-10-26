@@ -13,6 +13,11 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+function fmtKg(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return `${fmt(v)}kg`;
+}
+
 function sumUsage(entries: number[]) {
   return entries.reduce((a, b) => a + b, 0);
 }
@@ -150,11 +155,11 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
             {s.requiredUsagePreview.length > 0 ? (
               <div className="v50-table-wrap" style={{ marginBottom: 10 }}>
                 <table className="v50-table">
-                  <thead><tr><th>원료코드</th><th>원료명</th><th>계산된 사용량</th></tr></thead>
+                  <thead><tr><th>원료코드</th><th>원료명</th><th>계산된 사용량(kg)</th></tr></thead>
                   <tbody>
                     {s.requiredUsagePreview.map((r) => (
                       <tr key={r.raw_code}>
-                        <td>{r.raw_code}</td><td>{r.raw_name}</td><td style={{ fontWeight: 800 }}>{fmt(r.required_qty)}</td>
+                        <td>{r.raw_code}</td><td>{r.raw_name}</td><td style={{ fontWeight: 800 }}>{fmtKg(r.required_qty)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -183,7 +188,7 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
           <table className="v50-table">
             <thead>
               <tr>
-                <th>원료코드</th><th>원료명</th><th>현재재고량</th><th>입고재고량</th><th>금일사용량</th><th>최종재고량</th>
+                <th>원료코드</th><th>원료명</th><th>현재재고량(kg)</th><th>입고재고량(kg)</th><th>금일사용량(kg)</th><th>최종재고량(kg)</th>
               </tr>
             </thead>
             <tbody>
@@ -203,10 +208,10 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                       </div>
                     ) : (
                       <div>
-                        {fmt(r.opening_stock)}
+                        {fmtKg(r.opening_stock)}
                         {r.openingMismatch && (
                           <div style={{ fontSize: 11, color: "#b45309", marginTop: 2, maxWidth: 160 }}>
-                            ⚠ 전일({r.openingMismatch.priorDate}) 최종재고량({fmt(r.openingMismatch.priorClosing)})과 다름 -
+                            ⚠ 전일({r.openingMismatch.priorDate}) 최종재고량({fmtKg(r.openingMismatch.priorClosing)})과 다름 -
                             이후에 전일 날짜가 수정된 것으로 보입니다. 필요하면 이 날짜를 다시 확인하세요.
                           </div>
                         )}
@@ -252,11 +257,11 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
                         + 사용 추가 ({r.usage_entries.length}/{s.MAX_USAGE_ENTRIES})
                       </button>
                       {r.usage_entries.length > 1 && (
-                        <div style={{ fontWeight: 800, fontSize: 13 }}>합계: {fmt(sumUsage(r.usage_entries))}</div>
+                        <div style={{ fontWeight: 800, fontSize: 13 }}>합계: {fmtKg(sumUsage(r.usage_entries))}</div>
                       )}
                     </div>
                   </td>
-                  <td style={{ fontWeight: 800 }}>{fmt(r.closing_stock)}</td>
+                  <td style={{ fontWeight: 800 }}>{fmtKg(r.closing_stock)}</td>
                 </tr>
               ))}
               {pageRows.length === 0 && (

@@ -32,6 +32,11 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
+function fmtKg(v: number | null | undefined) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "-";
+  return `${fmt(v)}kg`;
+}
+
 // 보기 좋은 눈금 최대값 계산 (0이면 1로 바닥을 깔아 분모 0을 막음) - 1/2/5/10 배수로 올림.
 function niceMax(v: number): number {
   if (v <= 0) return 1;
@@ -85,7 +90,7 @@ function UsageBarChart({ rows, granularity }: { rows: UsageStatRow[]; granularit
                 stroke={i === 0 ? BASELINE_COLOR : GRIDLINE_COLOR} strokeWidth={1}
               />
               <text x={LEFT_PAD - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={11} fill={AXIS_LABEL_COLOR}>
-                {fmt(t)}
+                {fmtKg(t)}
               </text>
             </g>
           );
@@ -100,11 +105,11 @@ function UsageBarChart({ rows, granularity }: { rows: UsageStatRow[]; granularit
           return (
             <g key={r.period}>
               <path d={roundedTopBarPath(x, y, BAR_WIDTH, h, 4)} fill={BAR_COLOR}>
-                <title>{`${r.period}: ${fmt(r.usage)}`}</title>
+                <title>{`${r.period}: ${fmtKg(r.usage)}`}</title>
               </path>
               {showLabel && r.usage > 0 && (
                 <text x={x + BAR_WIDTH / 2} y={y - 6} textAnchor="middle" fontSize={11} fill={VALUE_LABEL_COLOR}>
-                  {fmt(r.usage)}
+                  {fmtKg(r.usage)}
                 </text>
               )}
               {showTick && (
@@ -190,20 +195,20 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
           ) : (
             <>
               <p style={{ fontWeight: 800, fontSize: 15, marginBottom: 10 }}>
-                선택 기간 합계 사용량: {fmt(s.totalUsage)}
+                선택 기간 합계 사용량: {fmtKg(s.totalUsage)}
               </p>
 
               <UsageBarChart rows={s.activeRows} granularity={s.granularity} />
 
               <div className="v50-table-wrap" style={{ marginTop: 14 }}>
                 <table className="v50-table">
-                  <thead><tr><th>기간</th><th>사용량</th><th>기간 말 최종재고량</th></tr></thead>
+                  <thead><tr><th>기간</th><th>사용량(kg)</th><th>기간 말 최종재고량(kg)</th></tr></thead>
                   <tbody>
                     {[...s.activeRows].reverse().map((r) => (
                       <tr key={r.period}>
                         <td>{r.period}</td>
-                        <td>{fmt(r.usage)}</td>
-                        <td>{fmt(r.closingStock)}</td>
+                        <td>{fmtKg(r.usage)}</td>
+                        <td>{fmtKg(r.closingStock)}</td>
                       </tr>
                     ))}
                   </tbody>
