@@ -13,6 +13,10 @@ import {
   logFormulaApplyEvents, logManualEditEvents,
   type ApplyFormulaLogInput, type ManualEditLogInput,
 } from "@/services/sprint2/rawMaterialUsageLogService";
+import {
+  logIncomingStockEvents,
+  type IncomingStockLogInput,
+} from "@/services/sprint2/rawMaterialIncomingStockLogService";
 import { type ToastState } from "@/components/common/Toast";
 
 function todayStr() {
@@ -42,6 +46,9 @@ export type StockRow = {
   // 등록 대기 행, carry-forward로 opening만 채워진 아직 저장 전 행)은 비교할 "이전 값"이 없으므로
   // null이다. save()에서 이 값과 지금 화면의 금일사용량 합계가 다르면 "수정"으로 보고 이력에 남긴다.
   originalUsageToday: number | null;
+  // 이미 저장돼 있던 입고재고량 - "입고재고량 반영 이력" 판정 기준값(originalUsageToday와 동일한 방식).
+  // 이 날짜에 저장된 적이 없으면 null(비교할 "이전 값"이 없음 - 최초 입력으로 기록됨).
+  originalIncomingStock: number | null;
 };
 
 function sumUsage(entries: number[]) {
@@ -143,7 +150,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             return {
               raw_code: m.raw_code, raw_name: m.raw_name,
               opening_stock: 0, incoming_stock: 0, usage_entries: [0], closing_stock: 0,
-              openingEditable: true, openingMismatch: null, originalUsageToday: null,
+              openingEditable: true, openingMismatch: null, originalUsageToday: null, originalIncomingStock: null,
             };
           }
           const existingOpening = Number(existing.opening_stock);
@@ -161,6 +168,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
             usage_entries: [Number(existing.usage_today)],
             closing_stock: Number(existing.closing_stock), openingEditable: false,
             openingMismatch, originalUsageToday: Number(existing.usage_today),
+            originalIncomingStock: Number(existing.incoming_stock || 0),
           };
         }
         const opening = prior ? Number(prior.closing_stock) : 0;
@@ -169,6 +177,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
           opening_stock: opening, incoming_stock: 0, usage_entries: [0], closing_stock: opening,
           openingEditable: !prior, // 과거 이력이 전혀 없으면 최초 등록 baseline 입력 필요
           openingMismatch: null, originalUsageToday: null, // 이 날짜엔 아직 저장된 적이 없어 "이전 값"이 없음
+          originalIncomingStock: null,
         };
       });
       setRows(built);
@@ -403,6 +412,20 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
           created_by: auth.profile?.email || null,
         }));
 
+      // "입고재고량 반영 이력" 대상 판정 - 금일사용량 수정 이력(manualEdits)과 달리 입고재고량은
+      // "자동 반영" 경로가 없어서 전부 직접 입력이다. 그래서 이 날짜에 처음 입력하는 경우(originalIncomingStock
+      // 이 null)도 값이 0이 아니면 "최초 입력"으로 기록하고, 이미 저장된 적이 있는 행은 값이 달라졌을
+      // 때만 "수정"으로 기록한다(요청사항: "원료재고량 입력하여 반영되었을 때... 이력을 확인").
+      const incomingStockEdits: IncomingStockLogInput[] = rows
+        .filter((r) =>
+          r.originalIncomingStock === null ? r.incoming_stock !== 0 : Math.abs(r.incoming_stock - r.originalIncomingStock) > 1e-6
+        )
+        .map((r) => ({
+          raw_code: r.raw_code, ledger_date: ledgerDate,
+          old_incoming_stock: r.originalIncomingStock, new_incoming_stock: r.incoming_stock,
+          created_by: auth.profile?.email || null,
+        }));
+
       await saveLedgerRows(payload);
 
       // 이력 기록은 "있으면 좋은" 부가 정보라, 여기서 실패해도 이미 끝난 원장 저장 자체를 되돌리지
@@ -410,6 +433,7 @@ export function useRawMaterialStockCheck(refreshToken?: number) {
       try {
         if (pendingFormulaUsageLog.length > 0) await logFormulaApplyEvents(pendingFormulaUsageLog);
         if (manualEdits.length > 0) await logManualEditEvents(manualEdits);
+        if (incomingStockEdits.length > 0) await logIncomingStockEvents(incomingStockEdits);
         setPendingFormulaUsageLog([]);
         await loadForDate(ledgerDate);
         setMessage("저장 완료");

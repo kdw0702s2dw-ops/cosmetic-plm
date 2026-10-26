@@ -2,6 +2,7 @@
 
 import { useRawMaterialUsageLog, type DatePreset } from "@/hooks/useRawMaterialUsageLog";
 import type { UsageLogRow } from "@/services/sprint2/rawMaterialUsageLogService";
+import type { IncomingStockLogRow } from "@/services/sprint2/rawMaterialIncomingStockLogService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { canWriteProduction } from "@/services/sprint1/authRbacService";
 import RawMaterialUsageNotesSection from "@/components/sprint2/RawMaterialUsageNotesSection";
@@ -60,6 +61,17 @@ function detailText(r: UsageLogRow): string {
   return `${fmt(r.old_usage_today)} → ${fmt(r.new_usage_today)} (${sign}${fmt(delta)})`;
 }
 
+// 입고재고량 반영 이력 한 줄을 사람이 읽기 쉬운 문장으로 풀어준다 - 이 날짜에 처음 입력한 경우
+// (old_incoming_stock이 null)와 이미 저장된 값을 나중에 고친 경우를 구분해서 보여준다.
+function incomingDetailText(r: IncomingStockLogRow): string {
+  if (r.old_incoming_stock === null) {
+    return `${fmtKg(r.new_incoming_stock)} 입고 등록`;
+  }
+  const delta = r.new_incoming_stock - r.old_incoming_stock;
+  const sign = delta > 0 ? "+" : "";
+  return `${fmtKg(r.old_incoming_stock)} → ${fmtKg(r.new_incoming_stock)} (${sign}${fmt(delta)})`;
+}
+
 /**
  * 칭량_원료재고 > "오늘 제조한 처방으로 금일사용량 자동 반영" 사용 이력 화면.
  * 여러 사람이 같은 날짜에 각자 처방을 불러와서 반영/수정할 수 있어서, (1) 어떤 처방을 언제·얼마나
@@ -110,6 +122,42 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
                 <tr>
                   <td colSpan={8} style={{ color: "#94a3b8" }}>
                     {s.loading ? "불러오는 중..." : "해당 기간에 처방 반영 이력이 없습니다."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="v50-panel" style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>입고재고량 반영 이력</h3>
+        <p style={{ color: "#64748b", fontSize: 12, marginTop: 0, marginBottom: 12 }}>
+          칭량_원료재고에서 원료별 입고재고량을 입력·저장할 때마다 남는 이력입니다(최초 입력과 이후 수정 모두 표시).
+        </p>
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead>
+              <tr>
+                <th>날짜</th><th>원료코드</th><th>원료명</th><th style={{ minWidth: 200 }}>입고재고량 반영 내역</th>
+                <th>처리자</th><th>처리시각</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.incomingStockRows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.ledger_date}</td>
+                  <td style={{ fontWeight: 700 }}>{r.raw_code}</td>
+                  <td>{s.rawNameByCode.get(r.raw_code) || "-"}</td>
+                  <td>{incomingDetailText(r)}</td>
+                  <td>{s.resolveCreatedBy(r.created_by)}</td>
+                  <td>{fmtTime(r.created_at)}</td>
+                </tr>
+              ))}
+              {s.incomingStockRows.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ color: "#94a3b8" }}>
+                    {s.loading ? "불러오는 중..." : "해당 기간에 입고재고량 반영 이력이 없습니다."}
                   </td>
                 </tr>
               )}

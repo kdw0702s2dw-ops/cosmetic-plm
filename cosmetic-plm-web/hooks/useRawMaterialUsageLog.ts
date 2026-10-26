@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchUsageLog, type UsageLogRow } from "@/services/sprint2/rawMaterialUsageLogService";
+import { fetchIncomingStockLog, type IncomingStockLogRow } from "@/services/sprint2/rawMaterialIncomingStockLogService";
 import { fetchStockManagedRawMaterials } from "@/services/sprint2/rawMaterialStockService";
 import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
 
@@ -53,6 +54,7 @@ export function useRawMaterialUsageLog(refreshToken?: number) {
   const [dateTo, setDateToState] = useState(today);
   const [keyword, setKeyword] = useState("");
   const [rows, setRows] = useState<UsageLogRow[]>([]);
+  const [incomingStockRows, setIncomingStockRows] = useState<IncomingStockLogRow[]>([]);
   const [materials, setMaterials] = useState<{ raw_code: string; raw_name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -111,7 +113,12 @@ export function useRawMaterialUsageLog(refreshToken?: number) {
     setLoading(true);
     setMessage("");
     try {
-      setRows(await fetchUsageLog({ dateFrom: from, dateTo: to, keyword: kw }));
+      const [usageRows, incomingRows] = await Promise.all([
+        fetchUsageLog({ dateFrom: from, dateTo: to, keyword: kw }),
+        fetchIncomingStockLog({ dateFrom: from, dateTo: to, keyword: kw }),
+      ]);
+      setRows(usageRows);
+      setIncomingStockRows(incomingRows);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "이력 조회 오류");
     } finally {
@@ -173,5 +180,6 @@ export function useRawMaterialUsageLog(refreshToken?: number) {
     keyword, setKeyword, search,
     rows, rawNameByCode, loading, message,
     applyFormulaSummary, resolveCreatedBy,
+    incomingStockRows,
   };
 }
