@@ -90,7 +90,7 @@ function UsageBarChart({ rows, granularity }: { rows: UsageStatRow[]; granularit
                 stroke={i === 0 ? BASELINE_COLOR : GRIDLINE_COLOR} strokeWidth={1}
               />
               <text x={LEFT_PAD - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={11} fill={AXIS_LABEL_COLOR}>
-                {fmtKg(t)}
+                {fmt(t)}
               </text>
             </g>
           );
@@ -202,7 +202,7 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
 
               <div className="v50-table-wrap" style={{ marginTop: 14 }}>
                 <table className="v50-table">
-                  <thead><tr><th>기간</th><th>사용량(kg)</th><th>기간 말 최종재고량(kg)</th></tr></thead>
+                  <thead><tr><th>기간</th><th>사용량</th><th>기간 말 최종재고량</th></tr></thead>
                   <tbody>
                     {[...s.activeRows].reverse().map((r) => (
                       <tr key={r.period}>

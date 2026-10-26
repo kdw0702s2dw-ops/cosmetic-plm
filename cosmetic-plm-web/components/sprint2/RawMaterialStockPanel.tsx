@@ -155,7 +155,7 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
             {s.requiredUsagePreview.length > 0 ? (
               <div className="v50-table-wrap" style={{ marginBottom: 10 }}>
                 <table className="v50-table">
-                  <thead><tr><th>원료코드</th><th>원료명</th><th>계산된 사용량(kg)</th></tr></thead>
+                  <thead><tr><th>원료코드</th><th>원료명</th><th>계산된 사용량</th></tr></thead>
                   <tbody>
                     {s.requiredUsagePreview.map((r) => (
                       <tr key={r.raw_code}>
@@ -188,7 +188,7 @@ export default function RawMaterialStockPanel({ refreshTick }: { refreshTick?: n
           <table className="v50-table">
             <thead>
               <tr>
-                <th>원료코드</th><th>원료명</th><th>현재재고량(kg)</th><th>입고재고량(kg)</th><th>금일사용량(kg)</th><th>최종재고량(kg)</th>
+                <th>원료코드</th><th>원료명</th><th>현재재고량</th><th>입고재고량(kg)</th><th>금일사용량(kg)</th><th>최종재고량</th>
               </tr>
             </thead>
             <tbody>

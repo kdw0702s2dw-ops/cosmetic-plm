@@ -101,7 +101,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           <table className="v50-table">
             <thead>
               <tr>
-                <th>날짜</th><th>확정코드</th><th>처방코드</th><th>처방명</th><th>제조량(kg)</th>
+                <th>날짜</th><th>확정코드</th><th>처방코드</th><th>처방명</th><th>제조량</th>
                 <th>반영 원료 수</th><th>처리자</th><th>처리시각</th>
               </tr>
             </thead>
@@ -208,7 +208,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
           <table className="v50-table">
             <thead>
               <tr>
-                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th>확정코드</th><th>제조량(kg)</th>
+                <th>날짜</th><th>유형</th><th>원료코드</th><th>원료명</th><th>확정코드</th><th>제조량</th>
                 <th style={{ minWidth: 240 }}>상세</th><th>처리자</th><th>처리시각</th>
               </tr>
             </thead>
