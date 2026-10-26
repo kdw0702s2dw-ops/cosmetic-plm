@@ -2,12 +2,18 @@
 
 import { useMemo } from "react";
 import { useRawMaterialUsageStats, type Granularity, type UsageStatRow } from "@/hooks/useRawMaterialUsageStats";
+import { useRawMaterialUsageRanking, type RankingGranularity } from "@/hooks/useRawMaterialUsageRanking";
 import "@/styles/enterprise-v50.css";
 
 const GRANULARITY_OPTIONS: { key: Granularity; label: string }[] = [
   { key: "daily", label: "일별" },
   { key: "monthly", label: "월별" },
   { key: "yearly", label: "년별" },
+];
+
+const RANKING_GRANULARITY_OPTIONS: { key: RankingGranularity; label: string }[] = [
+  { key: "monthly", label: "월별" },
+  { key: "yearly", label: "년도별" },
 ];
 
 // 색상/치수는 dataviz 가이드 기준(단일 계열 - 범례 없음): 막대 #2a78d6, 격자선 #e1e0d9(hairline),
@@ -130,6 +136,7 @@ function UsageBarChart({ rows, granularity }: { rows: UsageStatRow[]; granularit
 
 export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const s = useRawMaterialUsageStats(refreshTick);
+  const rk = useRawMaterialUsageRanking(refreshTick);
 
   return (
     <div>
@@ -138,6 +145,74 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
         (대상: 1ACA, 1BSA, 1CLA, 1FRA, 1OLA, 1LQA, 1WXA로 시작하는 원료)
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>원료별 사용량 TOP 30</h2>
+        <p className="v50-desc" style={{ marginBottom: 10 }}>
+          선택한 월/년도에 사용량이 많았던 원료 순위입니다. 당일 입력이 아직 끝나지 않았을 수 있어
+          <strong> {rk.asOf}까지 저장된 사용량</strong>을 기준으로 집계합니다.
+        </p>
+        {rk.message && <p style={{ color: "#dc2626", fontWeight: 800 }}>{rk.message}</p>}
+
+        <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 4 }}>기준</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {RANKING_GRANULARITY_OPTIONS.map((g) => (
+                <button
+                  key={g.key}
+                  className={rk.granularity === g.key ? "v50-button" : "v50-button-light"}
+                  onClick={() => rk.setGranularity(g.key)}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {rk.granularity === "monthly" ? (
+            <div>
+              <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 4 }}>월 선택</label>
+              <input className="v50-input" type="month" value={rk.month} onChange={(e) => e.target.value && rk.setMonth(e.target.value)} />
+            </div>
+          ) : (
+            <div>
+              <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 4 }}>년도 선택</label>
+              <input
+                className="v50-input" type="number" style={{ width: 110 }}
+                value={rk.year}
+                onChange={(e) => rk.setYear(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="v50-table-wrap">
+          <table className="v50-table">
+            <thead><tr><th style={{ width: 60 }}>순위</th><th>원료코드</th><th>원료명</th><th>사용량(kg)</th></tr></thead>
+            <tbody>
+              {rk.rows.map((r) => (
+                <tr key={r.raw_code}>
+                  <td style={{ fontWeight: 800 }}>{r.rank}</td>
+                  <td>{r.raw_code}</td>
+                  <td>{r.raw_name}</td>
+                  <td style={{ fontWeight: 800 }}>{fmtKg(r.usage)}</td>
+                </tr>
+              ))}
+              {rk.rows.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ color: "#94a3b8" }}>
+                    {rk.loading
+                      ? "불러오는 중..."
+                      : rk.granularity === "yearly" && !/^\d{4}$/.test(rk.year)
+                      ? "년도를 4자리 숫자로 입력하세요."
+                      : "해당 기간에 사용량 이력이 없습니다."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>원료 선택</h2>

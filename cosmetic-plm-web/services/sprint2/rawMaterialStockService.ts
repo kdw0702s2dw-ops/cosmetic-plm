@@ -108,6 +108,37 @@ export async function fetchLatestStockByRawCodes(rawCodes: string[]): Promise<Ma
   return map;
 }
 
+// "사용량 TOP 랭킹"용: 지정 기간(from~to, 양 끝 포함) 동안 raw_code별 금일사용량 합계. 기존
+// fetchLedgerHistory는 원료 1개 전용이라 전체 원료를 한 번에 집계할 수 없어 별도로 둔다 - 필요한
+// 컬럼(raw_code, usage_today)만 받아와 클라이언트에서 합산한다.
+// 원장은 날짜마다 대상 원료 전체(130여 행)를 저장하므로 한 달만 돼도 Supabase 1회 조회 상한(1000행)을
+// 넘는다 - 상한을 넘으면 에러 없이 잘려서 순위가 틀어지므로, 사용량 0인 행은 서버에서 거르고
+// (raw_code, ledger_date) 순으로 정렬해 1000행씩 끝까지 나눠 받는다.
+const USAGE_RANGE_PAGE_SIZE = 1000;
+
+export async function fetchUsageForRange(dateFrom: string, dateTo: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  for (let offset = 0; ; offset += USAGE_RANGE_PAGE_SIZE) {
+    const { data, error } = await supabaseProductionFinal
+      .from("plm_raw_material_stock_ledger")
+      .select("raw_code, usage_today")
+      .gte("ledger_date", dateFrom)
+      .lte("ledger_date", dateTo)
+      .gt("usage_today", 0)
+      .order("raw_code")
+      .order("ledger_date")
+      .range(offset, offset + USAGE_RANGE_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = (data || []) as { raw_code: string; usage_today: number }[];
+    for (const row of page) {
+      const prev = map.get(row.raw_code) || 0;
+      map.set(row.raw_code, prev + Number(row.usage_today || 0));
+    }
+    if (page.length < USAGE_RANGE_PAGE_SIZE) break;
+  }
+  return map;
+}
+
 // 화면에 표시된 대상 원료 전체를 해당 날짜로 batch upsert.
 // opening_stock은 항상 호출 측(훅)이 이미 확정한 값을 그대로 저장한다 - 기존에 저장된 날짜를 수정하는
 // 경우엔 원래 저장돼있던 opening_stock을, 새 날짜를 처음 저장하는 경우엔 carry-forward로 계산한
