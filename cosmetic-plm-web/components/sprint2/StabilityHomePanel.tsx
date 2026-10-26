@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useStabilityHome } from "@/hooks/useStabilityHome";
 import type { CheckpointWithContext } from "@/services/sprint2/stabilityTestService";
 import "@/styles/enterprise-v50.css";
@@ -68,6 +69,43 @@ export default function StabilityHomePanel({
   const monthLabel = `${s.year}년 ${s.month}월`;
   const hasMyAlert = s.myOverdueCount + s.myDueSoonCount > 0;
 
+  // 생산_일정관리와 동일한 방식 - 같은 시료(시험) 건의 체크포인트들을 하나로 묶어 평소엔 접어둔다.
+  // 그룹 키는 test.id(안정성시험 1건의 고유 id) - 확정코드는 확정 전이면 비어 있을 수 있어 쓰지 않는다.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const groupedCheckpoints = useMemo(() => {
+    const groups: { key: string; label: string; anyOverdue: boolean; items: CheckpointWithContext[] }[] = [];
+    const indexByKey = new Map<string, number>();
+    for (const cp of s.listItems) {
+      const test = cp.condition?.test;
+      const key = test?.id || `${cp.condition?.id || "-"}`; // test 정보가 비어 있는 예외적인 경우를 대비한 폴백
+      let idx = indexByKey.get(key);
+      if (idx === undefined) {
+        idx = groups.length;
+        indexByKey.set(key, idx);
+        groups.push({
+          key,
+          label: `${test?.product_name || test?.sample_name || test?.formula_name || test?.formula_code || "-"} (${test?.confirmed_code ? `확정코드 ${test.confirmed_code}` : `처방코드 ${test?.formula_code || "-"}`}) · Rev ${test?.revision || "-"}`,
+          anyOverdue: false,
+          items: [],
+        });
+      }
+      const g = groups[idx];
+      g.items.push(cp);
+      if (s.isCheckpointOverdue(cp)) g.anyOverdue = true;
+    }
+    return groups;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.listItems]);
+
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 10 }}>
@@ -112,29 +150,51 @@ export default function StabilityHomePanel({
           {buildCalendarCells(s.year, s.month).map((date, i) => <DayCell key={date || `empty-${i}`} date={date} s={s} />)}
         </div>
 
-        <div id="stability-home-list" className="v50-table-wrap" style={{ marginTop: 12 }}>
-          <table className="v50-table">
-            <thead><tr><th>날짜</th><th>확정코드</th><th>Revision</th><th>시료</th><th>시험조건</th><th>담당자</th><th>상태</th><th></th></tr></thead>
-            <tbody>
-              {s.listItems.map((cp) => {
-                const st = statusOf(cp, s);
-                const test = cp.condition?.test;
-                return (
-                  <tr key={cp.id}>
-                    <td style={{ color: st === "지연" ? "#dc2626" : undefined, fontWeight: st === "지연" ? 800 : undefined }}>{cp.due_date}</td>
-                    <td>{test?.confirmed_code || "-"}</td>
-                    <td>{test?.revision || "-"}</td>
-                    <td>{test?.product_name || test?.sample_name || test?.formula_name || test?.formula_code || "-"}</td>
-                    <td>{cp.condition?.condition_label || "-"} · {cp.checkpoint_label}</td>
-                    <td>{test?.assignee || "-"}</td>
-                    <td><span className={`v50-badge ${st === "지연" ? "danger" : st === "임박" ? "warn" : st === "완료" ? "ok" : ""}`}>{st}</span></td>
-                    <td><button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => test?.id && onOpenTest(test.id)}>열기</button></td>
-                  </tr>
-                );
-              })}
-              {s.listItems.length === 0 && <tr><td colSpan={8} style={{ color: "#94a3b8", textAlign: "center" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</td></tr>}
-            </tbody>
-          </table>
+        <div id="stability-home-list" style={{ marginTop: 12 }}>
+          {groupedCheckpoints.map((g) => {
+            const expanded = expandedGroups.has(g.key);
+            return (
+              <div key={g.key} className="v50-card" style={{ padding: 0, marginBottom: 8, overflow: "hidden" }}>
+                <button
+                  onClick={() => toggleGroup(g.key)}
+                  style={{
+                    width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 14px", background: "#f8fafc", border: "none", cursor: "pointer", fontWeight: 800, fontSize: 13,
+                  }}
+                >
+                  <span style={{ color: g.anyOverdue ? "#dc2626" : undefined }}>
+                    {g.label} · {g.items.length}건{g.anyOverdue && " ●"}
+                  </span>
+                  <span>{expanded ? "▲" : "▼"}</span>
+                </button>
+                {expanded && (
+                  <div className="v50-table-wrap" style={{ margin: "0 14px 10px" }}>
+                    <table className="v50-table">
+                      <thead><tr><th>날짜</th><th>시험조건</th><th>담당자</th><th>상태</th><th></th></tr></thead>
+                      <tbody>
+                        {g.items.map((cp) => {
+                          const st = statusOf(cp, s);
+                          const test = cp.condition?.test;
+                          return (
+                            <tr key={cp.id}>
+                              <td style={{ color: st === "지연" ? "#dc2626" : undefined, fontWeight: st === "지연" ? 800 : undefined }}>{cp.due_date}</td>
+                              <td>{cp.condition?.condition_label || "-"} · {cp.checkpoint_label}</td>
+                              <td>{test?.assignee || "-"}</td>
+                              <td><span className={`v50-badge ${st === "지연" ? "danger" : st === "임박" ? "warn" : st === "완료" ? "ok" : ""}`}>{st}</span></td>
+                              <td><button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => test?.id && onOpenTest(test.id)}>열기</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {groupedCheckpoints.length === 0 && (
+            <p style={{ color: "#94a3b8", textAlign: "center", padding: "16px 0" }}>{s.loading ? "불러오는 중..." : "일정이 없습니다."}</p>
+          )}
         </div>
       </section>
     </div>
