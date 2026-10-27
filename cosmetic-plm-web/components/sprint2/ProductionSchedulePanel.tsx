@@ -233,6 +233,50 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
         </section>
       )}
 
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>일정 찾기</h2>
+        <p className="v50-desc" style={{ marginBottom: 10 }}>
+          확정코드·처방코드·처방명·담당자로 이미 등록된 일정을 찾아 그 날짜로 바로 이동합니다.
+          (Lot No.는 생산이 끝난 뒤 생산실적에만 생기는 값이라 일정 단계인 여기서는 아직 없어요 - 생산실적 관리에서 찾아야 합니다.)
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            className="v50-input" style={{ maxWidth: 280 }}
+            value={s.findKeyword}
+            onChange={(e) => s.setFindKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && s.findSchedules()}
+            placeholder="확정코드, 처방코드, 처방명, 담당자로 검색"
+          />
+          <button className="v50-button" onClick={s.findSchedules} disabled={s.findLoading}>{s.findLoading ? "검색 중…" : "검색"}</button>
+        </div>
+        {s.findMessage && <p style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>{s.findMessage}</p>}
+        {s.findResults.length > 0 && (
+          <div className="v50-table-wrap" style={{ marginTop: 10 }}>
+            <table className="v50-table">
+              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>처방명</th><th>담당자</th><th>상태</th><th></th></tr></thead>
+              <tbody>
+                {s.findResults.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.schedule_date}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: SCHEDULE_TYPE_COLORS[item.schedule_type] }} />
+                        {item.schedule_type}
+                      </span>
+                    </td>
+                    <td>{item.confirmed_code || "-"}</td>
+                    <td>{item.product_name || item.formula_name || "-"}</td>
+                    <td>{item.assignee || "-"}</td>
+                    <td>{item.status}</td>
+                    <td><button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.goToFindResult(item)}>이동</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <div>
         <section className="v50-panel">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>

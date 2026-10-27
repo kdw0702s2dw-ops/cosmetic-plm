@@ -5,6 +5,7 @@ import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import {
   searchFormulasByCodeOrConfirmedCode,
   fetchProductionSchedules,
+  searchProductionSchedules,
   saveProductionSchedule,
   updateProductionScheduleStatus,
   deleteProductionSchedule,
@@ -52,6 +53,13 @@ export function useProductionSchedule(refreshToken?: number) {
   const [hits, setHits] = useState<FormulaRef[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedFormula, setSelectedFormula] = useState<FormulaRef | null>(null);
+
+  // 일정 검색(이미 등록된 일정을 확정코드/처방코드/처방명/담당자로 찾아서 그 날짜로 바로 이동) - 위
+  // keyword/hits(등록 폼의 "넣을 처방 고르기" 용)와는 목적이 달라 상태를 분리한다.
+  const [findKeyword, setFindKeyword] = useState("");
+  const [findResults, setFindResults] = useState<ProductionSchedule[]>([]);
+  const [findLoading, setFindLoading] = useState(false);
+  const [findMessage, setFindMessage] = useState("");
 
   // 등록/수정 폼 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -119,6 +127,15 @@ export function useProductionSchedule(refreshToken?: number) {
     setSelectedDate(todayStr());
   }
 
+  // 검색 결과를 클릭했을 때 그 일정이 있는 달로 달력을 옮기고 그 날짜를 선택한다 - goToday()와 동일한
+  // 패턴. monthFrom/monthTo가 바뀌면 loadMonth 이펙트가 알아서 그 달의 일정을 다시 불러온다.
+  function goToDate(dateStr: string) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+    setSelectedDate(dateStr);
+  }
+
   // 날짜(YYYY-MM-DD)별로 그 날의 일정을 묶어준다 - 달력 셀에 유형별 점을 찍는 데 사용.
   const itemsByDate = useMemo(() => {
     const map = new Map<string, ProductionSchedule[]>();
@@ -162,6 +179,33 @@ export function useProductionSchedule(refreshToken?: number) {
     setSelectedFormula(f);
     setHits([]);
     setMessage("");
+  }
+
+  async function findSchedules() {
+    if (!findKeyword.trim()) {
+      setFindResults([]);
+      setFindMessage("");
+      return;
+    }
+    setFindLoading(true);
+    setFindMessage("");
+    try {
+      const results = await searchProductionSchedules(findKeyword);
+      setFindResults(results);
+      if (results.length === 0) setFindMessage("일치하는 일정이 없습니다.");
+    } catch (e) {
+      setFindMessage(e instanceof Error ? e.message : "일정 검색 오류");
+    } finally {
+      setFindLoading(false);
+    }
+  }
+
+  // 검색 결과 한 줄을 눌렀을 때 - 그 날짜로 달력을 옮기고 결과 목록은 접는다.
+  function goToFindResult(item: ProductionSchedule) {
+    goToDate(item.schedule_date);
+    setFindResults([]);
+    setFindKeyword("");
+    setFindMessage("");
   }
 
   function resetForm() {
@@ -304,10 +348,11 @@ export function useProductionSchedule(refreshToken?: number) {
   }
 
   return {
-    year, month, prevMonth, nextMonth, goToday,
+    year, month, prevMonth, nextMonth, goToday, goToDate,
     selectedDate, selectDate,
     items, itemsByDate, listItems, loading, message,
     keyword, setKeyword, hits, searching, search, selectedFormula, selectFormula,
+    findKeyword, setFindKeyword, findResults, findLoading, findMessage, findSchedules, goToFindResult,
     editingId, editItem, resetForm,
     scheduleTypes, toggleScheduleType, scheduleDate, setScheduleDate,
     quantity, setQuantity, assignee, setAssignee, assignToMe, myName,
