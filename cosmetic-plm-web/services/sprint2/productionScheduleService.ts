@@ -92,17 +92,39 @@ async function attachLiveFormulaInfo(items: ProductionSchedule[]): Promise<Produ
   });
 }
 
-// "생산_일정관리 검색" - 이미 등록된 일정을 확정코드/처방코드/처방명/담당자로 바로 찾아서(달력에
-// 표시 중인 달과 무관하게 전체 기간에서) 해당 날짜로 점프하는 데 쓴다. plm_production_schedules에는
+// "생산_일정관리 검색" - 이미 등록된 일정을 확정코드/처방코드/처방명/제품명/담당자로 바로 찾아서
+// (달력에 표시 중인 달과 무관하게 전체 기간에서) 해당 날짜로 점프하는 데 쓴다. plm_production_schedules에는
 // Lot No.가 없다 - Lot No.는 실제 생산이 끝난 뒤 생산실적(plm_production_records)에만 부여되는
 // 값이라, 아직 일정 단계인 이 화면에서는 애초에 존재하지 않는다(생산실적 관리 화면에서 찾아야 함).
+//
+// 일정 테이블에는 "등록 시점" 확정코드/처방명 스냅샷만 있어서, 일정을 먼저 등록해두고 나중에
+// 처방관리에서 확정코드를 새로 넣거나 바꾸면 그 새 값으로는 검색되지 않는 문제가 있었다(화면
+// 표시는 attachLiveFormulaInfo가 매번 plm_formulas 최신값으로 덮어써서 괜찮아 보였을 뿐). 그래서
+// 저장된 스냅샷뿐 아니라 plm_formulas의 "현재" 확정코드/처방코드/처방명/제품명도 먼저 찾아, 거기
+// 걸리는 처방의 formula_code로도 같이 검색한다.
 export async function searchProductionSchedules(keyword: string): Promise<ProductionSchedule[]> {
   const k = keyword.trim();
   if (!k) return [];
+
+  const { data: liveFormulas, error: liveError } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code")
+    .or(`confirmed_code.ilike.%${k}%,formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,product_name.ilike.%${k}%`);
+  if (liveError) throw liveError;
+  const liveCodes = Array.from(new Set((liveFormulas || []).map((f: { formula_code: string }) => f.formula_code)));
+
+  const orParts = [
+    `confirmed_code.ilike.%${k}%`,
+    `formula_code.ilike.%${k}%`,
+    `formula_name.ilike.%${k}%`,
+    `assignee.ilike.%${k}%`,
+  ];
+  if (liveCodes.length > 0) orParts.push(`formula_code.in.(${liveCodes.join(",")})`);
+
   const { data, error } = await supabaseProductionFinal
     .from("plm_production_schedules")
     .select("*")
-    .or(`confirmed_code.ilike.%${k}%,formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,assignee.ilike.%${k}%`)
+    .or(orParts.join(","))
     .order("schedule_date", { ascending: false })
     .limit(100);
   if (error) throw error;

@@ -236,7 +236,8 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>일정 찾기</h2>
         <p className="v50-desc" style={{ marginBottom: 10 }}>
-          확정코드·처방코드·처방명·담당자로 이미 등록된 일정을 찾아 그 날짜로 바로 이동합니다.
+          확정코드·처방코드·처방명·제품명·담당자로 이미 등록된 일정을 찾아 그 날짜로 바로 이동합니다
+          (등록 후 확정코드를 새로 넣거나 바꾼 처방도 최신 값으로 찾아져요).
           (Lot No.는 생산이 끝난 뒤 생산실적에만 생기는 값이라 일정 단계인 여기서는 아직 없어요 - 생산실적 관리에서 찾아야 합니다.)
         </p>
         <div style={{ display: "flex", gap: 8 }}>
@@ -245,7 +246,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
             value={s.findKeyword}
             onChange={(e) => s.setFindKeyword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && s.findSchedules()}
-            placeholder="확정코드, 처방코드, 처방명, 담당자로 검색"
+            placeholder="확정코드, 처방코드, 처방명, 제품명, 담당자로 검색"
           />
           <button className="v50-button" onClick={s.findSchedules} disabled={s.findLoading}>{s.findLoading ? "검색 중…" : "검색"}</button>
         </div>
