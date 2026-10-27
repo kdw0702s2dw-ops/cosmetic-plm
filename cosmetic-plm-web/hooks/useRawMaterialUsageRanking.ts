@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchStockManagedRawMaterials, fetchUsageForRange } from "@/services/sprint2/rawMaterialStockService";
+import { fetchStockManagedRawMaterials, fetchUsageForRange, fetchLatestStockByRawCodes } from "@/services/sprint2/rawMaterialStockService";
 
 export type RankingGranularity = "monthly" | "yearly";
 
-export type RankingRow = { rank: number; raw_code: string; raw_name: string; usage: number };
+export type RankingRow = {
+  rank: number;
+  raw_code: string;
+  raw_name: string;
+  usage: number;
+  currentStock: number | null; // 가장 최근(날짜 무관) 저장된 최종재고량 - 칭량_원료재고/제조량 검토와 동일한 "현재재고" 기준
+  currentStockDate: string | null;
+};
 
 // "실시간 순위가 어려우면 전날까지 기준으로" - 오늘 입력이 아직 안 끝났을 수 있어 어제까지의 저장분만
 // 집계 대상으로 삼는다. 컴포넌트가 떠 있는 동안은 고정(자정을 넘겨도 다시 계산하지 않음 - 새로고침하면 갱신됨).
@@ -66,11 +73,24 @@ export function useRawMaterialUsageRanking(refreshToken?: number) {
         raw_code,
         raw_name: nameByCode.get(raw_code) || raw_code,
         usage,
+        currentStock: null,
+        currentStockDate: null,
       }))
         .filter((r) => r.usage > 0)
         .sort((a, b) => b.usage - a.usage)
         .slice(0, 30)
         .map((r, i) => ({ ...r, rank: i + 1 }));
+
+      // 화면에 실제로 보여줄 TOP 30만 추려진 뒤에 현재재고량을 조회한다(전체 대상 원료를 다 조회할
+      // 필요 없음) - 제조량 검토(useManufacturingQtyReview)와 동일하게 raw_code별 "가장 최근(날짜
+      // 무관) 저장된 최종재고량"을 현재재고량으로 쓴다.
+      const stockMap = await fetchLatestStockByRawCodes(ranked.map((r) => r.raw_code));
+      for (const r of ranked) {
+        const stock = stockMap.get(r.raw_code);
+        r.currentStock = stock ? stock.closing_stock : null;
+        r.currentStockDate = stock ? stock.ledger_date : null;
+      }
+
       setRows(ranked);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "사용량 순위 조회 오류");

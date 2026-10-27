@@ -188,7 +188,11 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
 
         <div className="v50-table-wrap">
           <table className="v50-table">
-            <thead><tr><th style={{ width: 60 }}>순위</th><th>원료코드</th><th>원료명</th><th>사용량(kg)</th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ width: 60 }}>순위</th><th>원료코드</th><th>원료명</th><th>사용량(kg)</th><th>현재재고량(kg)</th>
+              </tr>
+            </thead>
             <tbody>
               {rk.rows.map((r) => (
                 <tr key={r.raw_code}>
@@ -196,11 +200,14 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
                   <td>{r.raw_code}</td>
                   <td>{r.raw_name}</td>
                   <td style={{ fontWeight: 800 }}>{fmtKg(r.usage)}</td>
+                  <td title={r.currentStockDate ? `${r.currentStockDate} 기준` : undefined}>
+                    {r.currentStock === null ? "-" : fmtKg(r.currentStock)}
+                  </td>
                 </tr>
               ))}
               {rk.rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ color: "#94a3b8" }}>
+                  <td colSpan={5} style={{ color: "#94a3b8" }}>
                     {rk.loading
                       ? "불러오는 중..."
                       : rk.granularity === "yearly" && !/^\d{4}$/.test(rk.year)
