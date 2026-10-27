@@ -917,20 +917,23 @@ function FormulaStatsSection({
         </table>
       </div>
 
-      <h3 style={{ marginBottom: 8 }}>확정률 (확정코드 보유 비율)</h3>
+      <h3 style={{ marginBottom: 8 }}>확정률 (확정코드 보유 비율) · 생산률 (확정 중 생산완료 비율)</h3>
       <p style={{ marginBottom: 10 }}>
         전체 {confirmationStats.overall.total}건 중 {confirmationStats.overall.confirmed}건 확정 (
         {fmtPct(confirmationStats.overall.rate)})
+        <br />
+        확정 {confirmationStats.overall.confirmed}건 중 {confirmationStats.overall.produced}건 생산완료 (
+        {fmtPct(confirmationStats.overall.producedRate)})
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 13 }}>연도별</div>
           <div className="v50-table-wrap">
             <table className="v50-table">
-              <thead><tr><th>연도</th><th>전체</th><th>확정</th><th>확정률</th></tr></thead>
+              <thead><tr><th>연도</th><th>전체</th><th>확정</th><th>확정률</th><th>생산</th><th>생산률</th></tr></thead>
               <tbody>
                 {confirmationStats.byYear.map((s) => (
-                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td></tr>
+                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td><td>{s.produced}</td><td>{fmtPct(s.producedRate)}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -940,10 +943,10 @@ function FormulaStatsSection({
           <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 13 }}>제품유형별</div>
           <div className="v50-table-wrap">
             <table className="v50-table">
-              <thead><tr><th>제품유형</th><th>전체</th><th>확정</th><th>확정률</th></tr></thead>
+              <thead><tr><th>제품유형</th><th>전체</th><th>확정</th><th>확정률</th><th>생산</th><th>생산률</th></tr></thead>
               <tbody>
                 {confirmationStats.byProductType.map((s) => (
-                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td></tr>
+                  <tr key={s.label}><td>{s.label}</td><td>{s.total}</td><td>{s.confirmed}</td><td>{fmtPct(s.rate)}</td><td>{s.produced}</td><td>{fmtPct(s.producedRate)}</td></tr>
                 ))}
               </tbody>
             </table>

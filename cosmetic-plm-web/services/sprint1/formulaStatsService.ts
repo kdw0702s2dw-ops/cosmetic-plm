@@ -9,6 +9,7 @@ export type FormulaStatRow = {
   formula_code: string;
   confirmed_code?: string | null;
   product_type?: string | null;
+  progress_status?: string | null;
 };
 
 export const NO_YEAR_LABEL = "연도 없음(베이스 처방 등)";
@@ -27,6 +28,12 @@ export function extractDevYear(formulaCode: string): string | null {
 // 쓴다 - 두 화면의 숫자가 서로 어긋나지 않도록).
 export function isConfirmed(row: FormulaStatRow): boolean {
   return Boolean(row.confirmed_code);
+}
+
+// "생산"의 기준은 처방 목록 화면과 동일하게 진행상태(progress_status)가 "생산완료"인지 여부로 둔다
+// (PROGRESS_STATUSES 중 생산 관련 값은 이것 하나뿐). 확정 여부와는 별개 필드라 둘을 따로 체크한다.
+export function isProduced(row: FormulaStatRow): boolean {
+  return row.progress_status === "생산완료";
 }
 
 export type CountStat = { label: string; count: number };
@@ -79,7 +86,10 @@ export function computeYearProductTypeMatrix(rows: FormulaStatRow[]): YearProduc
   return { years, productTypes, cell, rowTotal, colTotal, grandTotal: rows.length };
 }
 
-export type ConfirmationStat = { label: string; total: number; confirmed: number; rate: number };
+export type ConfirmationStat = {
+  label: string; total: number; confirmed: number; rate: number;
+  produced: number; producedRate: number; // produced/rate는 "확정된 것 중 생산완료된 비율" 기준(분모가 confirmed)
+};
 export type ConfirmationStatsResult = {
   overall: ConfirmationStat;
   byYear: ConfirmationStat[];
@@ -89,8 +99,13 @@ export type ConfirmationStatsResult = {
 export function computeConfirmationStats(rows: FormulaStatRow[]): ConfirmationStatsResult {
   function toStat(label: string, group: FormulaStatRow[]): ConfirmationStat {
     const total = group.length;
-    const confirmed = group.filter(isConfirmed).length;
-    return { label, total, confirmed, rate: total > 0 ? (confirmed / total) * 100 : 0 };
+    const confirmedRows = group.filter(isConfirmed);
+    const confirmed = confirmedRows.length;
+    const produced = confirmedRows.filter(isProduced).length;
+    return {
+      label, total, confirmed, rate: total > 0 ? (confirmed / total) * 100 : 0,
+      produced, producedRate: confirmed > 0 ? (produced / confirmed) * 100 : 0,
+    };
   }
 
   const overall = toStat("전체", rows);
