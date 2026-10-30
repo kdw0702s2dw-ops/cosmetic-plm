@@ -96,9 +96,11 @@ export function useProductionRecord() {
     if (!formula) { setMessage("처방을 먼저 선택하세요."); return; }
     const trimmedLot = lotNo.trim();
     if (!trimmedLot) { setMessage("Lot No.를 입력하세요."); return; }
+    // 예전엔 같은 처방 내 Lot No. 중복을 그냥 막았지만, "추가 제조 건을 같은 Lot No.로도 등록하게
+    // 해달라"는 요청으로 더 이상 막지 않는다 - 대신 중복이면 한 번 확인을 받고, 확인하면 그대로
+    // 진행한다(삭제 확인(removeHistory)과 동일한 confirm() 패턴).
     if (history.some((h) => h.lot_no === trimmedLot)) {
-      setMessage("이미 사용 중인 Lot No.입니다 (같은 처방 내에서 중복될 수 없습니다).");
-      return;
+      if (!confirm("이미 사용 중인 Lot No.입니다 (같은 처방 내 중복). 그래도 등록하시겠습니까?")) return;
     }
 
     setSaving(true);

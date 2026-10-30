@@ -114,6 +114,23 @@ export default function ProductionRecordListPanel() {
     const trimmedLot = editDraft.lot_no.trim();
     if (!trimmedLot) { setMsg("Lot No.를 입력하세요."); return; }
     if (!editDraft.production_date) { setMsg("생산일자를 입력하세요."); return; }
+    // DB의 Lot No. UNIQUE 제약을 제거해서(추가 제조 건을 같은 Lot No.로도 등록 가능하게) 더 이상 저장이
+    // 막히지 않는다 - 대신 지금 화면에 불러와 있는 목록(records) 안에서 같은 처방(formula_code+revision)에
+    // 같은 Lot No.가 있으면 한 번 확인을 받는다. "생산실적 입력" 탭(useProductionRecord)과 동일한 패턴
+    // (단, 여기 records는 검색 필터·2000행 상한이 걸린 전체 목록이라, 필터링 중이거나 아주 오래된
+    // 데이터는 놓칠 수 있다 - 중복 방지가 아니라 확인용 안내라 치명적이지 않음).
+    // Lot No.를 그대로 두고 다른 칸만 고칠 때는 묻지 않는다(이미 중복 등록된 행을 수정할 때마다 뜨지 않게).
+    const editingRecord = records.find((r) => r.id === editingId);
+    if (editingRecord && trimmedLot !== editingRecord.lot_no) {
+      const isDup = records.some(
+        (r) =>
+          r.id !== editingId &&
+          r.formula_code === editingRecord.formula_code &&
+          r.revision === editingRecord.revision &&
+          r.lot_no === trimmedLot
+      );
+      if (isDup && !confirm("이미 사용 중인 Lot No.입니다 (같은 처방 내 중복). 그래도 저장하시겠습니까?")) return;
+    }
     setSavingEdit(true);
     setMsg("");
     try {

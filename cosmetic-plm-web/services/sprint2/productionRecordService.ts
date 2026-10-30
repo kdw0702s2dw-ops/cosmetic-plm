@@ -23,8 +23,10 @@ export type ProductionRecord = {
   updated_at?: string; // 수정 기능 추가 후부터 기록 - 신규 등록 시점엔 비어있음
 };
 
-// 저장은 항상 새 이력 행 INSERT (원장 성격 - 덮어쓰기 없음). Lot No.는 같은 처방(formula_code+revision)
-// 내에서만 유일하도록 DB UNIQUE(formula_code, revision, lot_no) 제약이 걸려 있음 - 위반 시 23505.
+// 저장은 항상 새 이력 행 INSERT (원장 성격 - 덮어쓰기 없음). 예전엔 같은 처방(formula_code+revision)
+// 내에서 Lot No.가 유일하도록 DB UNIQUE 제약이 걸려 있었지만, "추가 제조 건을 같은 Lot No.로도 등록할
+// 수 있게 해달라"는 요청으로 그 제약을 제거했다(마이그레이션: drop_production_records_formula_lot_unique).
+// 중복 여부 확인은 호출 측(useProductionRecord.save)이 저장 전에 사용자에게 먼저 물어보는 방식으로 처리한다.
 export async function saveProductionRecord(record: ProductionRecord) {
   const { id, ...payload } = record;
   const { data, error } = await supabaseProductionFinal
@@ -32,19 +34,14 @@ export async function saveProductionRecord(record: ProductionRecord) {
     .insert(payload)
     .select("*")
     .single();
-  if (error) {
-    if (error.code === "23505") {
-      throw new Error("이미 사용 중인 Lot No.입니다 (같은 처방 내에서 중복될 수 없습니다).");
-    }
-    throw error;
-  }
+  if (error) throw error;
   return data as ProductionRecord;
 }
 
 // 생산실적 수정 - 처방(formula_code/revision/formula_name/confirmed_code/product_name)은 바꿀 수
-// 없다. Lot No. 유일성 제약이 처방 단위라 처방을 바꾸면 그 제약의 의미가 달라지므로, 처방 자체를
-// 바꿔야 하면 기존 실적을 삭제하고 새로 등록하도록 한다. Lot No.를 다른 값으로 바꾸면 같은 처방 내
-// 중복 여부를 UNIQUE 제약이 그대로 검사한다(위반 시 23505 - 신규 등록과 동일한 메시지로 안내).
+// 없다. 처방 자체를 바꿔야 하면 기존 실적을 삭제하고 새로 등록하도록 한다. Lot No. 중복 여부는(신규
+// 등록과 마찬가지로) 더 이상 DB가 막지 않고, 호출 측(ProductionRecordListPanel.saveEdit)이 저장 전에
+// 사용자에게 먼저 확인을 받는다.
 export type ProductionRecordEditablePatch = Partial<
   Pick<
     ProductionRecord,
@@ -63,12 +60,7 @@ export async function updateProductionRecord(id: string, patch: ProductionRecord
     .eq("id", id)
     .select("*")
     .single();
-  if (error) {
-    if (error.code === "23505") {
-      throw new Error("이미 사용 중인 Lot No.입니다 (같은 처방 내에서 중복될 수 없습니다).");
-    }
-    throw error;
-  }
+  if (error) throw error;
   return data as ProductionRecord;
 }
 
