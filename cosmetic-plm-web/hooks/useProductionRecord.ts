@@ -18,7 +18,8 @@ function today() {
 // "저장 이력" 표에서 바로 수정하는 기능용 - 처방관리 전체 목록(ProductionRecordListPanel)의 수정 폼과
 // 같은 필드 구성(처방 자체는 수정 대상에서 제외)이지만, 여기는 화면이 달라 타입/상태를 별도로 둔다.
 export type ProductionRecordEditDraft = {
-  lot_no: string;
+  lot_no: string; // 화면 표시명 "제품(Lot No.)"
+  mfg_lot_no: string; // 화면 표시명 "제조(Lot No.)"
   target_qty_kg: string;
   production_date: string;
   exp_date: string;
@@ -32,6 +33,7 @@ export type ProductionRecordEditDraft = {
 function draftFromRecord(r: ProductionRecord): ProductionRecordEditDraft {
   return {
     lot_no: r.lot_no,
+    mfg_lot_no: r.mfg_lot_no || "",
     target_qty_kg: r.target_qty_kg != null ? String(r.target_qty_kg) : "",
     production_date: r.production_date,
     exp_date: r.exp_date || "",
@@ -43,7 +45,9 @@ function draftFromRecord(r: ProductionRecord): ProductionRecordEditDraft {
   };
 }
 
-export function useProductionRecord() {
+// refreshToken: 생산실적 관리 화면 상단 "새로고침" 버튼과 연동(다른 하위 도구들과 동일한 패턴) -
+// 값이 바뀌면 현재 선택된 처방의 이력을 다시 불러온다. 처방을 아직 선택하지 않았으면 아무 일도 하지 않는다.
+export function useProductionRecord(refreshToken?: number) {
   const auth = useSprint1Auth();
 
   const [keyword, setKeyword] = useState("");
@@ -52,7 +56,8 @@ export function useProductionRecord() {
   const [searching, setSearching] = useState(false);
 
   const [targetQtyKg, setTargetQtyKg] = useState(0);
-  const [lotNo, setLotNo] = useState("");
+  const [lotNo, setLotNo] = useState(""); // 제품(Lot No.)
+  const [mfgLotNo, setMfgLotNo] = useState(""); // 제조(Lot No.)
   const [coatingQty, setCoatingQty] = useState<string>("");
   const [moldedQty, setMoldedQty] = useState<string>("");
   const [shippedQtyEa, setShippedQtyEa] = useState<string>("");
@@ -117,6 +122,7 @@ export function useProductionRecord() {
   function resetForm() {
     setTargetQtyKg(0);
     setLotNo("");
+    setMfgLotNo("");
     setCoatingQty("");
     setMoldedQty("");
     setShippedQtyEa("");
@@ -148,6 +154,7 @@ export function useProductionRecord() {
         product_name: formula.product_name || undefined,
         target_qty_kg: targetQtyKg,
         lot_no: trimmedLot,
+        mfg_lot_no: mfgLotNo.trim() === "" ? null : mfgLotNo.trim(),
         coating_qty: coatingQty === "" ? null : Number(coatingQty),
         molded_qty: moldedQty === "" ? null : Number(moldedQty),
         shipped_qty_ea: shippedQtyEa === "" ? null : Number(shippedQtyEa),
@@ -177,6 +184,11 @@ export function useProductionRecord() {
       setMessage(e instanceof Error ? e.message : "삭제 오류");
     }
   }
+
+  useEffect(() => {
+    if (refreshToken && formula) loadHistory(formula.formula_code, formula.revision);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function startEdit(r: ProductionRecord) {
     setEditingId(r.id || null);
@@ -214,6 +226,7 @@ export function useProductionRecord() {
     try {
       await updateProductionRecord(editingId, {
         lot_no: trimmedLot,
+        mfg_lot_no: editDraft.mfg_lot_no.trim() === "" ? null : editDraft.mfg_lot_no.trim(),
         target_qty_kg: editDraft.target_qty_kg === "" ? 0 : Number(editDraft.target_qty_kg),
         production_date: editDraft.production_date,
         exp_date: editDraft.exp_date === "" ? null : editDraft.exp_date,
@@ -245,7 +258,7 @@ export function useProductionRecord() {
   return {
     auth,
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
-    targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
+    targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, mfgLotNo, setMfgLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
     shippedQtyEa, setShippedQtyEa, shippedQtyPack, setShippedQtyPack,
     productionDate, setProductionDate, expDate, setExpDate, note, setNote,
     history, loading, saving, message, save, removeHistory, downloadExcel,

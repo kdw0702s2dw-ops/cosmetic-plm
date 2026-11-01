@@ -49,7 +49,7 @@ type FormulaSummary = {
  * 월별·연도별 생산량 집계 - 연도(+월, "전체"=연도 전체) 기준으로 처방별 코팅량/성형품 수량/
  * 완제품 출고 수량(EA·PACK) 합계를 보여준다("월별, 년도별로 처방에 대한 생산량 확인" 요청사항).
  */
-export default function ProductionRecordSummaryPanel() {
+export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [month, setMonth] = useState<number | null>(null); // null = 전체(연도 집계)
@@ -70,6 +70,13 @@ export default function ProductionRecordSummaryPanel() {
   }, []);
 
   useEffect(() => { load(year, month); }, [year, month]); // eslint-disable-line
+
+  // refreshTick: 생산실적 관리 화면 상단 "새로고침" 버튼과 연동(다른 하위 도구들과 동일한 패턴).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshTick) load(year, month);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
   const rows: FormulaSummary[] = useMemo(() => {
     const map = new Map<string, FormulaSummary>();

@@ -24,7 +24,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 // 수정 폼에서 다루는 입력칸들 - 전부 문자열로 들고 있다가 저장 시점에 숫자/빈값으로 변환한다
 // (입력 탭의 "생산실적 입력" 폼과 동일한 필드 구성, 처방 자체는 바꿀 수 없어 제외).
 type EditDraft = {
-  lot_no: string;
+  lot_no: string; // 화면 표시명 "제품(Lot No.)"
+  mfg_lot_no: string; // 화면 표시명 "제조(Lot No.)"
   target_qty_kg: string;
   production_date: string;
   exp_date: string;
@@ -38,6 +39,7 @@ type EditDraft = {
 function draftFromRecord(r: ProductionRecord): EditDraft {
   return {
     lot_no: r.lot_no,
+    mfg_lot_no: r.mfg_lot_no || "",
     target_qty_kg: r.target_qty_kg != null ? String(r.target_qty_kg) : "",
     production_date: r.production_date,
     exp_date: r.exp_date || "",
@@ -53,10 +55,10 @@ function draftFromRecord(r: ProductionRecord): EditDraft {
  * 생산실적 전체 목록 - 처방을 먼저 선택하지 않아도 지금까지 입력된 모든 생산실적을 검색·조회한다.
  * ("지금 처방으로 검색해서 보게 만들어져 있는데 생산실적 입력한 것들은 리스트로 볼수 있게 해줘" 요청사항)
  * 확정코드/제품명(컨펌 후 확정) 표시 + 수정 기능 추가("처방코드 대신 확정코드로, 처방명 대신 제품명으로,
- * 수정 기능도 만들어달라" 요청사항). 처방 자체는 수정 대상에서 제외(Lot No. 유일성 제약이 처방
- * 단위라 처방을 바꾸려면 삭제 후 새로 등록해야 함).
+ * 수정 기능도 만들어달라" 요청사항). 처방 자체는 수정 대상에서 제외(처방이 바뀌면 확정코드/제품명
+ * 스냅샷의 의미가 달라지므로, 처방 자체를 바꾸려면 삭제 후 새로 등록해야 함).
  */
-export default function ProductionRecordListPanel() {
+export default function ProductionRecordListPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const [filter, setFilter] = useState<ProductionRecordListFilter>({});
   const [records, setRecords] = useState<ProductionRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +80,14 @@ export default function ProductionRecordListPanel() {
   }, []);
 
   useEffect(() => { load({}); }, []); // eslint-disable-line
+
+  // refreshTick: 생산실적 관리 화면 상단 "새로고침" 버튼과 연동(다른 하위 도구들과 동일한 패턴) -
+  // 지금 걸려 있는 검색 필터 그대로 다시 조회한다.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (refreshTick) load(filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
   function applyFilter() {
     load(filter);
@@ -136,6 +146,7 @@ export default function ProductionRecordListPanel() {
     try {
       await updateProductionRecord(editingId, {
         lot_no: trimmedLot,
+        mfg_lot_no: editDraft.mfg_lot_no.trim() === "" ? null : editDraft.mfg_lot_no.trim(),
         target_qty_kg: editDraft.target_qty_kg === "" ? 0 : Number(editDraft.target_qty_kg),
         production_date: editDraft.production_date,
         exp_date: editDraft.exp_date === "" ? null : editDraft.exp_date,
@@ -189,7 +200,11 @@ export default function ProductionRecordListPanel() {
               <input className="v50-input" type="number" value={editDraft.target_qty_kg} onChange={(e) => updateDraft({ target_qty_kg: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              Lot No.
+              제조(Lot No.)
+              <input className="v50-input" value={editDraft.mfg_lot_no} onChange={(e) => updateDraft({ mfg_lot_no: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              제품(Lot No.)
               <input className="v50-input" value={editDraft.lot_no} onChange={(e) => updateDraft({ lot_no: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -230,7 +245,7 @@ export default function ProductionRecordListPanel() {
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <Field label="검색(확정코드/제품명/Lot No.)">
+          <Field label="검색(확정코드/제품명/제품(Lot No.)/제조(Lot No.))">
             <input className="v50-input" style={{ minWidth: 220 }} value={filter.keyword || ""}
               onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && applyFilter()} />
@@ -248,7 +263,7 @@ export default function ProductionRecordListPanel() {
           <table className="v50-table">
             <thead>
               <tr>
-                <th>생산일자</th><th>확정코드</th><th>제품명</th><th>Lot No.</th>
+                <th>생산일자</th><th>확정코드</th><th>제품명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th>
                 <th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
                 <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>비고</th><th style={{ width: 140 }}>작업</th>
               </tr>
@@ -259,6 +274,7 @@ export default function ProductionRecordListPanel() {
                   <td>{r.production_date}</td>
                   <td>{r.confirmed_code || "-"}</td>
                   <td>{r.product_name || r.formula_name || "-"}</td>
+                  <td>{r.mfg_lot_no || "-"}</td>
                   <td>{r.lot_no}</td>
                   <td>{fmt(r.target_qty_kg)}</td>
                   <td>{fmt(r.coating_qty)}</td>
@@ -274,12 +290,12 @@ export default function ProductionRecordListPanel() {
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && <tr><td colSpan={11} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
+              {records.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
             </tbody>
             {records.length > 0 && (
               <tfoot>
                 <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
-                  <td colSpan={5} style={{ textAlign: "right" }}>합계</td>
+                  <td colSpan={6} style={{ textAlign: "right" }}>합계</td>
                   <td>{fmt(totals.coating)}</td>
                   <td>{fmt(totals.molded)}</td>
                   <td>{fmt(totals.ea)}</td>

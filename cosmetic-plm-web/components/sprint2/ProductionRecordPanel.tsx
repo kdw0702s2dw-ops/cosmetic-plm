@@ -9,14 +9,16 @@ function fmt(v: number | null | undefined) {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-export default function ProductionRecordPanel() {
-  const s = useProductionRecord();
+export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: number } = {}) {
+  const s = useProductionRecord(refreshTick);
 
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
-        처방을 선택하고 Lot No.별로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록으로 남깁니다.
-        Lot No.는 같은 처방(같은 Revision) 내에서만 유일해야 합니다.
+        처방을 선택하고 제품(Lot No.)별로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록으로
+        남깁니다. 제조(Lot No.)는 제조(벌크) 단계에서 붙는 번호로, 완제품/출고 단계 번호인
+        제품(Lot No.)와 별개로 기록할 수 있습니다. 둘 다 같은 처방 내에서 중복돼도 등록할 수 있고,
+        제품(Lot No.)가 중복이면 한 번 확인을 거칩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 
@@ -58,7 +60,11 @@ export default function ProductionRecordPanel() {
             <DecimalInput className="v50-input" value={s.targetQtyKg} onChange={(v) => s.updateTargetQtyKg(v)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-            Lot No.
+            제조(Lot No.)
+            <input className="v50-input" value={s.mfgLotNo} onChange={(e) => s.setMfgLotNo(e.target.value)} />
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            제품(Lot No.)
             <input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -102,7 +108,7 @@ export default function ProductionRecordPanel() {
         <section className="v50-panel" style={{ marginBottom: 18 }}>
           <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>생산실적 수정</h2>
           <p style={{ fontSize: 13, color: "#334155", marginBottom: 10 }}>
-            Lot No. {s.editDraft.lot_no}
+            제품(Lot No.) {s.editDraft.lot_no}
             <span style={{ color: "#94a3b8" }}> (처방은 바꿀 수 없습니다 - 처방을 바꾸려면 삭제 후 새로 등록하세요)</span>
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -111,7 +117,11 @@ export default function ProductionRecordPanel() {
               <input className="v50-input" type="number" value={s.editDraft.target_qty_kg} onChange={(e) => s.updateEditDraft({ target_qty_kg: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              Lot No.
+              제조(Lot No.)
+              <input className="v50-input" value={s.editDraft.mfg_lot_no} onChange={(e) => s.updateEditDraft({ mfg_lot_no: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              제품(Lot No.)
               <input className="v50-input" value={s.editDraft.lot_no} onChange={(e) => s.updateEditDraft({ lot_no: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -151,7 +161,7 @@ export default function ProductionRecordPanel() {
       )}
 
       <section className="v50-panel">
-        <h2>저장 이력 (Lot No.별)</h2>
+        <h2>저장 이력 (제품(Lot No.)별)</h2>
         {!s.formula ? (
           <p style={{ color: "#64748b" }}>처방을 선택하면 이력이 표시됩니다.</p>
         ) : (
@@ -159,7 +169,7 @@ export default function ProductionRecordPanel() {
             <table className="v50-table">
               <thead>
                 <tr>
-                  <th>생산일자</th><th>EXP</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
+                  <th>생산일자</th><th>EXP</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
                   <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
                 </tr>
               </thead>
@@ -168,6 +178,7 @@ export default function ProductionRecordPanel() {
                   <tr key={h.id}>
                     <td>{h.production_date}</td>
                     <td>{h.exp_date || "-"}</td>
+                    <td>{h.mfg_lot_no || "-"}</td>
                     <td>{h.lot_no}</td>
                     <td>{fmt(h.target_qty_kg)}</td>
                     <td>{fmt(h.coating_qty)}</td>
@@ -184,7 +195,7 @@ export default function ProductionRecordPanel() {
                     </td>
                   </tr>
                 ))}
-                {s.history.length === 0 && <tr><td colSpan={11}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
+                {s.history.length === 0 && <tr><td colSpan={12}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
           </div>

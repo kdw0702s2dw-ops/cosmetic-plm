@@ -10,7 +10,8 @@ export type ProductionRecord = {
   confirmed_code?: string;
   product_name?: string; // 처방 컨펌 후 확정된 제품명(plm_formulas.product_name) 저장 시점 스냅샷 - 미입력이면 화면에서 formula_name으로 대체 표시
   target_qty_kg: number;
-  lot_no: string;
+  lot_no: string; // 화면 표시명 "제품(Lot No.)" - 완제품/출고 단계 Lot 번호
+  mfg_lot_no?: string | null; // 화면 표시명 "제조(Lot No.)" - 제조(벌크) 단계 Lot 번호, lot_no와 별개
   coating_qty: number | null; // 코팅량 (단위: m)
   molded_qty: number | null; // 성형품 수량 (단위: EA)
   shipped_qty_ea: number | null; // 완제품 출고 수량 (단위: EA)
@@ -45,7 +46,7 @@ export async function saveProductionRecord(record: ProductionRecord) {
 export type ProductionRecordEditablePatch = Partial<
   Pick<
     ProductionRecord,
-    "lot_no" | "target_qty_kg" | "production_date" | "exp_date" | "coating_qty" | "molded_qty" | "shipped_qty_ea" | "shipped_qty_pack"
+    "lot_no" | "mfg_lot_no" | "target_qty_kg" | "production_date" | "exp_date" | "coating_qty" | "molded_qty" | "shipped_qty_ea" | "shipped_qty_pack"
   >
 > & {
   // note는 ProductionRecord 상에서는 string만 허용하는 선택 필드지만(신규 등록 시엔 빈 문자열로 저장),
@@ -98,7 +99,7 @@ export async function fetchAllProductionRecords(filter: ProductionRecordListFilt
     // 화면 표시는 확정코드/제품명 위주로 바뀌었지만, 두 값이 아직 없는(처방 컨펌 전) 예전 실적도
     // 놓치지 않도록 처방코드/처방명까지 함께 매칭한다.
     q = q.or(
-      `confirmed_code.ilike.%${k}%,product_name.ilike.%${k}%,formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,lot_no.ilike.%${k}%`
+      `confirmed_code.ilike.%${k}%,product_name.ilike.%${k}%,formula_code.ilike.%${k}%,formula_name.ilike.%${k}%,lot_no.ilike.%${k}%,mfg_lot_no.ilike.%${k}%`
     );
   }
 
