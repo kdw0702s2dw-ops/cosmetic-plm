@@ -98,6 +98,58 @@ export default function ProductionRecordPanel() {
         </div>
       </section>
 
+      {s.editingId && s.editDraft && (
+        <section className="v50-panel" style={{ marginBottom: 18 }}>
+          <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>생산실적 수정</h2>
+          <p style={{ fontSize: 13, color: "#334155", marginBottom: 10 }}>
+            Lot No. {s.editDraft.lot_no}
+            <span style={{ color: "#94a3b8" }}> (처방은 바꿀 수 없습니다 - 처방을 바꾸려면 삭제 후 새로 등록하세요)</span>
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              목표 제조량(kg)
+              <input className="v50-input" type="number" value={s.editDraft.target_qty_kg} onChange={(e) => s.updateEditDraft({ target_qty_kg: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              Lot No.
+              <input className="v50-input" value={s.editDraft.lot_no} onChange={(e) => s.updateEditDraft({ lot_no: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              생산일자
+              <input className="v50-input" type="date" value={s.editDraft.production_date} onChange={(e) => s.updateEditDraft({ production_date: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              EXP (유효기한)
+              <input className="v50-input" type="date" value={s.editDraft.exp_date} onChange={(e) => s.updateEditDraft({ exp_date: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              코팅량 (단위: m)
+              <input className="v50-input" type="number" value={s.editDraft.coating_qty} onChange={(e) => s.updateEditDraft({ coating_qty: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              성형품 수량 (단위: EA)
+              <input className="v50-input" type="number" value={s.editDraft.molded_qty} onChange={(e) => s.updateEditDraft({ molded_qty: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              완제품 출고 수량 (단위: EA)
+              <input className="v50-input" type="number" value={s.editDraft.shipped_qty_ea} onChange={(e) => s.updateEditDraft({ shipped_qty_ea: e.target.value })} />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              완제품 출고 수량 (단위: PACK)
+              <input className="v50-input" type="number" value={s.editDraft.shipped_qty_pack} onChange={(e) => s.updateEditDraft({ shipped_qty_pack: e.target.value })} />
+            </label>
+          </div>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
+            비고
+            <textarea className="v50-textarea" rows={2} value={s.editDraft.note} onChange={(e) => s.updateEditDraft({ note: e.target.value })} />
+          </label>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button className="v50-button" onClick={s.saveEdit} disabled={s.savingEdit}>{s.savingEdit ? "저장 중…" : "수정 저장"}</button>
+            <button className="v50-button-light" onClick={s.cancelEdit}>취소</button>
+          </div>
+        </section>
+      )}
+
       <section className="v50-panel">
         <h2>저장 이력 (Lot No.별)</h2>
         {!s.formula ? (
@@ -108,7 +160,7 @@ export default function ProductionRecordPanel() {
               <thead>
                 <tr>
                   <th>생산일자</th><th>EXP</th><th>Lot No.</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 90 }}>작업</th>
+                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,7 +177,10 @@ export default function ProductionRecordPanel() {
                     <td>{s.resolveCreatedBy(h.created_by)}</td>
                     <td>{h.note || "-"}</td>
                     <td>
-                      <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button className="v50-button-light" onClick={() => s.startEdit(h)}>수정</button>
+                        <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
