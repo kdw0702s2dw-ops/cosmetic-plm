@@ -68,6 +68,8 @@ export function useProductionSchedule(refreshToken?: number) {
   const [scheduleTypes, setScheduleTypes] = useState<ScheduleType[]>(["제조"]);
   const [scheduleDate, setScheduleDate] = useState(todayStr());
   const [quantity, setQuantity] = useState("");
+  const [mfgLotNo, setMfgLotNo] = useState(""); // 제조(Lot No.) 예정값
+  const [lotNo, setLotNo] = useState(""); // 제품(Lot No.) 예정값
   const [assignee, setAssignee] = useState("");
   const [status, setStatus] = useState<ScheduleStatus>("예정");
   const [memo, setMemo] = useState("");
@@ -216,6 +218,8 @@ export function useProductionSchedule(refreshToken?: number) {
     setScheduleTypes(["제조"]);
     setScheduleDate(selectedDate || todayStr());
     setQuantity("");
+    setMfgLotNo("");
+    setLotNo("");
     setAssignee("");
     setStatus("예정");
     setMemo("");
@@ -235,6 +239,8 @@ export function useProductionSchedule(refreshToken?: number) {
     setScheduleTypes([item.schedule_type]);
     setScheduleDate(item.schedule_date);
     setQuantity(item.quantity != null ? String(item.quantity) : "");
+    setMfgLotNo(item.mfg_lot_no || "");
+    setLotNo(item.lot_no || "");
     setAssignee(item.assignee || "");
     setStatus(item.status);
     setMemo(item.memo || "");
@@ -287,6 +293,8 @@ export function useProductionSchedule(refreshToken?: number) {
           schedule_type: scheduleTypes[0],
           schedule_date: scheduleDate,
           quantity: qty,
+          mfg_lot_no: mfgLotNo.trim() === "" ? null : mfgLotNo.trim(),
+          lot_no: lotNo.trim() === "" ? null : lotNo.trim(),
           assignee: assignee || null,
           status,
           memo: memo || null,
@@ -305,6 +313,8 @@ export function useProductionSchedule(refreshToken?: number) {
               schedule_type: t,
               schedule_date: scheduleDate,
               quantity: qty,
+              mfg_lot_no: mfgLotNo.trim() === "" ? null : mfgLotNo.trim(),
+              lot_no: lotNo.trim() === "" ? null : lotNo.trim(),
               assignee: assignee || null,
               status,
               memo: memo || null,
@@ -355,7 +365,7 @@ export function useProductionSchedule(refreshToken?: number) {
     findKeyword, setFindKeyword, findResults, findLoading, findMessage, findSchedules, goToFindResult,
     editingId, editItem, resetForm,
     scheduleTypes, toggleScheduleType, scheduleDate, setScheduleDate,
-    quantity, setQuantity, assignee, setAssignee, assignToMe, myName,
+    quantity, setQuantity, mfgLotNo, setMfgLotNo, lotNo, setLotNo, assignee, setAssignee, assignToMe, myName,
     status, setStatus, memo, setMemo, saving, save,
     changeStatus, removeItem, isScheduleOverdue,
     types: SCHEDULE_TYPES, statuses: SCHEDULE_STATUSES,

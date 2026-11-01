@@ -34,6 +34,8 @@ export type ProductionSchedule = {
   schedule_type: ScheduleType;
   schedule_date: string; // YYYY-MM-DD
   quantity?: number | null;
+  lot_no?: string | null; // 제품(Lot No.) 예정값 - 생산실적의 lot_no와는 별개 테이블의 독립된 값
+  mfg_lot_no?: string | null; // 제조(Lot No.) 예정값 - 생산실적의 mfg_lot_no와는 별개 테이블의 독립된 값
   assignee?: string | null;
   status: ScheduleStatus;
   memo?: string | null;
@@ -92,10 +94,9 @@ async function attachLiveFormulaInfo(items: ProductionSchedule[]): Promise<Produ
   });
 }
 
-// "생산_일정관리 검색" - 이미 등록된 일정을 확정코드/처방코드/처방명/제품명/담당자로 바로 찾아서
-// (달력에 표시 중인 달과 무관하게 전체 기간에서) 해당 날짜로 점프하는 데 쓴다. plm_production_schedules에는
-// Lot No.가 없다 - Lot No.는 실제 생산이 끝난 뒤 생산실적(plm_production_records)에만 부여되는
-// 값이라, 아직 일정 단계인 이 화면에서는 애초에 존재하지 않는다(생산실적 관리 화면에서 찾아야 함).
+// "생산_일정관리 검색" - 이미 등록된 일정을 확정코드/처방코드/처방명/제품명/담당자/제조(Lot No.)/
+// 제품(Lot No.)로 바로 찾아서(달력에 표시 중인 달과 무관하게 전체 기간에서) 해당 날짜로 점프하는 데
+// 쓴다. lot_no/mfg_lot_no는 일정 단계의 예정값으로, 등록할 때 넣지 않았으면 비어 있을 수 있다.
 //
 // 일정 테이블에는 "등록 시점" 확정코드/처방명 스냅샷만 있어서, 일정을 먼저 등록해두고 나중에
 // 처방관리에서 확정코드를 새로 넣거나 바꾸면 그 새 값으로는 검색되지 않는 문제가 있었다(화면
@@ -118,6 +119,8 @@ export async function searchProductionSchedules(keyword: string): Promise<Produc
     `formula_code.ilike.%${k}%`,
     `formula_name.ilike.%${k}%`,
     `assignee.ilike.%${k}%`,
+    `lot_no.ilike.%${k}%`,
+    `mfg_lot_no.ilike.%${k}%`,
   ];
   if (liveCodes.length > 0) orParts.push(`formula_code.in.(${liveCodes.join(",")})`);
 

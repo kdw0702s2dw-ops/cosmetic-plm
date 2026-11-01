@@ -126,8 +126,9 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         처방을 검색해서 등록하면 칭량·제조·도포·타공·포장·출고 6개 공정 일정을 달력에서 관리할 수 있습니다.
-        공정은 여러 개를 동시에 선택할 수 있고(신규 등록 시), 선택한 공정 수만큼 같은 날짜·수량·담당자로 한 번에 등록됩니다.
-        날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
+        공정은 여러 개를 동시에 선택할 수 있고(신규 등록 시), 선택한 공정 수만큼 같은 날짜·수량·담당자·
+        제조(Lot No.)·제품(Lot No.)로 한 번에 등록됩니다(둘 다 선택 입력이고, 아직 정해지지 않았으면
+        비워둘 수 있습니다). 날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 
@@ -208,6 +209,14 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
               <input className="v50-input" type="number" value={s.quantity} onChange={(e) => s.setQuantity(e.target.value)} placeholder="선택 입력" />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              제조(Lot No.)
+              <input className="v50-input" value={s.mfgLotNo} onChange={(e) => s.setMfgLotNo(e.target.value)} placeholder="선택 입력" />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              제품(Lot No.)
+              <input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} placeholder="선택 입력" />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               담당자
               <div style={{ display: "flex", gap: 6 }}>
                 <input className="v50-input" value={s.assignee} onChange={(e) => s.setAssignee(e.target.value)} placeholder="담당자 성함" />
@@ -236,9 +245,10 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2 style={{ fontSize: 15, margin: "0 0 8px" }}>일정 찾기</h2>
         <p className="v50-desc" style={{ marginBottom: 10 }}>
-          확정코드·처방코드·처방명·제품명·담당자로 이미 등록된 일정을 찾아 그 날짜로 바로 이동합니다
-          (등록 후 확정코드를 새로 넣거나 바꾼 처방도 최신 값으로 찾아져요).
-          (Lot No.는 생산이 끝난 뒤 생산실적에만 생기는 값이라 일정 단계인 여기서는 아직 없어요 - 생산실적 관리에서 찾아야 합니다.)
+          확정코드·처방코드·처방명·제품명·담당자·제조(Lot No.)·제품(Lot No.)로 이미 등록된 일정을 찾아
+          그 날짜로 바로 이동합니다(등록 후 확정코드를 새로 넣거나 바꾼 처방도 최신 값으로 찾아져요).
+          제조(Lot No.)·제품(Lot No.)는 일정 등록 때 넣은 예정값이라, 비워뒀으면 검색되지 않습니다
+          (생산이 끝난 뒤 실제 값은 생산실적 관리에서 찾아야 합니다).
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <input
@@ -246,7 +256,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
             value={s.findKeyword}
             onChange={(e) => s.setFindKeyword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && s.findSchedules()}
-            placeholder="확정코드, 처방코드, 처방명, 제품명, 담당자로 검색"
+            placeholder="확정코드, 처방코드, 처방명, 제품명, 담당자, 제조(Lot No.), 제품(Lot No.)로 검색"
           />
           <button className="v50-button" onClick={s.findSchedules} disabled={s.findLoading}>{s.findLoading ? "검색 중…" : "검색"}</button>
         </div>
@@ -254,7 +264,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
         {s.findResults.length > 0 && (
           <div className="v50-table-wrap" style={{ marginTop: 10 }}>
             <table className="v50-table">
-              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>처방명</th><th>담당자</th><th>상태</th><th></th></tr></thead>
+              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>처방명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>담당자</th><th>상태</th><th></th></tr></thead>
               <tbody>
                 {s.findResults.map((item) => (
                   <tr key={item.id}>
@@ -267,6 +277,8 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                     </td>
                     <td>{item.confirmed_code || "-"}</td>
                     <td>{item.product_name || item.formula_name || "-"}</td>
+                    <td>{item.mfg_lot_no || "-"}</td>
+                    <td>{item.lot_no || "-"}</td>
                     <td>{item.assignee || "-"}</td>
                     <td>{item.status}</td>
                     <td><button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.goToFindResult(item)}>이동</button></td>
@@ -334,7 +346,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                     <div className="v50-table-wrap" style={{ margin: "0 14px 10px" }}>
                       <table className="v50-table">
                         <thead>
-                          <tr><th>날짜</th><th>유형</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
+                          <tr><th>날짜</th><th>유형</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
                         </thead>
                         <tbody>
                           {g.items.map((item) => {
@@ -350,6 +362,8 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                                     {item.schedule_type}
                                   </span>
                                 </td>
+                                <td>{item.mfg_lot_no || "-"}</td>
+                                <td>{item.lot_no || "-"}</td>
                                 <td>{item.quantity ?? "-"}</td>
                                 <td>{item.assignee || "-"}</td>
                                 <td><StatusSelect item={item} s={s} /></td>
