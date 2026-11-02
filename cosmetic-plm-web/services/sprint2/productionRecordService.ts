@@ -28,6 +28,16 @@ export type ProductionRecord = {
 // 내에서 Lot No.가 유일하도록 DB UNIQUE 제약이 걸려 있었지만, "추가 제조 건을 같은 Lot No.로도 등록할
 // 수 있게 해달라"는 요청으로 그 제약을 제거했다(마이그레이션: drop_production_records_formula_lot_unique).
 // 중복 여부 확인은 호출 측(useProductionRecord.save)이 저장 전에 사용자에게 먼저 물어보는 방식으로 처리한다.
+// 반면 제조(Lot No.)는 제조(벌크) 배치 번호라 처방과 무관하게 전체 테이블에서 유일해야 한다는 요청으로,
+// mfg_lot_no에는 DB UNIQUE(부분 인덱스, NULL 제외) 제약을 걸어 완전히 차단한다(마이그레이션:
+// add_mfg_lot_no_unique_constraint). 위반 시 에러를 사용자가 바로 이해할 수 있는 안내문으로 바꿔준다.
+function translateMfgLotNoConflict(error: { code?: string; message?: string }): Error | null {
+  if (error.code === "23505" && error.message?.includes("mfg_lot_no")) {
+    return new Error("이미 사용 중인 제조(Lot No.)입니다 (전체 처방 통틀어 중복 불가). 다른 번호를 입력하세요.");
+  }
+  return null;
+}
+
 export async function saveProductionRecord(record: ProductionRecord) {
   const { id, ...payload } = record;
   const { data, error } = await supabaseProductionFinal
@@ -35,7 +45,7 @@ export async function saveProductionRecord(record: ProductionRecord) {
     .insert(payload)
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) throw translateMfgLotNoConflict(error) || error;
   return data as ProductionRecord;
 }
 
@@ -61,7 +71,7 @@ export async function updateProductionRecord(id: string, patch: ProductionRecord
     .eq("id", id)
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) throw translateMfgLotNoConflict(error) || error;
   return data as ProductionRecord;
 }
 
