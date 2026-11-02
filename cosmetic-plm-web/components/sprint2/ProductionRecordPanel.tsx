@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useProductionRecord } from "@/hooks/useProductionRecord";
+import { searchProductionSchedules, type ProductionSchedule as ScheduleItem } from "@/services/sprint2/productionScheduleService";
 import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
@@ -12,6 +14,53 @@ function fmt(v: number | null | undefined) {
 export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: number } = {}) {
   const s = useProductionRecord(refreshTick);
 
+  // 생산_일정관리에서 불러오기 - "생산_일정관리에 등록된 내용으로 생산실적관리 쪽으로 내용을 불러오고
+  // 싶다"는 요청에 따라, 출고관리 입력 화면의 "생산실적에서 불러오기"와 같은 방식(검색 -> 결과 클릭 ->
+  // 자동 입력)으로 만든다. 일정은 처방(formula_code/revision)이 항상 있으므로 선택하면 처방도 함께
+  // 자동 선택되고(저장 이력도 같이 불러와짐), 제조(Lot No.)·제품(Lot No.)·목표 제조량(kg)이 채워진다.
+  // 채워진 값은 저장 전까지 아래 입력칸에서 자유롭게 고쳐 쓸 수 있다(자동입력은 편의 기능일 뿐).
+  const [scheduleKeyword, setScheduleKeyword] = useState("");
+  const [scheduleHits, setScheduleHits] = useState<ScheduleItem[]>([]);
+  const [scheduleSearching, setScheduleSearching] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState("");
+
+  async function searchSchedules() {
+    if (!scheduleKeyword.trim()) {
+      setScheduleHits([]);
+      setScheduleMsg("");
+      return;
+    }
+    setScheduleSearching(true);
+    setScheduleMsg("");
+    try {
+      const results = await searchProductionSchedules(scheduleKeyword);
+      setScheduleHits(results);
+      if (results.length === 0) setScheduleMsg("일치하는 일정이 없습니다.");
+    } catch (e) {
+      setScheduleMsg(e instanceof Error ? e.message : "일정 검색 오류");
+    } finally {
+      setScheduleSearching(false);
+    }
+  }
+
+  function pickSchedule(item: ScheduleItem) {
+    s.selectFormula({
+      formula_code: item.formula_code,
+      revision: item.revision,
+      formula_name: item.formula_name,
+      confirmed_code: item.confirmed_code,
+      product_name: item.product_name,
+    });
+    s.setMfgLotNo(item.mfg_lot_no || "");
+    s.setLotNo(item.lot_no || "");
+    // quantity가 없는 일정을 고르면 직전에 채워져 있던 값이 아니라 빈 값(0)으로 비워야 한다 - 조건부로만
+    // 채우면 이전 선택의 목표 제조량이 그대로 남아 다른 일정의 실적으로 잘못 저장될 수 있었다.
+    s.updateTargetQtyKg(item.quantity != null ? String(item.quantity) : "");
+    setScheduleHits([]);
+    setScheduleKeyword("");
+    setScheduleMsg("");
+  }
+
   return (
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
@@ -21,6 +70,47 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
         제품(Lot No.)가 중복이면 한 번 확인을 거칩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
+
+      <section className="v50-panel" style={{ marginBottom: 18 }}>
+        <h2>일정에서 불러오기 (선택)</h2>
+        <p className="v50-desc" style={{ marginBottom: 10 }}>
+          생산_일정관리에 등록해 둔 일정을 검색해서 선택하면 처방·제조(Lot No.)·제품(Lot No.)·목표
+          제조량(kg)이 한 번에 채워집니다(채워진 값은 저장 전 자유롭게 고쳐 쓸 수 있습니다). 필요 없으면
+          건너뛰고 아래 &quot;처방 선택&quot;에서 직접 처방을 검색해도 됩니다.
+        </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            className="v50-input" style={{ maxWidth: 280 }}
+            value={scheduleKeyword}
+            onChange={(e) => setScheduleKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && searchSchedules()}
+            placeholder="확정코드, 처방명, 제품명, 제조(Lot No.), 제품(Lot No.)로 검색"
+          />
+          <button className="v50-button-light" onClick={searchSchedules} disabled={scheduleSearching}>{scheduleSearching ? "검색 중…" : "검색"}</button>
+        </div>
+        {scheduleMsg && <p style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>{scheduleMsg}</p>}
+        {scheduleHits.length > 0 && (
+          <div className="v50-table-wrap" style={{ marginTop: 8 }}>
+            <table className="v50-table">
+              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>제품명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>목표 제조량(kg)</th><th></th></tr></thead>
+              <tbody>
+                {scheduleHits.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.schedule_date}</td>
+                    <td>{item.schedule_type}</td>
+                    <td>{item.confirmed_code || "-"}</td>
+                    <td>{item.product_name || item.formula_name || "-"}</td>
+                    <td>{item.mfg_lot_no || "-"}</td>
+                    <td>{item.lot_no || "-"}</td>
+                    <td>{item.quantity ?? "-"}</td>
+                    <td><button className="v50-button-light" onClick={() => pickSchedule(item)}>선택</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>처방 선택</h2>
