@@ -1,6 +1,12 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+// 기능성/중금속/미생물 상태값은 품질관리 출고관리와 같은 값 체계를 쓴다("품질관리 출고관리에 있는
+// 기능성, 중금속, 미생물 동일한 형태의 칸을 만들어줘" 요청) - 값 종류가 둘로 갈리지 않도록 그 모듈의
+// 타입/옵션을 그대로 재사용한다(생산_일정관리가 sourcingScheduleService의 처방검색 함수를 재사용하는
+// 것과 같은 방식).
+export { FUNCTIONAL_CLAIM_OPTIONS, TEST_PROGRESS_OPTIONS, type FunctionalClaim, type TestProgressStatus } from "./shipmentRecordService";
+import type { FunctionalClaim, TestProgressStatus } from "./shipmentRecordService";
 
 export type ProductionRecord = {
   id?: string;
@@ -16,6 +22,9 @@ export type ProductionRecord = {
   molded_qty: number | null; // 성형품 수량 (단위: EA)
   shipped_qty_ea: number | null; // 완제품 출고 수량 (단위: EA)
   shipped_qty_pack: number | null; // 완제품 출고 수량 (단위: PACK)
+  functional_claim: FunctionalClaim; // 기능성 - 품질관리 출고관리와 동일한 값 체계, 기본값 "해당없음"
+  heavy_metal_status: TestProgressStatus; // 중금속 시험 진행상태, 기본값 "해당없음"
+  microbial_status: TestProgressStatus; // 미생물 시험 진행상태, 기본값 "해당없음"
   production_date: string; // YYYY-MM-DD
   exp_date?: string | null; // YYYY-MM-DD
   note?: string;
@@ -56,7 +65,8 @@ export async function saveProductionRecord(record: ProductionRecord) {
 export type ProductionRecordEditablePatch = Partial<
   Pick<
     ProductionRecord,
-    "lot_no" | "mfg_lot_no" | "target_qty_kg" | "production_date" | "exp_date" | "coating_qty" | "molded_qty" | "shipped_qty_ea" | "shipped_qty_pack"
+    | "lot_no" | "mfg_lot_no" | "target_qty_kg" | "production_date" | "exp_date" | "coating_qty" | "molded_qty"
+    | "shipped_qty_ea" | "shipped_qty_pack" | "functional_claim" | "heavy_metal_status" | "microbial_status"
   >
 > & {
   // note는 ProductionRecord 상에서는 string만 허용하는 선택 필드지만(신규 등록 시엔 빈 문자열로 저장),

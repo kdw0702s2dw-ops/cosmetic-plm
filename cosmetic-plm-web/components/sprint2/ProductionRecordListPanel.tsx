@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchAllProductionRecords, deleteProductionRecord, updateProductionRecord,
-  type ProductionRecord, type ProductionRecordListFilter,
+  FUNCTIONAL_CLAIM_OPTIONS, TEST_PROGRESS_OPTIONS,
+  type ProductionRecord, type ProductionRecordListFilter, type FunctionalClaim, type TestProgressStatus,
 } from "@/services/sprint2/productionRecordService";
 import "@/styles/enterprise-v50.css";
 
@@ -33,6 +34,9 @@ type EditDraft = {
   molded_qty: string;
   shipped_qty_ea: string;
   shipped_qty_pack: string;
+  functional_claim: FunctionalClaim;
+  heavy_metal_status: TestProgressStatus;
+  microbial_status: TestProgressStatus;
   note: string;
 };
 
@@ -47,6 +51,9 @@ function draftFromRecord(r: ProductionRecord): EditDraft {
     molded_qty: r.molded_qty != null ? String(r.molded_qty) : "",
     shipped_qty_ea: r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : "",
     shipped_qty_pack: r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : "",
+    functional_claim: r.functional_claim || "해당없음",
+    heavy_metal_status: r.heavy_metal_status || "해당없음",
+    microbial_status: r.microbial_status || "해당없음",
     note: r.note || "",
   };
 }
@@ -154,6 +161,9 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
         molded_qty: editDraft.molded_qty === "" ? null : Number(editDraft.molded_qty),
         shipped_qty_ea: editDraft.shipped_qty_ea === "" ? null : Number(editDraft.shipped_qty_ea),
         shipped_qty_pack: editDraft.shipped_qty_pack === "" ? null : Number(editDraft.shipped_qty_pack),
+        functional_claim: editDraft.functional_claim,
+        heavy_metal_status: editDraft.heavy_metal_status,
+        microbial_status: editDraft.microbial_status,
         note: editDraft.note || null,
       });
       setMsg("수정 완료");
@@ -231,6 +241,24 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
               완제품 출고 수량 (단위: PACK)
               <input className="v50-input" type="number" value={editDraft.shipped_qty_pack} onChange={(e) => updateDraft({ shipped_qty_pack: e.target.value })} />
             </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              기능성
+              <select className="v50-input" value={editDraft.functional_claim} onChange={(e) => updateDraft({ functional_claim: e.target.value as FunctionalClaim })}>
+                {FUNCTIONAL_CLAIM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              중금속
+              <select className="v50-input" value={editDraft.heavy_metal_status} onChange={(e) => updateDraft({ heavy_metal_status: e.target.value as TestProgressStatus })}>
+                {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              미생물
+              <select className="v50-input" value={editDraft.microbial_status} onChange={(e) => updateDraft({ microbial_status: e.target.value as TestProgressStatus })}>
+                {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
           </div>
           <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
             비고
@@ -265,7 +293,8 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
               <tr>
                 <th>생산일자</th><th>확정코드</th><th>제품명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th>
                 <th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>비고</th><th style={{ width: 140 }}>작업</th>
+                <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>기능성</th><th>중금속</th><th>미생물</th>
+                <th>비고</th><th style={{ width: 140 }}>작업</th>
               </tr>
             </thead>
             <tbody>
@@ -281,6 +310,9 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
                   <td>{fmt(r.molded_qty)}</td>
                   <td>{fmt(r.shipped_qty_ea)}</td>
                   <td>{fmt(r.shipped_qty_pack)}</td>
+                  <td>{r.functional_claim}</td>
+                  <td>{r.heavy_metal_status}</td>
+                  <td>{r.microbial_status}</td>
                   <td>{r.note || "-"}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
@@ -290,7 +322,7 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
+              {records.length === 0 && <tr><td colSpan={15} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
             </tbody>
             {records.length > 0 && (
               <tfoot>
@@ -300,7 +332,7 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
                   <td>{fmt(totals.molded)}</td>
                   <td>{fmt(totals.ea)}</td>
                   <td>{fmt(totals.pack)}</td>
-                  <td colSpan={2}></td>
+                  <td colSpan={5}></td>
                 </tr>
               </tfoot>
             )}

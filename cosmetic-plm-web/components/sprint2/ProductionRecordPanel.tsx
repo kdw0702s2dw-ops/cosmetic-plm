@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useProductionRecord } from "@/hooks/useProductionRecord";
 import { searchProductionSchedules, type ProductionSchedule as ScheduleItem } from "@/services/sprint2/productionScheduleService";
+import { FUNCTIONAL_CLAIM_OPTIONS, TEST_PROGRESS_OPTIONS, type FunctionalClaim, type TestProgressStatus } from "@/services/sprint2/productionRecordService";
 import DecimalInput from "@/components/common/DecimalInput";
 import "@/styles/enterprise-v50.css";
 
@@ -181,6 +182,24 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
             완제품 출고 수량 (단위: PACK)
             <input className="v50-input" type="number" value={s.shippedQtyPack} onChange={(e) => s.setShippedQtyPack(e.target.value)} />
           </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            기능성
+            <select className="v50-input" value={s.functionalClaim} onChange={(e) => s.setFunctionalClaim(e.target.value as FunctionalClaim)}>
+              {FUNCTIONAL_CLAIM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            중금속
+            <select className="v50-input" value={s.heavyMetalStatus} onChange={(e) => s.setHeavyMetalStatus(e.target.value as TestProgressStatus)}>
+              {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+            미생물
+            <select className="v50-input" value={s.microbialStatus} onChange={(e) => s.setMicrobialStatus(e.target.value as TestProgressStatus)}>
+              {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
         </div>
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
           비고
@@ -238,6 +257,24 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
               완제품 출고 수량 (단위: PACK)
               <input className="v50-input" type="number" value={s.editDraft.shipped_qty_pack} onChange={(e) => s.updateEditDraft({ shipped_qty_pack: e.target.value })} />
             </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              기능성
+              <select className="v50-input" value={s.editDraft.functional_claim} onChange={(e) => s.updateEditDraft({ functional_claim: e.target.value as FunctionalClaim })}>
+                {FUNCTIONAL_CLAIM_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              중금속
+              <select className="v50-input" value={s.editDraft.heavy_metal_status} onChange={(e) => s.updateEditDraft({ heavy_metal_status: e.target.value as TestProgressStatus })}>
+                {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              미생물
+              <select className="v50-input" value={s.editDraft.microbial_status} onChange={(e) => s.updateEditDraft({ microbial_status: e.target.value as TestProgressStatus })}>
+                {TEST_PROGRESS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
           </div>
           <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
             비고
@@ -260,7 +297,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
               <thead>
                 <tr>
                   <th>생산일자</th><th>EXP</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
+                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>기능성</th><th>중금속</th><th>미생물</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,6 +312,9 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
                     <td>{fmt(h.molded_qty)}</td>
                     <td>{fmt(h.shipped_qty_ea)}</td>
                     <td>{fmt(h.shipped_qty_pack)}</td>
+                    <td>{h.functional_claim}</td>
+                    <td>{h.heavy_metal_status}</td>
+                    <td>{h.microbial_status}</td>
                     <td>{s.resolveCreatedBy(h.created_by)}</td>
                     <td>{h.note || "-"}</td>
                     <td>
@@ -285,7 +325,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
                     </td>
                   </tr>
                 ))}
-                {s.history.length === 0 && <tr><td colSpan={12}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
+                {s.history.length === 0 && <tr><td colSpan={15}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
           </div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { searchProductionFormulas } from "@/services/sprint2/productionQtyService";
 import {
   deleteProductionRecord, fetchProductionRecords, saveProductionRecord, updateProductionRecord,
-  type ProductionRecord,
+  type ProductionRecord, type FunctionalClaim, type TestProgressStatus,
 } from "@/services/sprint2/productionRecordService";
 import { downloadProductionRecordsExcel } from "@/services/sprint2/productionRecordDocService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
@@ -27,6 +27,9 @@ export type ProductionRecordEditDraft = {
   molded_qty: string;
   shipped_qty_ea: string;
   shipped_qty_pack: string;
+  functional_claim: FunctionalClaim;
+  heavy_metal_status: TestProgressStatus;
+  microbial_status: TestProgressStatus;
   note: string;
 };
 
@@ -41,6 +44,9 @@ function draftFromRecord(r: ProductionRecord): ProductionRecordEditDraft {
     molded_qty: r.molded_qty != null ? String(r.molded_qty) : "",
     shipped_qty_ea: r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : "",
     shipped_qty_pack: r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : "",
+    functional_claim: r.functional_claim || "해당없음",
+    heavy_metal_status: r.heavy_metal_status || "해당없음",
+    microbial_status: r.microbial_status || "해당없음",
     note: r.note || "",
   };
 }
@@ -62,6 +68,9 @@ export function useProductionRecord(refreshToken?: number) {
   const [moldedQty, setMoldedQty] = useState<string>("");
   const [shippedQtyEa, setShippedQtyEa] = useState<string>("");
   const [shippedQtyPack, setShippedQtyPack] = useState<string>("");
+  const [functionalClaim, setFunctionalClaim] = useState<FunctionalClaim>("해당없음");
+  const [heavyMetalStatus, setHeavyMetalStatus] = useState<TestProgressStatus>("해당없음");
+  const [microbialStatus, setMicrobialStatus] = useState<TestProgressStatus>("해당없음");
   const [productionDate, setProductionDate] = useState(today());
   const [expDate, setExpDate] = useState("");
   const [note, setNote] = useState("");
@@ -127,6 +136,9 @@ export function useProductionRecord(refreshToken?: number) {
     setMoldedQty("");
     setShippedQtyEa("");
     setShippedQtyPack("");
+    setFunctionalClaim("해당없음");
+    setHeavyMetalStatus("해당없음");
+    setMicrobialStatus("해당없음");
     setProductionDate(today());
     setExpDate("");
     setNote("");
@@ -159,6 +171,9 @@ export function useProductionRecord(refreshToken?: number) {
         molded_qty: moldedQty === "" ? null : Number(moldedQty),
         shipped_qty_ea: shippedQtyEa === "" ? null : Number(shippedQtyEa),
         shipped_qty_pack: shippedQtyPack === "" ? null : Number(shippedQtyPack),
+        functional_claim: functionalClaim,
+        heavy_metal_status: heavyMetalStatus,
+        microbial_status: microbialStatus,
         production_date: productionDate,
         exp_date: expDate === "" ? null : expDate,
         note,
@@ -234,6 +249,9 @@ export function useProductionRecord(refreshToken?: number) {
         molded_qty: editDraft.molded_qty === "" ? null : Number(editDraft.molded_qty),
         shipped_qty_ea: editDraft.shipped_qty_ea === "" ? null : Number(editDraft.shipped_qty_ea),
         shipped_qty_pack: editDraft.shipped_qty_pack === "" ? null : Number(editDraft.shipped_qty_pack),
+        functional_claim: editDraft.functional_claim,
+        heavy_metal_status: editDraft.heavy_metal_status,
+        microbial_status: editDraft.microbial_status,
         note: editDraft.note || null,
       });
       setMessage("수정 완료");
@@ -260,6 +278,7 @@ export function useProductionRecord(refreshToken?: number) {
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
     targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, mfgLotNo, setMfgLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
     shippedQtyEa, setShippedQtyEa, shippedQtyPack, setShippedQtyPack,
+    functionalClaim, setFunctionalClaim, heavyMetalStatus, setHeavyMetalStatus, microbialStatus, setMicrobialStatus,
     productionDate, setProductionDate, expDate, setExpDate, note, setNote,
     history, loading, saving, message, save, removeHistory, downloadExcel,
     resolveCreatedBy,
