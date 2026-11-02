@@ -190,11 +190,16 @@ export default function FormulaCorePanel() {
     [rowsWithPickedRevision]
   );
 
-  // 통계 탭 - "전체" 기준(진행상태/베이스 처방 필터와 무관하게 항상 전체 128건 등 기존 "전체" 탭과
-  // 같은 모수)으로 계산한다. rowsWithPickedRevision이 이미 "처방코드 1개당 1행(확정 Revision은
-  // 별도 행)"으로 묶어둔 결과라, 통계 탭의 합계도 "전체" 탭 숫자와 항상 일치한다.
+  // 통계 탭 - 진행상태 필터와 무관하게 계산하되, 베이스 처방(HG-/PP-/SE-/ES-)은 뺀다("베이스 처방에
+  // 대한 통계는 실제 통계에 방해가 되니 삭제해달라"는 요청). 그래서 통계 탭 합계는 "전체" 탭 건수(베이스
+  // 처방 포함)보다 baseCount만큼 작다 - "전체"/"베이스 처방만" 탭 자체의 모수(rowsWithPickedRevision)는
+  // 그대로 둔다. rowsWithPickedRevision이 이미 "처방코드 1개당 1행(확정 Revision은 별도 행)"으로 묶어둔
+  // 결과라, 통계 탭의 합계도 "전체 건수 - 베이스 처방 건수"와 항상 일치한다.
   const [showStats, setShowStats] = useState(false);
-  const statsRows = useMemo(() => rowsWithPickedRevision.map(({ pickedRow }) => pickedRow), [rowsWithPickedRevision]);
+  const statsRows = useMemo(
+    () => rowsWithPickedRevision.filter(({ pickedRow }) => !isBaseFormula(pickedRow.formula_code)).map(({ pickedRow }) => pickedRow),
+    [rowsWithPickedRevision]
+  );
   const yearStats = useMemo(() => computeYearStats(statsRows), [statsRows]);
   const productTypeStats = useMemo(() => computeProductTypeStats(statsRows), [statsRows]);
   const yearTypeMatrix = useMemo(() => computeYearProductTypeMatrix(statsRows), [statsRows]);
@@ -862,8 +867,9 @@ function FormulaStatsSection({
     <div style={{ marginTop: 12 }}>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         처방코드(P+연도 - 예: P2026-077 → 2026년 개발), 확정코드(컨펌 여부), 제품유형을 기준으로 집계합니다.
-        &ldquo;처방 목록&rdquo;의 &ldquo;전체&rdquo; 탭과 같은 기준(처방코드 1개당 1행, 확정된 Revision은 별도 행)으로 계산되어
-        합계가 항상 일치합니다.
+        &ldquo;처방 목록&rdquo;의 &ldquo;전체&rdquo; 탭과 같은 기준(처방코드 1개당 1행, 확정된 Revision은 별도 행)으로 계산하되,
+        베이스 처방(HG-/PP-/SE-/ES-로 시작하는 처방코드)은 통계에서 뺍니다. 그래서 이 합계는 &ldquo;전체&rdquo;
+        탭 건수보다 베이스 처방 수만큼 작습니다.
       </p>
 
       <h3 style={{ marginBottom: 8 }}>연도별 개발 처방 수 (처방코드 기준)</h3>

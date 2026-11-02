@@ -2,8 +2,10 @@
 
 // 처방관리 "통계" 탭 계산 로직 - 순수 함수만 모아둔다(화면에 이미 떠있는 처방 목록을 그대로 집계하므로
 // 별도 DB 조회가 필요 없다). FormulaCorePanel.tsx가 이미 쓰고 있는 "처방코드 1개당 1행(확정된
-// Revision은 별도 행)" 그룹핑 결과(rowsWithPickedRevision의 pickedRow들)를 그대로 넘겨 써야, "전체
-// (128)" 등 기존 탭에 보이는 건수와 통계 탭의 합계가 항상 일치한다.
+// Revision은 별도 행)" 그룹핑 결과(rowsWithPickedRevision의 pickedRow들)를 그대로 넘겨 써야 한다.
+// 단, "베이스 처방에 대한 통계는 실제 통계에 방해가 된다"는 요청으로 FormulaCorePanel.tsx는 이 함수들에
+// 넘기기 전에 베이스 처방(HG-/PP-/SE-/ES-)을 먼저 뺀다 - 그래서 통계 탭 합계는 "전체" 탭 건수(베이스
+// 처방 포함)보다 베이스 처방 수만큼 작다. 이 파일의 함수들 자체는 그 필터링을 모르는 순수 집계 함수다.
 
 export type FormulaStatRow = {
   formula_code: string;
