@@ -6,19 +6,21 @@ import StabilityTestPanel from "@/components/sprint2/StabilityTestPanel";
 import TestCertificatePanel from "@/components/sprint2/TestCertificatePanel";
 import ProductCoaPanel from "@/components/sprint2/ProductCoaPanel";
 import ProductMsdsPanel from "@/components/sprint2/ProductMsdsPanel";
-import ShipmentManagementPanel from "@/components/sprint2/ShipmentManagementPanel";
 import "@/styles/enterprise-v50.css";
 
 // 품질관리 최상위 화면 - "홈"(전체 시료 달력 + 지연/임박 알림), "시료 목록"(안정성시험 등록/조건 추가/결과
 // 입력), "시험성적서"(반제품/완제품 시험성적서 작성 및 PDF/엑셀 출력), "제품 COA"(영문 Certificate of
 // Analysis 작성 및 서명 기반 결재), "제품 MSDS"(영문 Material Safety Data Sheet 작성 및 서명 기반
-// 결재), "출고관리"(원래 독립 메뉴였다가 "제품 MSDS 옆으로 옮겨달라" 요청에 따라 이쪽으로 이동)를
-// 서브탭으로 묶는다. 홈에서 특정 시료의 "열기"를 누르면 시료 목록 탭으로 전환되면서 그 시료가 바로 선택된다.
-type QualityTab = "home" | "list" | "certificate" | "coa" | "msds" | "shipment";
+// 결재)를 서브탭으로 묶는다. 홈에서 특정 시료의 "열기"를 누르면 시료 목록 탭으로 전환되면서 그 시료가
+// 바로 선택된다.
+// "출고관리"는 한동안 "제품 MSDS" 옆 서브탭으로 여기 있었지만, "품질관리에서 출고관리 필요가 없다"는
+// 요청으로 화면에서 완전히 뺐다(사이드바에도 따로 두지 않음 - 출고 기록 데이터 자체는 DB에 그대로
+// 남아있고, ShipmentManagementPanel 등 코드도 삭제하지 않았다. 필요해지면 다시 연결할 수 있다).
+type QualityTab = "home" | "list" | "certificate" | "coa" | "msds";
 
 const TAB_LABELS: Record<QualityTab, string> = {
   home: "홈 (달력)", list: "시료 목록", certificate: "시험성적서",
-  coa: "제품 COA", msds: "제품 MSDS", shipment: "출고관리",
+  coa: "제품 COA", msds: "제품 MSDS",
 };
 
 export default function QualityManagementPanel() {
@@ -81,9 +83,6 @@ export default function QualityManagementPanel() {
       )}
       {visitedTabs.has("msds") && (
         <div style={hidden("msds")}><ProductMsdsPanel refreshTick={refreshTicks.msds} /></div>
-      )}
-      {visitedTabs.has("shipment") && (
-        <div style={hidden("shipment")}><ShipmentManagementPanel refreshTick={refreshTicks.shipment} /></div>
       )}
     </div>
   );

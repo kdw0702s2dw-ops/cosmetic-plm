@@ -27,9 +27,12 @@ type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "purchaseOr
 // Production 역할은 부자재관리/원료관리/생산관리(+생산실적 관리)/품질관리만 볼 수 있음. 생산실적 관리는
 // 원래 생산관리 하위 도구였고 그때도 Production이 접근 가능했으므로, 독립 메뉴로 분리된 뒤에도 그대로
 // 유지한다. 통합 BOM은 원료/부자재/필름/원단/칼선을 전 직원이 확인하는 용도라 Production도 포함.
-// 출고관리는 원래 독립 메뉴였다가 품질관리 하위 탭("제품 MSDS" 옆)으로 옮겨졌는데, Production 역할도
-// 출고관리에는 계속 접근할 수 있어야 하므로 품질관리 자체를 Production에게 허용했다(요청에 따라 품질관리의
-// 다른 하위 탭 - 홈/시료 목록/시험성적서/제품 COA/제품 MSDS - 도 함께 보이게 됨).
+// (과거 메모) 품질관리를 Production에게 허용한 원래 이유는 "출고관리가 품질관리 하위 탭('제품 MSDS'
+// 옆)에 있어서 Production도 거기로 출고관리에 접근해야 했기 때문"이었다. 이후 "품질관리에서 출고관리
+// 필요가 없다"는 요청으로 출고관리 탭 자체가 품질관리 화면(QualityManagementPanel.tsx)에서 완전히
+// 빠졌고 어느 역할도 화면으로는 더 이상 출고 기록에 접근할 수 없다(데이터는 DB에 남아있음) - 그 원래
+// 이유는 더 이상 유효하지 않지만, Production의 품질관리(홈/시료 목록/시험성적서/제품 COA/제품 MSDS)
+// 접근 자체를 없애야 하는지는 별도로 요청받은 적이 없어 권한은 그대로 둔다.
 const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "unifiedBom", "production", "productionRecords", "quality"];
 
 // 탭을 전환해도 화면에 입력한 내용 등 상태가 유지되도록, 방문한 적이 있으면 마운트 상태를 유지하는 탭 목록
