@@ -126,9 +126,10 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         처방을 검색해서 등록하면 칭량·제조·도포·타공·포장·출고 6개 공정 일정을 달력에서 관리할 수 있습니다.
-        공정은 여러 개를 동시에 선택할 수 있고(신규 등록 시), 선택한 공정 수만큼 같은 날짜·수량·담당자·
-        제조(Lot No.)·제품(Lot No.)로 한 번에 등록됩니다(둘 다 선택 입력이고, 아직 정해지지 않았으면
-        비워둘 수 있습니다). 날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
+        공정은 여러 개를 동시에 선택할 수 있고(신규 등록 시), 선택한 공정 수만큼 같은 날짜·목표 제조량(kg)·
+        생산량/장·담당자·제조(Lot No.)·제품(Lot No.)로 한 번에 등록됩니다(목표 제조량(kg)·생산량/장·
+        제조(Lot No.)·제품(Lot No.)는 모두 선택 입력이고, 아직 정해지지 않았으면 비워둘 수 있습니다).
+        날짜를 지나도 완료 처리되지 않은 일정은 자동으로 지연(●) 표시됩니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 
@@ -205,8 +206,12 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
               <input className="v50-input" type="date" value={s.scheduleDate} onChange={(e) => s.setScheduleDate(e.target.value)} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              수량(kg)
+              목표 제조량(kg)
               <input className="v50-input" type="number" value={s.quantity} onChange={(e) => s.setQuantity(e.target.value)} placeholder="선택 입력" />
+            </label>
+            <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
+              생산량/장
+              <input className="v50-input" type="number" value={s.qtySheets} onChange={(e) => s.setQtySheets(e.target.value)} placeholder="선택 입력" />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               제조(Lot No.)
@@ -264,7 +269,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
         {s.findResults.length > 0 && (
           <div className="v50-table-wrap" style={{ marginTop: 10 }}>
             <table className="v50-table">
-              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>처방명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>담당자</th><th>상태</th><th></th></tr></thead>
+              <thead><tr><th>날짜</th><th>유형</th><th>확정코드</th><th>처방명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>생산량/장</th><th>담당자</th><th>상태</th><th></th></tr></thead>
               <tbody>
                 {s.findResults.map((item) => (
                   <tr key={item.id}>
@@ -279,6 +284,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                     <td>{item.product_name || item.formula_name || "-"}</td>
                     <td>{item.mfg_lot_no || "-"}</td>
                     <td>{item.lot_no || "-"}</td>
+                    <td>{item.qty_sheets ?? "-"}</td>
                     <td>{item.assignee || "-"}</td>
                     <td>{item.status}</td>
                     <td><button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.goToFindResult(item)}>이동</button></td>
@@ -346,7 +352,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                     <div className="v50-table-wrap" style={{ margin: "0 14px 10px" }}>
                       <table className="v50-table">
                         <thead>
-                          <tr><th>날짜</th><th>유형</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>수량(kg)</th><th>담당자</th><th>상태</th><th></th></tr>
+                          <tr><th>날짜</th><th>유형</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>목표 제조량(kg)</th><th>생산량/장</th><th>담당자</th><th>상태</th><th></th></tr>
                         </thead>
                         <tbody>
                           {g.items.map((item) => {
@@ -365,6 +371,7 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                                 <td>{item.mfg_lot_no || "-"}</td>
                                 <td>{item.lot_no || "-"}</td>
                                 <td>{item.quantity ?? "-"}</td>
+                                <td>{item.qty_sheets ?? "-"}</td>
                                 <td>{item.assignee || "-"}</td>
                                 <td><StatusSelect item={item} s={s} /></td>
                                 <td style={{ display: "flex", gap: 4 }}>

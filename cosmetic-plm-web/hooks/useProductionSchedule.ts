@@ -68,6 +68,7 @@ export function useProductionSchedule(refreshToken?: number) {
   const [scheduleTypes, setScheduleTypes] = useState<ScheduleType[]>(["제조"]);
   const [scheduleDate, setScheduleDate] = useState(todayStr());
   const [quantity, setQuantity] = useState("");
+  const [qtySheets, setQtySheets] = useState(""); // "생산량/장" - 장(장수) 단위 목표 생산 수량
   const [mfgLotNo, setMfgLotNo] = useState(""); // 제조(Lot No.) 예정값
   const [lotNo, setLotNo] = useState(""); // 제품(Lot No.) 예정값
   const [assignee, setAssignee] = useState("");
@@ -218,6 +219,7 @@ export function useProductionSchedule(refreshToken?: number) {
     setScheduleTypes(["제조"]);
     setScheduleDate(selectedDate || todayStr());
     setQuantity("");
+    setQtySheets("");
     setMfgLotNo("");
     setLotNo("");
     setAssignee("");
@@ -239,6 +241,7 @@ export function useProductionSchedule(refreshToken?: number) {
     setScheduleTypes([item.schedule_type]);
     setScheduleDate(item.schedule_date);
     setQuantity(item.quantity != null ? String(item.quantity) : "");
+    setQtySheets(item.qty_sheets != null ? String(item.qty_sheets) : "");
     setMfgLotNo(item.mfg_lot_no || "");
     setLotNo(item.lot_no || "");
     setAssignee(item.assignee || "");
@@ -276,7 +279,12 @@ export function useProductionSchedule(refreshToken?: number) {
     }
     const qty = quantity.trim() === "" ? null : Number(quantity);
     if (quantity.trim() !== "" && Number.isNaN(qty)) {
-      setMessage("수량은 숫자로 입력하세요.");
+      setMessage("목표 제조량(kg)은 숫자로 입력하세요.");
+      return;
+    }
+    const qtySheetsVal = qtySheets.trim() === "" ? null : Number(qtySheets);
+    if (qtySheets.trim() !== "" && Number.isNaN(qtySheetsVal)) {
+      setMessage("생산량/장은 숫자로 입력하세요.");
       return;
     }
     setSaving(true);
@@ -293,6 +301,7 @@ export function useProductionSchedule(refreshToken?: number) {
           schedule_type: scheduleTypes[0],
           schedule_date: scheduleDate,
           quantity: qty,
+          qty_sheets: qtySheetsVal,
           mfg_lot_no: mfgLotNo.trim() === "" ? null : mfgLotNo.trim(),
           lot_no: lotNo.trim() === "" ? null : lotNo.trim(),
           assignee: assignee || null,
@@ -313,6 +322,7 @@ export function useProductionSchedule(refreshToken?: number) {
               schedule_type: t,
               schedule_date: scheduleDate,
               quantity: qty,
+              qty_sheets: qtySheetsVal,
               mfg_lot_no: mfgLotNo.trim() === "" ? null : mfgLotNo.trim(),
               lot_no: lotNo.trim() === "" ? null : lotNo.trim(),
               assignee: assignee || null,
@@ -365,7 +375,7 @@ export function useProductionSchedule(refreshToken?: number) {
     findKeyword, setFindKeyword, findResults, findLoading, findMessage, findSchedules, goToFindResult,
     editingId, editItem, resetForm,
     scheduleTypes, toggleScheduleType, scheduleDate, setScheduleDate,
-    quantity, setQuantity, mfgLotNo, setMfgLotNo, lotNo, setLotNo, assignee, setAssignee, assignToMe, myName,
+    quantity, setQuantity, qtySheets, setQtySheets, mfgLotNo, setMfgLotNo, lotNo, setLotNo, assignee, setAssignee, assignToMe, myName,
     status, setStatus, memo, setMemo, saving, save,
     changeStatus, removeItem, isScheduleOverdue,
     types: SCHEDULE_TYPES, statuses: SCHEDULE_STATUSES,

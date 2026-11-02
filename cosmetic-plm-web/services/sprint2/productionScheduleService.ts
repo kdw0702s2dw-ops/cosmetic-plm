@@ -33,7 +33,8 @@ export type ProductionSchedule = {
   product_name?: string | null;
   schedule_type: ScheduleType;
   schedule_date: string; // YYYY-MM-DD
-  quantity?: number | null;
+  quantity?: number | null; // 화면 표시명 "목표 제조량(kg)"
+  qty_sheets?: number | null; // "생산량/장" - 장(장수) 단위 목표 생산 수량, quantity(kg)와는 별개
   lot_no?: string | null; // 제품(Lot No.) 예정값 - 생산실적의 lot_no와는 별개 테이블의 독립된 값
   mfg_lot_no?: string | null; // 제조(Lot No.) 예정값 - 생산실적의 mfg_lot_no와는 별개 테이블의 독립된 값
   assignee?: string | null;
