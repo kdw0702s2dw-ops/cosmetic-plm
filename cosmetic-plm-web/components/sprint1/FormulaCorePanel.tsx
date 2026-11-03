@@ -14,6 +14,7 @@ import SearchDropdown from "@/components/common/SearchDropdown";
 import DecimalInput from "@/components/common/DecimalInput";
 import { useAnchorPosition } from "@/hooks/useAnchorPosition";
 import FormulaLoadModal from "@/components/sprint1/FormulaLoadModal";
+import ProductTypeField from "@/components/common/ProductTypeField";
 import DisclosureBomSection from "@/components/sprint1/DisclosureBomSection";
 import type { DisclosureVariant } from "@/services/sprint2/formulaDisclosureService";
 import "@/styles/enterprise-v50.css";
@@ -467,7 +468,7 @@ export default function FormulaCorePanel() {
             제품명 (컨펌 후 확정)
             <input className="v50-input" value={s.formula.product_name || ""} onChange={(e) => updateFormula("product_name", e.target.value)} placeholder="처방 컨펌 후 확정된 제품명 - 원료발주가처방에 사용" />
           </label>
-          <Input label="제품유형" value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
+          <ProductTypeField value={s.formula.product_type} onChange={(v) => updateFormula("product_type", v)} />
           <Input label="고객사" value={s.formula.customer} onChange={(v) => updateFormula("customer", v)} />
           <Input label="담당 연구원" value={s.formula.assigned_researcher} onChange={(v) => updateFormula("assigned_researcher", v)} />
           <Input label="출시국가" value={s.formula.target_country} onChange={(v) => updateFormula("target_country", v)} />
