@@ -41,3 +41,18 @@ export async function addProductType(name: string): Promise<ProductType> {
   }
   throw error;
 }
+
+// 마스터 목록의 이름을 바꾸면서, 그 이름을 쓰던 처방들(plm_formulas.product_type)도 함께 새 이름으로
+// 바꾼다 - plm_product_types.name과 plm_formulas.product_type은 FK가 아니라 문자열 복사본이라, 마스터
+// 이름만 바꾸면 기존 처방들은 옛 이름 그대로 남아 목록과 어긋나게 된다. 두 테이블을 한 번에 바꾸는
+// 일(과 역할 검사)은 DB 함수 plm_rename_product_type(마이그레이션 add_plm_rename_product_type_rpc)이
+// 트랜잭션으로 처리하고, 몇 건의 처방이 함께 바뀌었는지(renamedFormulaCount)를 돌려준다.
+export async function renameProductType(id: string, newName: string): Promise<{ name: string; renamedFormulaCount: number }> {
+  const trimmed = newName.trim();
+  const { data, error } = await supabaseProductionFinal
+    .rpc("plm_rename_product_type", { p_id: id, p_new_name: trimmed })
+    .single();
+  if (error) throw error;
+  const row = data as { renamed_formula_count: number };
+  return { name: trimmed, renamedFormulaCount: row.renamed_formula_count };
+}
