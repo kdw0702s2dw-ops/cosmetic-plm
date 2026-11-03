@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
 import { computeRawMaterialDiff, buildRawMaterialSyncPatch, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
 import {
-  computeYearStats, computeProductTypeStats, computeYearProductTypeMatrix, computeConfirmationStats,
+  computeYearStats, computeProductTypeStats, computeYearProductTypeMatrix, computeConfirmationStats, extractDevYear,
   type CountStat, type YearProductTypeMatrix, type ConfirmationStatsResult,
 } from "@/services/sprint1/formulaStatsService";
 import type { RegulationHit } from "@/services/sprint2/regulationEngineService";
@@ -191,14 +191,17 @@ export default function FormulaCorePanel() {
     [rowsWithPickedRevision]
   );
 
-  // 통계 탭 - 진행상태 필터와 무관하게 계산하되, 베이스 처방(HG-/PP-/SE-/ES-)은 뺀다("베이스 처방에
-  // 대한 통계는 실제 통계에 방해가 되니 삭제해달라"는 요청). 그래서 통계 탭 합계는 "전체" 탭 건수(베이스
-  // 처방 포함)보다 baseCount만큼 작다 - "전체"/"베이스 처방만" 탭 자체의 모수(rowsWithPickedRevision)는
-  // 그대로 둔다. rowsWithPickedRevision이 이미 "처방코드 1개당 1행(확정 Revision은 별도 행)"으로 묶어둔
-  // 결과라, 통계 탭의 합계도 "전체 건수 - 베이스 처방 건수"와 항상 일치한다.
+  // 통계 탭 - "그 해에 접수/개발해서 컨펌·생산까지 간 건수"를 보려는 목적이라, 처방코드가 P+연도
+  // 형식(extractDevYear가 연도를 뽑아낼 수 있는 것)인 처방만 남긴다("연도 없음은 제외하고 싶다, 해당
+  // 연도에 접수/개발·컨펌에 따른 생산을 집계하려는 것"이라는 요청). 이 기준 하나로 베이스 처방
+  // (HG-/PP-/SE-/ES-, 애초에 P+연도 형식이 아님)과 그 외 연도를 매길 수 없는 레거시 코드(3HGPA012A,
+  // TS6004 등)가 전부 함께 빠진다 - 그래서 "연도별" 표에는 "연도 없음" 행 자체가 더 이상 나타나지
+  // 않고, 같은 statsRows를 쓰는 제품유형별 분포/연도×제품유형 교차표/확정률·생산률에도 연도가 있는
+  // 처방만 집계된다. rowsWithPickedRevision이 이미 "처방코드 1개당 1행(확정 Revision은 별도 행)"으로
+  // 묶어둔 결과라, 통계 탭의 합계는 항상 "연도가 있는 처방 건수"와 일치한다.
   const [showStats, setShowStats] = useState(false);
   const statsRows = useMemo(
-    () => rowsWithPickedRevision.filter(({ pickedRow }) => !isBaseFormula(pickedRow.formula_code)).map(({ pickedRow }) => pickedRow),
+    () => rowsWithPickedRevision.filter(({ pickedRow }) => extractDevYear(pickedRow.formula_code) !== null).map(({ pickedRow }) => pickedRow),
     [rowsWithPickedRevision]
   );
   const yearStats = useMemo(() => computeYearStats(statsRows), [statsRows]);
@@ -869,8 +872,9 @@ function FormulaStatsSection({
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         처방코드(P+연도 - 예: P2026-077 → 2026년 개발), 확정코드(컨펌 여부), 제품유형을 기준으로 집계합니다.
         &ldquo;처방 목록&rdquo;의 &ldquo;전체&rdquo; 탭과 같은 기준(처방코드 1개당 1행, 확정된 Revision은 별도 행)으로 계산하되,
-        베이스 처방(HG-/PP-/SE-/ES-로 시작하는 처방코드)은 통계에서 뺍니다. 그래서 이 합계는 &ldquo;전체&rdquo;
-        탭 건수보다 베이스 처방 수만큼 작습니다.
+        처방코드가 P+연도 형식이 아닌 처방(베이스 처방 HG-/PP-/SE-/ES- 및 그 외 연도를 매길 수 없는 처방)은
+        통계에서 뺍니다. 해당 연도에 접수·개발하고, 그중 컨펌·생산까지 간 건수를 보기 위한 집계라 &ldquo;연도
+        없음&rdquo; 자체가 통계에 나타나지 않습니다. 그래서 이 합계는 &ldquo;전체&rdquo; 탭 건수보다 작습니다.
       </p>
 
       <h3 style={{ marginBottom: 8 }}>연도별 개발 처방 수 (처방코드 기준)</h3>
