@@ -5,6 +5,7 @@ import { fetchRawMaterialsByCodes } from "@/services/sprint2/rawMaterialService"
 import { fetchIngredientFunctionEntries } from "@/services/sprint2/ingredientDictionaryService";
 import {
   ALLERGEN_BASE_LINE,
+  allergenKey,
   basisTitleSuffix,
   type BasisAllergenAlert,
   buildComplexGroupedRows,
@@ -118,14 +119,14 @@ function writeFooterNotesWithAllergenTable(
   };
 
   if (!formula.exposure_type) {
-    italicNote(ALLERGEN_BASE_LINE);
+    italicNote(ALLERGEN_BASE_LINE, "FFB91C1C");
     italicNote(
       "제품 사용유형이 미지정되어 알러젠 표시 여부를 계산할 수 없습니다. 처방관리에서 Leave-on/Rinse-off를 먼저 지정해주세요.",
       "FFB91C1C"
     );
   } else {
     const label = formula.exposure_type === "LEAVE_ON" ? "Leave-on" : "Rinse-off";
-    italicNote(`${ALLERGEN_BASE_LINE} (적용기준: ${label})`);
+    italicNote(`${ALLERGEN_BASE_LINE} (적용기준: ${label})`, "FFB91C1C");
 
     // 표시 의무가 있는(기준치 초과) 알러젠만 표에 올린다 - PDF와 동일한 필터링.
     const requiredAlerts = (basisAlerts || []).filter((a) => a.label_required);
@@ -336,13 +337,18 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   const basisAlerts = await computeBasisAllergenAlerts(formula, lines, components);
   // PDF(buildInciListHtml)와 동일하게, 이 basis 기준으로 실제 표시기준 미만인 알러젠은 전성분/국문전성분
   // 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을 이름으로 노출할 이유가 없기 때문.
-  // 이 필터가 엑셀에는 지금까지 빠져있었다(PDF에만 적용돼 있던 것).
-  const suppressedAllergenIds = new Set(
+  // allergenKey()로 판정해 공식 알러젠 목록(allergen_id) 매칭 여부와 무관하게 억제한다(PDF와 동일
+  // 이유 - documentPdfService.ts의 computeAllergenTotalsFromLinesAndComponents 주석 참고).
+  const suppressedKeys = new Set(
     (basisAlerts || []).filter((a) => !a.label_required).map((a) => a.allergen_id)
   );
-  const visibleRows = rows.filter(
-    (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
-  );
+  const visibleRows = rows.filter((r) => !(r.is_allergen && suppressedKeys.has(allergenKey(r))));
+  // 알러젠 성분(기준치 초과로 실제 표시대상인 것만 남음)은 전성분표 맨 뒤로 보낸다(사용자 요청,
+  // PDF와 동일) - 각 그룹 내부의 함량 내림차순 정렬은 그대로 유지.
+  const orderedVisibleRows = [
+    ...visibleRows.filter((r) => !r.is_allergen),
+    ...visibleRows.filter((r) => r.is_allergen),
+  ];
   const cols = langColumns(lang);
 
   const wb = new ExcelJS.Workbook();
@@ -355,7 +361,9 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
   writeTitleRow(ws, `Ingredient List for Development${basisTitleSuffix(basis)}`, colCount);
   writeMetaRows(ws, kovasMeta(formula), colCount);
 
-  const writeBox = (title: string, content: string) => {
+  // items: 성분명을 개별 세그먼트로 받아, 실제 표시대상 알러젠만 PDF의 <span> 강조와 동일하게
+  // 빨간색으로 입힐 수 있게 한다(사용자 요청).
+  const writeBox = (title: string, items: { text: string; isAllergen: boolean }[]) => {
     const titleRow = ws.addRow([title]);
     ws.mergeCells(titleRow.number, 1, titleRow.number, colCount);
     titleRow.getCell(1).font = { bold: true };
@@ -363,18 +371,39 @@ export async function downloadInciListExcel(formula: any, basis: DocBasis = "MIX
     titleRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
     border(ws, titleRow.number, 1, titleRow.number, colCount);
 
-    const bodyRow = ws.addRow([content || "-"]);
+    const plainText = items.map((x) => x.text).join(", ") || "-";
+    const bodyRow = ws.addRow([]);
+    const bodyCell = bodyRow.getCell(1);
+    if (items.length === 0) {
+      bodyCell.value = "-";
+    } else {
+      const richText: ExcelJS.RichText[] = [];
+      items.forEach((item, i) => {
+        if (i > 0) richText.push({ text: ", " });
+        richText.push(
+          item.isAllergen
+            ? { text: item.text, font: { color: { argb: "FFB91C1C" } } }
+            : { text: item.text }
+        );
+      });
+      bodyCell.value = { richText };
+    }
     ws.mergeCells(bodyRow.number, 1, bodyRow.number, colCount);
-    bodyRow.getCell(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    bodyCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     border(ws, bodyRow.number, 1, bodyRow.number, colCount);
     // PDF는 텍스트 양에 따라 박스 높이가 자동으로 늘어나지만 엑셀은 고정 행 높이라
     // 뷰어에 따라 자동 재계산에 의존하지 못하므로, 텍스트 길이 기준으로 직접 계산해서 지정한다.
-    ws.getRow(bodyRow.number).height = estimateWrappedRowHeight(content || "-", totalColWidth);
+    ws.getRow(bodyRow.number).height = estimateWrappedRowHeight(plainText, totalColWidth);
   };
 
   for (const c of cols) {
-    const content = visibleRows.map((x) => pickLangValue(x, c.key)).filter(Boolean).join(", ");
-    writeBox(langListBoxTitle(c.key), content);
+    const items = orderedVisibleRows
+      .map((x) => {
+        const val = pickLangValue(x, c.key);
+        return val ? { text: val, isAllergen: !!x.is_allergen } : null;
+      })
+      .filter((x): x is { text: string; isAllergen: boolean } => !!x);
+    writeBox(langListBoxTitle(c.key), items);
   }
 
   writeFooterNotesWithAllergenTable(ws, colCount, formula, basisAlerts);

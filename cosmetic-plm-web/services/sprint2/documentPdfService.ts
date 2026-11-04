@@ -268,7 +268,7 @@ export const ALLERGEN_BASE_LINE = "3) Allergen Labeling: Leave-on ≥ 0.001% / R
 // exposure_type 미지정이면 "계산 불가" 안내, 계산은 됐지만 표시대상이 0건이면 그와 구분되게 명시.
 function allergenSection(f: any, alerts: any[]) {
   if (!f.exposure_type) {
-    return `<p>${e(ALLERGEN_BASE_LINE)}</p>
+    return `<p style="color:#b91c1c">${e(ALLERGEN_BASE_LINE)}</p>
 <p style="color:#b91c1c">제품 사용유형이 미지정되어 알러젠 표시 여부를 계산할 수 없습니다. 처방관리에서 Leave-on/Rinse-off를 먼저 지정해주세요.</p>`;
   }
 
@@ -277,7 +277,7 @@ function allergenSection(f: any, alerts: any[]) {
   // 혼동을 줄 수 있다는 사용자 피드백에 따른 것.
   const requiredAlerts = alerts.filter((a) => a.label_required);
   if (requiredAlerts.length === 0) {
-    return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
+    return `<p style="color:#b91c1c">${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
 <p style="color:#64748b">표시 대상 알러젠 성분 없음 (No allergen ingredient requires labeling)</p>`;
   }
 
@@ -295,7 +295,7 @@ function allergenSection(f: any, alerts: any[]) {
     .join("");
 
   // 바이어(해외 거래처)용 문서라 헤더는 국문/영문을 병행 표기한다.
-  return `<p>${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
+  return `<p style="color:#b91c1c">${e(ALLERGEN_BASE_LINE)} (적용기준: ${e(label)})</p>
 <table class="grid" style="margin-top:6px">
 <thead><tr>
   <th>표시대상 성분<br/>Allergen Ingredient</th>
@@ -315,19 +315,48 @@ function allergenSection(f: any, alerts: any[]) {
 // 구해둔 해당 basis의 lines/components에서 직접 알러젠 함량을 다시 집계해서, basis가 무엇이든 항상 그
 // 문서의 실제 기준에 맞는 값을 보여준다. 계산식(SUM(투입%×구성비/100))과 시장(target_market, 미지정
 // 시 KR) 필터링은 plm_calculate_allergen_alerts RPC(10_allergen_phase6_market_scope.sql)와 동일하게 맞춘다.
-function computeAllergenTotalsFromLinesAndComponents(lines: any[], components: any[]): Map<string, number> {
+// 알러젠 식별 키: 공식 알러젠 목록(plm_allergen_master, allergen_id)에 매칭된 성분은 그 id를,
+// 매칭되지 않은(공급사 자료 기준으로만 등록된) 성분은 성분명을 정규화한 키를 쓴다. 총합 집계와
+// 전성분표 억제판정(buildInciListHtml)이 반드시 같은 로직으로 식별해야 어긋나지 않으므로 공용
+// 함수로 둔다. allergen_id가 없다고 식별 자체를 포기하면, 공식 목록에 없는 알러젠이 기준치를
+// 넘어도(실측 사례: 1FRA001AZ의 Hexamethylindanopyran - 공식 목록 미매칭이지만 Leave-on 0.001%
+// 기준을 실제로 초과) "표시대상 성분" 표에서 누락되고, 반대로 기준치 미만이어도 전성분표 이름
+// 목록에서 억제되지 않는 이중 오류가 난다(사용자 실측 보고로 확인).
+export function allergenKey(comp: { allergen_id?: string | null; inci_en?: string | null; inci_kr?: string | null }): string {
+  return comp.allergen_id || `name:${normalizeIngredientName(comp.inci_kr || comp.inci_en)}`;
+}
+
+type AllergenTotalEntry = {
+  percent: number;
+  allergen_id: string | null;
+  inci_en: string;
+  inci_kr: string;
+};
+
+function computeAllergenTotalsFromLinesAndComponents(lines: any[], components: any[]): Map<string, AllergenTotalEntry> {
   const map = byRawComponents(components);
-  const totals = new Map<string, number>();
+  const totals = new Map<string, AllergenTotalEntry>();
   for (const line of lines) {
     const comps = map.get(line.raw_code) || [];
     for (const comp of comps) {
-      if (!comp.is_allergen || !comp.allergen_id) continue;
+      if (!comp.is_allergen) continue;
       // complexRows()의 final_percent 계산과 동일한 식(건조 후는 _dryFinalPercent 우선) - 두 곳이
       // 어긋나면 전성분표 문구와 알러젠 표의 숫자가 서로 다른 값을 근거로 삼게 되므로 반드시 맞춰야 한다.
       const finalPercent = comp._dryFinalPercent != null
         ? comp._dryFinalPercent
         : (n(line.percentage) * n(comp.composition_percent)) / 100;
-      totals.set(comp.allergen_id, (totals.get(comp.allergen_id) || 0) + finalPercent);
+      const key = allergenKey(comp);
+      const existing = totals.get(key);
+      if (existing) {
+        existing.percent = Number((existing.percent + finalPercent).toFixed(8));
+      } else {
+        totals.set(key, {
+          percent: Number(finalPercent.toFixed(8)),
+          allergen_id: comp.allergen_id || null,
+          inci_en: comp.inci_en || comp.component_name_en || "",
+          inci_kr: comp.inci_kr || comp.component_name_kr || "",
+        });
+      }
     }
   }
   return totals;
@@ -354,6 +383,8 @@ export type BasisAllergenAlert = {
 
 // 반환값 null: exposure_type 미지정이라 계산 불가(allergenSection이 기존 안내 문구를 그대로 보여줌).
 // 반환값 []: 계산은 됐지만 이 basis에는 등록된 알러젠 구성성분 자체가 없음(표시 대상 0건과 동일하게 렌더링).
+// 결과의 allergen_id는 공식 목록에 매칭된 성분은 실제 UUID, 매칭되지 않은 성분은 allergenKey()가
+// 만든 "name:..." 식별자다 - 둘 다 전성분표 억제판정(buildInciListHtml)에서 동일하게 쓰인다.
 export async function computeBasisAllergenAlerts(formula: any, lines: any[], components: any[]): Promise<BasisAllergenAlert[] | null> {
   if (!formula.exposure_type) return null;
   const threshold = formula.exposure_type === "LEAVE_ON" ? 0.001 : 0.01;
@@ -361,24 +392,41 @@ export async function computeBasisAllergenAlerts(formula: any, lines: any[], com
   if (totals.size === 0) return [];
 
   const market = formula.target_market || "KR";
-  const ids = Array.from(totals.keys());
-  const masters = await fetchAllergenMasterByIds(ids, market);
+  const officialIds = Array.from(totals.values())
+    .map((v) => v.allergen_id)
+    .filter((id): id is string => !!id);
+  const masters = await fetchAllergenMasterByIds(officialIds, market);
   const masterMap = new Map(masters.map((m) => [m.id, m]));
 
-  return ids
-    .filter((id) => masterMap.has(id)) // RPC와 동일하게 target_market과 일치하는 알러젠만 포함
-    .map((id) => {
-      const m = masterMap.get(id)!;
-      const percent = Number((totals.get(id) as number).toFixed(8));
-      return {
-        allergen_id: id,
+  const result: BasisAllergenAlert[] = [];
+  for (const [key, v] of totals.entries()) {
+    const percent = Number(v.percent.toFixed(8));
+    if (v.allergen_id) {
+      // 공식 알러젠 목록 매칭: RPC(plm_calculate_allergen_alerts)와 동일하게 target_market과
+      // 일치하는(마스터에서 조회되는) 알러젠만 포함한다.
+      const m = masterMap.get(v.allergen_id);
+      if (!m) continue;
+      result.push({
+        allergen_id: v.allergen_id,
         allergen_name_en: m.allergen_name_en,
         allergen_name_kr: m.allergen_name_kr,
         formula_percent: percent,
         label_required: percent >= threshold,
-      };
-    })
-    .sort((a, b) => a.allergen_name_en.localeCompare(b.allergen_name_en));
+      });
+    } else {
+      // 공식 목록 미매칭(공급사 자료 기준 알러젠) - market 개념이 없는 원료관리 등록값이므로
+      // 필터링 없이 항상 포함하고, 이름은 구성성분에 등록된 성분명을 그대로 쓴다.
+      result.push({
+        allergen_id: key,
+        allergen_name_en: v.inci_en || v.inci_kr || "(unnamed)",
+        allergen_name_kr: v.inci_kr || null,
+        formula_percent: percent,
+        label_required: percent >= threshold,
+      });
+    }
+  }
+
+  return result.sort((a, b) => a.allergen_name_en.localeCompare(b.allergen_name_en));
 }
 
 // basisAlerts를 넘기면(전성분표/복합성분표/단일성분표) 그 값을 그대로 쓰고, 넘기지 않으면(원료발주가처방 -
@@ -1373,21 +1421,37 @@ export async function buildInciListHtml(f: any, lines: any[], basis: DocBasis = 
 
   // 이 basis 기준으로 실제 표시기준(Leave-on 0.001% / Rinse-off 0.01%) 미만인 알러젠은 "표시대상
   // 성분" 표뿐 아니라 전성분/국문전성분 이름 목록 자체에서도 제외한다 - 표시 의무가 없는 성분을
-  // 전성분표에 이름으로 노출할 이유가 없기 때문(사용자 확인 요청 사항).
+  // 전성분표에 이름으로 노출할 이유가 없기 때문(사용자 확인 요청 사항). allergenKey()로 판정해
+  // 공식 알러젠 목록(allergen_id) 매칭 여부와 무관하게 억제한다 - 매칭 안 된 알러젠도 자기 함량이
+  // 기준치를 넘으면 표시돼야 하고(실측 사례: Hexamethylindanopyran), 못 넘으면 이름 목록에서
+  // 빠져야 한다(computeAllergenTotalsFromLinesAndComponents 주석 참고, 동일 이유).
   const basisAlerts = await computeBasisAllergenAlerts(f, effectiveLines, components);
-  const suppressedAllergenIds = new Set(
+  const suppressedKeys = new Set(
     (basisAlerts || []).filter((a) => !a.label_required).map((a) => a.allergen_id)
   );
-  const visibleRows = rows.filter(
-    (r) => !(r.is_allergen && r.allergen_id && suppressedAllergenIds.has(r.allergen_id))
-  );
+  const visibleRows = rows.filter((r) => !(r.is_allergen && suppressedKeys.has(allergenKey(r))));
+  // 알러젠 성분(기준치 초과로 실제 표시대상인 것만 위 필터를 통과해 남음)은 일반 성분과 섞이지
+  // 않도록 전성분표 맨 뒤로 보낸다(사용자 요청) - 각 그룹 내부의 함량 내림차순 정렬은 그대로 유지.
+  const orderedVisibleRows = [
+    ...visibleRows.filter((r) => !r.is_allergen),
+    ...visibleRows.filter((r) => r.is_allergen),
+  ];
 
   const boxes = langColumns(lang)
     .map((c) => {
-      const content = visibleRows.map((x) => pickLangValue(x, c.key)).filter(Boolean).join(", ");
+      const content = orderedVisibleRows
+        .map((x) => {
+          const val = pickLangValue(x, c.key);
+          if (!val) return null;
+          // 여기 남은 알러젠은 기준치를 넘어 실제로 표시 의무가 있는 성분뿐이므로, 바이어가
+          // 전성분표만 보고도 바로 알러젠 여부를 알 수 있도록 빨간색으로 강조한다(사용자 요청).
+          return x.is_allergen ? `<span style="color:#b91c1c">${e(val)}</span>` : e(val);
+        })
+        .filter(Boolean)
+        .join(", ");
       return `<div class="box">
   <div class="bt">${e(langListBoxTitle(c.key))}</div>
-  <div class="bb">${e(content || "-")}</div>
+  <div class="bb">${content || "-"}</div>
 </div>`;
     })
     .join("");
