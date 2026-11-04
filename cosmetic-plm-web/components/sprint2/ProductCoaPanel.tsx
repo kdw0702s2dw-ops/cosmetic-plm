@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useProductCoa } from "@/hooks/useProductCoa";
+import { toLocalDateTimeStr } from "@/lib/localDate";
 import "@/styles/enterprise-v50.css";
 
 type S = ReturnType<typeof useProductCoa>;
@@ -14,8 +15,7 @@ const WORKFLOW_STATUS_LABEL: Record<string, string> = {
 type StageState = "done" | "current" | "waiting" | "skipped";
 
 function fmtDateTime(v: string | null | undefined) {
-  if (!v) return "";
-  return v.slice(0, 16).replace("T", " ");
+  return toLocalDateTimeStr(v);
 }
 
 function StageCard({
