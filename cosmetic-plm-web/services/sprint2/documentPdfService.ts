@@ -1042,8 +1042,15 @@ export function buildComplexGroupedRows(
     // allergenItems로 따로 담아 Final % 합계·자릿수 계산에서 제외하고, 등록된 구성성분이 전부
     // 알러젠뿐이라 남는 기본 항목이 없으면(향료 자체 항목 없이 알러젠만 등록된 경우) 원료 고유값
     // (input) 전체를 나타내는 항목 1개를 대신 채워 넣어 그 원료의 총 투입량이 표에서 누락되지 않게 한다.
-    const allergenItems = allItems.filter((it) => it.is_allergen && it.allergen_id);
-    let items = allItems.filter((it) => !(it.is_allergen && it.allergen_id));
+    // 판정 기준은 is_allergen 체크박스 하나뿐이다 - allergen_id(plm_allergen_master 연동, 공식 규제
+    // 알러젠 목록 매칭용)까지 같이 요구하면 안 된다. 원료관리 알러젠 체크는 공급사 자료(예: "83가지
+    // 알러젠 자료")를 그대로 반영해 공식 규제 목록(26종 등)보다 범위가 넓은 경우가 흔하고, 그 중
+    // 공식 목록에 없는 성분은 allergen_id가 비어있는 게 정상이다. allergen_id까지 요구하면 그런
+    // 성분들이 여기서 걸러지지 않고 items에 남아 원료 자신의 몫과 다시 중복 집계된다 - 과거 이
+    // 조건(is_allergen && allergen_id)으로 "고쳤다"고 여겼던 100% 초과 버그가 새 원료를 등록할
+    // 때마다 재발한 원인이 바로 이것이었다.
+    const allergenItems = allItems.filter((it) => it.is_allergen);
+    let items = allItems.filter((it) => !it.is_allergen);
     if (items.length === 0 && allItems.length > 0) {
       items = [
         {
@@ -1301,7 +1308,10 @@ export async function buildSingleComponentTableHtml(f: any, lines: any[], basis:
   // 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 하단 "표시대상 성분" 표(기준치 초과분만
   // 표시)로 이미 충분히 확인 가능하다는 사용자 피드백에 따른 것. 제외하고 나면 향료 자신의 몫과
   // 중복 집계될 일도 없어 합계가 정확히 100%가 된다.
-  const visibleRows = rows.filter((x) => !(x.is_allergen && x.allergen_id));
+  // is_allergen 체크박스만으로 판정한다 - allergen_id(공식 규제 알러젠 목록 매칭용)까지 요구하면,
+  // 공급사 자료 기준으로는 알러젠이지만 공식 목록에 없어 allergen_id가 비어있는 성분이 여기서
+  // 걸러지지 않고 다시 노출/중복집계된다(buildComplexGroupedRows와 동일한 이유 - 상세 주석 참고).
+  const visibleRows = rows.filter((x) => !x.is_allergen);
   const decimals = basis === "DRY" ? 8 : computeUniformPercentDecimals(visibleRows);
 
   const body = visibleRows

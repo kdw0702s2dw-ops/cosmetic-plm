@@ -232,7 +232,11 @@ export async function downloadSingleComponentExcel(formula: any, basis: DocBasis
   // 모두 유의미하게 들어있다"는 오해를 줄 수 있고, 실제 표시 대상 여부/함량은 하단 "표시대상 성분"
   // 표(기준치 초과분만 표시)로 이미 충분히 확인 가능하다는 사용자 피드백에 따른 것. 제외하면 향료
   // 자신의 몫과 중복 집계될 일도 없어 합계가 정확히 100%가 된다.
-  const rows = allRows.filter((x) => !(x.is_allergen && x.allergen_id));
+  // is_allergen 체크박스만으로 판정한다 - allergen_id(공식 규제 알러젠 목록 매칭용)까지 요구하면,
+  // 공급사 자료 기준으로는 알러젠이지만 공식 목록에 없어 allergen_id가 비어있는 성분이 여기서
+  // 걸러지지 않고 다시 노출/중복집계된다(documentPdfService.ts buildSingleComponentTableHtml과
+  // 동일한 이유).
+  const rows = allRows.filter((x) => !x.is_allergen);
   // 문서 전체에서 "값이 정확히 끝나는" 최대 자릿수(8~15자리)로 통일. 셀 값은 정확한 실제 숫자를 그대로
   // 저장하고, numFmt로 그 자릿수만큼 0-패딩해서 보여준다 (PDF의 문자열 표시와 자릿수는 동일하되,
   // 엑셀에서는 숫자 그대로라 정렬/필터/수식 계산이 가능함).
