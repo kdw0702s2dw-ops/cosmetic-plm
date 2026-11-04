@@ -3,6 +3,7 @@
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import {
   complexRows,
+  type DocBasis,
   fetchFormulaLinesForPdf,
   mergeRows,
   resolveLinesForBasis,
@@ -234,13 +235,25 @@ export function buildDefaultMsds(): Pick<ProductMsds, "manufacturer" | "address"
 
 // 3번(COMPOSITION) 섹션의 "[확정코드 전성분 영문 기입]" 자리표시자를 자동으로 채우기 위한 값 - 연동한
 // 처방의 실제 전성분표를 전성분표 엑셀/HTML(downloadInciListExcel/buildInciListHtml)과 동일한 방식
-// (MIX = 배합 시 기준, 함량 내림차순, 이름이 같은 성분은 합산)으로 계산해서 영문 INCI명만 콤마로 이어붙인다.
+// (함량 내림차순, 이름이 같은 성분은 합산)으로 계산해서 영문 INCI명만 콤마로 이어붙인다.
+// 기준(basis)은 고정 MIX가 아니라 처방의 requires_public_basis_docs 플래그를 따른다 - 문서관리에서
+// "이 처방은 서류를 공개처방(일반) 기준으로 발급(제조는 원처방 유지, 예외 처방)"으로 지정해둔
+// 처방은 제조(원처방)와 서류(전성분표 등)가 서로 다른 BOM을 쓰는 예외 케이스라, 이 플래그를 무시하고
+// 항상 MIX로 채우면 전성분표/문서관리에 나오는 값과 MSDS에 자동 기입되는 값이 서로 어긋난다
+// (실측 사례: 3HGTA011A V0-PRE(Allergen 83)처럼 공개처방 전용으로 원료를 교체해 둔 BOM).
 export async function fetchFormulaInciEnList(formulaCode: string, revision: string): Promise<string> {
   if (!formulaCode || !revision) return "";
   const rawLines = await fetchFormulaLinesForPdf(formulaCode, revision);
   if (rawLines.length === 0) return "";
-  // basis="MIX"(기본값)에서는 formula 인자를 사용하지 않으므로(건조 후 계산 때만 필요) 빈 객체로 충분하다.
-  const { lines, components } = await resolveLinesForBasis({}, rawLines, "MIX");
+  const { data: formula } = await supabaseProductionFinal
+    .from("plm_formulas")
+    .select("formula_code, revision, public_bom_customized, requires_public_basis_docs")
+    .eq("formula_code", formulaCode)
+    .eq("revision", revision)
+    .maybeSingle();
+  const basis: DocBasis = formula?.requires_public_basis_docs ? "PUBLIC" : "MIX";
+  // basis="MIX"에서는 formula 인자를 쓰지 않으므로(건조 후 계산 때만 필요) formula가 없어도 안전하다.
+  const { lines, components } = await resolveLinesForBasis(formula || {}, rawLines, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
   return rows.map((x) => x.inci_en).filter(Boolean).join(", ");
 }

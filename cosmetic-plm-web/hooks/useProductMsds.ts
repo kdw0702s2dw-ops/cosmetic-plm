@@ -114,8 +114,10 @@ export function useProductMsds(refreshToken?: number) {
     setProductName(f.formula_name || f.formula_code || "");
 
     // 3번(COMPOSITION) 섹션의 "[확정코드 전성분 영문 기입]" 자리표시자를, 연동한 처방의 실제 전성분표
-    // (영문 INCI, 함량 내림차순 - 전성분표 엑셀/HTML과 동일한 MIX 기준)로 자동 채운다. 처방을 다시
-    // 선택하면 최신 전성분으로 덮어써서 항상 연동된 처방과 일치하도록 유지한다.
+    // (영문 INCI, 함량 내림차순)로 자동 채운다 - 기준은 원처방(MIX) 고정이 아니라, 처방이
+    // requires_public_basis_docs(문서관리의 "공개처방(일반) 기준으로 발급" 예외 처방 지정)로
+    // 돼 있으면 공개처방(PUBLIC) 기준을 따른다(fetchFormulaInciEnList 참고). 처방을 다시 선택하면
+    // 최신 전성분으로 덮어써서 항상 연동된 처방과 일치하도록 유지한다.
     try {
       const inciEn = await fetchFormulaInciEnList(f.formula_code, f.revision);
       if (inciEn) {
