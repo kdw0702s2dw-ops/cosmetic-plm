@@ -1,5 +1,7 @@
 // Phase 25 Enterprise Workflow Engine Service
 
+import { todayLocalStr, addLocalDays } from "@/lib/localDate";
+
 export function calculateWorkflowProgress(doneTasks: number, totalTasks: number) {
   if (!totalTasks) return 0;
   return Math.round((doneTasks / totalTasks) * 100);
@@ -13,9 +15,7 @@ export function getWorkflowRunStatus(progress: number, hasBlockedTask: boolean, 
 }
 
 export function getDueDate(days: number) {
-  const due = new Date();
-  due.setDate(due.getDate() + days);
-  return due.toISOString().slice(0, 10);
+  return addLocalDays(todayLocalStr(), days);
 }
 
 export function isWorkflowOverdue(dueDate: string) {

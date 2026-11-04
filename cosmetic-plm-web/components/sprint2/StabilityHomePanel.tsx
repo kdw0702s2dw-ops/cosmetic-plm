@@ -3,15 +3,12 @@
 import { useMemo, useState } from "react";
 import { useStabilityHome } from "@/hooks/useStabilityHome";
 import type { CheckpointWithContext } from "@/services/sprint2/stabilityTestService";
+import { todayLocalStr } from "@/lib/localDate";
 import "@/styles/enterprise-v50.css";
 
 type S = ReturnType<typeof useStabilityHome>;
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function buildCalendarCells(year: number, month: number): (string | null)[] {
   const firstWeekday = new Date(year, month - 1, 1).getDay();
@@ -36,7 +33,7 @@ const DOT_COLOR: Record<string, string> = { 완료: "#16a34a", 지연: "#dc2626"
 function DayCell({ date, s }: { date: string | null; s: S }) {
   if (!date) return <div style={{ minHeight: 70 }} />;
   const items = s.itemsByDate.get(date) || [];
-  const isToday = date === todayStr();
+  const isToday = date === todayLocalStr();
   const isSelected = date === s.selectedDate;
   const anyOverdue = items.some((cp) => s.isCheckpointOverdue(cp));
   const dayNum = Number(date.slice(-2));

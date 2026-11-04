@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
+import { todayLocalStr } from "@/lib/localDate";
 
 // 원료 발주관리 - 발주(헤더) + 발주 품목(원료별 라인) 서비스.
 // DB 구조: supabase/migrations/21_raw_material_purchase_orders.sql, 22_purchase_order_refinements.sql 참고.
@@ -242,7 +243,7 @@ export function emptyPurchaseOrderItem(): PurchaseOrderItem {
 }
 
 export function emptyPurchaseOrder(): PurchaseOrder {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalStr();
   return {
     supplier_company_id: null,
     order_date: today,

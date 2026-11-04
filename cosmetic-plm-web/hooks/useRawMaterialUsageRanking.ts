@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchStockManagedRawMaterials, fetchUsageForRange, fetchLatestStockByRawCodes } from "@/services/sprint2/rawMaterialStockService";
+import { toLocalDateStr } from "@/lib/localDate";
 
 export type RankingGranularity = "monthly" | "yearly";
 
@@ -19,7 +20,7 @@ export type RankingRow = {
 function yesterdayStr() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 function daysInMonth(year: number, month1to12: number) {

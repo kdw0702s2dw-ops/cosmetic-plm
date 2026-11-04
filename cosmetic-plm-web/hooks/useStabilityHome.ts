@@ -9,6 +9,7 @@ import {
   isCheckpointDueSoon,
   type CheckpointWithContext,
 } from "@/services/sprint2/stabilityTestService";
+import { toLocalDateStr } from "@/lib/localDate";
 
 // 품질관리 홈 - 전체 시료를 가로질러 이번 달 체크포인트를 달력으로 보여주고, 지연/임박 건을
 // 담당자 기준으로 집계해 알림 배너에 노출한다(생산일정관리의 달력 + 원료 소싱 일정관리의 알림을 합친 형태).
@@ -80,7 +81,7 @@ export function useStabilityHome(refreshToken?: number) {
     const t = new Date();
     setYear(t.getFullYear());
     setMonth(t.getMonth() + 1);
-    setSelectedDate(t.toISOString().slice(0, 10));
+    setSelectedDate(toLocalDateStr(t));
   }
   function selectDate(date: string) {
     setSelectedDate((cur) => (cur === date ? null : date));

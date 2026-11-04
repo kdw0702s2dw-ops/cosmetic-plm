@@ -16,6 +16,7 @@ import {
   type ScheduleType,
   type ScheduleStatus,
 } from "@/services/sprint2/productionScheduleService";
+import { todayLocalStr } from "@/lib/localDate";
 
 type FormulaRef = { formula_code: string; revision: string; formula_name?: string; confirmed_code?: string };
 
@@ -24,17 +25,8 @@ type FormulaRef = { formula_code: string; revision: string; formula_name?: strin
 // 타공->포장->출고)대로 보여서 지금 어느 단계인지 한눈에 보기 쉽게 한다.
 const SCHEDULE_TYPE_ORDER = new Map(SCHEDULE_TYPES.map((t, i) => [t, i]));
 
-// toISOString()은 항상 UTC 기준으로 변환한다 - 한국(UTC+9)에서는 로컬 자정~오전 8시59분 사이에
-// UTC 날짜가 하루 전날로 계산돼 "오늘" 날짜가 하루 밀리는 버그가 있었다. UTC 변환 없이 로컬 기준
-// 연/월/일을 그대로 문자열로 만들어서 피한다(stabilityTestService.ts의 addDays와 같은 방식).
-function toDateStr(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 function todayStr() {
-  return toDateStr(new Date());
+  return todayLocalStr();
 }
 
 // 생산관리 "생산일정관리" - 달력(월간) + 목록을 함께 보여주며 처방별 제조/타공/포장/출고 일정을 관리한다.

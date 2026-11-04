@@ -1,6 +1,8 @@
 // Phase 20 Production Release Candidate Service
 // Utility functions for production readiness and release candidate management.
 
+import { todayLocalStr } from "@/lib/localDate";
+
 export type ReadinessStatus = "PASS" | "WARN" | "FAIL";
 
 export function getReadinessSummary(items: { status: ReadinessStatus }[]) {
@@ -17,7 +19,7 @@ export function canGoLive(items: { status: ReadinessStatus }[]) {
 }
 
 export function createReleaseVersionLabel(prefix = "Enterprise RC") {
-  const today = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const today = todayLocalStr().replaceAll("-", "");
   return `${prefix} ${today}`;
 }
 

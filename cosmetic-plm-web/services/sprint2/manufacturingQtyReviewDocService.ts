@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import { CONFIDENTIAL, openPrintDocument } from "@/services/sprint2/documentPdfService";
 import { border, downloadWorkbook, writeMetaRows, writeTitleRow } from "@/services/sprint2/documentExcelService";
 import type { ManufacturingQtyReviewSheet } from "@/services/sprint2/manufacturingQtyReviewService";
+import { todayLocalStr } from "@/lib/localDate";
 
 function escapeHtml(v: any) {
   return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
@@ -181,6 +182,6 @@ export async function downloadManufacturingQtyReviewExcel(sheet: ManufacturingQt
   ws.mergeCells(confRow.number, 1, confRow.number, colCount);
   confRow.getCell(1).font = { size: 8, color: { argb: "FF94A3B8" } };
 
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = todayLocalStr();
   await downloadWorkbook(wb, `제조량검토_합산_${sheet.formulas.length}건_${stamp}.xlsx`);
 }

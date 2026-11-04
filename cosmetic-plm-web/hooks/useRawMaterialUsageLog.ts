@@ -5,15 +5,10 @@ import { fetchUsageLog, type UsageLogRow } from "@/services/sprint2/rawMaterialU
 import { fetchIncomingStockLog, type IncomingStockLogRow } from "@/services/sprint2/rawMaterialIncomingStockLogService";
 import { fetchStockManagedRawMaterials } from "@/services/sprint2/rawMaterialStockService";
 import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
+import { todayLocalStr, toLocalDateStr } from "@/lib/localDate";
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
 function pad2(n: number) {
   return String(n).padStart(2, "0");
-}
-function toDateStr(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 // "이번주"는 월요일 시작 기준으로 계산한다(국내 관례). getDay()는 0=일 ... 6=토라서, 월요일까지
 // 며칠 전인지를 (day + 6) % 7로 구한다(일요일만 6일 전, 나머지는 day-1일 전).
@@ -48,9 +43,9 @@ export type ApplyFormulaSummaryRow = {
 // 이번달/직접 지정)로 처방 반영·수정 이력을 조회한다. refreshToken은 생산관리 화면 상단 "새로고침"
 // 버튼과 연동(다른 하위 도구들과 동일한 패턴).
 export function useRawMaterialUsageLog(refreshToken?: number) {
-  const today = todayStr();
+  const today = todayLocalStr();
   const [preset, setPreset] = useState<DatePreset>("week");
-  const [dateFrom, setDateFromState] = useState(() => toDateStr(startOfWeek(new Date())));
+  const [dateFrom, setDateFromState] = useState(() => toLocalDateStr(startOfWeek(new Date())));
   const [dateTo, setDateToState] = useState(today);
   const [keyword, setKeyword] = useState("");
   const [rows, setRows] = useState<UsageLogRow[]>([]);
@@ -145,7 +140,7 @@ export function useRawMaterialUsageLog(refreshToken?: number) {
       setDateToState(today);
       load(today, today, keyword);
     } else if (p === "week") {
-      const f = toDateStr(startOfWeek(new Date()));
+      const f = toLocalDateStr(startOfWeek(new Date()));
       setDateFromState(f);
       setDateToState(today);
       load(f, today, keyword);

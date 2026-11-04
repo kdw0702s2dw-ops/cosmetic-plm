@@ -14,6 +14,7 @@ import {
   type SourcingScheduleNote,
   type SourcingStatus,
 } from "@/services/sprint2/sourcingScheduleService";
+import { todayLocalStr } from "@/lib/localDate";
 
 type FormulaRef = { formula_code: string; revision: string; formula_name?: string; confirmed_code?: string };
 
@@ -95,7 +96,7 @@ export function useSourcingSchedule() {
   }
 
   function today() {
-    return new Date().toISOString().slice(0, 10);
+    return todayLocalStr();
   }
 
   async function selectFormula(f: FormulaRef) {

@@ -18,9 +18,10 @@ import {
   type IncomingStockLogInput,
 } from "@/services/sprint2/rawMaterialIncomingStockLogService";
 import { type ToastState } from "@/components/common/Toast";
+import { todayLocalStr } from "@/lib/localDate";
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return todayLocalStr();
 }
 
 // 금일사용량은 하루에 여러 번(최대 10회) 나눠 쓸 수 있어서 화면에서는 입력칸 여러 개(usage_entries)로

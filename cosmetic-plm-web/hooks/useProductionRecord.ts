@@ -10,9 +10,10 @@ import { downloadProductionRecordsExcel } from "@/services/sprint2/productionRec
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
 import { parseDecimal } from "@/lib/parseDecimal";
+import { todayLocalStr } from "@/lib/localDate";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return todayLocalStr();
 }
 
 // "저장 이력" 표에서 바로 수정하는 기능용 - 처방관리 전체 목록(ProductionRecordListPanel)의 수정 폼과

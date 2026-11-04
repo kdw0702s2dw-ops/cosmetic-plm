@@ -34,6 +34,7 @@ import {
   type StabilityConditionWithCheckpoints,
   type StabilityCheckpoint,
 } from "@/services/sprint2/stabilityTestService";
+import { todayLocalStr } from "@/lib/localDate";
 
 type FormulaRef = {
   formula_code: string;
@@ -43,10 +44,6 @@ type FormulaRef = {
   // 처방관리의 제품명(컨펌 후 확정) - 선택한 처방에 연동되는 읽기 전용 값(TestForm에서 직접 입력하지 않음).
   product_name?: string;
 };
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // 품질관리 - 화장품 안정성시험 관리. 시료(처방 연동) -> 시험조건(장기보존/가속/...) -> 체크포인트(시점별 결과) 3단 구조를 다룬다.
 // refreshToken: 품질관리 화면 상단의 "새로고침" 버튼이 바뀔 때마다 증가하는 값. 값이 바뀌면(0은 초기값이라
@@ -85,7 +82,7 @@ export function useStabilityTest(refreshToken?: number) {
   const [editingConditionId, setEditingConditionId] = useState<string | null>(null);
   const [conditionType, setConditionType] = useState<StabilityConditionType>("장기보존");
   const [conditionLabel, setConditionLabel] = useState(STABILITY_CONDITION_PRESETS[0].label);
-  const [conditionStartDate, setConditionStartDate] = useState(todayStr());
+  const [conditionStartDate, setConditionStartDate] = useState(todayLocalStr());
   const [itemTemplates, setItemTemplates] = useState<StabilityItemTemplate[]>(STABILITY_ITEM_PRESETS.map((x) => ({ ...x })));
   const [savingCondition, setSavingCondition] = useState(false);
 
@@ -181,7 +178,7 @@ export function useStabilityTest(refreshToken?: number) {
     setFormulaHits([]);
     setSampleName("");
     setLotNo("");
-    setManufactureDate(todayStr());
+    setManufactureDate(todayLocalStr());
     setStorageLocation("");
     setAssignee("");
     setTestStatus("진행중");
@@ -280,7 +277,7 @@ export function useStabilityTest(refreshToken?: number) {
     setEditingConditionId(null);
     setConditionType("장기보존");
     setConditionLabel(STABILITY_CONDITION_PRESETS[0].label);
-    setConditionStartDate(todayStr());
+    setConditionStartDate(todayLocalStr());
     setItemTemplates(STABILITY_ITEM_PRESETS.map((x) => ({ ...x })));
     setShowAddCondition(true);
   }

@@ -3,20 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProductionSchedule } from "@/hooks/useProductionSchedule";
 import { SCHEDULE_TYPE_COLORS, type ProductionSchedule, type ScheduleStatus, type ScheduleType } from "@/services/sprint2/productionScheduleService";
+import { todayLocalStr } from "@/lib/localDate";
 import "@/styles/enterprise-v50.css";
 
 type S = ReturnType<typeof useProductionSchedule>;
-
-// toISOString()은 항상 UTC 기준으로 변환한다 - 한국(UTC+9)에서는 로컬 자정~오전 8시59분 사이에
-// UTC 날짜가 하루 전날로 계산돼 달력의 "오늘" 표시가 하루 밀리는 버그가 있었다. UTC 변환 없이 로컬
-// 기준 연/월/일을 그대로 문자열로 만들어서 피한다(stabilityTestService.ts의 addDays와 같은 방식).
-function todayStr() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 // 달력 셀 배열 - 해당 월 1일의 요일만큼 앞을 비우고, 7의 배수가 되도록 뒤도 비운다 (빈 칸은 null).
 function buildCalendarCells(year: number, month: number): (string | null)[] {
@@ -36,7 +26,7 @@ function DayCell({ date, s }: { date: string | null; s: S }) {
   if (!date) return <div style={{ minHeight: 100 }} />;
   const dayItems = s.itemsByDate.get(date) || [];
   const typesPresent = Array.from(new Set(dayItems.map((i) => i.schedule_type)));
-  const isToday = date === todayStr();
+  const isToday = date === todayLocalStr();
   const isSelected = date === s.selectedDate;
   const anyOverdue = dayItems.some((i) => s.isScheduleOverdue(i));
   const dayNum = Number(date.slice(-2));
