@@ -30,7 +30,26 @@ export type Sprint1Formula = {
   // services/sprint2/formulaDisclosureService.ts 참고. false면 지금까지와 동일하게 동작한다.
   public_bom_customized?: boolean;
   dry_bom_customized?: boolean;
+  // Revision별로 전달받은 실물 샘플 사진(여러 장 가능) - Supabase Storage(formula-sample-photos 버킷)
+  // 공개 URL 목록. 부자재관리의 image_urls(plm_materials)와 동일한 패턴.
+  image_urls?: string[] | null;
 };
+
+const FORMULA_SAMPLE_PHOTO_BUCKET = "formula-sample-photos";
+
+// 처방(Revision)별 샘플 사진 업로드 - "신규 처방" 작성 중(아직 저장 전)에도 첨부할 수 있어야 하므로
+// material-photos와 동일하게 crypto.randomUUID() 폴더명을 쓴다(formula_code/revision처럼 사용자가
+// 직접 입력하는 값은 한글 등 비-ASCII가 섞일 수 있어 Storage 경로로 쓰면 Invalid key 오류가 날 수 있음 -
+// 부자재 사진 기능에서 실제로 확인된 문제).
+export async function uploadFormulaSamplePhoto(file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const folder = crypto.randomUUID();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabaseProductionFinal.storage.from(FORMULA_SAMPLE_PHOTO_BUCKET).upload(path, file);
+  if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
+  const { data } = supabaseProductionFinal.storage.from(FORMULA_SAMPLE_PHOTO_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
 
 // 생산 BOM 전개(부자재 3칸 고정, ProductionBomRow/plm_production_bom)는 통합 BOM 화면의 직접 입력
 // 표로 대체되었다 - services/sprint2/unifiedBomRowsService.ts 참고. plm_production_bom 테이블 자체는

@@ -56,6 +56,9 @@ export type StabilityTest = {
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
+  // 시료(샘플) 사진(여러 장 가능) - stability-test-photos 버킷(체크포인트 사진과 동일 버킷) 공개 URL 목록.
+  // 체크포인트별 photo_urls(StabilityCheckpoint)와는 별개 필드.
+  image_urls?: string[] | null;
 };
 
 export type StabilityCondition = {
@@ -518,6 +521,20 @@ const STABILITY_BUCKET = "stability-test-photos";
 export async function uploadStabilityPhoto(testId: string, checkpointId: string, file: File): Promise<string> {
   const ext = file.name.split(".").pop() || "jpg";
   const path = `${testId}/${checkpointId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabaseProductionFinal.storage.from(STABILITY_BUCKET).upload(path, file);
+  if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
+  const { data } = supabaseProductionFinal.storage.from(STABILITY_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// 시료(샘플) 자체의 사진 업로드 - 체크포인트가 아직 없는 "신규 시료" 등록 단계에서도 첨부할 수 있어야
+// 하므로(체크포인트처럼 testId/checkpointId가 항상 존재한다는 보장이 없음) material-photos와 동일하게
+// crypto.randomUUID() 폴더명을 쓴다(한글 등 비-ASCII 값을 Storage 경로에 쓰면 Invalid key 오류 발생 - 부자재
+// 사진 기능에서 확인된 문제, 항상 UUID/DB id만 경로로 사용).
+export async function uploadStabilityTestSamplePhoto(file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const folder = crypto.randomUUID();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabaseProductionFinal.storage.from(STABILITY_BUCKET).upload(path, file);
   if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
   const { data } = supabaseProductionFinal.storage.from(STABILITY_BUCKET).getPublicUrl(path);

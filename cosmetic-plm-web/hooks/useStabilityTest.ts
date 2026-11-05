@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import { convertImageToJpeg } from "@/lib/imageJpegConvert";
 import {
   searchFormulasByCodeOrConfirmedCode,
   fetchStabilityTests,
@@ -16,6 +17,7 @@ import {
   saveCheckpointResult,
   syncTestStatusFromCheckpoints,
   uploadStabilityPhoto,
+  uploadStabilityTestSamplePhoto,
   isCheckpointOverdue,
   computeOverallJudgement,
   suggestJudgement,
@@ -76,6 +78,9 @@ export function useStabilityTest(refreshToken?: number) {
   const [testMemo, setTestMemo] = useState("");
   const [savingTest, setSavingTest] = useState(false);
   const [showTestForm, setShowTestForm] = useState(false);
+  // 시료(샘플) 자체의 사진 - 체크포인트별 photoDraft/photo_urls와는 별개 (시료 등록/수정 폼에서 첨부).
+  const [samplePhotoUrls, setSamplePhotoUrls] = useState<string[]>([]);
+  const [uploadingSamplePhoto, setUploadingSamplePhoto] = useState(false);
 
   // 조건 추가/수정 폼 (editingConditionId가 있으면 수정 모드 - 같은 입력 상태를 재사용한다)
   const [showAddCondition, setShowAddCondition] = useState(false);
@@ -183,6 +188,7 @@ export function useStabilityTest(refreshToken?: number) {
     setAssignee("");
     setTestStatus("진행중");
     setTestMemo("");
+    setSamplePhotoUrls([]);
     setShowTestForm(true);
   }
 
@@ -202,7 +208,28 @@ export function useStabilityTest(refreshToken?: number) {
     setAssignee(t.assignee || "");
     setTestStatus(t.status);
     setTestMemo(t.memo || "");
+    setSamplePhotoUrls(t.image_urls || []);
     setShowTestForm(true);
+  }
+
+  async function addSamplePhoto(file: File) {
+    setUploadingSamplePhoto(true);
+    try {
+      // 압축(convertImageToJpeg)도 이 try 안에서 수행 - 압축 실패 시에도(이론상 convertImageToJpeg
+      // 자체는 내부에서 원본으로 폴백해 던지지 않지만, 호출부에서 따로 try 없이 await하면 혹시 모를
+      // 예외가 사용자에게 아무 메시지 없이 묻히는 것을 막기 위한 이중 방어) 업로드 실패와 동일하게
+      // 메시지로 안내된다.
+      const jpeg = await convertImageToJpeg(file);
+      const url = await uploadStabilityTestSamplePhoto(jpeg);
+      setSamplePhotoUrls((prev) => [...prev, url]);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "사진 업로드 오류");
+    } finally {
+      setUploadingSamplePhoto(false);
+    }
+  }
+  function removeSamplePhoto(url: string) {
+    setSamplePhotoUrls((prev) => prev.filter((u) => u !== url));
   }
 
   async function saveTest() {
@@ -226,6 +253,7 @@ export function useStabilityTest(refreshToken?: number) {
         assignee: assignee || null,
         status: testStatus,
         memo: testMemo || null,
+        image_urls: samplePhotoUrls,
         created_by: auth.profile?.email || undefined,
       });
       setMessage("저장 완료");
@@ -481,6 +509,7 @@ export function useStabilityTest(refreshToken?: number) {
     formulaKeyword, setFormulaKeyword, formulaHits, formulaSearching, searchFormula, selectedFormula, pickFormula,
     sampleName, setSampleName, lotNo, setLotNo, manufactureDate, setManufactureDate,
     storageLocation, setStorageLocation, assignee, setAssignee, testStatus, setTestStatus, testMemo, setTestMemo,
+    samplePhotoUrls, addSamplePhoto, removeSamplePhoto, uploadingSamplePhoto,
     savingTest, saveTest, removeTest,
     showAddCondition, setShowAddCondition, conditionType, selectConditionType, conditionLabel, setConditionLabel,
     conditionStartDate, setConditionStartDate, itemTemplates, addItemTemplateRow, updateItemTemplate, removeItemTemplate,

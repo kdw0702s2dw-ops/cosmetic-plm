@@ -3,7 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1FormulaCore } from "@/hooks/useSprint1FormulaCore";
-import { computeRawMaterialDiff, buildRawMaterialSyncPatch, sortLinesForDisplay, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
+import { useSprint1Auth } from "@/hooks/useSprint1Auth";
+import { computeRawMaterialDiff, buildRawMaterialSyncPatch, sortLinesForDisplay, uploadFormulaSamplePhoto, type RawMaterialDiffField } from "@/services/sprint1/formulaCoreService";
+import { convertImageToJpeg } from "@/lib/imageJpegConvert";
 import {
   computeYearStats, computeProductTypeStats, computeYearProductTypeMatrix, computeConfirmationStats, extractDevYear,
   type CountStat, type YearProductTypeMatrix, type ConfirmationStatsResult,
@@ -56,6 +58,26 @@ function buildTooltip(hits: RegulationHit[]) {
 
 export default function FormulaCorePanel() {
   const s = useSprint1FormulaCore();
+  const auth = useSprint1Auth();
+  const canWritePhoto = auth.canWriteFormula;
+  const formulaPhotoFileRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingFormulaPhoto, setUploadingFormulaPhoto] = useState(false);
+  async function handleFormulaPhotoPick(file: File) {
+    setUploadingFormulaPhoto(true);
+    try {
+      const jpeg = await convertImageToJpeg(file);
+      const url = await uploadFormulaSamplePhoto(jpeg);
+      // 함수형 업데이트 사용 - 업로드하는 1~2초 사이에 다른 필드를 수정해도 그 변경이 덮어써지지 않게 한다.
+      s.setFormula((prev) => ({ ...prev, image_urls: [...(prev.image_urls || []), url] }));
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : "사진 업로드 오류" });
+    } finally {
+      setUploadingFormulaPhoto(false);
+    }
+  }
+  function removeFormulaPhoto(url: string) {
+    s.setFormula((prev) => ({ ...prev, image_urls: (prev.image_urls || []).filter((u) => u !== url) }));
+  }
   const rawInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const [toast, setToast] = useState<ToastState>(null);
   const anchorPos = useAnchorPosition(s.activeRawRow, () => (s.activeRawRow != null ? rawInputRefs.current[s.activeRawRow] : null), s.rawHits);
@@ -506,6 +528,34 @@ export default function FormulaCorePanel() {
           </label>
           <Input label="칼선정보" value={s.formula.cutting_line_info} onChange={(v) => updateFormula("cutting_line_info", v)} />
         </div>
+
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>샘플 사진 (전달받은 실물 샘플)</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(s.formula.image_urls || []).map((url) => (
+              <div key={url} style={{ position: "relative" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="샘플 사진" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                {canWritePhoto && (
+                  <button type="button" onClick={() => removeFormulaPhoto(url)}
+                    style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontSize: 11 }}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            {canWritePhoto && (
+              <>
+                <button type="button" className="v50-button-light" onClick={() => formulaPhotoFileRef.current?.click()} disabled={uploadingFormulaPhoto}>
+                  {uploadingFormulaPhoto ? "업로드 중…" : "+ 사진 추가"}
+                </button>
+                <input ref={formulaPhotoFileRef} type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFormulaPhotoPick(f); e.target.value = ""; }} />
+              </>
+            )}
+          </div>
+        </div>
+
         {showNewRevision && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, padding: 10, background: "#eff6ff", borderRadius: 10 }}>
             <span style={{ fontWeight: 800, fontSize: 13 }}>새 Revision 값</span>

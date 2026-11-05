@@ -38,6 +38,7 @@ function specLabel(tmpl?: StabilityItemTemplate) {
 }
 
 function TestForm({ s }: { s: S }) {
+  const samplePhotoFileRef = useRef<HTMLInputElement | null>(null);
   return (
     <div className="v50-card" style={{ padding: 14, marginTop: 10 }}>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -104,6 +105,27 @@ function TestForm({ s }: { s: S }) {
           </select>
         </label>
       </div>
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>시료 사진</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {s.samplePhotoUrls.map((url) => (
+            <div key={url} style={{ position: "relative" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="시료 사진" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+              <button type="button" onClick={() => s.removeSamplePhoto(url)}
+                style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#dc2626", color: "white", cursor: "pointer", fontSize: 11 }}>
+                ×
+              </button>
+            </div>
+          ))}
+          <button type="button" className="v50-button-light" onClick={() => samplePhotoFileRef.current?.click()} disabled={s.uploadingSamplePhoto}>
+            {s.uploadingSamplePhoto ? "업로드 중…" : "+ 사진 추가"}
+          </button>
+          <input ref={samplePhotoFileRef} type="file" accept="image/*" style={{ display: "none" }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) s.addSamplePhoto(f); e.target.value = ""; }} />
+        </div>
+      </div>
+
       <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 10 }}>메모<textarea className="v50-textarea" rows={2} value={s.testMemo} onChange={(e) => s.setTestMemo(e.target.value)} /></label>
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button className="v50-button" onClick={s.saveTest} disabled={s.savingTest}>{s.savingTest ? "저장 중…" : "저장"}</button>
@@ -338,12 +360,20 @@ export default function StabilityTestPanel({
                 key={t.id}
                 onClick={() => t.id && s.selectTest(t.id)}
                 className={s.selectedTestId === t.id ? "v50-button" : "v50-button-light"}
-                style={{ textAlign: "left", justifyContent: "flex-start", display: "block", padding: "8px 10px" }}
+                style={{ textAlign: "left", justifyContent: "flex-start", display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px" }}
               >
-                <div style={{ fontWeight: 800, fontSize: 13 }}>{t.sample_name || t.product_name || t.formula_name || t.formula_code}</div>
-                <div style={{ fontSize: 11, opacity: 0.85 }}>{t.formula_code} · Lot {t.lot_no || "-"} · {t.status}</div>
-                {/* 시료명(자유 입력)과는 별개로, 제품명(컨펌 후 확정)과 처방명을 항상 함께 보여준다. */}
-                <div style={{ fontSize: 11, opacity: 0.75, marginTop: 1 }}>제품명 {t.product_name || "-"} · 처방명 {t.formula_name || "-"}</div>
+                {t.image_urls && t.image_urls.length > 0 ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.image_urls[0]} alt={t.sample_name || "시료 사진"} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, border: "1px solid #e2e8f0", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 36, height: 36, borderRadius: 4, border: "1px solid #e2e8f0", background: "#f1f5f9", flexShrink: 0 }} />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>{t.sample_name || t.product_name || t.formula_name || t.formula_code}</div>
+                  <div style={{ fontSize: 11, opacity: 0.85 }}>{t.formula_code} · Lot {t.lot_no || "-"} · {t.status}</div>
+                  {/* 시료명(자유 입력)과는 별개로, 제품명(컨펌 후 확정)과 처방명을 항상 함께 보여준다. */}
+                  <div style={{ fontSize: 11, opacity: 0.75, marginTop: 1 }}>제품명 {t.product_name || "-"} · 처방명 {t.formula_name || "-"}</div>
+                </div>
               </button>
             ))}
             {s.tests.length === 0 && <p style={{ color: "#94a3b8", fontSize: 12 }}>{s.loading ? "불러오는 중..." : "등록된 시료가 없습니다."}</p>}
@@ -375,6 +405,14 @@ export default function StabilityTestPanel({
                   </div>
                 </div>
                 {s.selectedTest.memo && <p style={{ fontSize: 12, color: "#334155", marginTop: 8, whiteSpace: "pre-wrap" }}>{s.selectedTest.memo}</p>}
+                {s.selectedTest.image_urls && s.selectedTest.image_urls.length > 0 && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                    {s.selectedTest.image_urls.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={url} src={url} alt="시료 사진" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                    ))}
+                  </div>
+                )}
 
                 {s.canWrite && !s.showAddCondition && (
                   <button className="v50-button-light" style={{ marginTop: 10 }} onClick={s.openAddConditionForm}>+ 시험조건 추가</button>

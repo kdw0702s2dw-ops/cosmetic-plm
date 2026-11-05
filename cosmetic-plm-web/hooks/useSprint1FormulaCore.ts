@@ -67,6 +67,7 @@ const emptyFormula: Sprint1Formula = {
   exposure_type: "",
   target_market: "",
   claim: "",
+  image_urls: [],
 };
 
 function calcCost(line: Sprint1FormulaLine) {
@@ -612,6 +613,10 @@ export function useSprint1FormulaCore() {
         confirmed_code: "",
         public_bom_customized: false,
         dry_bom_customized: false,
+        // 샘플 사진은 Revision별로 전달받은 실물 샘플을 찍은 것이라 이전 Revision 사진을 그대로
+        // 이월하면 혼란을 준다(confirmed_code/public_bom_customized를 리셋하는 것과 같은 이유) -
+        // 새 Revision은 항상 사진 없이 시작한다.
+        image_urls: [],
       } as Sprint1Formula;
       const saved = await upsertSprint1Formula(nextFormula);
       setFormula(nextFormula);
