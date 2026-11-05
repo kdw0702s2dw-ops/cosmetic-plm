@@ -12,6 +12,7 @@ export type Material = {
   is_active?: boolean;
   weight_10x10cm?: number | null;
   note?: string;
+  image_urls?: string[]; // 부자재 사진(여러 장 가능) - Supabase Storage(material-photos 버킷) 공개 URL 목록
 };
 
 export type FormulaLinkHit = {
@@ -121,6 +122,28 @@ export async function deleteMaterial(materialCode: string) {
     .update({ is_active: false })
     .eq("material_code", materialCode);
   if (error) throw error;
+}
+
+// 부자재 사진 업로드 - 원료 발주관리 검수조서(uploadPurchaseOrderInspectionPhoto)와 동일한 패턴.
+// 호출 전에 lib/imageJpegConvert.ts의 convertImageToJpeg()로 용량을 줄인 File을 넘겨받는다(용량
+// 최적화는 호출부 책임, 이 함수는 업로드/URL 발급만 담당).
+// 경로의 폴더명은 material_code가 아니라 매번 새로 만드는 ASCII 식별자(crypto.randomUUID())를 쓴다 -
+// Supabase Storage 오브젝트 경로는 ASCII만 허용해서, "부2607-01"처럼 한글이 섞인 material_code를
+// 그대로 경로에 쓰면 업로드가 Invalid key 오류로 실패한다(검수조서는 DB id를 경로로 써서 이 문제를
+// 우연히 피해갔을 뿐, material_code를 그대로 쓰면 안 됨 - 로컬 리뷰에서 확인된 문제, 현재 한글이
+// 포함된 부자재코드 28건이 영향을 받았음). image_urls에는 공개 URL만 저장되고 폴더명 자체는 화면
+// 어디에도 노출되지 않으므로, material_code와 무관한 식별자를 써도 무방하다 - 저장 전(새 부자재
+// 등록 단계)에도 그대로 업로드 가능하다.
+const MATERIAL_PHOTO_BUCKET = "material-photos";
+
+export async function uploadMaterialPhoto(file: File): Promise<string> {
+  const ext = file.name.split(".").pop() || "jpg";
+  const folder = crypto.randomUUID();
+  const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabaseProductionFinal.storage.from(MATERIAL_PHOTO_BUCKET).upload(path, file);
+  if (error) throw new Error(`사진 업로드 실패: ${error.message}`);
+  const { data } = supabaseProductionFinal.storage.from(MATERIAL_PHOTO_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // 적용 개발번호(Development No.) 검색 - plm_formulas에서 formula_code 기준으로 중복 제거해서 보여준다
