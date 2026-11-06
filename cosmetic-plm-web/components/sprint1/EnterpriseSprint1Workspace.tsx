@@ -157,7 +157,9 @@ export default function EnterpriseSprint1Workspace() {
           {auth.isPageVisible("quality") && <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>}
         </nav>
         <section className="v50-content">
-          {!isKeepAliveActive && renderActive()}
+          {/* pageAccessLoaded가 false인 동안은 아무 것도 그리지 않는다 - active의 기본값(home)이
+              해당 역할에게 숨겨진 페이지일 수 있어서, 로딩 중 컨텐츠까지 잠깐 노출되는 걸 막는다. */}
+          {auth.pageAccessLoaded && !isKeepAliveActive && renderActive()}
           {visitedKeepAliveTabs.map((tab) => (
             <div key={tab} style={{ display: effectiveActive === tab ? "block" : "none" }}>
               {renderKeepAliveTab(tab)}
