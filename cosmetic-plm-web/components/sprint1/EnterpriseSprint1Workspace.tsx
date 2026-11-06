@@ -24,16 +24,10 @@ import "@/styles/enterprise-mobile.css";
 
 type TabKey = "home" | "sprint0" | "ingredientDict" | "rawManager" | "purchaseOrder" | "materialManager" | "companyManager" | "formula" | "docs" | "unifiedBom" | "production" | "productionRecords" | "quality" | "regulation" | "users";
 
-// Production 역할은 부자재관리/원료관리/생산관리(+생산실적 관리)/품질관리만 볼 수 있음. 생산실적 관리는
-// 원래 생산관리 하위 도구였고 그때도 Production이 접근 가능했으므로, 독립 메뉴로 분리된 뒤에도 그대로
-// 유지한다. 통합 BOM은 원료/부자재/필름/원단/칼선을 전 직원이 확인하는 용도라 Production도 포함.
-// (과거 메모) 품질관리를 Production에게 허용한 원래 이유는 "출고관리가 품질관리 하위 탭('제품 MSDS'
-// 옆)에 있어서 Production도 거기로 출고관리에 접근해야 했기 때문"이었다. 이후 "품질관리에서 출고관리
-// 필요가 없다"는 요청으로 출고관리 탭 자체가 품질관리 화면(QualityManagementPanel.tsx)에서 완전히
-// 빠졌고 어느 역할도 화면으로는 더 이상 출고 기록에 접근할 수 없다(데이터는 DB에 남아있음) - 그 원래
-// 이유는 더 이상 유효하지 않지만, Production의 품질관리(홈/시료 목록/시험성적서/제품 COA/제품 MSDS)
-// 접근 자체를 없애야 하는지는 별도로 요청받은 적이 없어 권한은 그대로 둔다.
-const PRODUCTION_ALLOWED_TABS: TabKey[] = ["materialManager", "rawManager", "unifiedBom", "production", "productionRecords", "quality"];
+// 역할별로 어떤 탭(사이드바/상단)을 볼 수 있는지는 더 이상 여기 하드코딩하지 않고, 사용자 권한관리
+// 화면에서 Admin이 설정하는 plm_role_page_access 기반 auth.isPageVisible()로 판단한다(Admin은 설정
+// 대상에서 제외되어 항상 전체 메뉴). 예전에는 Production 역할만 PRODUCTION_ALLOWED_TABS로 하드코딩되어
+// 있었는데, 배포 시 그 제한과 정확히 동일한 결과가 나오도록 DB에 시드해뒀다(마이그레이션 참고).
 
 // 탭을 전환해도 화면에 입력한 내용 등 상태가 유지되도록, 방문한 적이 있으면 마운트 상태를 유지하는 탭 목록
 const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "docs", "unifiedBom", "production", "productionRecords", "quality"];
@@ -41,7 +35,6 @@ const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "d
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
   const auth = useSprint1Auth();
-  const isProduction = auth.isProductionRole;
 
   // 생산관리(제조량 확인)의 "합산 부족 원료 목록" -> 원료 발주관리 연동용. "발주서 만들기"를 누르면
   // 결과(공급사별 초안 + 공급사 미등록 원료 목록)를 여기 담아두고 원료 발주관리 탭으로 전환한다.
@@ -57,14 +50,19 @@ export default function EnterpriseSprint1Workspace() {
     setActive("purchaseOrder");
   }
 
-  // Production 역할은 허용된 탭 밖에 있으면(초기값 home 포함) 접근 가능한 탭으로 이동
+  // 현재 역할에게 숨겨진 탭 밖에 있으면(초기값 home 포함) 보이는 탭으로 이동. "materialManager"는
+  // 모든 역할에 기본으로 열어두길 권장하는 폴백 탭 - 이것까지 숨기면 그 역할은 갈 곳이 없어진다.
   useEffect(() => {
-    if (isProduction && !PRODUCTION_ALLOWED_TABS.includes(active)) {
+    // pageAccessLoaded가 false인 동안(숨김 목록을 아직 불러오는 중)에는 리다이렉트를 보류한다.
+    // 그렇지 않으면 로딩 창 동안 모든 역할이 일시적으로 materialManager로 튕겨나갔다가 되돌아온다.
+    if (!auth.pageAccessLoaded) return;
+    if (!auth.isPageVisible(active)) {
       setActive("materialManager");
     }
-  }, [isProduction, active]);
+  }, [auth, active]);
 
-  const effectiveActive: TabKey = isProduction && !PRODUCTION_ALLOWED_TABS.includes(active) ? "materialManager" : active;
+  const effectiveActive: TabKey =
+    !auth.pageAccessLoaded || auth.isPageVisible(active) ? active : "materialManager";
 
   // 방문한 keep-alive 탭 목록 — 한 번 열었던 탭은 언마운트하지 않고 숨김 처리만 해서 상태를 보존
   const [visitedKeepAliveTabs, setVisitedKeepAliveTabs] = useState<TabKey[]>([]);
@@ -107,22 +105,22 @@ export default function EnterpriseSprint1Workspace() {
         <nav className="v50-menu">
           <div>
             <div className="v50-menu-label">현재 사용 가능</div>
-            {!isProduction && <button className={effectiveActive === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>}
-            <button className={effectiveActive === "unifiedBom" ? "active" : ""} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></button>
-            {!isProduction && <button className={effectiveActive === "companyManager" ? "active" : ""} onClick={() => setActive("companyManager")}><span>업체관리</span></button>}
-            <button className={effectiveActive === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>
-            {!isProduction && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
-            <button className={effectiveActive === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>
-            {!isProduction && <button className={effectiveActive === "purchaseOrder" ? "active" : ""} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></button>}
-            {!isProduction && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
-            {!isProduction && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
-            <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>
-            <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>
-            <button className={effectiveActive === "productionRecords" ? "active" : ""} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></button>
-            {!isProduction && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
-            {!isProduction && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
-            {!isProduction && <button className={effectiveActive === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>}
-            {!isProduction && auth.canManageUsers && <button className={effectiveActive === "users" ? "active" : ""} onClick={() => setActive("users")}><span>사용자 권한관리</span></button>}
+            {auth.isPageVisible("home") && <button className={effectiveActive === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>}
+            {auth.isPageVisible("unifiedBom") && <button className={effectiveActive === "unifiedBom" ? "active" : ""} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></button>}
+            {auth.isPageVisible("companyManager") && <button className={effectiveActive === "companyManager" ? "active" : ""} onClick={() => setActive("companyManager")}><span>업체관리</span></button>}
+            {auth.isPageVisible("materialManager") && <button className={effectiveActive === "materialManager" ? "active" : ""} onClick={() => setActive("materialManager")}><span>부자재관리</span></button>}
+            {auth.isPageVisible("ingredientDict") && <button className={effectiveActive === "ingredientDict" ? "active" : ""} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></button>}
+            {auth.isPageVisible("rawManager") && <button className={effectiveActive === "rawManager" ? "active" : ""} onClick={() => setActive("rawManager")}><span>원료 관리</span></button>}
+            {auth.isPageVisible("purchaseOrder") && <button className={effectiveActive === "purchaseOrder" ? "active" : ""} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></button>}
+            {auth.isPageVisible("formula") && <button className={effectiveActive === "formula" ? "active" : ""} onClick={() => setActive("formula")}><span>처방관리</span></button>}
+            {auth.isPageVisible("docs") && <button className={effectiveActive === "docs" ? "active" : ""} onClick={() => setActive("docs")}><span>문서관리</span></button>}
+            {auth.isPageVisible("quality") && <button className={effectiveActive === "quality" ? "active" : ""} onClick={() => setActive("quality")}><span>품질관리</span></button>}
+            {auth.isPageVisible("production") && <button className={effectiveActive === "production" ? "active" : ""} onClick={() => setActive("production")}><span>생산관리</span></button>}
+            {auth.isPageVisible("productionRecords") && <button className={effectiveActive === "productionRecords" ? "active" : ""} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></button>}
+            {auth.isPageVisible("regulation") && <button className={effectiveActive === "regulation" ? "active" : ""} onClick={() => setActive("regulation")}><span>글로벌 규제검증</span></button>}
+            {auth.isPageVisible("externalRegCheck") && <a href="https://cosmocheck.cc/check" target="_blank" rel="noopener noreferrer"><span>성분 규제 체크(외부)</span></a>}
+            {auth.isPageVisible("sprint0") && <button className={effectiveActive === "sprint0" ? "active" : ""} onClick={() => setActive("sprint0")}><span>기반 안정화 점검</span></button>}
+            {auth.canManageUsers && <button className={effectiveActive === "users" ? "active" : ""} onClick={() => setActive("users")}><span>사용자 권한관리</span></button>}
           </div>
           <div>
             <div className="v50-menu-label">내 계정</div>
@@ -136,29 +134,27 @@ export default function EnterpriseSprint1Workspace() {
       <main className="v50-main">
         <header className="v50-topbar">
           <input className="v50-search" placeholder="원료, 처방, 문서, 글로벌 규제검증을 DB 기준으로 사용합니다." readOnly />
-          {!isProduction && (
+          {(auth.isPageVisible("formula") || auth.isPageVisible("docs") || auth.isPageVisible("regulation")) && (
             <div className="v50-top-actions">
-              <button className="v50-button-light" onClick={() => setActive("formula")}>처방관리</button>
-              <button className="v50-button-light" onClick={() => setActive("docs")}>문서관리</button>
-              <button className="v50-button" onClick={() => setActive("regulation")}>규제검증</button>
+              {auth.isPageVisible("formula") && <button className="v50-button-light" onClick={() => setActive("formula")}>처방관리</button>}
+              {auth.isPageVisible("docs") && <button className="v50-button-light" onClick={() => setActive("docs")}>문서관리</button>}
+              {auth.isPageVisible("regulation") && <button className="v50-button" onClick={() => setActive("regulation")}>규제검증</button>}
             </div>
           )}
         </header>
         <nav className="v50-tabs">
-          {/* 사이드바의 "통합 BOM" 메뉴와 동일하게 Production 역할에게도 보인다(원료/부자재/필름/원단/칼선을
-              전 직원이 확인하는 용도라 !isProduction 가드 없음) - 업체관리 앞(맨 앞)에 배치해달라는 요청. */}
-          <div className={`v50-tab ${effectiveActive === "unifiedBom" ? "active" : ""}`} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></div>
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>}
-          <div className={`v50-tab ${effectiveActive === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>}
-          <div className={`v50-tab ${effectiveActive === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "purchaseOrder" ? "active" : ""}`} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
-          {!isProduction && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리</span></div>}
-          <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>
-          {/* 사이드바의 "생산실적 관리"와 동일 - Production 역할도 접근 가능한 탭이라 !isProduction 가드 없음(위 PRODUCTION_ALLOWED_TABS 참고). */}
-          <div className={`v50-tab ${effectiveActive === "productionRecords" ? "active" : ""}`} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></div>
-          <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>
+          {/* 사이드바와 동일하게 auth.isPageVisible()로 역할별 숨김을 적용 - 업체관리 앞(맨 앞)에 배치해달라는 요청. */}
+          {auth.isPageVisible("unifiedBom") && <div className={`v50-tab ${effectiveActive === "unifiedBom" ? "active" : ""}`} onClick={() => setActive("unifiedBom")}><span>통합 BOM</span></div>}
+          {auth.isPageVisible("companyManager") && <div className={`v50-tab ${effectiveActive === "companyManager" ? "active" : ""}`} onClick={() => setActive("companyManager")}><span>업체관리</span></div>}
+          {auth.isPageVisible("materialManager") && <div className={`v50-tab ${effectiveActive === "materialManager" ? "active" : ""}`} onClick={() => setActive("materialManager")}><span>부자재관리</span></div>}
+          {auth.isPageVisible("ingredientDict") && <div className={`v50-tab ${effectiveActive === "ingredientDict" ? "active" : ""}`} onClick={() => setActive("ingredientDict")}><span>전성분관리</span></div>}
+          {auth.isPageVisible("rawManager") && <div className={`v50-tab ${effectiveActive === "rawManager" ? "active" : ""}`} onClick={() => setActive("rawManager")}><span>원료관리</span></div>}
+          {auth.isPageVisible("purchaseOrder") && <div className={`v50-tab ${effectiveActive === "purchaseOrder" ? "active" : ""}`} onClick={() => setActive("purchaseOrder")}><span>원료 발주관리</span></div>}
+          {auth.isPageVisible("formula") && <div className={`v50-tab ${effectiveActive === "formula" ? "active" : ""}`} onClick={() => setActive("formula")}><span>처방관리</span></div>}
+          {auth.isPageVisible("docs") && <div className={`v50-tab ${effectiveActive === "docs" ? "active" : ""}`} onClick={() => setActive("docs")}><span>문서관리</span></div>}
+          {auth.isPageVisible("production") && <div className={`v50-tab ${effectiveActive === "production" ? "active" : ""}`} onClick={() => setActive("production")}><span>생산관리</span></div>}
+          {auth.isPageVisible("productionRecords") && <div className={`v50-tab ${effectiveActive === "productionRecords" ? "active" : ""}`} onClick={() => setActive("productionRecords")}><span>생산실적 관리</span></div>}
+          {auth.isPageVisible("quality") && <div className={`v50-tab ${effectiveActive === "quality" ? "active" : ""}`} onClick={() => setActive("quality")}><span>품질관리</span></div>}
         </nav>
         <section className="v50-content">
           {!isKeepAliveActive && renderActive()}

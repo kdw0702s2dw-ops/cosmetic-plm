@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSprint1UserAdmin } from "@/hooks/useSprint1UserAdmin";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import type { PlmRole } from "@/services/sprint1/authRbacService";
+import {
+  ROLE_NAV_PAGE_KEYS,
+  ROLE_NAV_PAGE_LABELS,
+  ROLE_NAV_CONFIGURABLE_ROLES,
+  fetchHiddenPagesByRole,
+  setPageHidden,
+} from "@/services/sprint1/roleNavAccessService";
 import "@/styles/enterprise-v50.css";
 
 const roles: PlmRole[] = ["Admin", "Researcher", "QA", "Viewer", "Production"];
@@ -79,6 +86,17 @@ export default function UserAdminPanel() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="v50-panel" style={{ marginTop: 18 }}>
+        <h2>역할별 메뉴 접근</h2>
+        <p className="v50-desc">
+          Admin은 항상 전체 메뉴를 봅니다. 아래에서 체크를 해제하면 그 역할은 해당 메뉴(사이드바/상단 탭)가
+          보이지 않습니다. 단, 이건 화면 노출만 바꾸는 것으로, 실제 쓰기/삭제 권한은 바뀌지 않습니다(그건
+          역할별로 이미 따로 정해져 있음). 퇴사자의 데이터 접근을 막는 가장 확실한 방법은 위 &quot;사용자 목록&quot;에서
+          그 계정을 비활성으로 바꾸는 것입니다 - 그러면 세션이 남아있어도 즉시 모든 쓰기/삭제가 차단됩니다.
+        </p>
+        <RoleNavAccessMatrix />
       </section>
 
       <section className="v50-panel">
@@ -196,5 +214,88 @@ function UserRow({
         </button>
       </td>
     </tr>
+  );
+}
+
+
+function RoleNavAccessMatrix() {
+  const [hiddenByRole, setHiddenByRole] = useState<Record<string, Set<string>>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const map = await fetchHiddenPagesByRole();
+      setHiddenByRole(map);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "불러오기 오류");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, []);
+
+  async function toggle(role: string, pageKey: string, nextVisible: boolean) {
+    const cellKey = `${role}:${pageKey}`;
+    setSavingKey(cellKey);
+    setError(null);
+    // 낙관적 업데이트 - 저장 실패 시에만 load()로 서버 상태를 다시 불러와 되돌린다.
+    setHiddenByRole((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[role] || []);
+      if (nextVisible) set.delete(pageKey); else set.add(pageKey);
+      next[role] = set;
+      return next;
+    });
+    try {
+      await setPageHidden(role, pageKey, !nextVisible);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "저장 오류");
+      await load();
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  if (loading) return <p style={{ color: "#94a3b8" }}>불러오는 중...</p>;
+
+  return (
+    <div className="v50-table-wrap">
+      <table className="v50-table">
+        <thead>
+          <tr>
+            <th>메뉴</th>
+            {ROLE_NAV_CONFIGURABLE_ROLES.map((r) => <th key={r} style={{ textAlign: "center" }}>{r}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ROLE_NAV_PAGE_KEYS.map((key) => (
+            <tr key={key}>
+              <td>{ROLE_NAV_PAGE_LABELS[key]}</td>
+              {ROLE_NAV_CONFIGURABLE_ROLES.map((role) => {
+                const hidden = hiddenByRole[role]?.has(key) ?? false;
+                const cellKey = `${role}:${key}`;
+                return (
+                  <td key={role} style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!hidden}
+                      disabled={savingKey === cellKey}
+                      onChange={(e) => toggle(role, key, e.target.checked)}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {error && <p style={{ color: "#dc2626", fontWeight: 700, fontSize: 13, marginTop: 8 }}>{error}</p>}
+    </div>
   );
 }
