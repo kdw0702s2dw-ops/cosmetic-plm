@@ -7,6 +7,9 @@ import {
   type ProductionRecord, type FunctionalClaim, type TestProgressStatus,
 } from "@/services/sprint2/productionRecordService";
 import { downloadProductionRecordsExcel } from "@/services/sprint2/productionRecordDocService";
+import {
+  fetchLotShipmentsForFormula, saveLotShipment, type ProductionLotShipment,
+} from "@/services/sprint2/productionLotShipmentService";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { fetchUserDisplayNames } from "@/services/sprint1/authRbacService";
 import { parseDecimal } from "@/lib/parseDecimal";
@@ -14,6 +17,10 @@ import { todayLocalStr } from "@/lib/localDate";
 
 function today() {
   return todayLocalStr();
+}
+
+function fmtQty(v: number | null | undefined): string {
+  return v === null || v === undefined ? "0" : String(v);
 }
 
 // "저장 이력" 표에서 바로 수정하는 기능용 - 처방관리 전체 목록(ProductionRecordListPanel)의 수정 폼과
@@ -34,7 +41,11 @@ export type ProductionRecordEditDraft = {
   note: string;
 };
 
-function draftFromRecord(r: ProductionRecord): ProductionRecordEditDraft {
+// 출고수량(EA/PACK)은 더 이상 이 행 자신의 값이 아니라 Lot 전체 공통 값
+// (plm_production_lot_shipments)을 우선 사용한다 - 같은 Lot의 다른 행에서 수정됐어도 이 폼이
+// 항상 최신 공통 값을 보여주도록. 아직 Lot 출고 레코드가 없는 극히 예외적인 경우에만(백필 이전
+// 데이터가 남아있는 경우 등) 행 자신의 값으로 대체한다.
+function draftFromRecord(r: ProductionRecord, lotShipment?: ProductionLotShipment): ProductionRecordEditDraft {
   return {
     lot_no: r.lot_no,
     mfg_lot_no: r.mfg_lot_no || "",
@@ -43,8 +54,12 @@ function draftFromRecord(r: ProductionRecord): ProductionRecordEditDraft {
     exp_date: r.exp_date || "",
     coating_qty: r.coating_qty != null ? String(r.coating_qty) : "",
     molded_qty: r.molded_qty != null ? String(r.molded_qty) : "",
-    shipped_qty_ea: r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : "",
-    shipped_qty_pack: r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : "",
+    shipped_qty_ea: lotShipment
+      ? (lotShipment.shipped_qty_ea != null ? String(lotShipment.shipped_qty_ea) : "")
+      : (r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : ""),
+    shipped_qty_pack: lotShipment
+      ? (lotShipment.shipped_qty_pack != null ? String(lotShipment.shipped_qty_pack) : "")
+      : (r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : ""),
     functional_claim: r.functional_claim || "해당없음",
     heavy_metal_status: r.heavy_metal_status || "해당없음",
     microbial_status: r.microbial_status || "해당없음",
@@ -85,6 +100,15 @@ export function useProductionRecord(refreshToken?: number) {
   const [editDraft, setEditDraft] = useState<ProductionRecordEditDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Lot(제품(Lot No.)) 단위 완제품 총 출고 수량 - lot_no -> 공통 출고 레코드 맵. 같은 Lot으로
+  // 추가 생산이 등록돼도 출고 수량은 Lot당 1개 값만 관리되도록 한다(services/sprint2/productionLotShipmentService).
+  const [lotShipments, setLotShipments] = useState<Map<string, ProductionLotShipment>>(new Map());
+  const [lotShipmentNotice, setLotShipmentNotice] = useState("");
+  // updateLotNo가 출고수량을 자동으로 채워 넣은 Lot No.(원본) - Lot No.를 더 고치거나 지워서 이
+  // 값과 더 이상 일치하지 않게 되면, 남아있는 자동 채움 값이 엉뚱한(또는 존재하지 않는) Lot에
+  // 그대로 저장되는 사고를 막기 위해 비워야 한다.
+  const [filledShipmentLot, setFilledShipmentLot] = useState<string | null>(null);
+
   // "등록자"(created_by, 이메일로 저장됨)를 표에는 이름으로 보여주기 위한 이메일->이름 맵. 화면
   // 진입 시 한 번만 불러온다(사용자 목록이 자주 바뀌지 않으므로 매 조회마다 다시 불러올 필요 없음).
   const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
@@ -111,6 +135,33 @@ export function useProductionRecord(refreshToken?: number) {
     setTargetQtyKg(parseDecimal(value));
   }
 
+  // 같은 처방 내에 이미 존재하는 Lot No.를 입력하면(같은 Lot으로 추가 생산 등), 출고수량
+  // 입력란에 그 Lot의 기존 공통 값을 자동으로 불러와 보여준다 - 입력칸이 빈 채로 저장돼서 기존
+  // 값이 0/빈 값으로 덮어써지는 사고를 막기 위함. 그대로 저장하면 기존 값이 유지되고, 값을
+  // 고쳐서 저장하면 그 Lot 전체(다른 행 포함)의 출고수량이 함께 바뀐다.
+  function updateLotNo(value: string) {
+    setLotNo(value);
+    const trimmed = value.trim();
+    const existing = trimmed ? lotShipments.get(trimmed) : undefined;
+    if (existing) {
+      setShippedQtyEa(existing.shipped_qty_ea != null ? String(existing.shipped_qty_ea) : "");
+      setShippedQtyPack(existing.shipped_qty_pack != null ? String(existing.shipped_qty_pack) : "");
+      setFilledShipmentLot(trimmed);
+      setLotShipmentNotice(
+        `이미 등록된 Lot No.입니다. 출고수량(EA/PACK)은 이 Lot의 모든 생산실적 행에 공통으로 적용되는 값이라, 기존 값(${fmtQty(existing.shipped_qty_ea)} EA / ${fmtQty(existing.shipped_qty_pack)} PACK)을 불러왔습니다. 그대로 저장하면 기존 값이 유지되고, 값을 바꿔서 저장하면 이 Lot 전체의 출고수량이 변경됩니다.`
+      );
+    } else {
+      // 직전까지 다른 Lot에서 자동으로 채워진 값이 남아있으면(Lot No.를 더 고치거나 지워서 더 이상
+      // 그 Lot과 일치하지 않게 됨) 비운다 - 그대로 두면 엉뚱한 Lot에 그 값이 저장될 수 있다.
+      if (filledShipmentLot) {
+        setShippedQtyEa("");
+        setShippedQtyPack("");
+        setFilledShipmentLot(null);
+      }
+      setLotShipmentNotice("");
+    }
+  }
+
   async function selectFormula(f: any) {
     setFormula(f);
     setMessage("");
@@ -121,7 +172,12 @@ export function useProductionRecord(refreshToken?: number) {
   async function loadHistory(formulaCode: string, revision: string) {
     setLoading(true);
     try {
-      setHistory(await fetchProductionRecords(formulaCode, revision));
+      const [records, shipments] = await Promise.all([
+        fetchProductionRecords(formulaCode, revision),
+        fetchLotShipmentsForFormula(formulaCode, revision),
+      ]);
+      setHistory(records);
+      setLotShipments(shipments);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "이력 조회 오류");
     } finally {
@@ -143,6 +199,8 @@ export function useProductionRecord(refreshToken?: number) {
     setProductionDate(today());
     setExpDate("");
     setNote("");
+    setLotShipmentNotice("");
+    setFilledShipmentLot(null);
   }
 
   async function save() {
@@ -180,6 +238,16 @@ export function useProductionRecord(refreshToken?: number) {
         note,
         created_by: auth.profile?.email || undefined,
       });
+      // 생산실적 행 저장과 별도로, 이 Lot의 "총 출고 수량"을 Lot 단위 테이블에 1개 값으로
+      // upsert한다 - 같은 Lot에 추가 생산이 여러 번 등록돼도 출고 수량은 항상 Lot당 1개로 유지된다.
+      await saveLotShipment({
+        formulaCode: saved.formula_code,
+        revision: saved.revision,
+        lotNo: trimmedLot,
+        shippedQtyEa: shippedQtyEa === "" ? null : Number(shippedQtyEa),
+        shippedQtyPack: shippedQtyPack === "" ? null : Number(shippedQtyPack),
+        updatedBy: auth.profile?.email || undefined,
+      });
       setMessage("저장 완료");
       resetForm();
       await loadHistory(saved.formula_code, saved.revision);
@@ -208,7 +276,7 @@ export function useProductionRecord(refreshToken?: number) {
 
   function startEdit(r: ProductionRecord) {
     setEditingId(r.id || null);
-    setEditDraft(draftFromRecord(r));
+    setEditDraft(draftFromRecord(r, lotShipments.get(r.lot_no)));
     setMessage("");
   }
 
@@ -255,6 +323,16 @@ export function useProductionRecord(refreshToken?: number) {
         microbial_status: editDraft.microbial_status,
         note: editDraft.note || null,
       });
+      // 이 폼은 "이 Lot 전체 공통" 출고 수량을 수정하는 것이므로, 수정 저장 시에도 Lot 단위
+      // 테이블을 함께 갱신한다 - 같은 Lot의 다른 생산실적 행에도 이 값이 그대로 반영된다.
+      await saveLotShipment({
+        formulaCode: formula.formula_code,
+        revision: formula.revision,
+        lotNo: trimmedLot,
+        shippedQtyEa: editDraft.shipped_qty_ea === "" ? null : Number(editDraft.shipped_qty_ea),
+        shippedQtyPack: editDraft.shipped_qty_pack === "" ? null : Number(editDraft.shipped_qty_pack),
+        updatedBy: auth.profile?.email || undefined,
+      });
       setMessage("수정 완료");
       cancelEdit();
       await loadHistory(formula.formula_code, formula.revision);
@@ -268,7 +346,7 @@ export function useProductionRecord(refreshToken?: number) {
   async function downloadExcel() {
     if (!formula) return;
     try {
-      await downloadProductionRecordsExcel(formula, history);
+      await downloadProductionRecordsExcel(formula, history, lotShipments);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "엑셀 다운로드 오류");
     }
@@ -277,7 +355,7 @@ export function useProductionRecord(refreshToken?: number) {
   return {
     auth,
     keyword, setKeyword, formulas, formula, searching, search, selectFormula,
-    targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, mfgLotNo, setMfgLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
+    targetQtyKg, updateTargetQtyKg, lotNo, setLotNo, updateLotNo, lotShipmentNotice, lotShipments, mfgLotNo, setMfgLotNo, coatingQty, setCoatingQty, moldedQty, setMoldedQty,
     shippedQtyEa, setShippedQtyEa, shippedQtyPack, setShippedQtyPack,
     functionalClaim, setFunctionalClaim, heavyMetalStatus, setHeavyMetalStatus, microbialStatus, setMicrobialStatus,
     productionDate, setProductionDate, expDate, setExpDate, note, setNote,

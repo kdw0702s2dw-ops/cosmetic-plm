@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAllProductionRecords, type ProductionRecord } from "@/services/sprint2/productionRecordService";
+import {
+  fetchAllLotShipments, buildLotShipmentKey, type ProductionLotShipment,
+} from "@/services/sprint2/productionLotShipmentService";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number) {
@@ -54,6 +57,9 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
   const [year, setYear] = useState(thisYear);
   const [month, setMonth] = useState<number | null>(null); // null = 전체(연도 집계)
   const [records, setRecords] = useState<ProductionRecord[]>([]);
+  // Lot(formula_code+revision+lot_no) 단위 완제품 총 출고 수량 맵 - 같은 Lot으로 추가 생산이
+  // 여러 행 등록돼도 집계에서 중복 합산되지 않도록 한다(services/sprint2/productionLotShipmentService).
+  const [lotShipments, setLotShipments] = useState<Map<string, ProductionLotShipment>>(new Map());
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -61,7 +67,12 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
     setLoading(true);
     try {
       const { dateFrom, dateTo } = dateRangeOf(y, m);
-      setRecords(await fetchAllProductionRecords({ dateFrom, dateTo }));
+      const [recs, shipments] = await Promise.all([
+        fetchAllProductionRecords({ dateFrom, dateTo }),
+        fetchAllLotShipments(),
+      ]);
+      setRecords(recs);
+      setLotShipments(shipments);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "조회 오류");
     } finally {
@@ -80,6 +91,9 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
 
   const rows: FormulaSummary[] = useMemo(() => {
     const map = new Map<string, FormulaSummary>();
+    // 처방 그룹(formula_code+revision)별로 이미 더한 Lot No.를 기록해둔다 - 출고수량(EA/PACK)은
+    // Lot 단위로 1개 값만 관리되므로, 같은 Lot으로 등록된 행이 여러 개여도 한 번만 더한다.
+    const seenLotsByGroup = new Map<string, Set<string>>();
     for (const r of records) {
       const key = `${r.formula_code}__${r.revision}`;
       if (!map.has(key)) {
@@ -90,17 +104,24 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
           revision: r.revision,
           count: 0, targetQtyKg: 0, coating: 0, molded: 0, ea: 0, pack: 0,
         });
+        seenLotsByGroup.set(key, new Set());
       }
       const g = map.get(key)!;
       g.count += 1;
       g.targetQtyKg += r.target_qty_kg || 0;
       g.coating += r.coating_qty || 0;
       g.molded += r.molded_qty || 0;
-      g.ea += r.shipped_qty_ea || 0;
-      g.pack += r.shipped_qty_pack || 0;
+
+      const seenLots = seenLotsByGroup.get(key)!;
+      if (!seenLots.has(r.lot_no)) {
+        seenLots.add(r.lot_no);
+        const shipment = lotShipments.get(buildLotShipmentKey(r.formula_code, r.revision, r.lot_no));
+        g.ea += (shipment ? shipment.shipped_qty_ea : r.shipped_qty_ea) || 0;
+        g.pack += (shipment ? shipment.shipped_qty_pack : r.shipped_qty_pack) || 0;
+      }
     }
     return Array.from(map.values()).sort((a, b) => a.confirmed_code.localeCompare(b.confirmed_code));
-  }, [records]);
+  }, [records, lotShipments]);
 
   const grandTotal = useMemo(
     () => rows.reduce(
@@ -124,7 +145,9 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
     <div>
       <p className="v50-desc" style={{ marginBottom: 14 }}>
         연도(또는 연도+월) 기준으로 처방별 생산량(코팅량·성형품 수량·완제품 출고 수량)을 집계합니다. 월을
-        &quot;전체&quot;로 두면 그 해 전체 집계(연도별), 특정 월을 고르면 그 달만 집계(월별)됩니다.
+        &quot;전체&quot;로 두면 그 해 전체 집계(연도별), 특정 월을 고르면 그 달만 집계(월별)됩니다. 완제품
+        출고 수량(EA/PACK)은 제품(Lot No.) 단위로 1개 값만 관리되므로, 같은 Lot으로 추가 생산이 여러
+        건 등록돼도 이 집계에서 중복 합산되지 않습니다.
       </p>
       {msg && <p style={{ color: "#2563eb", fontWeight: 800 }}>{msg}</p>}
 
@@ -150,7 +173,7 @@ export default function ProductionRecordSummaryPanel({ refreshTick }: { refreshT
               <tr>
                 <th>확정코드</th><th>제품명</th><th>총생산량 합계 (단위: kg)</th><th>생산 건수</th>
                 <th>코팅량 합계 (단위: m)</th><th>성형품 수량 합계 (단위: EA)</th>
-                <th>출고수량 합계(EA)</th><th>출고수량 합계(PACK)</th>
+                <th>출고수량 합계(EA, Lot 공통)</th><th>출고수량 합계(PACK, Lot 공통)</th>
               </tr>
             </thead>
             <tbody>

@@ -6,6 +6,9 @@ import {
   FUNCTIONAL_CLAIM_OPTIONS, TEST_PROGRESS_OPTIONS,
   type ProductionRecord, type ProductionRecordListFilter, type FunctionalClaim, type TestProgressStatus,
 } from "@/services/sprint2/productionRecordService";
+import {
+  fetchAllLotShipments, saveLotShipment, buildLotShipmentKey, type ProductionLotShipment,
+} from "@/services/sprint2/productionLotShipmentService";
 import "@/styles/enterprise-v50.css";
 
 function fmt(v: number | null | undefined) {
@@ -40,7 +43,10 @@ type EditDraft = {
   note: string;
 };
 
-function draftFromRecord(r: ProductionRecord): EditDraft {
+// 출고수량(EA/PACK)은 더 이상 이 행 자신의 값이 아니라 Lot 전체 공통 값
+// (plm_production_lot_shipments)을 우선 사용한다 - 같은 Lot의 다른 행에서 수정됐어도 이 폼이
+// 항상 최신 공통 값을 보여주도록. Lot 출고 레코드가 아직 없는 예외적인 경우에만 행 자신의 값으로 대체한다.
+function draftFromRecord(r: ProductionRecord, lotShipment?: ProductionLotShipment): EditDraft {
   return {
     lot_no: r.lot_no,
     mfg_lot_no: r.mfg_lot_no || "",
@@ -49,8 +55,12 @@ function draftFromRecord(r: ProductionRecord): EditDraft {
     exp_date: r.exp_date || "",
     coating_qty: r.coating_qty != null ? String(r.coating_qty) : "",
     molded_qty: r.molded_qty != null ? String(r.molded_qty) : "",
-    shipped_qty_ea: r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : "",
-    shipped_qty_pack: r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : "",
+    shipped_qty_ea: lotShipment
+      ? (lotShipment.shipped_qty_ea != null ? String(lotShipment.shipped_qty_ea) : "")
+      : (r.shipped_qty_ea != null ? String(r.shipped_qty_ea) : ""),
+    shipped_qty_pack: lotShipment
+      ? (lotShipment.shipped_qty_pack != null ? String(lotShipment.shipped_qty_pack) : "")
+      : (r.shipped_qty_pack != null ? String(r.shipped_qty_pack) : ""),
     functional_claim: r.functional_claim || "해당없음",
     heavy_metal_status: r.heavy_metal_status || "해당없음",
     microbial_status: r.microbial_status || "해당없음",
@@ -75,10 +85,19 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Lot(formula_code+revision+lot_no) 단위 완제품 총 출고 수량 맵 - 같은 Lot으로 추가 생산이
+  // 여러 행 등록돼도 합계/표시에서 중복 합산되지 않도록 한다(services/sprint2/productionLotShipmentService).
+  const [lotShipments, setLotShipments] = useState<Map<string, ProductionLotShipment>>(new Map());
+
   const load = useCallback(async (f: ProductionRecordListFilter) => {
     setLoading(true);
     try {
-      setRecords(await fetchAllProductionRecords(f));
+      const [recs, shipments] = await Promise.all([
+        fetchAllProductionRecords(f),
+        fetchAllLotShipments(),
+      ]);
+      setRecords(recs);
+      setLotShipments(shipments);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "조회 오류");
     } finally {
@@ -113,7 +132,7 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
 
   function startEdit(r: ProductionRecord) {
     setEditingId(r.id || null);
-    setEditDraft(draftFromRecord(r));
+    setEditDraft(draftFromRecord(r, lotShipments.get(buildLotShipmentKey(r.formula_code, r.revision, r.lot_no))));
     setMsg("");
   }
 
@@ -166,6 +185,17 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
         microbial_status: editDraft.microbial_status,
         note: editDraft.note || null,
       });
+      // 이 폼은 "이 Lot 전체 공통" 출고 수량을 수정하는 것이므로, 수정 저장 시에도 Lot 단위
+      // 테이블을 함께 갱신한다 - 같은 Lot의 다른 생산실적 행에도 이 값이 그대로 반영된다.
+      if (editingRecord) {
+        await saveLotShipment({
+          formulaCode: editingRecord.formula_code,
+          revision: editingRecord.revision,
+          lotNo: trimmedLot,
+          shippedQtyEa: editDraft.shipped_qty_ea === "" ? null : Number(editDraft.shipped_qty_ea),
+          shippedQtyPack: editDraft.shipped_qty_pack === "" ? null : Number(editDraft.shipped_qty_pack),
+        });
+      }
       setMsg("수정 완료");
       cancelEdit();
       await load(filter);
@@ -176,17 +206,30 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
     }
   }
 
+  // 출고수량(EA/PACK)은 Lot(formula_code+revision+lot_no) 단위로 1개 값만 관리되므로(plm_production_lot_shipments),
+  // 같은 Lot으로 등록된 행이 여러 개여도 합계에는 그 Lot당 한 번만 더한다. 코팅량/성형품 수량은
+  // 여전히 생산실적 행 자체의 값(추가 생산마다 실제로 더 만든 양)이라 행 단위로 그대로 합산한다.
   const totals = useMemo(() => {
-    return records.reduce(
+    const base = records.reduce(
       (acc, r) => ({
         coating: acc.coating + (r.coating_qty || 0),
         molded: acc.molded + (r.molded_qty || 0),
-        ea: acc.ea + (r.shipped_qty_ea || 0),
-        pack: acc.pack + (r.shipped_qty_pack || 0),
       }),
-      { coating: 0, molded: 0, ea: 0, pack: 0 }
+      { coating: 0, molded: 0 }
     );
-  }, [records]);
+    const seenLots = new Set<string>();
+    let ea = 0;
+    let pack = 0;
+    for (const r of records) {
+      const key = buildLotShipmentKey(r.formula_code, r.revision, r.lot_no);
+      if (seenLots.has(key)) continue;
+      seenLots.add(key);
+      const shipment = lotShipments.get(key);
+      ea += (shipment ? shipment.shipped_qty_ea : r.shipped_qty_ea) || 0;
+      pack += (shipment ? shipment.shipped_qty_pack : r.shipped_qty_pack) || 0;
+    }
+    return { ...base, ea, pack };
+  }, [records, lotShipments]);
 
   const editingRecord = editingId ? records.find((r) => r.id === editingId) || null : null;
 
@@ -203,6 +246,10 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
           <p style={{ fontSize: 13, color: "#334155", marginBottom: 10 }}>
             <b>{editingRecord.confirmed_code || "-"}</b> · {editingRecord.product_name || editingRecord.formula_name || "-"}
             <span style={{ color: "#94a3b8" }}> (처방은 바꿀 수 없습니다 - 처방을 바꾸려면 삭제 후 새로 등록하세요)</span>
+          </p>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>
+            완제품 총 출고 수량(EA/PACK)은 이 Lot 전체(동일 Lot No.로 등록된 다른 생산실적 행 포함)에
+            공통으로 적용되는 값입니다. 여기서 수정하면 이 Lot의 모든 행에 똑같이 반영됩니다.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -234,11 +281,11 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
               <input className="v50-input" type="number" value={editDraft.molded_qty} onChange={(e) => updateDraft({ molded_qty: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              완제품 출고 수량 (단위: EA)
+              완제품 총 출고 수량 (단위: EA, 이 Lot 전체 공통)
               <input className="v50-input" type="number" value={editDraft.shipped_qty_ea} onChange={(e) => updateDraft({ shipped_qty_ea: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              완제품 출고 수량 (단위: PACK)
+              완제품 총 출고 수량 (단위: PACK, 이 Lot 전체 공통)
               <input className="v50-input" type="number" value={editDraft.shipped_qty_pack} onChange={(e) => updateDraft({ shipped_qty_pack: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -293,35 +340,43 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
               <tr>
                 <th>생산일자</th><th>확정코드</th><th>제품명</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th>
                 <th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>기능성</th><th>중금속</th><th>미생물</th>
+                <th>출고수량(EA, Lot 공통)</th><th>출고수량(PACK, Lot 공통)</th><th>기능성</th><th>중금속</th><th>미생물</th>
                 <th>비고</th><th style={{ width: 140 }}>작업</th>
               </tr>
             </thead>
             <tbody>
-              {records.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.production_date}</td>
-                  <td>{r.confirmed_code || "-"}</td>
-                  <td>{r.product_name || r.formula_name || "-"}</td>
-                  <td>{r.mfg_lot_no || "-"}</td>
-                  <td>{r.lot_no}</td>
-                  <td>{fmt(r.target_qty_kg)}</td>
-                  <td>{fmt(r.coating_qty)}</td>
-                  <td>{fmt(r.molded_qty)}</td>
-                  <td>{fmt(r.shipped_qty_ea)}</td>
-                  <td>{fmt(r.shipped_qty_pack)}</td>
-                  <td>{r.functional_claim}</td>
-                  <td>{r.heavy_metal_status}</td>
-                  <td>{r.microbial_status}</td>
-                  <td>{r.note || "-"}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button className="v50-button-light" onClick={() => startEdit(r)}>수정</button>
-                      <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r.id!)}>삭제</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {records.map((r) => {
+                // Lot 출고 레코드가 있으면(정상 상태) 그 값을 그대로 쓴다(값이 비어 있어도 - 누군가
+                // 비웠다면 0/빈 값이 맞는 현재 상태이므로). 아직 레코드가 없는 예외적인 경우에만
+                // 행 자신의 옛 값으로 대체한다 - 합계/수정 폼과 동일한 규칙.
+                const shipment = lotShipments.get(buildLotShipmentKey(r.formula_code, r.revision, r.lot_no));
+                const shippedEa = shipment ? shipment.shipped_qty_ea : r.shipped_qty_ea;
+                const shippedPack = shipment ? shipment.shipped_qty_pack : r.shipped_qty_pack;
+                return (
+                  <tr key={r.id}>
+                    <td>{r.production_date}</td>
+                    <td>{r.confirmed_code || "-"}</td>
+                    <td>{r.product_name || r.formula_name || "-"}</td>
+                    <td>{r.mfg_lot_no || "-"}</td>
+                    <td>{r.lot_no}</td>
+                    <td>{fmt(r.target_qty_kg)}</td>
+                    <td>{fmt(r.coating_qty)}</td>
+                    <td>{fmt(r.molded_qty)}</td>
+                    <td>{fmt(shippedEa)}</td>
+                    <td>{fmt(shippedPack)}</td>
+                    <td>{r.functional_claim}</td>
+                    <td>{r.heavy_metal_status}</td>
+                    <td>{r.microbial_status}</td>
+                    <td>{r.note || "-"}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button className="v50-button-light" onClick={() => startEdit(r)}>수정</button>
+                        <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r.id!)}>삭제</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {records.length === 0 && <tr><td colSpan={15} style={{ color: "#94a3b8" }}>{loading ? "불러오는 중..." : "생산실적이 없습니다."}</td></tr>}
             </tbody>
             {records.length > 0 && (

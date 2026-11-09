@@ -68,7 +68,9 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
         처방을 선택하고 제품(Lot No.)별로 목표 제조량, 코팅량, 성형품 수량 등 생산실적을 기록으로
         남깁니다. 제조(Lot No.)는 제조(벌크) 단계에서 붙는 번호로, 완제품/출고 단계 번호인
         제품(Lot No.)와 별개로 기록할 수 있습니다. 둘 다 같은 처방 내에서 중복돼도 등록할 수 있고,
-        제품(Lot No.)가 중복이면 한 번 확인을 거칩니다.
+        제품(Lot No.)가 중복이면 한 번 확인을 거칩니다. 완제품 출고 수량(EA/PACK)은 제품(Lot No.)
+        단위로 1개 값만 관리되므로, 같은 Lot으로 추가 생산을 등록해도 출고 수량이 중복 합산되지
+        않습니다.
       </p>
       {s.message && <p style={{ color: "#2563eb", fontWeight: 800 }}>{s.message}</p>}
 
@@ -156,7 +158,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             제품(Lot No.)
-            <input className="v50-input" value={s.lotNo} onChange={(e) => s.setLotNo(e.target.value)} />
+            <input className="v50-input" value={s.lotNo} onChange={(e) => s.updateLotNo(e.target.value)} />
           </label>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             생산일자
@@ -201,6 +203,11 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
             </select>
           </label>
         </div>
+        {s.lotShipmentNotice && (
+          <p style={{ color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "8px 10px", fontSize: 13, marginTop: 12 }}>
+            {s.lotShipmentNotice}
+          </p>
+        )}
         <label style={{ display: "grid", gap: 6, fontWeight: 800, marginTop: 12 }}>
           비고
           <textarea className="v50-textarea" rows={2} value={s.note} onChange={(e) => s.setNote(e.target.value)} />
@@ -219,6 +226,10 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
           <p style={{ fontSize: 13, color: "#334155", marginBottom: 10 }}>
             제품(Lot No.) {s.editDraft.lot_no}
             <span style={{ color: "#94a3b8" }}> (처방은 바꿀 수 없습니다 - 처방을 바꾸려면 삭제 후 새로 등록하세요)</span>
+          </p>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>
+            완제품 총 출고 수량(EA/PACK)은 이 Lot 전체(동일 Lot No.로 등록된 다른 생산실적 행 포함)에
+            공통으로 적용되는 값입니다. 여기서 수정하면 이 Lot의 모든 행에 똑같이 반영됩니다.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -250,11 +261,11 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
               <input className="v50-input" type="number" value={s.editDraft.molded_qty} onChange={(e) => s.updateEditDraft({ molded_qty: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              완제품 출고 수량 (단위: EA)
+              완제품 총 출고 수량 (단위: EA, 이 Lot 전체 공통)
               <input className="v50-input" type="number" value={s.editDraft.shipped_qty_ea} onChange={(e) => s.updateEditDraft({ shipped_qty_ea: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
-              완제품 출고 수량 (단위: PACK)
+              완제품 총 출고 수량 (단위: PACK, 이 Lot 전체 공통)
               <input className="v50-input" type="number" value={s.editDraft.shipped_qty_pack} onChange={(e) => s.updateEditDraft({ shipped_qty_pack: e.target.value })} />
             </label>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
@@ -297,34 +308,42 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
               <thead>
                 <tr>
                   <th>생산일자</th><th>EXP</th><th>제조(Lot No.)</th><th>제품(Lot No.)</th><th>목표 제조량(kg)</th><th>코팅량 (단위: m)</th><th>성형품 수량 (단위: EA)</th>
-                  <th>출고수량(EA)</th><th>출고수량(PACK)</th><th>기능성</th><th>중금속</th><th>미생물</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
+                  <th>출고수량(EA, Lot 공통)</th><th>출고수량(PACK, Lot 공통)</th><th>기능성</th><th>중금속</th><th>미생물</th><th>등록자</th><th>비고</th><th style={{ width: 130 }}>작업</th>
                 </tr>
               </thead>
               <tbody>
-                {s.history.map((h) => (
-                  <tr key={h.id}>
-                    <td>{h.production_date}</td>
-                    <td>{h.exp_date || "-"}</td>
-                    <td>{h.mfg_lot_no || "-"}</td>
-                    <td>{h.lot_no}</td>
-                    <td>{fmt(h.target_qty_kg)}</td>
-                    <td>{fmt(h.coating_qty)}</td>
-                    <td>{fmt(h.molded_qty)}</td>
-                    <td>{fmt(h.shipped_qty_ea)}</td>
-                    <td>{fmt(h.shipped_qty_pack)}</td>
-                    <td>{h.functional_claim}</td>
-                    <td>{h.heavy_metal_status}</td>
-                    <td>{h.microbial_status}</td>
-                    <td>{s.resolveCreatedBy(h.created_by)}</td>
-                    <td>{h.note || "-"}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button className="v50-button-light" onClick={() => s.startEdit(h)}>수정</button>
-                        <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {s.history.map((h) => {
+                  // Lot 출고 레코드가 있으면(정상 상태) 그 값을 그대로 쓴다(값이 비어 있어도 - 누군가
+                  // 비웠다면 0/빈 값이 맞는 현재 상태이므로). 아직 레코드가 없는 예외적인 경우에만
+                  // 행 자신의 옛 값으로 대체한다 - 합계/수정 폼과 동일한 규칙.
+                  const shipment = s.lotShipments.get(h.lot_no);
+                  const shippedEa = shipment ? shipment.shipped_qty_ea : h.shipped_qty_ea;
+                  const shippedPack = shipment ? shipment.shipped_qty_pack : h.shipped_qty_pack;
+                  return (
+                    <tr key={h.id}>
+                      <td>{h.production_date}</td>
+                      <td>{h.exp_date || "-"}</td>
+                      <td>{h.mfg_lot_no || "-"}</td>
+                      <td>{h.lot_no}</td>
+                      <td>{fmt(h.target_qty_kg)}</td>
+                      <td>{fmt(h.coating_qty)}</td>
+                      <td>{fmt(h.molded_qty)}</td>
+                      <td>{fmt(shippedEa)}</td>
+                      <td>{fmt(shippedPack)}</td>
+                      <td>{h.functional_claim}</td>
+                      <td>{h.heavy_metal_status}</td>
+                      <td>{h.microbial_status}</td>
+                      <td>{s.resolveCreatedBy(h.created_by)}</td>
+                      <td>{h.note || "-"}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button className="v50-button-light" onClick={() => s.startEdit(h)}>수정</button>
+                          <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {s.history.length === 0 && <tr><td colSpan={15}>{s.loading ? "불러오는 중..." : "저장된 이력이 없습니다."}</td></tr>}
               </tbody>
             </table>
