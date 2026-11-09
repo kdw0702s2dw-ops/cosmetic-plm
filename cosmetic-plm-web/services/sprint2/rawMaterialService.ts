@@ -231,6 +231,24 @@ export async function fetchRawMaterialsByCodes(rawCodes: string[]): Promise<RawM
   return withCompanyDisplayNames((data || []) as RawMaterial[]);
 }
 
+// 원료 발주관리에서 "가장 최근 발주 단가"를 원료관리의 단가에 자동 반영할 때 사용(어느 발주 건의
+// 단가가 최신인지 판단하는 로직은 purchaseOrderService.syncRawMaterialUnitPricesFromOrder에 있고,
+// 여기서는 단순히 원료코드별 단가를 업데이트만 한다). 이미 존재하는 원료만 갱신 대상이라(발주 화면에서
+// 원료관리 자동완성으로 고른 원료코드만 올 수 있음) upsert가 아니라 update를 쓴다.
+export async function updateRawMaterialUnitPrices(entries: { raw_code: string; unit_price: number }[]): Promise<void> {
+  // Supabase 쿼리는 실패해도 reject하지 않고 { error }로 돌려주므로 Promise.all로 충분하다.
+  const results = await Promise.all(
+    entries.map((e) =>
+      supabaseProductionFinal
+        .from("plm_raw_materials")
+        .update({ unit_price: e.unit_price, updated_at: new Date().toISOString() })
+        .eq("raw_code", e.raw_code)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw new Error(`원료 단가 반영 실패: ${failed.error.message}`);
+}
+
 // CSV 다운로드용: 100건 제한이 있는 목록 뷰가 아니라 원본 테이블에서 전체 조회 (활성 원료만, 화면 목록과 동일 기준)
 export async function fetchRawMaterialsForExport(): Promise<RawMaterial[]> {
   const { data, error } = await supabaseProductionFinal

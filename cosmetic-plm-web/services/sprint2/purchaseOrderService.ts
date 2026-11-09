@@ -2,6 +2,7 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import { todayLocalStr } from "@/lib/localDate";
+import { updateRawMaterialUnitPrices } from "@/services/sprint2/rawMaterialService";
 
 // 원료 발주관리 - 발주(헤더) + 발주 품목(원료별 라인) 서비스.
 // DB 구조: supabase/migrations/21_raw_material_purchase_orders.sql, 22_purchase_order_refinements.sql 참고.
@@ -311,4 +312,80 @@ export async function fetchPurchaseOrderRawMaterialSummary(
     );
   }
   return rows.sort((a, b) => b.total_amount_sum - a.total_amount_sum || a.raw_code.localeCompare(b.raw_code));
+}
+
+// ---- 발주 단가 -> 원료관리(단가) 자동 반영 ----
+// "공급가 입력 후 저장하면 자동으로 원료관리에 등록된 해당 원료의 공급가가 자동으로 변경되게 연동"
+// 요청사항 대응. 원료관리에는 "단가"(개당 가격) 1개 필드만 있고 "공급가"(=단가×수량, 주문량마다
+// 달라짐) 필드는 없으므로, 발주 품목의 "단가"를 원료관리의 "단가"에 반영한다. 같은 원료가 여러 번
+// 발주될 수 있어서, 그 원료코드의 발주들 중 "가장 최근 발주일(order_date)" 기준 건의 단가만 반영한다
+// - 과거 발주를 나중에 수정해도, 그보다 최신인 다른 발주가 있으면 단가가 역행해서 바뀌지 않는다.
+// 취소(상태="취소")된 발주는 기준에서 제외한다(가격 신호로 보지 않음).
+
+type LatestActiveOrderPrice = {
+  order_date: string;
+  created_at: string;
+  purchase_order_id: string;
+  unit_price: number;
+};
+
+// 원료코드별로, 취소되지 않은 발주 중 가장 최근 발주 건의 단가를 찾는다. fetchPurchaseOrderRawMaterialSummary와
+// 같은 2단계 조회 패턴(헤더에서 취소 제외 id를 먼저 추리고, 그 id들의 품목만 조회)을 그대로 따른다.
+async function fetchLatestActiveOrderUnitPriceByRawCodes(
+  rawCodes: string[]
+): Promise<Map<string, LatestActiveOrderPrice>> {
+  const result = new Map<string, LatestActiveOrderPrice>();
+  if (rawCodes.length === 0) return result;
+
+  const orders = await fetchPurchaseOrders({});
+  const activeOrderMeta = new Map(
+    orders.filter((o) => o.status !== "취소").map((o) => [o.id, { order_date: o.order_date, created_at: o.created_at }])
+  );
+  if (activeOrderMeta.size === 0) return result;
+
+  const { data, error } = await supabaseProductionFinal
+    .from("plm_raw_material_purchase_order_items")
+    .select("raw_code, unit_price, purchase_order_id")
+    .in("raw_code", rawCodes)
+    .in("purchase_order_id", Array.from(activeOrderMeta.keys()));
+  if (error) throw error;
+
+  for (const row of (data || []) as { raw_code: string; unit_price: number; purchase_order_id: string }[]) {
+    const meta = activeOrderMeta.get(row.purchase_order_id);
+    if (!meta) continue;
+    const existing = result.get(row.raw_code);
+    const isNewer =
+      !existing ||
+      meta.order_date > existing.order_date ||
+      (meta.order_date === existing.order_date && meta.created_at > existing.created_at);
+    if (isNewer) {
+      result.set(row.raw_code, { ...meta, purchase_order_id: row.purchase_order_id, unit_price: row.unit_price });
+    }
+  }
+  return result;
+}
+
+// 방금 저장한 발주(order, 품목에 purchase_order_id가 채워진 상태 - fetchPurchaseOrderDetail로 다시
+// 조회한 값을 넘겨야 함)를 기준으로, 그 발주의 품목 중 "자기 원료코드의 가장 최근 발주"에 해당하는
+// 것만 원료관리 단가에 반영한다. 가격 동기화 실패는 발주 저장 자체를 막지 않도록 호출부에서 별도로
+// try/catch하는 것을 전제로 한다(여기서는 그대로 throw).
+export async function syncRawMaterialUnitPricesFromOrder(order: PurchaseOrder): Promise<void> {
+  if (order.status === "취소") return;
+  const rawCodes = Array.from(new Set(order.items.filter((i) => i.raw_code?.trim()).map((i) => i.raw_code)));
+  if (rawCodes.length === 0) return;
+
+  const latestMap = await fetchLatestActiveOrderUnitPriceByRawCodes(rawCodes);
+  const updates: { raw_code: string; unit_price: number }[] = [];
+  for (const it of order.items) {
+    if (!it.raw_code?.trim() || !it.purchase_order_id) continue;
+    // 단가를 비워 저장하면 RPC가 0으로 저장한다 - 그 0이 원료관리 단가를 덮어쓰지 않도록 양수만 반영.
+    if (!(Number(it.unit_price) > 0)) continue;
+    const latest = latestMap.get(it.raw_code);
+    if (latest && latest.purchase_order_id === it.purchase_order_id) {
+      updates.push({ raw_code: it.raw_code, unit_price: it.unit_price });
+    }
+  }
+  if (updates.length > 0) {
+    await updateRawMaterialUnitPrices(updates);
+  }
 }

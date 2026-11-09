@@ -7,7 +7,7 @@ import { fetchSprint1RawOptions } from "@/services/sprint1/formulaCoreService";
 import { searchCompaniesAutocomplete, fetchCompanyById, fetchCompaniesByIds, type Company } from "@/services/sprint2/companyService";
 import {
   fetchPurchaseOrders, fetchPurchaseOrderDetail, savePurchaseOrder, deletePurchaseOrder,
-  calcItemAmounts, emptyPurchaseOrder, emptyPurchaseOrderItem,
+  calcItemAmounts, emptyPurchaseOrder, emptyPurchaseOrderItem, syncRawMaterialUnitPricesFromOrder,
   PURCHASE_ORDER_STATUSES, PURCHASE_ORDER_PAYMENT_STATUSES,
   type PurchaseOrder, type PurchaseOrderItem, type PurchaseOrderSummary, type PurchaseOrderListFilter,
   type PurchaseOrderStatus, type PurchaseOrderPaymentStatus,
@@ -302,6 +302,17 @@ export default function RawMaterialPurchaseOrderManager({
       setPendingDrafts((prev) => prev.filter((g) => g.supplier_company_id !== saved.supplier_company_id));
       setToast({ type: "success", text: "저장되었습니다: " + saved.order_no });
       await load(filter);
+
+      // 발주 단가를 원료관리(단가)에 반영 - 그 원료코드의 발주 중 "가장 최근 발주일" 기준일 때만
+      // 반영된다(취소 건 제외). 가격 반영이 실패해도 발주 저장 자체는 이미 끝났으니 토스트로만 알린다.
+      try {
+        await syncRawMaterialUnitPricesFromOrder(saved);
+      } catch (syncError) {
+        setToast({
+          type: "error",
+          text: "발주는 저장됐지만 원료 단가 자동 반영 중 오류: " + (syncError instanceof Error ? syncError.message : String(syncError)),
+        });
+      }
     } catch (e: any) {
       setToast({ type: "error", text: "저장 실패: " + e.message });
     } finally {
@@ -617,7 +628,7 @@ export default function RawMaterialPurchaseOrderManager({
                 <thead>
                   <tr>
                     <th>#</th><th style={{ minWidth: 200 }}>원료코드/원료명</th><th>단가</th><th>수량</th><th>단위</th><th>패킹</th>
-                    <th>공급가</th><th>부가세율</th><th>부가세</th><th>총액</th><th>비고</th><th></th>
+                    <th>공급가</th><th>부가세율</th><th>부가세</th><th>총액</th><th>비고</th><th>입고일</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -647,6 +658,12 @@ export default function RawMaterialPurchaseOrderManager({
                       <td><DecimalInput className="v50-input" style={{ width: 90 }} value={it.vat_amount} blankOnZero={false} onChange={(v) => updateItem(i, { vat_amount: parseDecimal(v) })} disabled={!canWrite} /></td>
                       <td style={{ fontWeight: 800 }}><DecimalInput className="v50-input" style={{ width: 100 }} value={it.total_amount} blankOnZero={false} onChange={(v) => updateItem(i, { total_amount: parseDecimal(v) })} disabled={!canWrite} /></td>
                       <td><input className="v50-input" style={{ width: 100 }} value={it.note || ""} onChange={(e) => updateItem(i, { note: e.target.value })} disabled={!canWrite} /></td>
+                      {/* 기존에는 품목을 먼저 저장해서 id가 생겨야만 "검수조서" 모달에서 입고일을 기록할
+                          수 있었다("발주 등록에서 원료입고일 항목도 만들어줘" 요청사항) - 지금은 발주를
+                          등록/수정하는 이 자리에서 바로 입고(예정)일을 적을 수 있다. 검수조서 모달의
+                          입고일/사진 기능은 그대로 두고(사진은 여기서 못 찍으니), 두 입력이 같은
+                          received_date 값을 공유하므로 어느 쪽에서 바꿔도 서로 반영된다. */}
+                      <td><input className="v50-input" type="date" style={{ width: 130 }} value={it.received_date || ""} onChange={(e) => updateItem(i, { received_date: e.target.value || null })} disabled={!canWrite} /></td>
                       <td>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {/* 품목이 저장되어 id가 생긴 뒤에만 검수조서(입고일/사진/비고)를 쓸 수 있다 - 아직
@@ -667,7 +684,7 @@ export default function RawMaterialPurchaseOrderManager({
                       </td>
                     </tr>
                   ))}
-                  {order.items.length === 0 && <tr><td colSpan={12} style={{ color: "#94a3b8" }}>품목이 없습니다.</td></tr>}
+                  {order.items.length === 0 && <tr><td colSpan={13} style={{ color: "#94a3b8" }}>품목이 없습니다.</td></tr>}
                 </tbody>
                 <tfoot>
                   <tr style={{ fontWeight: 800, background: "#f8fafc" }}>
@@ -676,7 +693,7 @@ export default function RawMaterialPurchaseOrderManager({
                     <td></td>
                     <td>{formatCurrency(itemTotals.vat)}</td>
                     <td>{formatCurrency(itemTotals.total)}</td>
-                    <td colSpan={2}></td>
+                    <td colSpan={3}></td>
                   </tr>
                 </tfoot>
               </table>
