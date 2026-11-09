@@ -342,7 +342,7 @@ export default function RawMaterialPurchaseOrderManager({
     }, 250);
   }
 
-  function pickRawForRow(raw: any) {
+  async function pickRawForRow(raw: any) {
     if (activeRawRow == null) return;
     // 발주 화면에서 처음 담는 순간의 단가를 기본값으로 채워주되(원료 마스터 최근 단가), 실제 계약 단가가
     // 다르면 바로 아래 칸에서 수정하면 된다. 패킹도 원료관리에 등록된 MOQ를 기본값으로 채워주고(요청사항:
@@ -358,6 +358,7 @@ export default function RawMaterialPurchaseOrderManager({
     });
     setRawHits([]);
     setActiveRawRow(null);
+    await applySupplierFromRaw(raw);
   }
 
   // ---- 공급사 검색 자동완성(헤더) ----
@@ -367,6 +368,36 @@ export default function RawMaterialPurchaseOrderManager({
   const supplierInputRef = useRef<HTMLInputElement | null>(null);
   const supplierSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supplierAnchorPos = useAnchorPosition(supplierOpen ? "supplier" : null, () => supplierInputRef.current, supplierHits);
+
+  // 원료를 담을 때 원료관리에 등록된 공급사를 발주 헤더에 반영 - 발주 공급사가 아직 비어있으면
+  // 그 원료의 등록 공급사로 자동 채워주고("발주서 작성 시 원료코드/원료명 기입하면 공급사가 자동으로
+  // 기입됐으면 좋겠다"는 요청), 이미 다른 공급사가 선택된 상태에서 등록 공급사가 다른 원료를 담으면
+  // (발주 1건 = 공급사 1곳이라 섞이면 안 되므로) 자동으로 바꾸지는 않고 안내 토스트로만 알려준다.
+  async function applySupplierFromRaw(raw: { raw_code: string; raw_name?: string | null; supplier_company_id?: string | null }) {
+    if (!raw?.supplier_company_id || !order) return;
+    if (!order.supplier_company_id) {
+      try {
+        const c = await fetchCompanyById(raw.supplier_company_id);
+        const name = c.name_kr || c.name_en || "";
+        updateOrder({ supplier_company_id: raw.supplier_company_id });
+        setSupplierKeyword(name);
+        setToast({ type: "success", text: `공급사를 "${name}"(으)로 자동 입력했습니다 (원료관리 등록 정보 기준).` });
+      } catch {
+        // 공급사 조회 실패 시 자동 입력은 건너뛴다 - 발주 품목 입력 자체는 계속할 수 있어야 한다.
+      }
+    } else if (order.supplier_company_id !== raw.supplier_company_id) {
+      try {
+        const c = await fetchCompanyById(raw.supplier_company_id);
+        const name = c.name_kr || c.name_en || "";
+        setToast({
+          type: "error",
+          text: `주의: ${raw.raw_code} (${raw.raw_name || ""})의 등록 공급사는 "${name}"(이)라, 현재 발주 공급사와 다릅니다.`,
+        });
+      } catch {
+        // 조회 실패 시 경고도 생략한다(원료 자체는 이미 담긴 상태라 저장 자체를 막지 않는다).
+      }
+    }
+  }
 
   // 발주를 불러오면(선택/신규) 그 발주의 공급사명을 입력창에 표시한다.
   useEffect(() => {
