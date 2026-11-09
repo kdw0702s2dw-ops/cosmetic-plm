@@ -16,6 +16,9 @@ export type Company = {
   phone?: string;
   email?: string;
   note?: string;
+  // 결제조건(선결제/익월말 결제 등) - 자유 텍스트, 자동 계산 없음. 담당자가 바뀌어도 발주 업무가
+  // 끊기지 않도록 업체 단위로 DB에 기록해두는 용도 (supabase/migrations/37_add_company_payment_terms.sql).
+  payment_terms?: string;
   is_active?: boolean;
 };
 

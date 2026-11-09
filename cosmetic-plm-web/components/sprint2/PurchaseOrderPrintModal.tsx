@@ -15,6 +15,8 @@ export type PurchaseOrderPrintTarget = { order: PurchaseOrder; supplier: Company
 // 않도록 이 브라우저에 마지막으로 쓴 값을 기억해뒀다가 다음 번 기본값으로 띄운다(요청사항: "비고에 새
 // 내용을 기입하면 다음에도 유지되는지" -> 그렇게 되도록 변경). 납기일자/유효일자는 발주마다 실제로 달라
 // 지는 날짜라 여기 포함하지 않고 항상 빈칸에서 시작한다.
+// (결제조건만은 예외 - 공급사별로 plm_companies.payment_terms에 저장된 값이 있으면 그게 최우선
+// 기본값이고, 브라우저 기억값은 그게 없을 때만 쓰는 2순위 fallback이다. 아래 컴포넌트 본문 참고.)
 const PO_NOTE_STORAGE_KEY = "po_print_note_v1";
 const PO_PAYMENT_TERMS_STORAGE_KEY = "po_print_payment_terms_v1";
 const PO_DELIVERY_PLACE_STORAGE_KEY = "po_print_delivery_place_v1";
@@ -41,11 +43,15 @@ function writeStoredDefault(key: string, value: string) {
 // 원료 발주관리의 저장된 발주를 회사 공식 "발주서" 양식(PDF/엑셀)으로 출력하기 전, 저장된 발주 데이터에는
 // 없는 항목(납기일자/유효일자/결제조건/납품장소/비고)을 한 번 확인·수정하게 하는 모달. 부모에서
 // key={target.order.id}를 넣어 다른 발주를 열 때마다 입력값이 리셋되게 한다(날짜 2종은 항상 빈칸,
-// 비고/결제조건/납품장소는 이 브라우저에 마지막으로 저장해둔 값).
+// 비고/납품장소는 이 브라우저에 마지막으로 저장해둔 값, 결제조건은 공급사 저장값 우선 + 그 다음 브라우저
+// 기억값).
 export default function PurchaseOrderPrintModal({ target, onClose }: { target: PurchaseOrderPrintTarget | null; onClose: () => void }) {
+  // 결제조건 기본값: 1순위는 해당 발주의 실제 공급사에 저장된 업체별 결제조건(plm_companies.payment_terms) -
+  // 담당자가 바뀌어도 공급사마다 다른 조건이 섞이지 않도록 한다. 공급사에 아직 결제조건이 입력돼 있지
+  // 않으면(과거처럼) 이 브라우저에서 마지막으로 쓴 값을 기본값으로 보여준다.
   const [extra, setExtra] = useState<PurchaseOrderDocExtra>(() => ({
     delivery_place: readStoredDefault(PO_DELIVERY_PLACE_STORAGE_KEY, DEFAULT_DELIVERY_PLACE),
-    payment_terms: readStoredDefault(PO_PAYMENT_TERMS_STORAGE_KEY, ""),
+    payment_terms: target?.supplier?.payment_terms || readStoredDefault(PO_PAYMENT_TERMS_STORAGE_KEY, ""),
     note: readStoredDefault(PO_NOTE_STORAGE_KEY, DEFAULT_PO_NOTE),
   }));
   const [busy, setBusy] = useState(false);

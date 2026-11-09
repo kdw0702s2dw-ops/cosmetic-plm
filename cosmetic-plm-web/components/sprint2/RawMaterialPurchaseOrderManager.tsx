@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import { fetchSprint1RawOptions } from "@/services/sprint1/formulaCoreService";
-import { searchCompaniesAutocomplete, fetchCompanyById, type Company } from "@/services/sprint2/companyService";
+import { searchCompaniesAutocomplete, fetchCompanyById, fetchCompaniesByIds, type Company } from "@/services/sprint2/companyService";
 import {
   fetchPurchaseOrders, fetchPurchaseOrderDetail, savePurchaseOrder, deletePurchaseOrder,
   calcItemAmounts, emptyPurchaseOrder, emptyPurchaseOrderItem,
@@ -154,6 +154,17 @@ export default function RawMaterialPurchaseOrderManager({
 
   const overallUnpaid = useMemo(() => groups.reduce((s, g) => s + g.unpaidTotal, 0), [groups]);
   const overallTotal = useMemo(() => groups.reduce((s, g) => s + g.grandTotal, 0), [groups]);
+
+  // 공급사 섹션 헤더에 결제조건(plm_companies.payment_terms)을 같이 보여주기 위한 조회 - 담당자가
+  // 바뀌어도 "이 공급사는 선결제/익월말 결제" 같은 정보를 목록만 보고 바로 알 수 있게 한다
+  // (발주 건별 데이터가 아니라 업체 마스터 정보라 fetchPurchaseOrders 응답에는 없음 - 별도 조회).
+  const [companyInfoById, setCompanyInfoById] = useState<Map<string, Company>>(new Map());
+  useEffect(() => {
+    const ids = groups.map((g) => g.key).filter((k) => k !== "__none__");
+    let cancelled = false;
+    fetchCompaniesByIds(ids).then((map) => { if (!cancelled) setCompanyInfoById(map); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [groups]);
 
   function newOrder() {
     setOrder(emptyPurchaseOrder());
@@ -502,7 +513,14 @@ export default function RawMaterialPurchaseOrderManager({
         {groups.map((g) => (
           <div key={g.key} style={{ marginTop: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", padding: "8px 12px", borderRadius: 8, marginBottom: 6 }}>
-              <strong style={{ fontSize: 14 }}>{g.name}</strong>
+              <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <strong style={{ fontSize: 14 }}>{g.name}</strong>
+                {companyInfoById.get(g.key)?.payment_terms && (
+                  <span style={{ fontSize: 12, color: "#2563eb", fontWeight: 700, background: "#eff6ff", padding: "2px 8px", borderRadius: 999 }}>
+                    결제조건: {companyInfoById.get(g.key)!.payment_terms}
+                  </span>
+                )}
+              </span>
               <div style={{ display: "flex", gap: 14, fontSize: 12, fontWeight: 700 }}>
                 <span style={{ color: g.unpaidTotal > 0 ? "#dc2626" : "#94a3b8" }}>미결제 {formatCurrency(g.unpaidTotal)}원</span>
                 <span style={{ color: "#475569" }}>합계 {formatCurrency(g.grandTotal)}원</span>

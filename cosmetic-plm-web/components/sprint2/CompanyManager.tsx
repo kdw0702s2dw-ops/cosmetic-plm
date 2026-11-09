@@ -9,7 +9,7 @@ import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
 const emptyCompany: Company = {
-  category: [], name_kr: "", name_en: "", country: "", phone: "", email: "", note: "", is_active: true,
+  category: [], name_kr: "", name_en: "", country: "", phone: "", email: "", note: "", payment_terms: "", is_active: true,
 };
 
 export default function CompanyManager() {
@@ -165,6 +165,10 @@ export default function CompanyManager() {
           </Field>
           <Field label="이메일">
             <input className="v50-input" type="email" value={company.email || ""} onChange={(e) => setCompany({ ...company, email: e.target.value })} />
+          </Field>
+          <Field label="결제조건">
+            <input className="v50-input" value={company.payment_terms || ""} onChange={(e) => setCompany({ ...company, payment_terms: e.target.value })}
+              placeholder="예: 선결제, 익월말 결제 등" />
           </Field>
           <div style={{ gridColumn: "1 / -1" }}>
             <Field label="비고">
