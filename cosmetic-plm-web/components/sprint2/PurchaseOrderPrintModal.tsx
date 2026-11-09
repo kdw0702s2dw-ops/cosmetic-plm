@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { companyDisplayName, type Company } from "@/services/sprint2/companyService";
+import {
+  COMPANY_DOC_TYPES, COMPANY_DOC_TYPE_LABEL, downloadCompanyDocumentFile, getCompanyDocuments,
+  type CompanyDocument,
+} from "@/services/sprint2/companyDocumentService";
 import type { PurchaseOrder } from "@/services/sprint2/purchaseOrderService";
 import {
   DEFAULT_DELIVERY_PLACE, DEFAULT_PO_NOTE, downloadPurchaseOrderExcel,
@@ -56,6 +60,15 @@ export default function PurchaseOrderPrintModal({ target, onClose }: { target: P
   }));
   const [busy, setBusy] = useState(false);
 
+  const supplierId = target?.supplier?.id;
+  const [supplierDocs, setSupplierDocs] = useState<CompanyDocument[]>([]);
+  useEffect(() => {
+    if (!supplierId) return;
+    let cancelled = false;
+    getCompanyDocuments(supplierId).then((docs) => { if (!cancelled) setSupplierDocs(docs); }).catch(() => { if (!cancelled) setSupplierDocs([]); });
+    return () => { cancelled = true; };
+  }, [supplierId]);
+
   if (!target) return null;
   const { order, supplier } = target;
   const supplyTotal = order.items.reduce((s, i) => s + (i.supply_amount || 0), 0);
@@ -98,6 +111,21 @@ export default function PurchaseOrderPrintModal({ target, onClose }: { target: P
           공급사: {companyDisplayName(supplier) || "-"} · 발주일 {order.order_date} · 합계 {grandTotal.toLocaleString("ko-KR")}원
         </p>
         <p style={{ color: "#94a3b8", fontSize: 12, marginTop: -6 }}>일금 {numberToKoreanWon(grandTotal)}</p>
+
+        {/* 내부 승인 보고용 - 이 공급사의 통장사본/사업자등록증이 업체관리에 등록돼 있으면 바로 다운로드,
+            없으면 "미등록"으로 표시해서 아직 공급사에 요청해야 한다는 걸 바로 알 수 있게 한다. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4, marginBottom: 4 }}>
+          {COMPANY_DOC_TYPES.map((docType) => {
+            const doc = supplierDocs.find((d) => d.doc_type === docType);
+            return (
+              <button key={docType} className="v50-button-light" disabled={!doc}
+                style={!doc ? { color: "#94a3b8", cursor: "default" } : undefined}
+                onClick={() => doc && downloadCompanyDocumentFile(doc).catch((e) => alert(e instanceof Error ? e.message : String(e)))}>
+                {COMPANY_DOC_TYPE_LABEL[docType]}{doc ? " 다운로드" : " 미등록"}
+              </button>
+            );
+          })}
+        </div>
 
         {/* 아래 항목은 저장된 발주 데이터에 없어 생성할 때마다 직접 입력/수정한다 - 비워두면 발주서에도 빈칸으로 나간다.
             납기일자/유효일자는 매번 빈칸에서 시작하고, 결제조건/납품장소/비고는 이 브라우저에서 마지막으로

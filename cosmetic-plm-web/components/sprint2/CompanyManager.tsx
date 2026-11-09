@@ -5,6 +5,10 @@ import {
   COMPANY_CATEGORIES, deleteCompany, fetchCompanies, fetchCompanyById, saveCompany,
   type Company,
 } from "@/services/sprint2/companyService";
+import {
+  COMPANY_DOC_TYPES, COMPANY_DOC_TYPE_LABEL, deleteCompanyDocument, downloadCompanyDocumentFile,
+  getCompanyDocuments, uploadCompanyDocument, type CompanyDocType, type CompanyDocument,
+} from "@/services/sprint2/companyDocumentService";
 import Toast, { type ToastState } from "@/components/common/Toast";
 import "@/styles/enterprise-v50.css";
 
@@ -20,6 +24,15 @@ export default function CompanyManager() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [listLoading, setListLoading] = useState(false);
+  // 선택된 업체의 통장사본/사업자등록증 - 업체를 새로 선택하거나 저장할 때마다 다시 불러온다.
+  // 표시 전용에 가까운 보조 정보라, 조회 실패해도 업체 편집 자체는 막지 않고 조용히 빈 목록으로 둔다.
+  const [companyDocs, setCompanyDocs] = useState<CompanyDocument[]>([]);
+  const [docUploading, setDocUploading] = useState<Record<CompanyDocType, boolean>>({ BANKBOOK: false, BUSINESS_REG: false });
+
+  async function loadCompanyDocs(companyId: string) {
+    try { setCompanyDocs(await getCompanyDocuments(companyId)); }
+    catch { setCompanyDocs([]); }
+  }
 
   const load = useCallback(async () => {
     setListLoading(true);
@@ -33,8 +46,10 @@ export default function CompanyManager() {
   async function selectCompany(item: Company) {
     setMsg("불러오는 중...");
     try {
-      setCompany(await fetchCompanyById(item.id!));
+      const loaded = await fetchCompanyById(item.id!);
+      setCompany(loaded);
       setMsg("");
+      if (loaded.id) await loadCompanyDocs(loaded.id);
     } catch (e: any) {
       setMsg("업체 조회 오류: " + e.message);
     }
@@ -42,6 +57,7 @@ export default function CompanyManager() {
 
   function newCompany() {
     setCompany({ ...emptyCompany, category: [] });
+    setCompanyDocs([]);
     setMsg("새 업체 입력 모드");
   }
 
@@ -64,6 +80,43 @@ export default function CompanyManager() {
     }
   }
 
+  async function handleDocUpload(docType: CompanyDocType, file: File | null) {
+    if (!file) return;
+    if (!company.id) { setMsg("먼저 업체를 저장한 뒤 첨부 서류를 등록할 수 있습니다."); return; }
+    setDocUploading((prev) => ({ ...prev, [docType]: true }));
+    try {
+      await uploadCompanyDocument({ companyId: company.id, docType, file });
+      await loadCompanyDocs(company.id);
+      setToast({ type: "success", text: `${COMPANY_DOC_TYPE_LABEL[docType]} 업로드 완료` });
+    } catch (e) {
+      setToast({ type: "error", text: `${COMPANY_DOC_TYPE_LABEL[docType]} 업로드 실패: ` + (e instanceof Error ? e.message : String(e)) });
+    } finally {
+      setDocUploading((prev) => ({ ...prev, [docType]: false }));
+    }
+  }
+
+  async function handleDocDelete(docType: CompanyDocType) {
+    const doc = companyDocs.find((d) => d.doc_type === docType);
+    if (!doc || !company.id) return;
+    if (!confirm(`${COMPANY_DOC_TYPE_LABEL[docType]}을(를) 삭제하시겠습니까?`)) return;
+    try {
+      await deleteCompanyDocument(company.id, docType, doc.storage_path);
+      await loadCompanyDocs(company.id);
+    } catch (e) {
+      setToast({ type: "error", text: `${COMPANY_DOC_TYPE_LABEL[docType]} 삭제 실패: ` + (e instanceof Error ? e.message : String(e)) });
+    }
+  }
+
+  async function handleDocDownload(docType: CompanyDocType) {
+    const doc = companyDocs.find((d) => d.doc_type === docType);
+    if (!doc) return;
+    try {
+      await downloadCompanyDocumentFile(doc);
+    } catch (e) {
+      setToast({ type: "error", text: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   async function handleSave() {
     if (!company.name_kr?.trim() && !company.name_en?.trim()) {
       setMsg("업체명(국문 또는 영문)을 하나 이상 입력하세요.");
@@ -75,6 +128,7 @@ export default function CompanyManager() {
       setCompany(saved);
       setMsg("저장 완료: " + (saved.name_kr || saved.name_en));
       setToast({ type: "success", text: "저장되었습니다: " + (saved.name_kr || saved.name_en) });
+      if (saved.id) await loadCompanyDocs(saved.id);
       await load();
     } catch (e: any) {
       setMsg("저장 오류: " + e.message);
@@ -175,6 +229,40 @@ export default function CompanyManager() {
               <textarea className="v50-textarea" rows={3}
                 value={company.note || ""} onChange={(e) => setCompany({ ...company, note: e.target.value })} />
             </Field>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <h3 style={{ fontSize: 14, margin: "0 0 8px" }}>첨부 서류</h3>
+          <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 10px" }}>
+            한 번 등록해두면 원료 발주관리에서 이 업체로 발주서를 출력할 때 자동으로 다운로드 버튼이 뜹니다.
+            발주 내부 승인마다 매번 업체에 다시 요청하지 않아도 됩니다.
+          </p>
+          {!company.id && (
+            <p style={{ fontSize: 12, color: "#b45309" }}>업체를 먼저 저장해야 통장사본/사업자등록증을 등록할 수 있습니다.</p>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {COMPANY_DOC_TYPES.map((docType) => {
+              const doc = companyDocs.find((d) => d.doc_type === docType);
+              return (
+                <div key={docType} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{COMPANY_DOC_TYPE_LABEL[docType]}</div>
+                  {doc ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, color: "#475569" }}>{doc.file_name}</span>
+                      <button className="v50-button-light" onClick={() => handleDocDownload(docType)}>다운로드</button>
+                      <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDocDelete(docType)}>삭제</button>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 8px" }}>미등록</p>
+                  )}
+                  <input type="file" accept="application/pdf,image/*"
+                    disabled={!company.id || docUploading[docType]}
+                    onChange={(e) => { handleDocUpload(docType, e.target.files?.[0] || null); e.target.value = ""; }} />
+                  {docUploading[docType] && <span style={{ fontSize: 12, color: "#2563eb", marginLeft: 8 }}>업로드 중…</span>}
+                </div>
+              );
+            })}
           </div>
         </div>
 
