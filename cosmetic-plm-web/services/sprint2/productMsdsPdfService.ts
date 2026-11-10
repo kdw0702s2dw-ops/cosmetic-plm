@@ -9,6 +9,53 @@ import type { MsdsSection, ProductMsds } from "./productMsdsService";
 
 export type MsdsSignatureMap = { approver?: string | null };
 
+const MSDS_CHROME = {
+  en: {
+    htmlLang: "en",
+    docTitlePrefix: "Material Safety Data Sheet",
+    title: "MATERIAL SAFETY DATA SHEET (MSDS)",
+    subtitle: "Cosmetic Finished Product | For External Use Only",
+    section1Title: "1. IDENTIFICATION",
+    labels: {
+      productName: "Product Name",
+      productCode: "Product Code",
+      productType: "Product Type",
+      revision: "Revision",
+      manufacturer: "Manufacturer",
+      address: "Address",
+      tel: "Tel / Emergency",
+    },
+    approvedBy: "Approved By",
+    dateSignature: "Date &amp; Signature",
+    issueDate: "Issue Date",
+    docNo: "Document No.",
+    printBtn: "Print / Save as PDF",
+  },
+  ko: {
+    htmlLang: "ko",
+    docTitlePrefix: "물질안전보건자료",
+    title: "물질안전보건자료 (MSDS)",
+    subtitle: "화장품 완제품 | 외용제",
+    section1Title: "1. 제품 및 회사 정보",
+    labels: {
+      productName: "제품명",
+      productCode: "제품코드",
+      productType: "제품유형",
+      revision: "개정번호",
+      manufacturer: "제조사",
+      address: "주소",
+      tel: "전화 / 비상연락처",
+    },
+    approvedBy: "승인자",
+    dateSignature: "날짜 및 서명",
+    issueDate: "발행일",
+    docNo: "문서번호",
+    printBtn: "인쇄 / PDF로 저장",
+  },
+} as const;
+
+type MsdsLang = keyof typeof MSDS_CHROME;
+
 function e(v: any) {
   return String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m] || m));
 }
@@ -22,9 +69,9 @@ function fmtDate(v: string | null | undefined) {
   return String(v).slice(0, 10);
 }
 
-function signatureCaption(name: string, confirmedAt: string | null | undefined) {
+function signatureCaption(name: string, confirmedAt: string | null | undefined, dateSignatureLabel: string) {
   if (confirmedAt) return `${e(name)} &middot; ${fmtDate(confirmedAt)}`;
-  return "Date &amp; Signature";
+  return dateSignatureLabel;
 }
 
 function signatureCellHtml(name: string, confirmedAt: string | null | undefined, signatureUrl: string | null | undefined) {
@@ -54,12 +101,14 @@ ${section.outroNote ? `<div class="note">${nl2br(section.outroNote)}</div>` : ""
 }
 
 export function buildMsdsHtml(msds: ProductMsds, signatures: MsdsSignatureMap = {}): string {
+  const lang: MsdsLang = msds.language === "ko" ? "ko" : "en";
+  const t = MSDS_CHROME[lang];
   const sectionsHtml = (msds.sections || []).map(sectionHtml).join("\n");
   return `<!doctype html>
-<html lang="en">
+<html lang="${t.htmlLang}">
 <head>
 <meta charset="utf-8"/>
-<title>Material Safety Data Sheet ${e(msds.product_code || msds.product_name || "")}</title>
+<title>${t.docTitlePrefix} ${e(msds.product_code || msds.product_name || "")}</title>
 <style>
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:'Times New Roman',Georgia,serif}
 .page{width:1000px;margin:24px auto;background:white;padding:30px 36px;border:1px solid #dbe3ef}
@@ -96,20 +145,20 @@ table{border-collapse:collapse;width:100%}
 
 <div class="headrow">
 <div class="brand-logo"><span class="brand-dark">nutri</span><span class="brand-light">advisor</span></div>
-<div class="docno">Document No.: ${e(msds.doc_no || "-")}</div>
+<div class="docno">${t.docNo}: ${e(msds.doc_no || "-")}</div>
 </div>
-<div class="title">MATERIAL SAFETY DATA SHEET (MSDS)</div>
-<div class="subtitle">Cosmetic Finished Product | For External Use Only</div>
+<div class="title">${t.title}</div>
+<div class="subtitle">${t.subtitle}</div>
 
-<div class="section-h">1. IDENTIFICATION</div>
+<div class="section-h">${t.section1Title}</div>
 <table class="infotbl"><tbody>
-<tr><td class="k">Product Name</td><td>${e(msds.product_name || "-")}</td></tr>
-<tr><td class="k">Product Code</td><td>${e(msds.product_code || "-")}</td></tr>
-<tr><td class="k">Product Type</td><td>${e(msds.product_type || "-")}</td></tr>
-<tr><td class="k">Revision</td><td>${e(msds.revision || "-")}</td></tr>
-<tr><td class="k">Manufacturer</td><td>${e(msds.manufacturer || "-")}</td></tr>
-<tr><td class="k">Address</td><td>${e(msds.address || "-")}</td></tr>
-<tr><td class="k">Tel / Emergency</td><td>${e(msds.tel_emergency || "-")}</td></tr>
+<tr><td class="k">${t.labels.productName}</td><td>${e(msds.product_name || "-")}</td></tr>
+<tr><td class="k">${t.labels.productCode}</td><td>${e(msds.product_code || "-")}</td></tr>
+<tr><td class="k">${t.labels.productType}</td><td>${e(msds.product_type || "-")}</td></tr>
+<tr><td class="k">${t.labels.revision}</td><td>${e(msds.revision || "-")}</td></tr>
+<tr><td class="k">${t.labels.manufacturer}</td><td>${e(msds.manufacturer || "-")}</td></tr>
+<tr><td class="k">${t.labels.address}</td><td>${e(msds.address || "-")}</td></tr>
+<tr><td class="k">${t.labels.tel}</td><td>${e(msds.tel_emergency || "-")}</td></tr>
 </tbody></table>
 
 ${sectionsHtml}
@@ -117,15 +166,15 @@ ${sectionsHtml}
 <div class="bottomrow">
 <div class="approval-wrap">
 <table class="approvalbox">
-<tr><td class="label">Approved By</td></tr>
+<tr><td class="label">${t.approvedBy}</td></tr>
 <tr><td>${signatureCellHtml(msds.approver_name || "", msds.approver_confirmed_at, signatures.approver)}</td></tr>
-<tr><td class="namecell">${signatureCaption(msds.approver_name || "", msds.approver_confirmed_at)}</td></tr>
+<tr><td class="namecell">${signatureCaption(msds.approver_name || "", msds.approver_confirmed_at, t.dateSignature)}</td></tr>
 </table>
-<div class="issuedate">Issue Date: ${e(msds.issue_date || "-")}</div>
+<div class="issuedate">${t.issueDate}: ${e(msds.issue_date || "-")}</div>
 </div>
 </div>
 
-<button class="no-print" onclick="window.print()">Print / Save as PDF</button>
+<button class="no-print" onclick="window.print()">${t.printBtn}</button>
 </div>
 </body>
 </html>`;

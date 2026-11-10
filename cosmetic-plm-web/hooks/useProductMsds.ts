@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSprint1Auth } from "@/hooks/useSprint1Auth";
 import {
+  MsdsLanguage,
   MsdsRow,
   MsdsSection,
   MsdsWorkflowStatus,
@@ -56,6 +57,7 @@ export function useProductMsds(refreshToken?: number) {
   const [formulaSearching, setFormulaSearching] = useState(false);
   const [selectedFormula, setSelectedFormula] = useState<FormulaRef | null>(null);
 
+  const [language, setLanguage] = useState<MsdsLanguage>("en");
   const [docNo, setDocNo] = useState("");
   const [productName, setProductName] = useState("");
   const [productCode, setProductCode] = useState("");
@@ -134,8 +136,9 @@ export function useProductMsds(refreshToken?: number) {
     }
   }
 
-  function openNewMsds() {
-    const defaults = buildDefaultMsds();
+  function openNewMsds(lang: MsdsLanguage = "en") {
+    const defaults = buildDefaultMsds(lang);
+    setLanguage(lang);
     setEditingId(null);
     setSelectedFormula(null);
     setFormulaKeyword("");
@@ -160,6 +163,7 @@ export function useProductMsds(refreshToken?: number) {
     setMessage("");
     try {
       const msds = await getProductMsds(id);
+      setLanguage(msds.language || "en");
       setEditingId(msds.id || null);
       setSelectedFormula(msds.formula_id ? { id: msds.formula_id, formula_code: msds.formula_code || "", revision: msds.revision || "" } : null);
       setFormulaKeyword("");
@@ -219,6 +223,7 @@ export function useProductMsds(refreshToken?: number) {
   function buildCurrentMsds(): ProductMsds {
     return {
       id: editingId || undefined,
+      language,
       formula_id: selectedFormula?.id || null,
       formula_code: selectedFormula?.formula_code || null,
       revision,
@@ -321,6 +326,7 @@ export function useProductMsds(refreshToken?: number) {
     list, listLoading, listKeyword, setListKeyword, reloadList,
     message, setMessage,
     editingId, showForm, saving,
+    language,
     formulaKeyword, setFormulaKeyword, formulaHits, formulaSearching, searchFormulas, selectedFormula, pickFormula,
     docNo, setDocNo,
     productName, setProductName, productCode, setProductCode, productType, setProductType, revision, setRevision,

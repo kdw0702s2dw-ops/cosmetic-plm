@@ -11,6 +11,11 @@ const WORKFLOW_STATUS_LABEL: Record<string, string> = {
   approved: "승인완료",
 };
 
+const MSDS_LANGUAGE_LABEL: Record<string, string> = {
+  en: "영문",
+  ko: "국문",
+};
+
 type StageState = "done" | "current" | "waiting" | "skipped";
 
 function fmtDateTime(v: string | null | undefined) {
@@ -211,7 +216,8 @@ export default function ProductMsdsPanel({ refreshTick }: { refreshTick?: number
         />
         <button className="v50-button-light" onClick={s.reloadList}>검색</button>
         <div style={{ flex: 1 }} />
-        <button className="v50-button" onClick={s.openNewMsds}>+ 제품 MSDS 작성</button>
+        <button className="v50-button-light" onClick={() => s.openNewMsds("en")}>+ 영문 MSDS 작성</button>
+        <button className="v50-button" onClick={() => s.openNewMsds("ko")}>+ 국문 MSDS 작성</button>
       </div>
 
       {s.message && <div style={{ marginBottom: 8, color: "#2563eb", fontSize: 13 }}>{s.message}</div>}
@@ -219,14 +225,15 @@ export default function ProductMsdsPanel({ refreshTick }: { refreshTick?: number
       <div className="v50-table-wrap">
         <table className="v50-table">
           <thead>
-            <tr><th>문서번호</th><th>Product Name</th><th>Product Code</th><th>결재상태</th><th>작성일</th><th></th></tr>
+            <tr><th>문서번호</th><th>언어</th><th>Product Name</th><th>Product Code</th><th>결재상태</th><th>작성일</th><th></th></tr>
           </thead>
           <tbody>
-            {s.listLoading && <tr><td colSpan={6} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>}
-            {!s.listLoading && s.list.length === 0 && <tr><td colSpan={6} style={{ color: "#94a3b8" }}>등록된 MSDS가 없습니다.</td></tr>}
+            {s.listLoading && <tr><td colSpan={7} style={{ color: "#94a3b8" }}>불러오는 중…</td></tr>}
+            {!s.listLoading && s.list.length === 0 && <tr><td colSpan={7} style={{ color: "#94a3b8" }}>등록된 MSDS가 없습니다.</td></tr>}
             {s.list.map((msds) => (
               <tr key={msds.id}>
                 <td>{msds.doc_no || "-"}</td>
+                <td>{MSDS_LANGUAGE_LABEL[msds.language || "en"]}</td>
                 <td>{msds.product_name || "-"}</td>
                 <td>{msds.product_code || "-"}</td>
                 <td><span className="v50-badge">{WORKFLOW_STATUS_LABEL[msds.workflow_status || "draft"]}</span></td>

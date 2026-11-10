@@ -4,6 +4,47 @@ import ExcelJS from "exceljs";
 import type { MsdsSection, ProductMsds } from "./productMsdsService";
 import { border, downloadWorkbook } from "./documentExcelService";
 
+const MSDS_XLSX_CHROME = {
+  en: {
+    sheetTitle: "Material Safety Data Sheet",
+    title: "MATERIAL SAFETY DATA SHEET (MSDS)",
+    subtitle: "Cosmetic Finished Product | For External Use Only",
+    section1Title: "1. IDENTIFICATION",
+    labels: {
+      productName: "Product Name",
+      productCode: "Product Code",
+      productType: "Product Type",
+      revision: "Revision",
+      manufacturer: "Manufacturer",
+      address: "Address",
+      tel: "Tel / Emergency",
+    },
+    approvedBy: "Approved By",
+    issueDate: "Issue Date",
+    docNo: "Document No.",
+  },
+  ko: {
+    sheetTitle: "물질안전보건자료",
+    title: "물질안전보건자료 (MSDS)",
+    subtitle: "화장품 완제품 | 외용제",
+    section1Title: "1. 제품 및 회사 정보",
+    labels: {
+      productName: "제품명",
+      productCode: "제품코드",
+      productType: "제품유형",
+      revision: "개정번호",
+      manufacturer: "제조사",
+      address: "주소",
+      tel: "전화 / 비상연락처",
+    },
+    approvedBy: "승인자",
+    issueDate: "발행일",
+    docNo: "문서번호",
+  },
+} as const;
+
+type MsdsXlsxLang = keyof typeof MSDS_XLSX_CHROME;
+
 // 제품 MSDS 엑셀 - 업로드된 영문 양식(제품 MSDS 양식.docx)의 구성을 6개 컬럼(A~F)으로 재현한다.
 // 결재는 Approved By 단일 단계이며, 제품 COA와 동일하게 확정한 담당자 본인이 등록해둔 서명
 // 이미지(plm_signatures)를 그대로 삽입한다 - 브라우저에서 URL을 fetch해 base64로 변환한 뒤
@@ -185,8 +226,10 @@ function writeSection(ws: ExcelJS.Worksheet, r: number, section: MsdsSection): n
 }
 
 export async function buildMsdsWorkbook(msds: ProductMsds, signatures: MsdsSignatureImages = {}): Promise<ExcelJS.Workbook> {
+  const lang: MsdsXlsxLang = msds.language === "ko" ? "ko" : "en";
+  const t = MSDS_XLSX_CHROME[lang];
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Material Safety Data Sheet".slice(0, 31));
+  const ws = wb.addWorksheet(t.sheetTitle.slice(0, 31));
   ws.columns = [{ width: 6 }, { width: 22 }, { width: 26 }, { width: 20 }, { width: 13 }, { width: 14 }];
 
   let r = 1;
@@ -199,34 +242,34 @@ export async function buildMsdsWorkbook(msds: ProductMsds, signatures: MsdsSigna
   };
   ws.getCell(r, 1).alignment = { horizontal: "left", vertical: "middle" };
   ws.mergeCells(r, 4, r, 6);
-  setCell(ws, r, 4, `Document No.: ${msds.doc_no || "-"}`, { align: "right", size: 9, wrap: false });
+  setCell(ws, r, 4, `${t.docNo}: ${msds.doc_no || "-"}`, { align: "right", size: 9, wrap: false });
   ws.getRow(r).height = 20;
   r++;
 
   ws.mergeCells(r, 1, r, 6);
-  setCell(ws, r, 1, "MATERIAL SAFETY DATA SHEET (MSDS)", { bold: true, size: 15 });
+  setCell(ws, r, 1, t.title, { bold: true, size: 15 });
   ws.getRow(r).height = 24;
   r++;
   ws.mergeCells(r, 1, r, 6);
-  setCell(ws, r, 1, "Cosmetic Finished Product | For External Use Only", { size: 10 });
+  setCell(ws, r, 1, t.subtitle, { size: 10 });
   ws.getRow(r).height = 16;
   r++;
   r++; // spacer
 
   ws.mergeCells(r, 1, r, 6);
-  setCell(ws, r, 1, "1. IDENTIFICATION", { bold: true, size: 12, align: "left" });
+  setCell(ws, r, 1, t.section1Title, { bold: true, size: 12, align: "left" });
   ws.getRow(r).eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } }; });
   ws.getRow(r).height = 20;
   r++;
 
   const idRows: Array<[string, string]> = [
-    ["Product Name", msds.product_name || "-"],
-    ["Product Code", msds.product_code || "-"],
-    ["Product Type", msds.product_type || "-"],
-    ["Revision", msds.revision || "-"],
-    ["Manufacturer", msds.manufacturer || "-"],
-    ["Address", msds.address || "-"],
-    ["Tel / Emergency", msds.tel_emergency || "-"],
+    [t.labels.productName, msds.product_name || "-"],
+    [t.labels.productCode, msds.product_code || "-"],
+    [t.labels.productType, msds.product_type || "-"],
+    [t.labels.revision, msds.revision || "-"],
+    [t.labels.manufacturer, msds.manufacturer || "-"],
+    [t.labels.address, msds.address || "-"],
+    [t.labels.tel, msds.tel_emergency || "-"],
   ];
   for (const [label, value] of idRows) {
     ws.mergeCells(r, 1, r, 2); setCell(ws, r, 1, label, { bold: true, align: "left" });
@@ -244,7 +287,7 @@ export async function buildMsdsWorkbook(msds: ProductMsds, signatures: MsdsSigna
   // 결재란 - Approved By 단일 단계(서명란은 E~F 병합). 발행일(Issue Date)은 결재와 무관하게
   // 사용자가 직접 입력한 값을 결재란 바로 아래(같은 E~F 폭, 테두리 없이)에 표기한다.
   const labelRow = r;
-  ws.mergeCells(labelRow, 5, labelRow, 6); setCell(ws, labelRow, 5, "Approved By", { bold: true });
+  ws.mergeCells(labelRow, 5, labelRow, 6); setCell(ws, labelRow, 5, t.approvedBy, { bold: true });
   ws.getCell(labelRow, 5).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
   ws.getCell(labelRow, 6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
   ws.getRow(labelRow).height = 20;
@@ -265,7 +308,7 @@ export async function buildMsdsWorkbook(msds: ProductMsds, signatures: MsdsSigna
 
   const issueDateRow = r;
   ws.mergeCells(issueDateRow, 5, issueDateRow, 6);
-  setCell(ws, issueDateRow, 5, `Issue Date: ${msds.issue_date || "-"}`, { align: "center", wrap: false });
+  setCell(ws, issueDateRow, 5, `${t.issueDate}: ${msds.issue_date || "-"}`, { align: "center", wrap: false });
   r++;
 
   ws.pageSetup = { orientation: "portrait", fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
