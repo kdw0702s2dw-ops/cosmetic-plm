@@ -2,7 +2,9 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 import {
+  allergenKey,
   complexRows,
+  computeBasisAllergenAlerts,
   type DocBasis,
   fetchFormulaLinesForPdf,
   mergeRows,
@@ -421,7 +423,7 @@ export async function fetchFormulaInciList(formulaCode: string, revision: string
   if (rawLines.length === 0) return "";
   const { data: formula } = await supabaseProductionFinal
     .from("plm_formulas")
-    .select("formula_code, revision, public_bom_customized, requires_public_basis_docs")
+    .select("formula_code, revision, public_bom_customized, requires_public_basis_docs, exposure_type, target_market")
     .eq("formula_code", formulaCode)
     .eq("revision", revision)
     .maybeSingle();
@@ -429,7 +431,18 @@ export async function fetchFormulaInciList(formulaCode: string, revision: string
   // basis="MIX"에서는 formula 인자를 쓰지 않으므로(건조 후 계산 때만 필요) formula가 없어도 안전하다.
   const { lines, components } = await resolveLinesForBasis(formula || {}, rawLines, basis);
   const rows = mergeRows([...complexRows(lines, components), ...singleRows(lines, components)]);
-  return rows.map((x) => (lang === "ko" ? (x.inci_kr || x.inci_en) : x.inci_en)).filter(Boolean).join(", ");
+
+  // 전성분표(buildInciListHtml)와 동일하게, Leave-on 0.001% / Rinse-off 0.01% 기준(formula.exposure_type)
+  // 미만인 알러젠은 이름 목록에서 제외한다 - 표시 의무가 없는 성분을 MSDS에 개별 성분명으로 노출할
+  // 이유가 없다(사용자 확인 요청 사항, 전성분표와 동일 기준으로 맞춤). exposure_type이 미지정이라
+  // 계산 불가면 전성분표와 마찬가지로 억제 없이 전부 보여준다(과소공개보다 과다공개가 안전).
+  const basisAlerts = await computeBasisAllergenAlerts(formula || {}, lines, components);
+  const suppressedKeys = new Set((basisAlerts || []).filter((a) => !a.label_required).map((a) => a.allergen_id));
+  const visibleRows = rows.filter((r) => !(r.is_allergen && suppressedKeys.has(allergenKey(r))));
+  // 전성분표와 동일하게 알러젠(표시대상으로 남은 것만)은 뒤로 모아, 일반 성분과 섞이지 않게 한다.
+  const orderedRows = [...visibleRows.filter((r) => !r.is_allergen), ...visibleRows.filter((r) => r.is_allergen)];
+
+  return orderedRows.map((x) => (lang === "ko" ? (x.inci_kr || x.inci_en) : x.inci_en)).filter(Boolean).join(", ");
 }
 
 export async function fetchMsdsFormulas(keyword = "") {
