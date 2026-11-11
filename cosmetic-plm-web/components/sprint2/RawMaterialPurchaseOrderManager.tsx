@@ -659,7 +659,7 @@ export default function RawMaterialPurchaseOrderManager({
                 <thead>
                   <tr>
                     <th>#</th><th style={{ minWidth: 200 }}>원료코드/원료명</th><th>단가</th><th>수량</th><th>단위</th><th>패킹</th>
-                    <th>공급가</th><th>부가세율</th><th>부가세</th><th>총액</th><th>비고</th><th>입고일</th><th></th>
+                    <th>공급가</th><th>부가세율</th><th>부가세</th><th>총액</th><th>비고</th><th style={{ minWidth: 150 }}>입고일</th><th style={{ minWidth: 150 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -694,7 +694,7 @@ export default function RawMaterialPurchaseOrderManager({
                           등록/수정하는 이 자리에서 바로 입고(예정)일을 적을 수 있다. 검수조서 모달의
                           입고일/사진 기능은 그대로 두고(사진은 여기서 못 찍으니), 두 입력이 같은
                           received_date 값을 공유하므로 어느 쪽에서 바꿔도 서로 반영된다. */}
-                      <td><input className="v50-input" type="date" style={{ width: 130 }} value={it.received_date || ""} onChange={(e) => updateItem(i, { received_date: e.target.value || null })} disabled={!canWrite} /></td>
+                      <td><input className="v50-input" type="date" style={{ width: 160 }} value={it.received_date || ""} onChange={(e) => updateItem(i, { received_date: e.target.value || null })} disabled={!canWrite} /></td>
                       <td>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {/* 품목이 저장되어 id가 생긴 뒤에만 검수조서(입고일/사진/비고)를 쓸 수 있다 - 아직
@@ -704,13 +704,17 @@ export default function RawMaterialPurchaseOrderManager({
                           {it.id && (
                             <button
                               className="v50-button-light"
-                              style={isInspectionRegistered(it) ? { background: INSPECTION_DONE_COLOR.bg, color: INSPECTION_DONE_COLOR.fg, fontWeight: 800, border: "none" } : undefined}
+                              style={{
+                                whiteSpace: "nowrap",
+                                flexShrink: 0,
+                                ...(isInspectionRegistered(it) ? { background: INSPECTION_DONE_COLOR.bg, color: INSPECTION_DONE_COLOR.fg, fontWeight: 800, border: "none" } : {}),
+                              }}
                               onClick={() => setInspectionTarget({ order, item: it })}
                             >
                               {isInspectionRegistered(it) ? "검수조서 완료" : "검수조서"}
                             </button>
                           )}
-                          {canWrite && <button className="v50-button-light" onClick={() => removeItemRow(i)}>삭제</button>}
+                          {canWrite && <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => removeItemRow(i)}>삭제</button>}
                         </div>
                       </td>
                     </tr>
