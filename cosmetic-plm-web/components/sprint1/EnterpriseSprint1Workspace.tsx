@@ -34,6 +34,12 @@ const KEEP_ALIVE_TABS: TabKey[] = ["ingredientDict", "rawManager", "formula", "d
 
 export default function EnterpriseSprint1Workspace() {
   const [active, setActive] = useState<TabKey>("home");
+  // 모바일 폭(<=900px)에서는 사이드바 전체 메뉴가 화면 높이를 거의 다 채워서 실제 콘텐츠가 한참
+  // 아래로 밀리는 문제가 있었다("모바일 최적화 검토" 요청, 1단계: 사이드바/내비게이션). 그래서
+  // 모바일에서는 메뉴를 기본적으로 숨기고, 햄버거 버튼으로 전체화면 드로어로 열고 닫게 한다.
+  // 데스크톱에서는 이 state와 무관하게 CSS 미디어쿼리(<=900px 바깥)에서 사이드바가 항상 보이므로
+  // 기존 동작이 그대로 유지된다.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const auth = useSprint1Auth();
 
   // 생산관리(제조량 확인)의 "합산 부족 원료 목록" -> 원료 발주관리 연동용. "발주서 만들기"를 누르면
@@ -100,9 +106,23 @@ export default function EnterpriseSprint1Workspace() {
 
   return (
     <div className="v50-root"><div className="v50-shell">
-      <aside className="v50-sidebar">
-        <div className="v50-brand"><div className="v50-brand-title">화장품 PLM</div><div className="v50-brand-sub">실시간 연구원 Workspace</div></div>
-        <nav className="v50-menu">
+      {/* 모바일 전용 햄버거 버튼 - enterprise-mobile.css에서 900px 이하일 때만 보이게 되어 있고,
+          position:fixed라 사이드바가 display:none이어도 항상 눌러서 열 수 있다. */}
+      <button type="button" className="v50-hamburger-btn" aria-label="메뉴 열기" onClick={() => setMobileNavOpen(true)}>☰</button>
+      <aside className={`v50-sidebar${mobileNavOpen ? " v50-mobile-open" : ""}`}>
+        <div className="v50-brand">
+          <div className="v50-brand-title">화장품 PLM</div><div className="v50-brand-sub">실시간 연구원 Workspace</div>
+          {/* 모바일에서 전체화면 드로어로 열렸을 때만 CSS로 보이는 닫기 버튼 */}
+          <button type="button" className="v50-drawer-close" aria-label="메뉴 닫기" onClick={() => setMobileNavOpen(false)}>✕</button>
+        </div>
+        <nav
+          className="v50-menu"
+          onClick={(e) => {
+            // 모바일에서 메뉴 항목(버튼/링크)을 고르면 드로어를 자동으로 닫는다. 데스크톱에서는
+            // 사이드바가 항상 보이는 상태라 이 state가 CSS에 영향을 주지 않으므로 무해하다.
+            if ((e.target as HTMLElement).closest(".v50-menu > div > button")) setMobileNavOpen(false);
+          }}
+        >
           <div>
             <div className="v50-menu-label">현재 사용 가능</div>
             {auth.isPageVisible("home") && <button className={effectiveActive === "home" ? "active" : ""} onClick={() => setActive("home")}><span>연구원 홈</span></button>}
