@@ -125,7 +125,7 @@ export default function SourcingScheduleSection({ s }: { s: Sourcing }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(240px, calc((100% - 36px) / 4)), 1fr))", gap: 12, marginTop: 16 }}>
         {s.statuses.map((st) => (
           <div key={st.key} style={{ background: "#f8fafc", border: "1px solid var(--line)", borderRadius: 14, padding: 10, display: "grid", gap: 8, alignContent: "start", minHeight: 120 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

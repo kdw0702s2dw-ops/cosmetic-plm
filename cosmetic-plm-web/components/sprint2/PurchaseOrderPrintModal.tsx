@@ -130,7 +130,7 @@ export default function PurchaseOrderPrintModal({ target, onClose }: { target: P
         {/* 아래 항목은 저장된 발주 데이터에 없어 생성할 때마다 직접 입력/수정한다 - 비워두면 발주서에도 빈칸으로 나간다.
             납기일자/유효일자는 매번 빈칸에서 시작하고, 결제조건/납품장소/비고는 이 브라우저에서 마지막으로
             PDF/엑셀을 만들 때 쓴 값이 다음 기본값으로 자동으로 채워진다. */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 10px) / 2)), 1fr))", gap: 10, marginTop: 10 }}>
           <div>
             <label style={{ fontWeight: 800, fontSize: 13, display: "block", marginBottom: 4 }}>납기일자</label>
             <input type="date" className="v50-input" style={{ width: "100%" }} value={extra.delivery_date || ""} onChange={(e) => setExtra({ ...extra, delivery_date: e.target.value })} />

@@ -147,7 +147,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
 
       <section className="v50-panel" style={{ marginBottom: 18 }}>
         <h2>생산실적 입력</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 24px) / 3)), 1fr))", gap: 12 }}>
           <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
             목표 제조량(kg)
             <DecimalInput className="v50-input" value={s.targetQtyKg} onChange={(v) => s.updateTargetQtyKg(v)} />
@@ -231,7 +231,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
             완제품 총 출고 수량(EA/PACK)은 이 Lot 전체(동일 Lot No.로 등록된 다른 생산실적 행 포함)에
             공통으로 적용되는 값입니다. 여기서 수정하면 이 Lot의 모든 행에 똑같이 반영됩니다.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 24px) / 3)), 1fr))", gap: 12 }}>
             <label style={{ display: "grid", gap: 6, fontWeight: 800 }}>
               목표 제조량(kg)
               <input className="v50-input" type="number" value={s.editDraft.target_qty_kg} onChange={(e) => s.updateEditDraft({ target_qty_kg: e.target.value })} />

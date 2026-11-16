@@ -204,7 +204,7 @@ export default function CompanyManager() {
           </div>
         </Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 10, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 20px) / 3)), 1fr))", gap: 10, marginTop: 10, marginBottom: 8 }}>
           <Field label="업체명 국문">
             <input className="v50-input" value={company.name_kr || ""} onChange={(e) => setCompany({ ...company, name_kr: e.target.value })} />
           </Field>
@@ -241,7 +241,7 @@ export default function CompanyManager() {
           {!company.id && (
             <p style={{ fontSize: 12, color: "#b45309" }}>업체를 먼저 저장해야 통장사본/사업자등록증을 등록할 수 있습니다.</p>
           )}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(240px, calc((100% - 10px) / 2)), 1fr))", gap: 10 }}>
             {COMPANY_DOC_TYPES.map((docType) => {
               const doc = companyDocs.find((d) => d.doc_type === docType);
               return (

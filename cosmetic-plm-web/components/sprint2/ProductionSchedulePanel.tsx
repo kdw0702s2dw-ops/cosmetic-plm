@@ -312,13 +312,15 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 12 }}>
-            {WEEKDAYS.map((w) => (
-              <div key={w} style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>{w}</div>
-            ))}
-            {buildCalendarCells(s.year, s.month).map((date, i) => (
-              <DayCell key={date || `empty-${i}`} date={date} s={s} />
-            ))}
+          <div style={{ overflowX: "auto", marginTop: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, minWidth: 560 }}>
+              {WEEKDAYS.map((w) => (
+                <div key={w} style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", fontWeight: 700 }}>{w}</div>
+              ))}
+              {buildCalendarCells(s.year, s.month).map((date, i) => (
+                <DayCell key={date || `empty-${i}`} date={date} s={s} />
+              ))}
+            </div>
           </div>
 
           {s.selectedDate && (

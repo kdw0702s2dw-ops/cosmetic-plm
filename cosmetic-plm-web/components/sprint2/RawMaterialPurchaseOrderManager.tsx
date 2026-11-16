@@ -610,7 +610,7 @@ export default function RawMaterialPurchaseOrderManager({
         <section className="v50-panel">
           <h2>{order.id ? `발주 편집 · ${order.order_no}` : "새 발주 등록"}</h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 20px) / 3)), 1fr))", gap: 10, marginBottom: 8 }}>
             <Field label="공급사*">
               <input ref={supplierInputRef} className="v50-input" value={supplierKeyword}
                 onChange={(e) => onSupplierInputChange(e.target.value)}

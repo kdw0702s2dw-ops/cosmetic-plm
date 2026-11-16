@@ -236,7 +236,7 @@ export default function MaterialManager() {
       <section className="v50-panel">
         <h2>{material.material_code ? `부자재 편집 · ${material.material_code}` : "새 부자재 등록"}</h2>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 20px) / 3)), 1fr))", gap: 10, marginBottom: 8 }}>
           <Field label="부자재코드*">
             <input className="v50-input" value={material.material_code} onChange={(e) => setMaterial({ ...material, material_code: e.target.value })} />
           </Field>

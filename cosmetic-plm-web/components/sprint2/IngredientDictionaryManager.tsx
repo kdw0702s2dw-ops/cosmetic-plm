@@ -173,7 +173,7 @@ export default function IngredientDictionaryManager() {
 
       <section className="v50-panel">
         <h2>{item.id ? "성분 편집" : "새 성분 등록"}</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 20px) / 3)), 1fr))", gap: 10, marginBottom: 8 }}>
           <Field label="INCI 국문명"><input className="v50-input" value={item.inci_kr || ""} onChange={(e) => setItem({ ...item, inci_kr: e.target.value })} /></Field>
           <Field label="INCI 영문명"><input className="v50-input" value={item.inci_en || ""} onChange={(e) => setItem({ ...item, inci_en: e.target.value })} /></Field>
           <Field label="INCI 중문명"><input className="v50-input" value={item.inci_cn || ""} onChange={(e) => setItem({ ...item, inci_cn: e.target.value })} /></Field>

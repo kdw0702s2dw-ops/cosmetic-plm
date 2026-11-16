@@ -546,7 +546,7 @@ export default function RawMaterialManager() {
       <section className="v50-panel">
         <h2>{rm.raw_code ? `원료 편집 · ${rm.raw_code}` : "새 원료 등록"}</h2>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(max(200px, calc((100% - 20px) / 3)), 1fr))", gap: 10, marginBottom: 8 }}>
           <Field label="원료코드*">
             <input className="v50-input" value={rm.raw_code} onChange={(e) => setRm({ ...rm, raw_code: e.target.value })} />
           </Field>
