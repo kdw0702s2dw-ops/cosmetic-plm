@@ -14,10 +14,10 @@ import { updateRawMaterialUnitPrices } from "@/services/sprint2/rawMaterialServi
 // - v_plm_purchase_order_items_detail: 상세 화면용(원료명/Trade Name 조인)
 // - plm_save_purchase_order_items RPC: 품목을 한 번에 교체 저장(기존 전체 삭제 후 재삽입)
 
-export type PurchaseOrderStatus = "주문완료" | "부분입고" | "입고완료" | "취소";
+export type PurchaseOrderStatus = "발주전" | "주문완료" | "부분입고" | "입고완료" | "취소";
 export type PurchaseOrderPaymentStatus = "미결제" | "결제완료";
 
-export const PURCHASE_ORDER_STATUSES: PurchaseOrderStatus[] = ["주문완료", "부분입고", "입고완료", "취소"];
+export const PURCHASE_ORDER_STATUSES: PurchaseOrderStatus[] = ["발주전", "주문완료", "부분입고", "입고완료", "취소"];
 export const PURCHASE_ORDER_PAYMENT_STATUSES: PurchaseOrderPaymentStatus[] = ["미결제", "결제완료"];
 
 export type PurchaseOrderItem = {
@@ -78,6 +78,7 @@ export type PurchaseOrderSummary = {
   supply_amount_sum: number;
   vat_amount_sum: number;
   total_amount_sum: number;
+  item_names: string | null; // 발주 품목(원료명) 콤마 구분 목록 - 목록 화면에서 "무엇을 발주했는지" 바로 보여주기 위함
 };
 
 export type PurchaseOrderListFilter = {
@@ -260,7 +261,7 @@ export function emptyPurchaseOrder(): PurchaseOrder {
 // ---- 원료별 발주금액 집계(월별·연도별) ----
 // "원료 코드 또는 명칭으로 검색해서 월별, 년도별 원료의 총 발주 금액을 확인" 요청사항 대응.
 // v_plm_purchase_order_items_detail에는 발주일/진행상태가 없어서, 먼저 헤더 목록(fetchPurchaseOrders)에서
-// 기간으로 발주 id를 추려내고 취소(상태="취소") 건을 제외한 뒤, 그 id들의 품목만 조회해서 원료코드 기준으로
+// 기간으로 발주 id를 추려내고 취소/발주전(상태="취소"/"발주전") 건을 제외한 뒤, 그 id들의 품목만 조회해서 원료코드 기준으로
 // 그룹 합계한다 - 새 DB 뷰/마이그레이션 없이 기존 조회 함수들을 재사용.
 export type RawMaterialPurchaseOrderSummaryRow = {
   raw_code: string;
@@ -280,7 +281,7 @@ export async function fetchPurchaseOrderRawMaterialSummary(
   filter: RawMaterialPurchaseOrderSummaryFilter
 ): Promise<RawMaterialPurchaseOrderSummaryRow[]> {
   const orders = await fetchPurchaseOrders({ dateFrom: filter.dateFrom, dateTo: filter.dateTo });
-  const activeIds = orders.filter((o) => o.status !== "취소").map((o) => o.id);
+  const activeIds = orders.filter((o) => o.status !== "취소" && o.status !== "발주전").map((o) => o.id);
   if (activeIds.length === 0) return [];
 
   const { data, error } = await supabaseProductionFinal
@@ -320,7 +321,7 @@ export async function fetchPurchaseOrderRawMaterialSummary(
 // 달라짐) 필드는 없으므로, 발주 품목의 "단가"를 원료관리의 "단가"에 반영한다. 같은 원료가 여러 번
 // 발주될 수 있어서, 그 원료코드의 발주들 중 "가장 최근 발주일(order_date)" 기준 건의 단가만 반영한다
 // - 과거 발주를 나중에 수정해도, 그보다 최신인 다른 발주가 있으면 단가가 역행해서 바뀌지 않는다.
-// 취소(상태="취소")된 발주는 기준에서 제외한다(가격 신호로 보지 않음).
+// 취소/발주전(상태="취소"/"발주전")된 발주는 기준에서 제외한다(가격 신호로 보지 않음 - 발주전은 아직 실제로 발주서를 보내지 않은 초안이라 확정 가격이 아님).
 
 type LatestActiveOrderPrice = {
   order_date: string;
@@ -330,7 +331,7 @@ type LatestActiveOrderPrice = {
 };
 
 // 원료코드별로, 취소되지 않은 발주 중 가장 최근 발주 건의 단가를 찾는다. fetchPurchaseOrderRawMaterialSummary와
-// 같은 2단계 조회 패턴(헤더에서 취소 제외 id를 먼저 추리고, 그 id들의 품목만 조회)을 그대로 따른다.
+// 같은 2단계 조회 패턴(헤더에서 취소/발주전 제외 id를 먼저 추리고, 그 id들의 품목만 조회)을 그대로 따른다.
 async function fetchLatestActiveOrderUnitPriceByRawCodes(
   rawCodes: string[]
 ): Promise<Map<string, LatestActiveOrderPrice>> {
@@ -339,7 +340,9 @@ async function fetchLatestActiveOrderUnitPriceByRawCodes(
 
   const orders = await fetchPurchaseOrders({});
   const activeOrderMeta = new Map(
-    orders.filter((o) => o.status !== "취소").map((o) => [o.id, { order_date: o.order_date, created_at: o.created_at }])
+    orders
+      .filter((o) => o.status !== "취소" && o.status !== "발주전")
+      .map((o) => [o.id, { order_date: o.order_date, created_at: o.created_at }])
   );
   if (activeOrderMeta.size === 0) return result;
 
@@ -370,7 +373,7 @@ async function fetchLatestActiveOrderUnitPriceByRawCodes(
 // 것만 원료관리 단가에 반영한다. 가격 동기화 실패는 발주 저장 자체를 막지 않도록 호출부에서 별도로
 // try/catch하는 것을 전제로 한다(여기서는 그대로 throw).
 export async function syncRawMaterialUnitPricesFromOrder(order: PurchaseOrder): Promise<void> {
-  if (order.status === "취소") return;
+  if (order.status === "취소" || order.status === "발주전") return;
   const rawCodes = Array.from(new Set(order.items.filter((i) => i.raw_code?.trim()).map((i) => i.raw_code)));
   if (rawCodes.length === 0) return;
 

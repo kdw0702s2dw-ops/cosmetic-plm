@@ -31,7 +31,17 @@ function formatCurrency(n: number | null | undefined) {
   return (n ?? 0).toLocaleString("ko-KR");
 }
 
+// 발주 목록에서 품목(원료명)을 짧게 보여주기 위한 포맷터 - 2건 이하면 그대로, 그 이상이면
+// 앞 2개 + "외 N건"으로 줄인다. 전체 목록은 title(툴팁)로 계속 볼 수 있게 한다.
+function formatItemNames(names: string | null | undefined, count: number) {
+  if (!names) return "-";
+  if (count <= 2) return names;
+  const parts = names.split(", ");
+  return `${parts.slice(0, 2).join(", ")} 외 ${count - 2}건`;
+}
+
 const STATUS_COLOR: Record<PurchaseOrderStatus, { bg: string; fg: string }> = {
+  발주전: { bg: "#e0e7ff", fg: "#4338ca" },
   주문완료: { bg: "#dbeafe", fg: "#1d4ed8" },
   부분입고: { bg: "#fef3c7", fg: "#b45309" },
   입고완료: { bg: "#dcfce7", fg: "#16a34a" },
@@ -147,7 +157,7 @@ export default function RawMaterialPurchaseOrderManager({
       const g = map.get(key)!;
       g.orders.push(o);
       g.grandTotal += o.total_amount_sum || 0;
-      if (o.payment_status === "미결제" && o.status !== "취소") g.unpaidTotal += o.total_amount_sum || 0;
+      if (o.payment_status === "미결제" && o.status !== "취소" && o.status !== "발주전") g.unpaidTotal += o.total_amount_sum || 0;
     }
     return Array.from(map.values()).sort((a, b) => b.unpaidTotal - a.unpaidTotal || a.name.localeCompare(b.name, "ko"));
   }, [list]);
@@ -572,7 +582,7 @@ export default function RawMaterialPurchaseOrderManager({
               <table className="v50-table">
                 <thead>
                   <tr>
-                    <th>발주번호</th><th>발주일</th><th>품목수</th><th>공급가</th><th>부가세</th><th>총액</th>
+                    <th>발주번호</th><th>품목</th><th>발주일</th><th>품목수</th><th>공급가</th><th>부가세</th><th>총액</th>
                     <th>결제예정일</th><th>결제일</th><th>진행상태</th><th>결제상태</th><th style={{ width: 190 }}>액션</th>
                   </tr>
                 </thead>
@@ -580,6 +590,9 @@ export default function RawMaterialPurchaseOrderManager({
                   {g.orders.map((o) => (
                     <tr key={o.id} style={{ background: order?.id === o.id ? "#eff6ff" : undefined }}>
                       <td style={{ cursor: "pointer", fontWeight: 700 }} onClick={() => selectOrder(o.id)}>{o.order_no}</td>
+                      <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.item_names || undefined}>
+                        {formatItemNames(o.item_names, o.item_count)}
+                      </td>
                       <td>{o.order_date}</td>
                       <td>{o.item_count}</td>
                       <td>{formatCurrency(o.supply_amount_sum)}</td>
