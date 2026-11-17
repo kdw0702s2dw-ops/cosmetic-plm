@@ -304,8 +304,8 @@ function ConditionCard({ condition, s }: { condition: StabilityConditionWithChec
                   </td>
                   <td>{cp.status === "완료" ? <span className={`v50-badge ${judgementBadgeClass(overall)}`}>{overall}</span> : "-"}</td>
                   <td style={{ display: "flex", gap: 4 }}>
-                    {s.canWrite && <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.openCheckpointForm(condition, cp)}>{cp.status === "완료" ? "수정" : "입력"}</button>}
-                    {s.canWrite && <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeCheckpoint(cp.id)}>삭제</button>}
+                    {s.canWrite && <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => s.openCheckpointForm(condition, cp)}>{cp.status === "완료" ? "수정" : "입력"}</button>}
+                    {s.canWrite && <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626", whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => s.removeCheckpoint(cp.id)}>삭제</button>}
                   </td>
                 </tr>
               );

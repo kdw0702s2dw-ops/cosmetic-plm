@@ -71,7 +71,7 @@ export default function RegulationEnginePanel() {
                 {s.formulas.map((f) => (
                   <tr key={`${f.formula_code}-${f.revision}`}>
                     <td>{f.formula_code}</td><td>{f.formula_name}</td><td>{f.revision}</td><td>{f.total_percent}%</td><td>{f.status}</td>
-                    <td><button className="v50-button-light" onClick={() => s.validateOne(f)}>검증</button></td>
+                    <td><button className="v50-button-light" style={{ whiteSpace: "nowrap" }} onClick={() => s.validateOne(f)}>검증</button></td>
                   </tr>
                 ))}
                 {s.formulas.length === 0 && <tr><td colSpan={6}>처방 데이터가 없습니다.</td></tr>}
@@ -219,7 +219,7 @@ function StagingRow({ row, m }: { row: MfdsStagingRow; m: ReturnType<typeof useM
       <td>{row.review_status === "PENDING" ? "대기" : row.review_status === "APPROVED" ? "승인됨" : "거부됨"}</td>
       <td>
         {pending ? (
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button className="v50-button" onClick={handleApprove} disabled={!row.region_mapped}>승인</button>
             <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => m.reject(row)}>거부</button>
           </div>

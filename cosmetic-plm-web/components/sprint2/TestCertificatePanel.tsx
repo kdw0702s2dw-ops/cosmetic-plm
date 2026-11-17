@@ -373,8 +373,8 @@ export default function TestCertificatePanel({ refreshTick }: { refreshTick?: nu
                 <td><span className={`v50-badge ${verdictBadgeClass(cert.overall_verdict)}`}>{cert.overall_verdict}</span></td>
                 <td>{cert.created_at ? cert.created_at.slice(0, 10) : "-"}</td>
                 <td style={{ display: "flex", gap: 6 }}>
-                  <button className="v50-button-light" onClick={() => cert.id && s.openExistingCertificate(cert.id)}>열기</button>
-                  <button className="v50-button-light" onClick={() => cert.id && s.removeCertificate(cert.id)}>삭제</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => cert.id && s.openExistingCertificate(cert.id)}>열기</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => cert.id && s.removeCertificate(cert.id)}>삭제</button>
                 </td>
               </tr>
             ))}

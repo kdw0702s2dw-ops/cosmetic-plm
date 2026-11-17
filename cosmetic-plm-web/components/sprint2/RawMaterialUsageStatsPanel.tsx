@@ -157,7 +157,7 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
         <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 4 }}>기준</label>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {RANKING_GRANULARITY_OPTIONS.map((g) => (
                 <button
                   key={g.key}
@@ -258,7 +258,7 @@ export default function RawMaterialUsageStatsPanel({ refreshTick }: { refreshTic
         <section className="v50-panel">
           <h2>{s.selected.raw_name} ({s.selected.raw_code}) 사용량 추이</h2>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
             {GRANULARITY_OPTIONS.map((g) => (
               <button
                 key={g.key}

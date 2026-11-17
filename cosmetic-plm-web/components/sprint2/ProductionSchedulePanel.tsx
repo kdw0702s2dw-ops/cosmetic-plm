@@ -374,8 +374,8 @@ export default function ProductionSchedulePanel({ refreshTick }: { refreshTick?:
                                 <td>{item.assignee || "-"}</td>
                                 <td><StatusSelect item={item} s={s} /></td>
                                 <td style={{ display: "flex", gap: 4 }}>
-                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px" }} onClick={() => s.editItem(item)}>수정</button>
-                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626" }} onClick={() => s.removeItem(item.id!)}>삭제</button>
+                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => s.editItem(item)}>수정</button>
+                                  <button className="v50-button-light" style={{ fontSize: 11, padding: "3px 8px", color: "#dc2626", whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => s.removeItem(item.id!)}>삭제</button>
                                 </td>
                               </tr>
                             );

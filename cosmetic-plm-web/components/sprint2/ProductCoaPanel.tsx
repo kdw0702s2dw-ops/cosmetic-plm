@@ -271,8 +271,8 @@ export default function ProductCoaPanel({ refreshTick }: { refreshTick?: number 
                 <td><span className="v50-badge">{WORKFLOW_STATUS_LABEL[coa.workflow_status || "draft"]}</span></td>
                 <td>{coa.created_at ? coa.created_at.slice(0, 10) : "-"}</td>
                 <td style={{ display: "flex", gap: 6 }}>
-                  <button className="v50-button-light" onClick={() => coa.id && s.openExistingCoa(coa.id)}>열기</button>
-                  <button className="v50-button-light" onClick={() => coa.id && s.removeCoa(coa.id)}>삭제</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => coa.id && s.openExistingCoa(coa.id)}>열기</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => coa.id && s.removeCoa(coa.id)}>삭제</button>
                 </td>
               </tr>
             ))}

@@ -259,7 +259,7 @@ export default function InsolubleHgPanel({ refreshTick }: { refreshTick?: number
                     <td>{fmt(h.dcap_weight_full_cut)}</td>
                     <td>{h.note || "-"}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 6 }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         <button className="v50-button-light" onClick={() => s.loadFromHistory(h)}>불러오기</button>
                         <button className="v50-button-light" onClick={() => s.printHistoryItem(h)}>PDF</button>
                         {auth.canExportData && <button className="v50-button-light" onClick={() => s.downloadExcelHistoryItem(h)}>엑셀</button>}

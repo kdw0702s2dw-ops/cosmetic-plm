@@ -239,8 +239,8 @@ export default function ProductMsdsPanel({ refreshTick }: { refreshTick?: number
                 <td><span className="v50-badge">{WORKFLOW_STATUS_LABEL[msds.workflow_status || "draft"]}</span></td>
                 <td>{msds.created_at ? msds.created_at.slice(0, 10) : "-"}</td>
                 <td style={{ display: "flex", gap: 6 }}>
-                  <button className="v50-button-light" onClick={() => msds.id && s.openExistingMsds(msds.id)}>열기</button>
-                  <button className="v50-button-light" onClick={() => msds.id && s.removeMsds(msds.id)}>삭제</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => msds.id && s.openExistingMsds(msds.id)}>열기</button>
+                  <button className="v50-button-light" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => msds.id && s.removeMsds(msds.id)}>삭제</button>
                 </td>
               </tr>
             ))}

@@ -173,7 +173,7 @@ export default function RawMaterialUsageLogPanel({ refreshTick }: { refreshTick?
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label style={{ fontSize: 12, color: "#475569", fontWeight: 700, display: "block", marginBottom: 2 }}>기간</label>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {PRESET_OPTIONS.map((p) => (
                 <button
                   key={p.key}

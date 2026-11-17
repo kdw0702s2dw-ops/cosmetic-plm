@@ -55,10 +55,10 @@ function DocKindRow({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
       <span style={{ width: 100, fontWeight: 800 }}>{label}</span>
       <span style={{ width: 170, fontSize: 13, color: existing ? "#16a34a" : "#94a3b8" }}>{statusText}</span>
-      <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+      <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
         {existing ? (
           <>
             <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
@@ -80,10 +80,10 @@ function OrderSheetDocRow({ formula, existing, s, canExportData }: { formula: an
     ? `생성됨 (${new Date(existing.updated_at || existing.created_at).toLocaleDateString("ko-KR")})`
     : "미생성";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
       <span style={{ width: 100, fontWeight: 800 }}>원료발주가처방</span>
       <span style={{ width: 170, fontSize: 13, color: existing ? "#16a34a" : "#94a3b8" }}>{statusText}</span>
-      <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+      <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
         {existing ? (
           <>
             <button className="v50-button-light" onClick={() => s.preview(existing)}>PDF 보기</button>
@@ -290,9 +290,9 @@ export default function DocumentPdfPanel() {
               </button>
               {expanded && (
                 <div style={{ padding: "2px 16px 4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>기준</span>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button
                         className={getBasis(f) === "MIX" ? "v50-button" : "v50-button-light"}
                         onClick={() => setBasis(f, "MIX")}
@@ -321,7 +321,7 @@ export default function DocumentPdfPanel() {
                   {/* 제조는 원처방이지만 서류는 공개처방(일반) 기준으로 발급해야 하는 예외 처방 지정 -
                       체크하면 위 "기준"이 이 처방을 펼칠 때마다 공개처방(일반)으로 기본 선택되고,
                       원처방으로 바꾸면 경고와 재확인이 뜬다(서류 발급 실수 방지). */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                     <span style={{ width: 100 }} />
                     <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: "#b45309", cursor: "pointer" }}>
                       <input
@@ -337,9 +337,9 @@ export default function DocumentPdfPanel() {
                       ⚠ 이 처방은 서류를 공개처방(일반) 기준으로 발급해야 하는 예외 처방입니다. 지금은 원처방 기준이 선택되어 있습니다.
                     </p>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>출력 언어</span>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button
                         className={getLang(f) === "BOTH" ? "v50-button" : "v50-button-light"}
                         onClick={() => setLang(f, "BOTH")}
@@ -399,10 +399,10 @@ export default function DocumentPdfPanel() {
                     s={s}
                     canExportData={auth.canExportData}
                   />
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", flexWrap: "wrap" }}>
                     <span style={{ width: 100, fontWeight: 800 }}>실험일지</span>
                     <span style={{ width: 170 }} />
-                    <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                    <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
                       {auth.canExportData && <button className="v50-button" onClick={() => s.downloadLabJournal(f)}>엑셀 다운로드</button>}
                     </div>
                   </div>

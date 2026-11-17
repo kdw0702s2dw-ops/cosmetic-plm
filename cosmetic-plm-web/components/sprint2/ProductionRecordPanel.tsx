@@ -336,7 +336,7 @@ export default function ProductionRecordPanel({ refreshTick }: { refreshTick?: n
                       <td>{s.resolveCreatedBy(h.created_by)}</td>
                       <td>{h.note || "-"}</td>
                       <td>
-                        <div style={{ display: "flex", gap: 4 }}>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                           <button className="v50-button-light" onClick={() => s.startEdit(h)}>수정</button>
                           <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => s.removeHistory(h.id!)}>삭제</button>
                         </div>

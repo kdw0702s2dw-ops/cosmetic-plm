@@ -369,7 +369,7 @@ export default function ProductionRecordListPanel({ refreshTick }: { refreshTick
                     <td>{r.microbial_status}</td>
                     <td>{r.note || "-"}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 4 }}>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                         <button className="v50-button-light" onClick={() => startEdit(r)}>수정</button>
                         <button className="v50-button-light" style={{ color: "#dc2626" }} onClick={() => handleDelete(r.id!)}>삭제</button>
                       </div>
