@@ -2,11 +2,11 @@
 
 import { supabaseProductionFinal } from "@/lib/supabaseProductionFinalClient";
 
-export type FunctionalClaim = "해당없음" | "주름기능성" | "미백기능성" | "이중기능성";
-export type TestProgressStatus = "해당없음" | "진행중" | "완료";
+export type FunctionalClaim = "해당없음" | "진행예정" | "주름기능성" | "미백기능성" | "이중기능성";
+export type TestProgressStatus = "해당없음" | "진행예정" | "진행중" | "완료";
 
-export const FUNCTIONAL_CLAIM_OPTIONS: FunctionalClaim[] = ["해당없음", "주름기능성", "미백기능성", "이중기능성"];
-export const TEST_PROGRESS_OPTIONS: TestProgressStatus[] = ["해당없음", "진행중", "완료"];
+export const FUNCTIONAL_CLAIM_OPTIONS: FunctionalClaim[] = ["해당없음", "진행예정", "주름기능성", "미백기능성", "이중기능성"];
+export const TEST_PROGRESS_OPTIONS: TestProgressStatus[] = ["해당없음", "진행예정", "진행중", "완료"];
 
 export type ShipmentRecord = {
   id: string;
