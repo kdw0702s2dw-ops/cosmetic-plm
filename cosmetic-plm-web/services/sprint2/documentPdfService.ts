@@ -313,8 +313,10 @@ function allergenSection(f: any, alerts: any[]) {
 // 미리 계산해 저장해 둔 표라서, 공개처방(일반/건조)처럼 별도로 저장된 BOM을 보여주는 문서에도 그
 // 값을 그대로 노출하면 basis와 실제로 다른(MIX 기준) 값이 나온다. 문서 빌더가 이미 resolveLinesForBasis()로
 // 구해둔 해당 basis의 lines/components에서 직접 알러젠 함량을 다시 집계해서, basis가 무엇이든 항상 그
-// 문서의 실제 기준에 맞는 값을 보여준다. 계산식(SUM(투입%×구성비/100))과 시장(target_market, 미지정
-// 시 KR) 필터링은 plm_calculate_allergen_alerts RPC(10_allergen_phase6_market_scope.sql)와 동일하게 맞춘다.
+// 문서의 실제 기준에 맞는 값을 보여준다. 계산식(SUM(투입%×구성비/100))은 plm_calculate_allergen_alerts
+// RPC와 동일하게 맞춘다. (2026-11-20 변경: 시장별 공식 리스트 매칭은 더 이상 쓰지 않는다 - EU 83종/
+// UK 26종처럼 시장마다 공식 리스트가 달라 계속 최신화해야 하는 데이터 의존을 없애기 위해, 표시
+// 의무 여부는 아래 computeBasisAllergenAlerts에서 is_allergen + 실제 계산 함량만으로 판단한다.)
 // 알러젠 식별 키: 공식 알러젠 목록(plm_allergen_master, allergen_id)에 매칭된 성분은 그 id를,
 // 매칭되지 않은(공급사 자료 기준으로만 등록된) 성분은 성분명을 정규화한 키를 쓴다. 총합 집계와
 // 전성분표 억제판정(buildInciListHtml)이 반드시 같은 로직으로 식별해야 어긋나지 않으므로 공용
@@ -362,13 +364,12 @@ function computeAllergenTotalsFromLinesAndComponents(lines: any[], components: a
   return totals;
 }
 
-async function fetchAllergenMasterByIds(ids: string[], market: string) {
+async function fetchAllergenMasterByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const { data, error } = await supabaseProductionFinal
     .from("plm_allergen_master")
     .select("id, allergen_name_en, allergen_name_kr")
-    .in("id", ids)
-    .eq("market", market);
+    .in("id", ids);
   if (error) throw error;
   return data || [];
 }
@@ -391,39 +392,28 @@ export async function computeBasisAllergenAlerts(formula: any, lines: any[], com
   const totals = computeAllergenTotalsFromLinesAndComponents(lines, components);
   if (totals.size === 0) return [];
 
-  const market = formula.target_market || "KR";
   const officialIds = Array.from(totals.values())
     .map((v) => v.allergen_id)
     .filter((id): id is string => !!id);
-  const masters = await fetchAllergenMasterByIds(officialIds, market);
+  const masters = await fetchAllergenMasterByIds(officialIds);
   const masterMap = new Map(masters.map((m) => [m.id, m]));
 
   const result: BasisAllergenAlert[] = [];
   for (const [key, v] of totals.entries()) {
     const percent = Number(v.percent.toFixed(8));
-    if (v.allergen_id) {
-      // 공식 알러젠 목록 매칭: RPC(plm_calculate_allergen_alerts)와 동일하게 target_market과
-      // 일치하는(마스터에서 조회되는) 알러젠만 포함한다.
-      const m = masterMap.get(v.allergen_id);
-      if (!m) continue;
-      result.push({
-        allergen_id: v.allergen_id,
-        allergen_name_en: m.allergen_name_en,
-        allergen_name_kr: m.allergen_name_kr,
-        formula_percent: percent,
-        label_required: percent >= threshold,
-      });
-    } else {
-      // 공식 목록 미매칭(공급사 자료 기준 알러젠) - market 개념이 없는 원료관리 등록값이므로
-      // 필터링 없이 항상 포함하고, 이름은 구성성분에 등록된 성분명을 그대로 쓴다.
-      result.push({
-        allergen_id: key,
-        allergen_name_en: v.inci_en || v.inci_kr || "(unnamed)",
-        allergen_name_kr: v.inci_kr || null,
-        formula_percent: percent,
-        label_required: percent >= threshold,
-      });
-    }
+    // 알러젠 여부는 원료관리에서 수동 체크한 is_allergen이 유일한 근거이고, 표시 의무 여부는
+    // 시장별 공식 리스트 매칭이 아니라 처방의 실제 계산 함량이 노출기준(threshold)을 넘는지로만
+    // 판단한다 - target_market/market은 더 이상 쓰지 않는다. allergen_id가 공식 목록에 매칭되면
+    // 공식 명칭을 쓰고, 매칭되지 않으면(공식 목록에 없거나 시장이 달라도) 구성성분에 등록된
+    // 성분명을 그대로 쓴다 - 매칭 실패를 이유로 결과에서 빠뜨리지 않는다.
+    const m = v.allergen_id ? masterMap.get(v.allergen_id) : undefined;
+    result.push({
+      allergen_id: v.allergen_id || key,
+      allergen_name_en: m?.allergen_name_en || v.inci_en || v.inci_kr || "(unnamed)",
+      allergen_name_kr: m ? m.allergen_name_kr : (v.inci_kr || null),
+      formula_percent: percent,
+      label_required: percent >= threshold,
+    });
   }
 
   return result.sort((a, b) => a.allergen_name_en.localeCompare(b.allergen_name_en));
