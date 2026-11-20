@@ -57,11 +57,14 @@ export async function fetchIngredientDictionary(params: {
 export async function fetchIngredientFunctionEntries(): Promise<
   Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "function_en">>
 > {
+  // order()로 정렬 기준을 명시해 조회 순서를 고정한다 - 이렇게 하지 않으면 동일한 CAS/이름을
+  // 공유하는 중복 항목이 있을 때 "어떤 행이 먼저 오는지"에 따라 매칭 결과가 바뀔 수 있다.
   const { data, error } = await supabaseProductionFinal
     .from("plm_ingredient_dictionary")
     .select("cas_no, inci_en, inci_kr, function_en")
     .eq("is_active", true)
-    .not("function_en", "is", null);
+    .not("function_en", "is", null)
+    .order("inci_en", { ascending: true });
   if (error) throw error;
   return (data || []) as Array<Pick<IngredientDictionaryItem, "cas_no" | "inci_en" | "inci_kr" | "function_en">>;
 }

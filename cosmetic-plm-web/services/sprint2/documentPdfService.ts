@@ -538,8 +538,18 @@ export function byRawComponents(components: any[]) {
 // 없으면 INCI명(영문/국문)으로 조회해 채운다. 원료관리의 구성성분/BOM 라인에 남아있는 자체 function
 // 필드는 입력 UI가 없어 사실상 항상 비어있으므로 더 이상 참조하지 않는다. 국문 효능은 쓰지 않고 항상
 // 영문(function_en)만 노출한다 - 바이어용 문서라 영문 표준 용어만 필요하다는 요청에 따른 것.
+// CAS 번호가 없는 성분은 사전/원료 등록 시 "-" 등 자리표시자를 쓰는 경우가 많다.
+// 이 값을 실제 CAS 번호처럼 취급하면, CAS가 없는 서로 다른 성분들이 모두 같은 자리표시자
+// 토큰 하나로 충돌하여(예: 먼저 로드된 아무 성분의 효능값을 나머지 전부가 잘못 물려받음)
+// 엉뚱한 효능(function_en)이 매칭되는 버그가 생긴다. 이런 자리표시자는 토큰에서 제외하여
+// CAS 없는 성분은 항상 이름(INCI) 기준 매칭으로 넘어가도록 한다.
+const CAS_PLACEHOLDER_PATTERN = /^-+$|^n\/?a$|^none$|^없음$|^미상$/i;
+
 function splitCasTokensForLookup(casNo?: string | null): string[] {
-  return (casNo || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return (casNo || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !CAS_PLACEHOLDER_PATTERN.test(s));
 }
 
 export type IngredientFunctionLookup = { casMap: Map<string, string>; nameMap: Map<string, string> };
