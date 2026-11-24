@@ -67,6 +67,9 @@ const emptyComp: Component = {
 export default function RawMaterialManager() {
   const auth = useSprint1Auth();
   const canWrite = auth.canWriteMaterials;
+  // 원료 문서(COA/MSDS 등) 업로드는 원료 자체의 생성/수정/삭제보다 넓게 허용한다 - QA도 업로드/교체
+  // 가능해야 하므로 canWriteMaterials 대신 canUploadMaterialDocs를 쓴다.
+  const canUploadDocs = auth.canUploadMaterialDocs;
   // "원료 목록"(목록+편집)과 "서류 현황"(문서 업로드 현황 점검) 두 화면을 탭으로 전환한다.
   const [activeView, setActiveView] = useState<"list" | "docStatus">("list");
   const [keyword, setKeyword] = useState("");
@@ -624,7 +627,7 @@ export default function RawMaterialManager() {
             아직 raw_material_id가 없어 표시하지 않는다(먼저 저장 후 다시 열면 나타남). */}
         {rm.id && (
           <div style={{ marginTop: 18 }}>
-            <RawMaterialDocUploader rawMaterialId={rm.id} rawCode={rm.raw_code} uploadedBy={auth.profile?.email} canWrite={canWrite} />
+            <RawMaterialDocUploader rawMaterialId={rm.id} rawCode={rm.raw_code} uploadedBy={auth.profile?.email} canWrite={canUploadDocs} canDelete={canWrite} />
           </div>
         )}
 

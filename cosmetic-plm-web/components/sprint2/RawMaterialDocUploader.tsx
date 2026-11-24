@@ -19,7 +19,8 @@ interface Props {
   rawMaterialId: string;
   rawCode: string;
   uploadedBy?: string; // 로그인 사용자 email 등 — 상위에서 주입
-  canWrite?: boolean; // Admin/Researcher만 true — false면 업로드/교체 버튼을 숨기고 조회만 허용
+  canWrite?: boolean; // Admin/Researcher/QA — false면 업로드/교체/메타 수정 UI를 숨기고 조회만 허용
+  canDelete?: boolean; // Admin/Researcher만 true — false면 삭제 버튼을 숨긴다(canWrite와 분리된 별도 권한)
 }
 
 const DOC_TYPES: DocType[] = ALL_DOC_TYPES;
@@ -68,9 +69,12 @@ function ExpiryBadge({ doc }: { doc: RawMaterialDocument | null }) {
 /**
  * 원료관리 상세/편집 화면에 배치하는 문서 업로드 위젯 (COA/MSDS/Composition/Allergen Sheet/IFRA).
  * 원료당 doc_type별 최신 1건만 유지 (재업로드 시 자동 교체).
- * 조회(파일 링크)는 canWrite와 무관하게 항상 보이고, 업로드/교체 버튼만 canWrite일 때만 노출한다.
+ * 조회(파일 링크)는 canWrite/canDelete와 무관하게 항상 보인다. 업로드/교체/메타 수정 UI는 canWrite일
+ * 때만, 삭제 버튼은 canDelete일 때만 노출한다 - 둘을 분리한 이유는 QA가 문서 업로드/교체는 가능하되
+ * 삭제는 불가능해야 하기 때문이다(RLS의 DELETE 정책도 Admin/Researcher로만 제한되어 있어, 분리하지
+ * 않으면 QA에게 삭제 버튼이 보이지만 눌러도 조용히 아무 일도 일어나지 않는 UX 버그가 생긴다).
  */
-export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploadedBy, canWrite = false }: Props) {
+export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploadedBy, canWrite = false, canDelete = false }: Props) {
   const [docs, setDocs] = useState<Record<DocType, RawMaterialDocument | null>>(emptyDocsState());
   const [loading, setLoading] = useState(true);
   const [uploadingType, setUploadingType] = useState<DocType | null>(null);
@@ -226,7 +230,7 @@ export default function RawMaterialDocUploader({ rawMaterialId, rawCode, uploade
                       />
                     </label>
                   )}
-                  {canWrite && (
+                  {canDelete && (
                     <button
                       type="button"
                       className="text-xs text-red-600 border border-red-200 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-50"

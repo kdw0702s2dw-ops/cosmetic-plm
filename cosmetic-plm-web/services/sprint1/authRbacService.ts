@@ -123,6 +123,14 @@ export function canWriteMaterials(role?: string | null) {
   return role === "Admin" || role === "Researcher";
 }
 
+// 원료관리의 원료 문서(COA/MSDS/Composition/Allergen Sheet/IFRA) 업로드/교체 전용 - 원료 자체의
+// 생성/수정/삭제(canWriteMaterials)와는 분리된 별도 권한이다. QA도 원료 문서를 업로드/교체할 수
+// 있어야 한다는 요청에 따라 Admin/Researcher 외에 QA도 포함한다(canWriteQuality와 같은 패턴).
+// plm_raw_material_documents RLS, storage.objects(raw-material-docs 버킷) RLS와 동일한 기준.
+export function canUploadMaterialDocs(role?: string | null) {
+  return role === "Admin" || role === "Researcher" || role === "QA";
+}
+
 // Production 역할 전용: 사이드바에서 부자재관리/원료관리/생산관리만 노출
 export function isProductionRole(role?: string | null) {
   return role === "Production";
