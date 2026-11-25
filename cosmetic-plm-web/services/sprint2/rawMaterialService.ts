@@ -119,7 +119,7 @@ export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListIt
 
   if (k) {
     q = q.or(
-      `raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`
+      `raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,trade_name.ilike.%${k}%,manufacturer.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`
     );
   }
   const { data, error } = await q;
@@ -141,14 +141,14 @@ export async function fetchRawMaterials(keyword = ""): Promise<RawMaterialListIt
   return results;
 }
 
-// 원료 목록 검색창 자동완성 (원료코드/원료명/INCI 국문·영문 매칭, ilike라 대소문자 구분 없음)
+// 원료 목록 검색창 자동완성 (원료코드/원료명/제조사/INCI 국문·영문 매칭, ilike라 대소문자 구분 없음)
 export async function searchRawMaterialsAutocomplete(keyword: string): Promise<RawMaterialListItem[]> {
   const k = keyword.trim();
   if (!k) return [];
   const { data, error } = await supabaseProductionFinal
     .from("v_plm_raw_material_list")
     .select("*")
-    .or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`)
+    .or(`raw_code.ilike.%${k}%,raw_name.ilike.%${k}%,manufacturer.ilike.%${k}%,inci_kr.ilike.%${k}%,inci_en.ilike.%${k}%,note.ilike.%${k}%`)
     .limit(15);
   if (error) throw error;
   let results = (data || []) as RawMaterialListItem[];
