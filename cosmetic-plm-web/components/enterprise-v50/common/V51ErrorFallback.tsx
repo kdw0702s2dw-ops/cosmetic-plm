@@ -20,7 +20,6 @@ export default function V51ErrorFallback({
             </div>
             <div className="v50-flow">
               <a className="v50-button" href="/enterprise">Workspace로 이동</a>
-              <a className="v50-button-light" href="/enterprise-v5/system-health">시스템 점검</a>
             </div>
           </section>
         </div>

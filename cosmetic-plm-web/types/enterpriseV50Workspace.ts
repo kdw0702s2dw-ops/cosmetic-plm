@@ -1,7 +1,0 @@
-export type FormulaWorkspaceDocType =
-  | "FORMULA_SHEET"
-  | "FULL_INGREDIENT_LIST"
-  | "INGREDIENT_COMPOSITION"
-  | "PRODUCT_SPEC"
-  | "COA"
-  | "MANUFACTURING_ORDER";
