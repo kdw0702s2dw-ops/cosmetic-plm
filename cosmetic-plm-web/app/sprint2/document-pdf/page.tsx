@@ -3,7 +3,7 @@ import DocumentPdfPanel from "@/components/sprint2/DocumentPdfPanel";
 
 export default function Page() {
   return (
-    <AuthGate>
+    <AuthGate pageKey="docs">
       <DocumentPdfPanel />
     </AuthGate>
   );

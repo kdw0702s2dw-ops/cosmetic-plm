@@ -23,7 +23,8 @@ Next.js 16 (App Router) + Supabase 기반 화장품 PLM 웹앱. 배포: Vercel (
 - 역할: `Admin`, `Researcher`, `QA`, `Viewer`, `Production` (plm_user_profiles.role, DB에 CHECK 제약 있음).
 - **이중 방어**: 권한은 (1) 프론트엔드에서 버튼/탭 숨김, (2) Supabase RLS 정책에서 실제 쓰기 차단, 두 군데 모두 맞춰야 함. 프론트만 고치고 RLS를 안 고치면 버튼은 안 보여도 다른 경로(직접 API 호출 등)로 뚫릴 수 있고, RLS만 고치면 화면에 에러만 뜨고 UX가 나쁨.
 - RLS 정책은 테이블별로 `<table>_read` (SELECT), `<table>_write` (ALL) 두 개 policy 쌍으로 되어 있고 `plm_has_role(text[])` 함수로 role을 체크하는 패턴이 `plm_*` 테이블 전반에 일관되게 적용돼 있음. 새 role 추가 시 이 패턴을 따라 Supabase MCP(`apply_migration`)로 적용.
-- Production 역할: 부자재관리·원료관리·생산관리 탭만 보임, 부자재/원료는 열람 전용(생성/수정/삭제 버튼 숨김 + RLS도 read-only), 생산관리는 읽기/쓰기 모두 허용.
+- 역할별 메뉴 노출은 `plm_role_page_access`(행이 있으면 숨김, Admin은 항상 전체)로 관리하며 Admin이 "권한설정" 화면에서 바꿀 수 있음 — 노출 여부만 바꾸고 쓰기 권한과는 무관. `/enterprise` 밖 단독 화면(`/sprint1/formula-core`, `/sprint2/*`)은 `AuthGate`의 `pageKey`로 같은 설정을 적용함.
+- Production 역할: 2026-11 기준 DB 설정상 부자재관리·통합 BOM·생산관리·생산실적 관리 탭이 보이고 원료관리는 숨김. 부자재는 열람 전용(생성/수정/삭제 버튼 숨김 + RLS도 read-only), 생산관리는 읽기/쓰기 모두 허용.
 
 ## 작업 시 주의
 - 로컬 저장소 인코딩은 LF(유닉스 개행)로 통일되어 있음. 파일 저장 도구에 따라 CRLF로 바뀌면 git diff가 파일 전체를 바꾼 것처럼 나오니, 커밋 전에 `git diff --stat`으로 변경 범위가 의도한 줄만 포함하는지 확인.
