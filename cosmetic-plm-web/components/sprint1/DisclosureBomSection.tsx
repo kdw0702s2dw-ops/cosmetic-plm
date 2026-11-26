@@ -60,6 +60,7 @@ export default function DisclosureBomSection({
   onSave,
   onReset,
   onOpenLoadModal,
+  canWrite,
 }: {
   variant: DisclosureVariant;
   lines: Line[] | null;
@@ -76,6 +77,8 @@ export default function DisclosureBomSection({
   onSave: () => void;
   onReset: () => void;
   onOpenLoadModal: () => void;
+  // 처방 쓰기 권한 - false면 저장/초기화/불러오기/라인 추가·삭제 버튼을 숨긴다(FormulaCorePanel과 같은 기준)
+  canWrite: boolean;
 }) {
   // 원료코드 검색 자동완성(원처방 BOM 편집의 searchRawForLine/pickRawForLine과 동일한 패턴) - 이 화면
   // 안에서만 쓰는 로컬 상태라 PUBLIC/DRY 탭을 오갈 때 헷갈리지 않도록 variant가 바뀌면 초기화한다.
@@ -187,8 +190,8 @@ export default function DisclosureBomSection({
           <span style={{ fontSize: 13, fontWeight: 800, color: Math.abs(total - 100) < 0.01 ? "#16a34a" : "#dc2626" }}>
             합계 {total}%
           </span>
-          <button type="button" className="v50-button-light" onClick={onOpenLoadModal}>처방 불러오기</button>
-          {waterLine && waterFillPercentage != null && (
+          {canWrite && <button type="button" className="v50-button-light" onClick={onOpenLoadModal}>처방 불러오기</button>}
+          {canWrite && waterLine && waterFillPercentage != null && (
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, background: "#eff6ff", padding: "4px 8px", borderRadius: 8 }}>
               <span style={{ color: "#1d4ed8" }}>
                 정제수 to 100: <b>{waterFillPercentage}%</b>
@@ -199,14 +202,14 @@ export default function DisclosureBomSection({
               </button>
             </span>
           )}
-          {customized && (
+          {canWrite && customized && (
             <button type="button" className="v50-button-light" onClick={onReset} disabled={loading}
               style={{ color: "#b45309" }} title={`저장된 별도 BOM을 지우고 ${fallbackHint} 값으로 되돌립니다`}>
               초기화
             </button>
           )}
-          <button type="button" className="v50-button-light" onClick={onAddLine}>+ 라인 추가</button>
-          <button type="button" className="v50-button" onClick={onSave} disabled={loading}>저장</button>
+          {canWrite && <button type="button" className="v50-button-light" onClick={onAddLine}>+ 라인 추가</button>}
+          {canWrite && <button type="button" className="v50-button" onClick={onSave} disabled={loading}>저장</button>}
         </div>
       </div>
 
@@ -328,7 +331,7 @@ export default function DisclosureBomSection({
                       title="서류(COA/MSDS 등)와 이 원료를 대조 확인했으면 체크"
                       onChange={(e) => onUpdateLine(line.line_no, { doc_verified: e.target.checked })} />
                   </td>
-                  <td><button type="button" className="v50-button-light" onClick={() => onRemoveLine(line.line_no)}>삭제</button></td>
+                  <td>{canWrite && <button type="button" className="v50-button-light" onClick={() => onRemoveLine(line.line_no)}>삭제</button>}</td>
                 </tr>
               );
             })}

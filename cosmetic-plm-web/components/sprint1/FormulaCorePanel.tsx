@@ -57,9 +57,12 @@ function buildTooltip(hits: RegulationHit[]) {
 }
 
 export default function FormulaCorePanel() {
-  const s = useSprint1FormulaCore();
   const auth = useSprint1Auth();
-  const canWritePhoto = auth.canWriteFormula;
+  // 처방 쓰기 권한(Admin/Researcher) - 처방 테이블 RLS(plm_formulas/plm_formula_lines*_write)와 같은 기준.
+  // false면 저장/삭제/리비전 생성/BOM 편집 버튼을 숨기고, 훅의 저장 함수도 호출을 거부한다(이중 방어).
+  const canWrite = auth.canWriteFormula;
+  const canWritePhoto = canWrite;
+  const s = useSprint1FormulaCore({ canWrite });
   const formulaPhotoFileRef = useRef<HTMLInputElement | null>(null);
   const [uploadingFormulaPhoto, setUploadingFormulaPhoto] = useState(false);
   async function handleFormulaPhotoPick(file: File) {
@@ -250,9 +253,13 @@ export default function FormulaCorePanel() {
           <p className="v50-desc">처방을 등록·수정하고 BOM을 편집하면 합계·원가·전성분이 자동으로 계산됩니다.</p>
         </div>
         <div className="v50-flow">
-          <button onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.newFormula(); }}>신규 처방</button>
-          <button onClick={handleSaveClick} disabled={s.loading}>저장</button>
-          <button onClick={s.removeFormula} disabled={!s.formula.formula_code || s.loading}>삭제</button>
+          {canWrite && (
+            <>
+              <button onClick={() => { setShowNewRevision(false); setNewRevisionDraft(""); s.newFormula(); }}>신규 처방</button>
+              <button onClick={handleSaveClick} disabled={s.loading}>저장</button>
+              <button onClick={s.removeFormula} disabled={!s.formula.formula_code || s.loading}>삭제</button>
+            </>
+          )}
           {/* 처방 목록이 길어져 스크롤이 길어지는 문제 대응 - 처방 기본정보 섹션으로 바로 이동 */}
           <a href="#formula-basic-info">처방 기본정보로 이동</a>
         </div>
@@ -482,7 +489,7 @@ export default function FormulaCorePanel() {
             {s.selected ? (
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input className="v50-input" value={s.formula.revision || ""} disabled style={{ background: "#f1f5f9", color: "#64748b" }} />
-                <button type="button" className="v50-button-light" onClick={() => setShowNewRevision((v) => !v)}>새 Revision 생성</button>
+                {canWrite && <button type="button" className="v50-button-light" onClick={() => setShowNewRevision((v) => !v)}>새 Revision 생성</button>}
               </div>
             ) : (
               <input className="v50-input" value={s.formula.revision || ""} onChange={(e) => updateFormula("revision", e.target.value)} />
@@ -556,7 +563,7 @@ export default function FormulaCorePanel() {
           </div>
         </div>
 
-        {showNewRevision && (
+        {canWrite && showNewRevision && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, padding: 10, background: "#eff6ff", borderRadius: 10 }}>
             <span style={{ fontWeight: 800, fontSize: 13 }}>새 Revision 값</span>
             <input className="v50-input" style={{ maxWidth: 200 }} placeholder="예: V2" value={newRevisionDraft} onChange={(e) => setNewRevisionDraft(e.target.value)} />
@@ -611,8 +618,8 @@ export default function FormulaCorePanel() {
             <span style={{ fontSize: 13, fontWeight: 800, color: Math.abs(s.total - 100) < 0.01 ? "#16a34a" : "#dc2626" }}>
               합계 {s.total}%
             </span>
-            <button type="button" className="v50-button-light" onClick={() => setShowLoadModal(true)}>처방 불러오기</button>
-            {s.waterLine && s.waterFillPercentage != null && (
+            {canWrite && <button type="button" className="v50-button-light" onClick={() => setShowLoadModal(true)}>처방 불러오기</button>}
+            {canWrite && s.waterLine && s.waterFillPercentage != null && (
               <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, background: "#eff6ff", padding: "4px 8px", borderRadius: 8 }}>
                 <span style={{ color: "#1d4ed8" }}>
                   정제수 to 100: <b>{s.waterFillPercentage}%</b>
@@ -623,7 +630,7 @@ export default function FormulaCorePanel() {
                 </button>
               </span>
             )}
-            {outdatedRawLines.length > 0 && (
+            {canWrite && outdatedRawLines.length > 0 && (
               <button
                 type="button"
                 className="v50-button-light"
@@ -634,11 +641,11 @@ export default function FormulaCorePanel() {
                 ⚠ 변경된 원료정보 일괄 반영 ({outdatedRawLines.length})
               </button>
             )}
-            <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>
+            {canWrite && <button className="v50-button-light" onClick={s.addLine}>+ 라인 추가</button>}
             {/* 삭제 버튼이 테이블 각 행 우측 끝에 있어, 저장 버튼을 테이블 바로 아래 우측에 두면
                 같은 위치(마지막 줄 삭제 버튼 바로 아래)로 겹쳐서 실수로 삭제를 누르는 문제가 있었음.
                 삭제 컬럼과 겹치지 않도록 저장 버튼을 테이블 상단(이 헤더 줄)으로 옮김. */}
-            <button className="v50-button" onClick={handleSaveClick} disabled={s.loading}>저장</button>
+            {canWrite && <button className="v50-button" onClick={handleSaveClick} disabled={s.loading}>저장</button>}
           </div>
         </div>
         <p style={{ color: "#64748b", fontSize: 13 }}>원료명 칸에 입력하면 검색 결과가 뜨고, 선택하면 INCI·단가가 자동으로 채워집니다. 최종 반영은 "저장" 버튼을 눌러야 합니다.</p>
@@ -774,7 +781,7 @@ export default function FormulaCorePanel() {
                       );
                     })()}
                   </td>
-                  <td><button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button></td>
+                  <td>{canWrite && <button className="v50-button-light" onClick={() => s.removeLine(line.line_no)}>삭제</button>}</td>
                 </tr>
                 );
               })}
@@ -812,10 +819,11 @@ export default function FormulaCorePanel() {
           onSave={() => handleSaveDisclosure(s.inciBasis as DisclosureVariant)}
           onReset={() => handleResetDisclosure(s.inciBasis as DisclosureVariant)}
           onOpenLoadModal={() => setShowLoadModal(true)}
+          canWrite={canWrite}
         />
       )}
 
-      {showLoadModal && (
+      {canWrite && showLoadModal && (
         <FormulaLoadModal onClose={() => setShowLoadModal(false)} onPick={handlePickLoadFormula} />
       )}
 

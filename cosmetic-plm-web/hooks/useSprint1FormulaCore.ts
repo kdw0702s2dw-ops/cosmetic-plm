@@ -74,7 +74,11 @@ function calcCost(line: Sprint1FormulaLine) {
   return Number(((Number(line.percentage || 0) / 100) * Number(line.unit_price || 0)).toFixed(4));
 }
 
-export function useSprint1FormulaCore() {
+// 처방 쓰기 권한이 없는 역할이 저장류 함수를 호출했을 때의 안내 - 버튼은 화면에서 이미 숨기지만,
+// 다른 경로로 호출돼도 요청을 보내지 않도록 함수 단에서도 한 번 더 막는다(DB는 RLS가 최종 차단).
+const NO_WRITE_MSG = "처방 수정 권한이 없습니다.";
+
+export function useSprint1FormulaCore({ canWrite }: { canWrite: boolean }) {
   const [formulas, setFormulas] = useState<any[]>([]);
   const [lines, setLines] = useState<Sprint1FormulaLine[]>([]);
   const [savedLineNos, setSavedLineNos] = useState<number[]>([]);
@@ -315,6 +319,10 @@ export function useSprint1FormulaCore() {
   }
 
   async function saveDisclosureBom(variant: DisclosureVariant): Promise<{ ok: boolean; message: string }> {
+    if (!canWrite) {
+      setMessage(NO_WRITE_MSG);
+      return { ok: false, message: NO_WRITE_MSG };
+    }
     if (!formula.formula_code || !formula.revision) {
       const msg = "처방을 먼저 여세요.";
       setMessage(msg);
@@ -339,6 +347,10 @@ export function useSprint1FormulaCore() {
   }
 
   async function resetDisclosureBom(variant: DisclosureVariant): Promise<{ ok: boolean; message: string } | undefined> {
+    if (!canWrite) {
+      setMessage(NO_WRITE_MSG);
+      return { ok: false, message: NO_WRITE_MSG };
+    }
     if (!formula.formula_code || !formula.revision) return undefined;
     if (!confirm(`${VARIANT_LABEL[variant]}을(를) 초기화하시겠습니까? 저장된 별도 BOM이 삭제되고, 다시 ${variant === "PUBLIC" ? "원처방" : "자동계산"} 값을 따라가게 됩니다.`)) {
       return undefined;
@@ -474,6 +486,10 @@ export function useSprint1FormulaCore() {
   }
 
   async function saveFormula(): Promise<{ ok: boolean; message: string } | undefined> {
+    if (!canWrite) {
+      setMessage(NO_WRITE_MSG);
+      return { ok: false, message: NO_WRITE_MSG };
+    }
     if (!formula.formula_code || !formula.formula_name) {
       const msg = "처방코드와 처방명은 필수입니다.";
       setMessage(msg);
@@ -577,6 +593,10 @@ export function useSprint1FormulaCore() {
   // (기존 Revision 행은 건드리지 않음 - 처방코드가 바뀔 때만 새 처방이 생긴다는 원칙과 동일하게,
   // Revision도 이 명시적인 액션을 통해서만 새로 생긴다).
   async function createNewRevision(newRevision: string): Promise<{ ok: boolean; message: string }> {
+    if (!canWrite) {
+      setMessage(NO_WRITE_MSG);
+      return { ok: false, message: NO_WRITE_MSG };
+    }
     const trimmed = newRevision.trim();
     if (!formula.formula_code) {
       const msg = "처방을 먼저 여세요.";
@@ -651,6 +671,10 @@ export function useSprint1FormulaCore() {
   }
 
   async function removeFormula() {
+    if (!canWrite) {
+      setMessage(NO_WRITE_MSG);
+      return;
+    }
     if (!formula.formula_code) return;
     if (!confirm("처방을 삭제 처리하시겠습니까?")) return;
     setLoading(true);
