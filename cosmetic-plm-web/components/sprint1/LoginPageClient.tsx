@@ -34,6 +34,9 @@ export default function LoginPageClient() {
         setMessage("Supabase Auth 실패: 이메일 인증이 안 되어 있습니다. Confirm Email을 OFF로 하거나 해당 사용자를 Confirm 처리하세요.");
       } else if (lower.includes("failed to fetch") || lower.includes("network")) {
         setMessage("Supabase 연결 실패: 환경변수 NEXT_PUBLIC_SUPABASE_URL / ANON KEY 또는 도메인 연결을 확인하세요.");
+      } else if (raw.includes("관리자에게 문의하세요")) {
+        // 등록되지 않은 계정/비활성 계정 안내는 원문 그대로 보여준다.
+        setMessage(raw);
       } else {
         setMessage(`로그인 실패 원문: ${raw}`);
       }

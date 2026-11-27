@@ -14,6 +14,7 @@ import {
   isProductionRole,
   ensureMyProfile,
   getCurrentSession,
+  UNREGISTERED_ACCOUNT_MESSAGE,
   signOutPlm,
   touchLastActive,
   type PlmUserProfile,
@@ -26,6 +27,8 @@ export function useSprint1Auth() {
   const [sessionReady, setSessionReady] = useState(false);
   const [message, setMessage] = useState("인증 확인 중");
   const [loading, setLoading] = useState(true);
+  // 로그인 세션은 있지만 plm_user_profiles에 행이 없는 계정(관리자가 등록하지 않은 계정)
+  const [unregistered, setUnregistered] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureUploading, setSignatureUploading] = useState(false);
   const [signatureMessage, setSignatureMessage] = useState("");
@@ -46,20 +49,27 @@ export function useSprint1Auth() {
       }
 
       const p = await ensureMyProfile();
-      setProfile(p);
-      setMessage(p?.is_active ? `${p.email || ""} / ${p.role}` : "비활성 계정입니다.");
-      if (p) {
-        // 성공/실패 어느 쪽이든 null에서 벗어나야(=pageAccessLoaded) 한다 - 실패 시에는 "모름"을
-        // 영원히 유지해서 메뉴를 계속 숨기는 대신(사소한 네트워크 오류로 화면 전체가 막히는 사고 방지),
-        // 빈 Set(=전부 보임)으로 안전하게 폴백한다. 이 기능은 화면 노출만 바꿀 뿐 실제 쓰기/삭제 권한은
-        // RLS가 별도로 막고 있어서, "불러오기 실패 시 전부 보임"이 보안 문제가 되지는 않는다.
-        fetchHiddenPagesForRole(p.role).then(setHiddenPages).catch(() => setHiddenPages(new Set()));
-        getMySignatureUrl().then(setSignatureUrl).catch(() => {});
-        // "마지막 로그인"(last_sign_in_at)만으로는 실제 사용 여부를 알 수 없어서(세션이 계속 유지되는
-        // 구조라 재로그인 없이 몇 주씩 접속 상태 유지 가능) 화면 진입 시 "마지막 활동" 시각을 갱신한다.
-        // 실패해도 화면 사용 자체엔 지장 없는 부가 정보라 조용히 무시한다.
-        touchLastActive().catch(() => {});
+      if (!p) {
+        // 등록되지 않은 계정은 세션을 남겨두지 않는다(로그아웃 실패는 안내 표시에 지장 없으니 무시).
+        setProfile(null);
+        setUnregistered(true);
+        setMessage(UNREGISTERED_ACCOUNT_MESSAGE);
+        await signOutPlm().catch(() => {});
+        return;
       }
+      setUnregistered(false);
+      setProfile(p);
+      setMessage(p.is_active ? `${p.email || ""} / ${p.role}` : "비활성 계정입니다.");
+      // 성공/실패 어느 쪽이든 null에서 벗어나야(=pageAccessLoaded) 한다 - 실패 시에는 "모름"을
+      // 영원히 유지해서 메뉴를 계속 숨기는 대신(사소한 네트워크 오류로 화면 전체가 막히는 사고 방지),
+      // 빈 Set(=전부 보임)으로 안전하게 폴백한다. 이 기능은 화면 노출만 바꿀 뿐 실제 쓰기/삭제 권한은
+      // RLS가 별도로 막고 있어서, "불러오기 실패 시 전부 보임"이 보안 문제가 되지는 않는다.
+      fetchHiddenPagesForRole(p.role).then(setHiddenPages).catch(() => setHiddenPages(new Set()));
+      getMySignatureUrl().then(setSignatureUrl).catch(() => {});
+      // "마지막 로그인"(last_sign_in_at)만으로는 실제 사용 여부를 알 수 없어서(세션이 계속 유지되는
+      // 구조라 재로그인 없이 몇 주씩 접속 상태 유지 가능) 화면 진입 시 "마지막 활동" 시각을 갱신한다.
+      // 실패해도 화면 사용 자체엔 지장 없는 부가 정보라 조용히 무시한다.
+      touchLastActive().catch(() => {});
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "인증 확인 오류");
       setProfile(null);
@@ -104,6 +114,7 @@ export function useSprint1Auth() {
     message,
     loading,
     isLoggedIn: !!profile,
+    unregistered,
     canView: canView(profile?.role),
     canWriteFormula: canWriteFormula(profile?.role),
     canManageUsers: canManageUsers(profile?.role),

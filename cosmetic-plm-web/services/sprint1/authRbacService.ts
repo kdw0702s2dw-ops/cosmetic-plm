@@ -38,7 +38,11 @@ export async function signInPlm(email: string, password: string) {
   }
 
   const profile = await ensureMyProfile();
-  if (!profile?.is_active) {
+  if (!profile) {
+    await supabaseProductionFinal.auth.signOut();
+    throw new Error(UNREGISTERED_ACCOUNT_MESSAGE);
+  }
+  if (!profile.is_active) {
     await supabaseProductionFinal.auth.signOut();
     throw new Error("비활성 계정입니다. 관리자에게 문의하세요.");
   }
@@ -77,30 +81,16 @@ export async function getMyProfile() {
   return data as PlmUserProfile | null;
 }
 
+export const UNREGISTERED_ACCOUNT_MESSAGE = "PLM에 등록되지 않은 계정입니다. 관리자에게 문의하세요.";
+
+/**
+ * 내 프로필을 조회만 한다(없으면 null). 예전에는 프로필이 없으면 여기서 활성 Researcher 프로필을 직접
+ * 만들었지만, 로그인 계정이면 누구나 스스로 권한을 얻는 경로가 되어 제거했다. 프로필은 관리자가
+ * 사용자 권한관리(/api/admin/users)에서 계정을 만들 때 함께 생성된다. 호출부 호환을 위해 이름은 유지.
+ */
 export async function ensureMyProfile() {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  const existing = await getMyProfile();
-  if (existing) return existing;
-
-  const { data, error } = await supabaseProductionFinal
-    .from("plm_user_profiles")
-    .insert({
-      id: user.id,
-      email: user.email,
-      display_name: user.email?.split("@")[0] || "User",
-      role: "Researcher",
-      is_active: true,
-    })
-    .select("*")
-    .single();
-
-  if (error) throw error;
-  return data as PlmUserProfile;
+  return getMyProfile();
 }
-
-export const getOrCreateMyProfile = ensureMyProfile;
 
 export function canWriteFormula(role?: string | null) {
   return role === "Admin" || role === "Researcher";

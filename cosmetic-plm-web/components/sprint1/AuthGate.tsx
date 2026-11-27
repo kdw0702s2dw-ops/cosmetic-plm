@@ -88,6 +88,16 @@ export default function AuthGate({ children, pageKey }: { children: ReactNode; p
 
   if (auth.loading || !auth.sessionReady) return <LoadingScreen />;
 
+  if (auth.unregistered) {
+    return (
+      <GateMessage
+        title="등록되지 않은 계정입니다"
+        desc="PLM에 등록되지 않은 계정입니다. 관리자에게 문의하세요."
+        action={<a className="v50-button" href="/login">로그인으로 이동</a>}
+      />
+    );
+  }
+
   if (!auth.isLoggedIn || !auth.canView) {
     return (
       <GateMessage
